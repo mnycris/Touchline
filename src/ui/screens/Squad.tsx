@@ -13,9 +13,54 @@ import { formLabel, moraleLevel } from '../../domain/ratings'
 import { wageBill, loanedOut } from '../../engine/world/userActions'
 import { yearsLeft } from '../../engine/world/transfers'
 import { fmtDate } from '../../domain/dates'
+import { callName } from '../../engine/match/commentary'
 
 type View = 'overview' | 'status' | 'stats' | 'contract' | 'cards'
-type Sort = 'pos' | 'ovr' | 'age' | 'value' | 'pot'
+type Sort = 'pos' | 'ovr' | 'age' | 'value' | 'pot' | 'apps' | 'goals' | 'assists' | 'rating' | 'energy' | 'sharp' | 'morale' | 'wage' | 'expiry'
+const GROUP_NAME: Record<string, string> = { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', ATT: 'Forwards' }
+
+/** Columns per view: header label, sort key, cell renderer. Tap a header to sort by it. */
+type Col = { k: Sort; label: string; w: number; cell: (w: World, p: Player) => React.ReactNode }
+const pct = (v: number) => <span className="sq-meter"><i style={{ width: `${Math.max(4, Math.min(100, v))}%`, background: v >= 75 ? 'var(--pos)' : v >= 50 ? 'var(--warn)' : 'var(--neg)' }} /><b className="num">{Math.round(v)}</b></span>
+const COLS: Partial<Record<View, Col[]>> = {
+  status: [
+    { k: 'energy', label: 'Enrg', w: 42, cell: (_w, p) => pct(p.fitness) },
+    { k: 'sharp', label: 'Shrp', w: 42, cell: (_w, p) => pct(p.sharpness) },
+    { k: 'morale', label: 'Mor', w: 42, cell: (_w, p) => pct(p.morale) },
+  ],
+  stats: [
+    { k: 'apps', label: 'Apps', w: 32, cell: (_w, p) => <span className="num">{totals(p).apps}</span> },
+    { k: 'goals', label: 'G', w: 22, cell: (_w, p) => <span className="num b">{totals(p).goals}</span> },
+    { k: 'assists', label: 'A', w: 22, cell: (_w, p) => <span className="num">{totals(p).assists}</span> },
+    { k: 'rating', label: 'Avg', w: 38, cell: (_w, p) => { const t = totals(p); return t.rated ? <span className="sq-rt num" style={{ background: ratingBg(avgRating(t)) }}>{avgRating(t).toFixed(1)}</span> : <span className="dim">–</span> } },
+  ],
+  contract: [
+    { k: 'wage', label: 'Wage', w: 50, cell: (_w, p) => <span className="num">{fmtMoney(p.contract.wage, { short: true })}</span> },
+    { k: 'expiry', label: 'Until', w: 38, cell: (w, p) => { const yl = yearsLeft(w, p); return <span className="num b" style={{ color: yl <= 0 ? 'var(--neg)' : yl <= 1 ? 'var(--warn)' : undefined }}>{p.contract.until + 1}</span> } },
+    { k: 'value', label: 'Value', w: 48, cell: (_w, p) => <span className="num">{fmtMoney(p.value, { short: true })}</span> },
+  ],
+}
+const ratingBg = (v: number) => (v >= 7.5 ? '#0db36b' : v >= 7 ? '#3cc26a' : v >= 6.5 ? '#f29b1d' : '#ef6b2c')
+
+function sortKey(w: World, p: Player, k: Sort): number {
+  const t = () => totals(p)
+  switch (k) {
+    case 'pos': return POS_ORDER[p.positions[0]] * 1000 - p.ovr
+    case 'ovr': return -p.ovr
+    case 'pot': return -p.pot
+    case 'age': return -ageOf(w, p)
+    case 'value': return -p.value
+    case 'apps': return -t().apps
+    case 'goals': return -t().goals * 100 - t().assists
+    case 'assists': return -t().assists * 100 - t().goals
+    case 'rating': { const x = t(); return x.rated ? -avgRating(x) : 99 }
+    case 'energy': return p.fitness
+    case 'sharp': return p.sharpness
+    case 'morale': return p.morale
+    case 'wage': return -p.contract.wage
+    case 'expiry': return p.contract.until * 1000 - p.ovr
+  }
+}
 
 export function SquadHub() {
   const w = useWorld()
@@ -27,18 +72,18 @@ export function SquadHub() {
   const squad = rosterOf(w, club.id)
   const list = useMemo(() => {
     const l = squad.filter((p) => grp === 'ALL' || POS_GROUP[p.positions[0]] === grp)
-    const s = [...l]
-    if (sort === 'pos') s.sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)
-    if (sort === 'ovr') s.sort((a, b) => b.ovr - a.ovr)
-    if (sort === 'pot') s.sort((a, b) => b.pot - a.pot)
-    if (sort === 'age') s.sort((a, b) => a.dob.localeCompare(b.dob) * -1)
-    if (sort === 'value') s.sort((a, b) => b.value - a.value)
-    return s
+    return [...l].sort((a, b) => sortKey(w, a, sort) - sortKey(w, b, sort) || b.ovr - a.ovr)
   }, [squad.length, grp, sort, w.date, useGame.getState().v])
   const avgOvr = squad.length ? Math.round(squad.reduce((a, p) => a + p.ovr, 0) / squad.length) : 0
   const avgAge = squad.length ? (squad.reduce((a, p) => a + ageOf(w, p), 0) / squad.length).toFixed(1) : '0'
   const bill = wageBill(w)
+  const injured = squad.filter((p) => p.injury).length, banned = squad.filter((p) => p.suspensions.length).length
+  const unhappy = squad.filter((p) => p.morale < 40).length, expiring = squad.filter((p) => yearsLeft(w, p) <= 0 && !p.loan).length
+  const cols = COLS[view]
+  const grouped = sort === 'pos' && grp === 'ALL' && view !== 'cards'
+  const sections = grouped ? (['GK', 'DEF', 'MID', 'ATT'] as const).map((g) => ({ g, ps: list.filter((p) => POS_GROUP[p.positions[0]] === g) })).filter((x) => x.ps.length) : [{ g: '', ps: list }]
   if (w.flags.unemployed) return <Screen title="Squad" right={<HubActions />}><Empty icon="squad" title="No club" text="Find a new job to manage a squad." /></Screen>
+  const setView2 = (v: View) => { setView(v); if (!COLS[v]?.some((c) => c.k === sort) && !['pos', 'ovr', 'pot', 'age', 'value'].includes(sort)) setSort('pos') }
   return (
     <Screen title={<div className="row" style={{ gap: 10 }}><Badge club={club} size={30} /><div className="title">Squad</div></div>} right={<HubActions />}>
       <div className="pad">
@@ -54,23 +99,46 @@ export function SquadHub() {
           <QuickBtn icon="development" label="Develop" onClick={() => go({ name: 'development' })} />
           <QuickBtn icon="contract" label="Contracts" onClick={() => go({ name: 'contracts' })} />
         </div>
+        {(injured || banned || unhappy || expiring) ? (
+          <button className="sq-attn" onClick={() => { haptic(); go({ name: 'squadStatus' }) }}>
+            {injured > 0 && <span className="neg"><Icon name="injury" size={12} /> {injured} injured</span>}
+            {banned > 0 && <span className="neg"><Icon name="red" size={12} /> {banned} suspended</span>}
+            {unhappy > 0 && <span className="warn"><Icon name="morale" size={12} /> {unhappy} unhappy</span>}
+            {expiring > 0 && <span className="warn"><Icon name="contract" size={12} /> {expiring} expiring</span>}
+            <Icon name="forward" size={14} color="var(--t3)" />
+          </button>
+        ) : null}
       </div>
       <div className="pad" style={{ marginTop: 12 }}>
-        <Seg small items={[{ id: 'cards', label: 'Cards' }, { id: 'overview', label: 'List' }, { id: 'status', label: 'Status' }, { id: 'stats', label: 'Stats' }, { id: 'contract', label: 'Deal' }]} value={view} onChange={setView} />
+        <Seg small items={[{ id: 'cards', label: 'Cards' }, { id: 'overview', label: 'List' }, { id: 'status', label: 'Status' }, { id: 'stats', label: 'Stats' }, { id: 'contract', label: 'Deal' }]} value={view} onChange={setView2} />
       </div>
-      <div style={{ marginTop: 10 }} className="row between">
+      <div className="sq-tools">
         <Chips items={[{ id: 'ALL', label: 'All' }, { id: 'GK', label: 'GK' }, { id: 'DEF', label: 'DEF' }, { id: 'MID', label: 'MID' }, { id: 'ATT', label: 'ATT' }]} value={grp} onChange={setGrp} />
-      </div>
-      <div className="chips" style={{ marginTop: 6 }}>
-        <span className="tiny dim" style={{ alignSelf: 'center' }}>Sort</span>
-        {(['pos', 'ovr', 'pot', 'age', 'value'] as Sort[]).map((s) => <button key={s} className={`chip ${sort === s ? 'on' : ''}`} style={{ height: 26 }} onClick={() => { haptic(); setSort(s) }}>{s === 'pos' ? 'Position' : s === 'ovr' ? 'OVR' : s === 'pot' ? 'POT' : s === 'age' ? 'Age' : 'Value'}</button>)}
+        {!cols && (
+          <div className="chips" style={{ marginTop: 6 }}>
+            <span className="tiny dim" style={{ alignSelf: 'center' }}>Sort</span>
+            {(['pos', 'ovr', 'pot', 'age', 'value'] as Sort[]).map((k) => <button key={k} className={`chip ${sort === k ? 'on' : ''}`} style={{ height: 26 }} onClick={() => { haptic(); setSort(k) }}>{k === 'pos' ? 'Position' : k === 'ovr' ? 'OVR' : k === 'pot' ? 'POT' : k === 'age' ? 'Age' : 'Value'}</button>)}
+          </div>
+        )}
       </div>
       <div className="pad" style={{ marginTop: 10 }}>
         {view === 'cards' ? (
           <div className="pcard-grid stagger">{list.map((p) => <PlayerCard key={p.id} w={w} p={p} />)}</div>
         ) : (
-          <div className="card list">
-            {list.map((p) => <SquadRow key={p.id} w={w} p={p} view={view} />)}
+          <div className="card list sq-list">
+            {cols && (
+              <div className="sq-head">
+                <button className={`sq-h-name ${sort === 'pos' ? 'on' : ''}`} onClick={() => { haptic(); setSort('pos') }}>Player</button>
+                {cols.map((c) => <button key={c.k} className={sort === c.k ? 'on' : ''} style={{ width: c.w }} onClick={() => { haptic(); setSort(c.k) }}>{c.label}{sort === c.k ? ' ▾' : ''}</button>)}
+                <span style={{ width: 34 }} className={sort === 'ovr' ? 'on' : ''} onClick={() => { haptic(); setSort('ovr') }}>OVR</span>
+              </div>
+            )}
+            {sections.map((sec) => (
+              <div key={sec.g || 'all'}>
+                {sec.g && <div className="sq-sec"><span>{GROUP_NAME[sec.g]}</span><span className="dim">{sec.ps.length}</span></div>}
+                {sec.ps.map((p) => <SquadRow key={p.id} w={w} p={p} view={view} cols={cols} />)}
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -105,27 +173,26 @@ function QuickBtn({ icon, label, onClick }: { icon: string; label: string; onCli
   return <button className="card tap mini-btn" onClick={() => { haptic(); onClick() }}><Icon name={icon} size={20} color="var(--club2)" /><span>{label}</span></button>
 }
 
-export function SquadRow({ w, p, view = 'overview', onClick, right }: { w: World; p: Player; view?: View; onClick?: () => void; right?: React.ReactNode }) {
+export function SquadRow({ w, p, view = 'overview', onClick, right, cols }: { w: World; p: Player; view?: View; onClick?: () => void; right?: React.ReactNode; cols?: Col[] }) {
   const go = useGame((s) => s.go)
   const st = playerStatus(w, p)
   const club = w.clubs[p.clubId]
-  const t = totals(p)
-  const yl = yearsLeft(w, p)
+  const captain = p.id === club?.sheets.find((s) => s.id === club.activeSheet)?.captain
   return (
-    <button className="li tap squad-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => { haptic(); onClick ? onClick() : go({ name: 'player', params: { id: p.id } }) }}>
+    <button className={`li tap squad-row ${cols ? 'has-cols' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => { haptic(); onClick ? onClick() : go({ name: 'player', params: { id: p.id } }) }}>
       <div style={{ position: 'relative' }}>
-        <Face p={p} size={44} radius={11} club={club} />
+        <Face p={p} size={cols ? 34 : 44} radius={cols ? 10 : 11} club={club} />
         {st.key !== 'ok' && <span className="face-badge" style={{ background: st.color }}><Icon name={st.icon} size={10} color="#fff" /></span>}
       </div>
       <div className="meta">
-        <div className="t ellipsis">{p.name}{p.id === club?.sheets.find((s) => s.id === club.activeSheet)?.captain && <span className="cap">C</span>}</div>
-        {view === 'overview' && <div className="s ellipsis">{ageOf(w, p)} yrs · {p.contract.role} · {fmtMoney(p.value, { short: true })}</div>}
-        {view === 'status' && <div className="row tight" style={{ marginTop: 4, gap: 10 }}><Meter icon="fitness" v={p.fitness} /><Meter icon="sharpness" v={p.sharpness} /><Meter icon="morale" v={p.morale} /></div>}
-        {view === 'stats' && <div className="s">{t.apps} apps · {t.goals} G · {t.assists} A · {t.rated ? avgRating(t).toFixed(2) : '–'} avg</div>}
-        {view === 'contract' && <div className="s" style={{ color: yl <= 1 ? 'var(--warn)' : undefined }}>{fmtMoney(p.contract.wage)}/wk · until {p.contract.until + 1}{p.contract.releaseClause ? ` · RC ${fmtMoney(p.contract.releaseClause, { short: true })}` : ''}</div>}
-        {view === 'status' && st.key !== 'ok' && <div className="tiny" style={{ color: st.color, marginTop: 3 }}>{st.label}</div>}
+        <div className="t ellipsis">{cols ? callName(p.name) : p.name}{captain && <span className="cap">C</span>}</div>
+        {cols ? <div className="s ellipsis">{p.positions[0]} · {ageOf(w, p)}{st.key !== 'ok' ? <span style={{ color: st.color }}> · {st.label}</span> : view === 'contract' ? ` · ${p.contract.role}` : ''}</div>
+          : view === 'overview' ? <div className="s ellipsis">{ageOf(w, p)} yrs · {p.contract.role} · {fmtMoney(p.value, { short: true })}{st.key !== 'ok' ? <span style={{ color: st.color }}> · {st.label}</span> : null}</div> : null}
       </div>
-      {right ?? <>
+      {cols ? <>
+        {cols.map((c) => <span key={c.k} className="sq-cell" style={{ width: c.w }}>{c.cell(w, p)}</span>)}
+        <span style={{ width: 34, display: 'grid', placeItems: 'center' }}><Ovr v={p.ovr} size="sm" /></span>
+      </> : right ?? <>
         <PosChip pos={p.positions[0]} />
         <div className="col" style={{ alignItems: 'center', gap: 2 }}>
           <Ovr v={p.ovr} size="sm" />

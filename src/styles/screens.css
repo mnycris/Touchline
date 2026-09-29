@@ -819,3 +819,22 @@ select.input option { background: #151b27; }
 .mc-d.pos { background: rgba(46,229,138,.16); color: #58e39a; } .mc-d.neg { background: rgba(255,90,90,.16); color: #ff8a8a; }
 .attr-gain { font-size: 9.5px; font-weight: 800; margin-left: 5px; padding: 0 4px; border-radius: 4px; vertical-align: 1px; }
 .attr-gain.up { color: #58e39a; background: rgba(46,229,138,.12); } .attr-gain.down { color: #ff8a8a; background: rgba(255,90,90,.12); }
+/* squad list refinements */
+.sq-attn { display: flex; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--s2); font-size: 12px; font-weight: 700; flex-wrap: wrap; }
+.sq-attn > span { display: inline-flex; align-items: center; gap: 4px; }
+.sq-attn .neg { color: #ff8a95; } .sq-attn .warn { color: var(--warn); }
+.sq-attn > svg { margin-left: auto; }
+.sq-tools { margin-top: 10px; }
+.sq-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--s1); border-bottom: 1px solid var(--line); font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--t3); }
+.sq-head > * { text-align: center; flex: none; }
+.sq-head { gap: 6px; padding: 8px 10px; }
+.sq-head .sq-h-name { flex: 1; text-align: left; padding-left: 40px; }
+.sq-head .on { color: var(--club2, var(--acc)); }
+.sq-sec { display: flex; justify-content: space-between; padding: 10px 14px 4px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--t2); background: linear-gradient(180deg, rgba(255,255,255,.03), transparent); }
+.squad-row.has-cols { gap: 6px; padding-left: 10px; padding-right: 10px; }
+.squad-row.has-cols .meta { min-width: 0; }
+.sq-cell { flex: none; display: grid; place-items: center; font-size: 13px; }
+.sq-meter { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 100%; }
+.sq-meter i { display: block; height: 3px; border-radius: 2px; align-self: stretch; margin: 0 6px; opacity: .9; }
+.sq-meter b { font-size: 12px; }
+.sq-rt { font-size: 11.5px; font-weight: 800; color: #fff; padding: 2px 6px; border-radius: 6px; }
