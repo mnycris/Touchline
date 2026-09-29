@@ -1,4 +1,4 @@
-import type { Competition, Fixture, MatchResult, Player, StatLine, World } from '../../domain/types'
+import type { Competition, Fixture, MatchPlayerStats, MatchResult, Player, StatLine, World } from '../../domain/types'
 import { Rng, clamp, hashString } from '../../domain/rng'
 import { addDays } from '../../domain/dates'
 import { INJURIES } from '../../domain/constants'
@@ -53,6 +53,7 @@ export function matchContext(w: World, f: Fixture, commentary: boolean): MatchCo
     commentary,
     userSide: f.home === w.userClubId ? 0 : f.away === w.userClubId ? 1 : -1,
     aiBoost: DIFFICULTY_BOOST[w.settings.difficulty] ?? 1,
+    year: Number(f.date.slice(0, 4)) || undefined,
   }
 }
 
@@ -196,11 +197,20 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   return { injuries, bans }
 }
 
+/** The per-player numbers other clubs' results keep in the save (the full action detail stays with the user's matches). */
+function coreStats(p: MatchPlayerStats): MatchPlayerStats {
+  return {
+    id: p.id, side: p.side, pos: p.pos, mins: p.mins, rating: p.rating, goals: p.goals, assists: p.assists, shots: p.shots, sot: p.sot, xg: p.xg,
+    passes: p.passes, passesCompleted: p.passesCompleted, keyPasses: p.keyPasses, tackles: p.tackles, interceptions: p.interceptions, saves: p.saves,
+    fouls: p.fouls, yellow: p.yellow, red: p.red, subOn: p.subOn, subOff: p.subOff, injured: p.injured, started: p.started, energy: p.energy,
+  }
+}
+
 function compact(r: MatchResult, keepEvents: boolean): MatchResult {
   return {
     ...r,
     events: keepEvents ? r.events.filter((e) => ['goal', 'penGoal', 'owngoal', 'red', 'secondYellow', 'yellow', 'pens'].includes(e.type)).map((e) => ({ ...e, text: '' })) : r.events.filter((e) => ['goal', 'penGoal', 'owngoal', 'red', 'secondYellow'].includes(e.type)).map((e) => ({ ...e, text: '' })),
-    players: keepEvents ? r.players.map((p) => ({ ...p })) : [],
+    players: keepEvents ? r.players.map(coreStats) : [],
     detail: keepEvents ? 'stats' : 'quick',
     lineups: keepEvents ? r.lineups : undefined,
     mom: undefined,

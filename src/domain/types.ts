@@ -294,14 +294,28 @@ export interface MatchEvent {
   type:
     | 'goal' | 'owngoal' | 'penGoal' | 'penMiss' | 'yellow' | 'red' | 'secondYellow' | 'sub' | 'injury' | 'save'
     | 'chance' | 'miss' | 'woodwork' | 'corner' | 'freekick' | 'offside' | 'foul' | 'var' | 'tactic' | 'ht' | 'ft'
-    | 'kickoff' | 'info' | 'et' | 'pens' | 'shootout'
+    | 'kickoff' | 'info' | 'et' | 'pens' | 'shootout' | 'penalty'
   side: 0 | 1 | -1
   player?: number
-  player2?: number // assist / sub off / fouled
+  player2?: number // assist / sub off / fouled (for 'penalty': the defender who conceded it)
   text: string
   xg?: number
   big?: boolean
   score?: [number, number]
+  /** shot location, absolute pitch frame (home attacks toward x = 100) */
+  loc?: [number, number]
+  /** how the chance was made: cross, through, cutback, counter, long, solo, corner, freekick, rebound, error, header, pen ... */
+  how?: string
+  /** penalty kick detail, decided by the simulation before it is shown */
+  pen?: PenaltyKick
+}
+
+export interface PenaltyKick {
+  taker: number
+  keeper?: number
+  spot: 'BL' | 'BR' | 'TL' | 'TR' | 'C' // from the taker's view
+  dive: 'L' | 'R' | 'C'
+  res: 'goal' | 'saved' | 'miss' | 'post'
 }
 
 export interface MatchPlayerStats {
@@ -313,11 +327,25 @@ export interface MatchPlayerStats {
   goals: number; assists: number; shots: number; sot: number; xg: number; passes: number; passesCompleted: number
   keyPasses: number; tackles: number; interceptions: number; saves: number; fouls: number; yellow: boolean; red: boolean
   subOn?: number; subOff?: number; injured?: boolean; started: boolean; energy?: number
+  // action-engine detail (absent on results from older versions)
+  xa?: number; touches?: number; bcc?: number; bcm?: number; boxTouches?: number
+  crosses?: number; crossesOk?: number; longBalls?: number; longBallsOk?: number; throughBalls?: number
+  dribbles?: number; dribblesOk?: number; duels?: number; duelsWon?: number; aerials?: number; aerialsWon?: number
+  clearances?: number; blocks?: number; recoveries?: number; foulsWon?: number; offsides?: number
+  possLost?: number; dispossessed?: number; dribbledPast?: number; errors?: number
+  penWon?: number; penConceded?: number; ownGoals?: number
+  conceded?: number; xgot?: number; xgotFaced?: number; claims?: number; punches?: number; sweeps?: number
+  /** 12×8 touch heat map, one base-36 digit per cell */
+  heat?: string
 }
 
 export interface TeamMatchStats {
   possession: number; shots: number; sot: number; xg: number; passes: number; passAcc: number; corners: number
   fouls: number; offsides: number; yellows: number; reds: number; saves: number; bigChances: number
+  // action-engine detail (absent on results from older versions)
+  tackles?: number; interceptions?: number; clearances?: number; blocks?: number; crosses?: number; crossesOk?: number
+  dribbles?: number; dribblesOk?: number; aerialsWon?: number; duelsWon?: number; boxTouches?: number; longBalls?: number
+  throwIns?: number; goalKicks?: number; bigChancesMissed?: number; xgot?: number; recoveries?: number; touches?: number
 }
 
 export interface MatchResult {

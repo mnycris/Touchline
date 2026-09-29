@@ -20,9 +20,9 @@ const EVENT_ICON: Record<string, [string, string]> = {
   red: ['red', 'var(--neg)'], secondYellow: ['red', 'var(--neg)'], sub: ['sub', 'var(--acc)'], injury: ['injury', 'var(--neg)'], save: ['glove', 'var(--info)'],
   chance: ['target', 'var(--t2)'], miss: ['target', 'var(--t3)'], woodwork: ['goal', 'var(--warn)'], corner: ['corner', 'var(--t3)'], freekick: ['whistle', 'var(--t3)'],
   offside: ['flag', 'var(--t3)'], foul: ['whistle', 'var(--t3)'], var: ['var', 'var(--info)'], tactic: ['tactics', 'var(--t2)'], ht: ['whistle', '#fff'], ft: ['whistle', '#fff'],
-  kickoff: ['whistle', '#fff'], info: ['info', 'var(--t3)'], et: ['clock', '#fff'], pens: ['ball', '#fff'], shootout: ['ball', '#fff'],
+  kickoff: ['whistle', '#fff'], info: ['info', 'var(--t3)'], et: ['clock', '#fff'], pens: ['ball', '#fff'], shootout: ['ball', '#fff'], penalty: ['target', 'var(--warn)'],
 }
-const KEY_EVENTS = new Set(['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'injury', 'sub', 'var', 'woodwork', 'ht', 'ft', 'pens', 'et'])
+const KEY_EVENTS = new Set(['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'injury', 'sub', 'var', 'woodwork', 'ht', 'ft', 'pens', 'et', 'penalty'])
 const isGoal = (e: MatchEvent) => e.type === 'goal' || e.type === 'penGoal' || e.type === 'owngoal'
 const minLabel = (e: MatchEvent) => `${e.min}${e.add ? `+${e.add}` : ''}'`
 
