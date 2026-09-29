@@ -8,6 +8,7 @@ import { fmtMoney, roundValue, roundWage } from '../../domain/finance'
 import { contractDemand, playerInterest, roleForBuyer } from './transfers'
 import { postNews, sendInbox } from './messages'
 import { callName } from '../match/commentary'
+import { finStyle } from './squadPlan'
 
 export type AgentStyle = 'hardball' | 'businesslike' | 'friendly' | 'greedy'
 export interface TalkLine { by: 'me' | 'agent' | 'club' | 'system'; text: string; date: ISODate; tone?: 'good' | 'bad' | 'neutral' }
@@ -186,6 +187,18 @@ const AGENT: Bank = {
   ],
 }
 const CLUB: Bank = {
+  style_Seller: [
+    "We're a selling club and we don't hide it. But we don't give players away.",
+    'Everyone knows we develop players to sell. Pay a fair price and this gets done quickly.',
+  ],
+  style_Ambitious: [
+    "We don't need to sell. If you want him, you'll have to pay what he's worth to us.",
+    'Our owners want to compete, not to cash in. Keep that in mind.',
+  ],
+  style_Frugal: [
+    'Our board watches every euro. Make it worth our while.',
+    'We run a tight ship here. The right number will be taken seriously.',
+  ],
   accept: [
     '{seller} accept. We\'ll grant permission to speak to {p}.',
     'That is acceptable. {seller} agree the fee; you may talk to the player.',
@@ -462,6 +475,9 @@ export function sellerFloor(w: World, o: TransferOffer, ask: number, rng: Rng): 
   let m = role === 'Crucial' ? 0.95 : role === 'Important' ? 0.9 : role === 'Rotation' ? 0.86 : role === 'Prospect' ? 0.9 : 0.8
   if (p.transferListed) m *= 0.86
   if (seller.finance.balance < 0) m *= 0.9
+  // how the club does business: sellers deal, ambitious clubs dig in over players they build around
+  const style = finStyle(w, seller)
+  m *= style === 'Seller' ? 0.92 : style === 'Frugal' ? 0.97 : style === 'Ambitious' ? (role === 'Crucial' || role === 'Important' ? 1.06 : 1.01) : 1
   const yl = p.contract.until - w.season
   if (yl <= 1) m *= 0.9
   m *= 1 - clubRelation(w, o.fromClubId) / 400

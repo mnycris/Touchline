@@ -186,12 +186,15 @@ export function evaluateOffer(w: World, o: TransferOffer, rng: Rng): 'accept' | 
     return 'reject'
   }
   // concede part of the way towards the bid, never below the floor
-  const concession = seller.finance.balance < 0 ? 0.42 : p.transferListed ? 0.5 : 0.3
+  const style = finStyle(w, seller)
+  const concession = seller.finance.balance < 0 ? 0.42 : p.transferListed ? 0.5 : style === 'Seller' ? 0.45 : style === 'Frugal' ? 0.38 : style === 'Ambitious' ? 0.22 : 0.3
   const next = o.counterFee ? roundValue(Math.max(floor, position - (position - offered) * concession)) : position
   const moved = !!o.counterFee && next < o.counterFee
   o.counterFee = Math.max(next, roundValue(o.fee * 1.02))
   o.status = 'Counter Offer'
   say(ratio < 0.8 ? 'low' : moved ? 'counterMove' : 'counter', o.counterFee)
+  // the first answer tells you what kind of club you're dealing with
+  if (o.round === 1 && style !== 'Balanced' && o.userIsBuyer) say(`style_${style}` as Parameters<typeof clubLine>[1])
   if (o.patience < 30) say('warn')
   return 'counter'
 }
