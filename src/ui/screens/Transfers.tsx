@@ -12,7 +12,7 @@ import { allPlayers, rosterOf } from '../../engine/world/roster'
 import { knowledge, matchesPosition, potRange, scoutNetwork } from '../../engine/world/scouting'
 import { askingPrice, contractDemand, playerInterest, roleForBuyer, sellerStance, yearsLeft } from '../../engine/world/transfers'
 import { acceptCounter, delegateTransfer, proposeContract, renewalDemand, renewContract, startContractTalks, submitBid, wageRoom, windowLabel } from '../../engine/world/userActions'
-import { agentStyleLabel, getTalks } from '../../engine/world/negotiation'
+import { agentStyleLabel, getTalks, PRIORITY_TEXT } from '../../engine/world/negotiation'
 import { ChatLog, MoodMeter, useTypingChat, type ChatLine } from '../components/Chat'
 import { currentWindow } from '../../engine/competitions/calendar'
 import { ageOf, userClub } from '../selectors'
@@ -454,6 +454,7 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
         </div>
         <div className="card pad-card" style={{ padding: 12 }}>
           <MoodMeter v={mood} label={stage === 'contract' ? `Agent${talks ? ` · ${agentStyleLabel(talks.style)}` : ''}` : `${seller?.short || 'Club'} patience`} />
+          {stage === 'contract' && talks?.priority && <div className="tiny dim row tight" style={{ gap: 5, marginTop: 6 }}><Icon name="star" size={12} color="var(--gold)" />{PRIORITY_TEXT[talks.priority]}</div>}
         </div>
         {!stance.willing && !p.contract.releaseClause && stage === 'offer' && <div className="card pad-card small row tight" style={{ background: 'rgba(255,77,94,.08)' }}><Icon name="lock" size={16} color="var(--neg)" />{stance.reason}</div>}
         <ChatLog lines={chat.lines} typing={chat.typing} avatar={avatar} />
@@ -561,7 +562,7 @@ export function Renewal({ params }: { params: { id: number } }) {
           <div className="grow"><div className="b">{p.name}</div><div className="tiny dim">Current: {fmtMoney(p.contract.wage)}/wk · until {p.contract.until + 1} · {p.contract.role}</div><div className="tiny dim">Morale {Math.round(p.morale)} · {yearsLeft(w, p) <= 1 ? 'Final year' : `${yearsLeft(w, p)} years left`}</div></div>
           <Ovr v={p.ovr} />
         </div>
-        <div className="card pad-card" style={{ padding: 12 }}><MoodMeter v={talks?.patience ?? 100} label={`Agent${talks ? ` · ${agentStyleLabel(talks.style)}` : ''}`} /></div>
+        <div className="card pad-card" style={{ padding: 12 }}><MoodMeter v={talks?.patience ?? 100} label={`Agent${talks ? ` · ${agentStyleLabel(talks.style)}` : ''}`} />{talks?.priority && <div className="tiny dim row tight" style={{ gap: 5, marginTop: 6 }}><Icon name="star" size={12} color="var(--gold)" />{PRIORITY_TEXT[talks.priority]}</div>}</div>
         <ChatLog lines={chat.lines} typing={chat.typing} avatar={() => <AgentAvatar />} />
         {!done && (
           <div className="card pad-card stack" style={{ gap: 12, opacity: chat.busy ? 0.55 : 1, pointerEvents: chat.busy ? 'none' : undefined }}>

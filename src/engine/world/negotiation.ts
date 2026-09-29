@@ -23,6 +23,8 @@ export interface Talks {
   ask: ContractOffer
   floor: number // hidden: lowest weekly wage he'll accept at his preferred length and role
   style: AgentStyle
+  /** what the player values most in this deal */
+  priority?: Priority
   expectedRole: SquadRole
   lastWage?: number
   status: 'open' | 'agreed' | 'walked'
@@ -43,6 +45,34 @@ function styleFor(p: Player): AgentStyle {
   if (h < 58) return 'businesslike'
   if (h < 86) return 'friendly'
   return 'greedy'
+}
+
+// ---------------------------------------------------------------- what players value
+export type Priority = 'Money' | 'Playing time' | 'Security' | 'Ambition' | 'Loyalty' | 'Home'
+export const PRIORITY_TEXT: Record<Priority, string> = {
+  Money: 'Wants the best financial package', 'Playing time': 'Wants a guaranteed role', Security: 'Wants a long contract',
+  Ambition: 'Wants to win trophies', Loyalty: 'Wants to stay at the club', Home: 'Values being close to home',
+}
+/** Stable per player and deal: age, personality and circumstances decide what matters most. */
+export function priorityOf(w: World, p: Player, clubId: number, kind: 'sign' | 'renew'): Priority {
+  const age = ageOn(p.dob, w.date)
+  const h = hashN(p.id * 7 + clubId) % 100
+  const club = w.clubs[clubId]
+  if (kind === 'renew' && p.hidden.loyalty > 72 && h < 60) return 'Loyalty'
+  if (club && (club.country === p.nation || w.nations[p.nation]?.name === club.country) && h < 30) return 'Home'
+  if (age >= 30 && h < 65) return 'Security'
+  if (age <= 23 && h < 60) return 'Playing time'
+  if (p.hidden.ambition > 74 && h < 55) return 'Ambition'
+  if (p.contract.role === 'Sparingly' || p.contract.role === 'Rotation') return h < 55 ? 'Playing time' : 'Money'
+  return h < 45 ? 'Money' : h < 70 ? 'Playing time' : h < 88 ? 'Security' : 'Ambition'
+}
+const PRIORITY_LINE: Record<Priority, string[]> = {
+  Money: ["Let's be honest: the financial side matters most to him.", 'He knows his market value, and the package has to reflect it.', 'Money is not everything, but at this level it says how much you value him.'],
+  'Playing time': ['What matters most to {p} is playing every week. The role has to be right.', 'He did not come this far to sit on a bench. The role is the key.', 'Guarantee him football and the rest is detail.'],
+  Security: ['At this stage of his career, {p} wants security. The length of the deal is key.', 'He wants to know he is settled for years, not months.', 'His family wants stability. A long contract matters more than an extra few thousand.'],
+  Ambition: ['{p} wants to win things. He needs to know you can compete.', 'He is ambitious. He will want a way out if the club stops competing.', 'Trophies. That is what drives him.'],
+  Loyalty: ['He loves this club, you know that. Let us find a fair deal.', 'He wants to stay. Just show him he is valued.', 'This is home for him. That counts for a lot in these talks.'],
+  Home: ['Being close to home means a lot to him and his family.', 'His family is settled here. That helps you.', 'Playing in his own country is important to him.'],
 }
 
 // ---------------------------------------------------------------- phrase banks
@@ -251,14 +281,18 @@ export function openContractTalks(w: World, p: Player, kind: Talks['kind'], rng:
   const ask = contractDemand(w, p, clubId, expectedRole)
   if (kind === 'renew') ask.wage = Math.max(ask.wage, roundWage(p.contract.wage * 1.05))
   const style = styleFor(p)
+  const priority = priorityOf(w, p, clubId, kind)
   const interest = interestFor(w, p, clubId, kind)
   const styleAdj = style === 'hardball' ? 0.035 : style === 'greedy' ? 0.055 : style === 'friendly' ? -0.03 : 0
-  const floorF = clamp(0.93 - (interest - 55) * 0.0022 + styleAdj + rng.normal(0, 0.02), 0.8, 1.04)
+  // what he values moves his floor: loyal players and home-comers ask less; ambitious ones less for a big club
+  const priAdj = priority === 'Loyalty' ? -0.04 : priority === 'Home' ? -0.03 : priority === 'Money' ? 0.02 : priority === 'Ambition' ? clamp((50 - club.reputation) / 800, -0.04, 0.04) : 0
+  const floorF = clamp(0.93 - (interest - 55) * 0.0022 + styleAdj + priAdj + rng.normal(0, 0.02), 0.78, 1.05)
   const floor = roundWage(Math.max(kind === 'renew' ? p.contract.wage : 0, ask.wage * floorF))
-  const patience = Math.round(100 * (style === 'friendly' ? 1.15 : style === 'hardball' ? 0.85 : style === 'greedy' ? 0.92 : 1) * (0.82 + interest / 280))
-  const t: Talks = { id: `${kind}:${p.id}`, playerId: p.id, clubId, kind, offerId, started: w.date, round: 0, patience, ask, floor, style, expectedRole, status: 'open', used: [], log: [] }
+  const patience = Math.round(100 * (style === 'friendly' ? 1.15 : style === 'hardball' ? 0.85 : style === 'greedy' ? 0.92 : 1) * (priority === 'Loyalty' ? 1.2 : 1) * (0.82 + interest / 280))
+  if (priority === 'Security') ask.years = Math.min(5, ask.years + 1)
+  const t: Talks = { id: `${kind}:${p.id}`, playerId: p.id, clubId, kind, offerId, started: w.date, round: 0, patience, ask, floor, style, priority, expectedRole, status: 'open', used: [], log: [] }
   const v = vars(w, p, t)
-  t.log.push({ by: 'agent', date: w.date, text: pick(rng, AGENT, kind === 'renew' ? 'openRenew' : 'open', t.used, { ...v, club: club.short }) })
+  t.log.push({ by: 'agent', date: w.date, text: `${pick(rng, AGENT, kind === 'renew' ? 'openRenew' : 'open', t.used, { ...v, club: club.short })} ${fill(rng.pick(PRIORITY_LINE[priority]), v)}` })
   talksMap(w)[t.id] = t
   return t
 }
@@ -268,19 +302,20 @@ function vars(w: World, p: Player, t: Talks): Record<string, string | number> {
 }
 
 /** Weekly-equivalent value of a package (wage + amortised signing bonus + expected bonuses + clause/role/length fit). */
-function packageValue(p: Player, c: ContractOffer, pref: ContractOffer, expected: SquadRole, age: number): number {
+function packageValue(p: Player, c: ContractOffer, pref: ContractOffer, expected: SquadRole, age: number, pri?: Priority): number {
   const g = POS_GROUP[p.positions[0]]
   const goals = g === 'ATT' ? 14 : g === 'MID' ? 5 : 1.5
   const cs = g === 'GK' || g === 'DEF' ? 11 : 0
   const bonusWeekly = (c.bonusGoal * goals + c.bonusCleanSheet * cs + c.bonusApp * 30) / 52 * 0.6
-  let v = c.wage + c.signingBonus / (52 * Math.max(1, c.years)) * 0.85 + bonusWeekly
+  const money = pri === 'Money', time = pri === 'Playing time', secure = pri === 'Security', amb = pri === 'Ambition'
+  let v = c.wage + c.signingBonus / (52 * Math.max(1, c.years)) * (money ? 1 : 0.85) + bonusWeekly * (money ? 1.3 : 1)
   const gap = ROLE_RANK[expected] - ROLE_RANK[c.role]
-  if (gap > 0) v *= 1 + gap * 0.03 // better role than expected
-  if (gap < 0) v *= 1 + gap * 0.09
+  if (gap > 0) v *= 1 + gap * (time ? 0.06 : 0.03) // better role than expected
+  if (gap < 0) v *= 1 + gap * (time ? 0.16 : money ? 0.06 : 0.09)
   const dy = c.years - pref.years
-  if (dy < 0) v *= 1 + dy * (age >= 29 ? 0.06 : 0.025)
-  if (dy > 0) v *= 1 - dy * (age <= 24 && p.pot - p.ovr >= 6 ? 0.035 : 0.01)
-  if (c.releaseClause > 0) v *= c.releaseClause < p.value * 1.6 ? 1.035 : 1.015
+  if (dy < 0) v *= 1 + dy * (secure ? 0.1 : age >= 29 ? 0.06 : 0.025)
+  if (dy > 0) v *= secure ? 1 + Math.min(1, dy) * 0.02 : 1 - dy * (age <= 24 && p.pot - p.ovr >= 6 ? 0.035 : 0.01)
+  if (c.releaseClause > 0) v *= (c.releaseClause < p.value * 1.6 ? 1.035 : 1.015) * (amb ? 1.03 : 1)
   return v
 }
 
@@ -298,9 +333,9 @@ export function respondToContract(w: World, t: Talks, c: ContractOffer, rng: Rng
   t.round++
   t.log.push({ by: 'me', date: w.date, text: offerLine(c) })
   const pref = t.ask
-  const V = packageValue(p, c, pref, t.expectedRole, age)
-  const T = packageValue(p, { ...pref }, pref, t.expectedRole, age)
-  const F = packageValue(p, { ...pref, wage: t.floor }, pref, t.expectedRole, age)
+  const V = packageValue(p, c, pref, t.expectedRole, age, t.priority)
+  const T = packageValue(p, { ...pref }, pref, t.expectedRole, age, t.priority)
+  const F = packageValue(p, { ...pref, wage: t.floor }, pref, t.expectedRole, age, t.priority)
   const repeat = t.lastWage != null && c.wage <= t.lastWage && t.round > 1
   // visible progress from the club calms things down
   const progress = t.lastWage != null && c.wage >= t.lastWage * 1.05 ? 0.6 : 1
@@ -329,7 +364,16 @@ export function respondToContract(w: World, t: Talks, c: ContractOffer, rng: Rng
   const gap = (F - V) / F
   if (repeat) { t.patience -= 12; say('repeat', {}, 'bad') }
   if (roleBlocker) { t.patience -= 10; say('role', { roleOffered: roleNoun(c.role) }, 'bad') }
-  const yearsIssue = c.years < pref.years && age >= 29
+  const yearsIssue = c.years < pref.years && (age >= 29 || t.priority === 'Security')
+  // what's actually missing, in the terms that matter to him
+  if (!repeat && !roleBlocker && rng.next() < 0.55) {
+    const hint = t.priority === 'Playing time' && roleGap > 0 ? `The money is one thing, but ${roleNoun(c.role)}? He wants to be ${roleA(t.expectedRole)} player. That is the sticking point.`
+      : t.priority === 'Security' && c.years < pref.years ? `${c.years} years is not enough. He wants security: ${pref.years} years.`
+        : t.priority === 'Money' && c.wage < t.floor ? `The number is not there yet. We are still some way apart on the wage.`
+          : t.priority === 'Ambition' && !c.releaseClause ? `He wants to know he has options if the club stops competing. A release clause would help.`
+            : ''
+    if (hint) replies.push({ by: 'agent', text: hint, date: w.date, tone: 'neutral' })
+  }
   if (gap > 0.3) {
     t.patience -= (t.style === 'hardball' ? 34 : t.style === 'friendly' ? 20 : 26) * progress
     if (t.style === 'greedy') t.ask = { ...t.ask, wage: roundWage(t.ask.wage * 1.02) }
