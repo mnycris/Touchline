@@ -1,3 +1,4 @@
+import { finStyle, STYLE_BUDGET } from './squadPlan'
 import type { Competition, Fixture, Player, SeasonArchive, World } from '../../domain/types'
 import { createSim } from './matchRunner'
 import { Rng, clamp } from '../../domain/rng'
@@ -223,7 +224,10 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     club.squadAvg = top.length ? Math.round(top.reduce((a, b) => a + b, 0) / top.length * 10) / 10 : club.squadAvg
     club.prestige.intl = clamp(Math.round((club.squadAvg - 59.5) / 2.25), 1, 10)
     const base = clubBudget(value, lg, club.prestige.intl)
-    club.finance.transferBudget = club.id === w.userClubId ? roundValue(base * (0.6 + w.board.overall / 125) + Math.max(0, club.finance.transferBudget * 0.3)) : base
+    // AI clubs: structural budget by financial style, plus part of what they didn't spend (sales already added during the year)
+    club.finance.transferBudget = club.id === w.userClubId
+      ? roundValue(base * (0.6 + w.board.overall / 125) + Math.max(0, club.finance.transferBudget * 0.3))
+      : roundValue(Math.min(base * 2.2, base * STYLE_BUDGET[finStyle(w, club)] + Math.max(0, club.finance.transferBudget) * 0.35))
     club.finance.wageBudget = Math.round(squad.reduce((a, p) => a + p.contract.wage, 0) * 1.08)
     club.finance.revenueSeason = 0
     club.finance.expensesSeason = 0

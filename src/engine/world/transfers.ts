@@ -1,5 +1,5 @@
 import type { Club, ContractOffer, Player, SquadRole, TransferOffer, TransferRecord, World } from '../../domain/types'
-import { Rng, clamp } from '../../domain/rng'
+import { Rng, clamp, hashString } from '../../domain/rng'
 import { addDays, ageOn, diffDays, fmtDate } from '../../domain/dates'
 import { POS_GROUP } from '../../domain/constants'
 import { dynamicValue, fmtMoney, roundValue, wageDemand } from '../../domain/finance'
@@ -9,6 +9,8 @@ import { isWindowOpen } from '../competitions/calendar'
 import { emptyLine } from './matchRunner'
 import { bidBlock, clubLine, clubRelation, adjustRelation, sellerFloor, snubPenalty } from './negotiation'
 import { callName } from '../match/commentary'
+import { posRating } from '../../domain/ratings'
+import { finStyle, planRole, squadPlan, STYLE_REINVEST, type FinStyle, type PlanNeed, type SquadPlan } from './squadPlan'
 
 // how much above market value a club asks for a player, by his importance to them
 const ROLE_MULT: Record<SquadRole, number> = { Crucial: 1.35, Important: 1.2, Rotation: 1.05, Sparingly: 0.9, Prospect: 1.15 }
@@ -227,9 +229,10 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
   if (!p || !to) return
   const isLoan = o.type.startsWith('loan')
   const fee = isLoan ? 0 : o.fee
+  if (from && !isLoan) noteDeparture(w, p)
   if (from) {
     from.finance.balance += fee
-    from.finance.transferBudget += Math.round(fee * (from.id === w.userClubId ? boardReinvest(w) : 0.8))
+    from.finance.transferBudget += Math.round(fee * (from.id === w.userClubId ? boardReinvest(w) : STYLE_REINVEST[finStyle(w, from)]))
     if (from.id === w.userClubId && fee) from.finance.ledger.push({ date: w.date, label: `Sale of ${p.name}`, amount: fee, kind: 'transfer' })
   }
   to.finance.balance -= fee
@@ -348,85 +351,196 @@ export function releasePlayer(w: World, p: Player, compensation = true) {
 }
 
 // ---------------------------------------------------------------- AI market
-interface Need { group: string; pos?: string; minOvr: number; maxAge: number; priority: number }
+// Clubs recruit from their squad plan (see squadPlan.ts): the most pressing need first, with real budgets and wage room.
 
-export function clubNeeds(w: World, club: Club): Need[] {
-  const squad = rosterOf(w, club.id)
-  const needs: Need[] = []
-  const avg = club.squadAvg
-  const by = (g: string) => squad.filter((p) => POS_GROUP[p.positions[0]] === g && !p.injury?.totalDays || POS_GROUP[p.positions[0]] === g && (p.injury?.totalDays || 0) < 60)
-  const want: Record<string, number> = { GK: 3, DEF: 8, MID: 8, ATT: 5 }
-  for (const g of ['GK', 'DEF', 'MID', 'ATT']) {
-    const list = by(g).sort((a, b) => b.ovr - a.ovr)
-    const starters = g === 'GK' ? 1 : g === 'DEF' ? 4 : g === 'MID' ? 3 : 3
-    const weakest = list[starters - 1]
-    if (list.length < want[g]) needs.push({ group: g, minOvr: Math.round(avg - 5), maxAge: 30, priority: 2 + (want[g] - list.length) })
-    if (!weakest || weakest.ovr < avg - 4) needs.push({ group: g, minOvr: Math.round(avg - 1), maxAge: 29, priority: 3 })
-    const old = list.slice(0, starters).filter((p) => ageOn(p.dob, w.date) >= 33)
-    if (old.length) needs.push({ group: g, minOvr: Math.round(avg - 2), maxAge: 27, priority: 2 })
+/** Eligible players by position group, rebuilt once per day. */
+const marketCache = new WeakMap<World, { date: string; v: number; by: Map<string, Player[]> }>()
+function market(w: World) {
+  const c = marketCache.get(w)
+  const v = w.flags.rosterVersion || 0
+  if (c && c.date === w.date && c.v === v) return c.by
+  const by = new Map<string, Player[]>()
+  for (const p of allPlayers(w)) {
+    if (p.academy || p.loan || p.retiringAtSeasonEnd) continue
+    const g = POS_GROUP[p.positions[0]]
+    if (!by.has(g)) by.set(g, [])
+    by.get(g)!.push(p)
   }
-  return needs.sort((a, b) => b.priority - a.priority)
+  for (const arr of by.values()) arr.sort((a, b) => b.ovr - a.ovr)
+  marketCache.set(w, { date: w.date, v, by })
+  return by
+}
+
+const LINE_OF = (pos: string) => (pos === 'RB' || pos === 'LB' || pos === 'RWB' || pos === 'LWB' ? 'FB' : pos === 'RW' || pos === 'LW' || pos === 'RM' || pos === 'LM' ? 'W' : pos === 'CF' ? 'ST' : pos)
+const WAGE_ROOM: Record<FinStyle, number> = { Ambitious: 1.16, Balanced: 1.06, Frugal: 1.0, Seller: 1.03 }
+
+/** Shortlist of realistic signings for one need, best first. */
+export function findPlanTargets(w: World, club: Club, plan: SquadPlan, need: PlanNeed, rng: Rng, freeOnly = false): Player[] {
+  const by = market(w)
+  const g = POS_GROUP[need.pos]
+  const groups = need.pos === 'RM' || need.pos === 'LM' || need.pos === 'CAM' ? ['MID', 'ATT'] : need.pos === 'RW' || need.pos === 'LW' ? ['ATT', 'MID'] : [g]
+  const budget = club.finance.transferBudget
+  const cap = budget * need.spend
+  const style = finStyle(w, club)
+  const room = club.finance.wageBudget * WAGE_ROOM[style] - plan.wageBill
+  const short: { p: Player; s: number }[] = []
+  let looked = 0
+  for (const grp of groups) {
+    const list = by.get(grp) || []
+    // start inside the band of plausible quality
+    let lo = 0, hi = list.length
+    while (lo < hi) { const m = (lo + hi) >> 1; if (list[m].ovr > plan.level + 8) lo = m + 1; else hi = m }
+    for (let i = lo; i < list.length && looked < 700; i++) {
+      const p = list[i]
+      if (p.ovr < need.minRating - 3) break
+      if (p.clubId === club.id) continue
+      if (rng.next() < 0.35) continue // don't scan the same shortlist every time
+      looked++
+      if (freeOnly && p.clubId) continue
+      const age = ageOn(p.dob, w.date)
+      if (age > need.maxAge) continue
+      if (need.minPot && p.pot < need.minPot) continue
+      // a signing has to play there: natural position for a starter, the same line for cover
+      if (need.kind === 'depth' ? !p.positions.some((q) => LINE_OF(q) === LINE_OF(need.pos)) : !p.positions.includes(need.pos) && !(need.kind === 'prospect' && POS_GROUP[p.positions[0]] === g)) continue
+      const rating = posRating(p, need.pos)
+      if (rating < need.minRating) continue
+      const from = w.clubs[p.clubId]
+      if (from && from.reputation > club.reputation + 10 && !p.transferListed) continue
+      // quick no-gos the seller would give anyway
+      if (from && p.joinedDate && diffDays(w.date, p.joinedDate) < 60) continue
+      if (from && p.contract.role === 'Crucial' && from.reputation > club.reputation - 5 && !p.contract.releaseClause && !p.transferListed && from.id !== w.userClubId) continue
+      const cost = p.clubId ? p.value * (p.transferListed ? 1.02 : 1.25) : 0
+      if (cost > cap) continue
+      // rough wage check before the real demand
+      if (p.wage > room * 1.3 && p.wage > (club.finance.wageBudget / 22)) continue
+      const young = age <= 23 ? (p.pot - rating) * 0.35 : 0
+      const score = (rating - need.minRating) * 1.2 + young - (cost / Math.max(1, budget)) * 7
+        + (from && from.leagueId === club.leagueId ? 0.8 : 0) + (p.transferListed ? 1.5 : 0) + (!p.clubId && need.kind === 'depth' ? 2 : 0)
+        + (style === 'Frugal' && cost === 0 ? 2 : 0) + rng.next() * 2.5
+      short.push({ p, s: score })
+    }
+  }
+  return short.sort((a, b) => b.s - a.s).slice(0, 6).map((x) => x.p)
+}
+
+/** What the selling club thinks: key starters cost a premium (or aren't for sale), surplus goes cheaply. */
+function aiSellerTerms(w: World, p: Player, buyer: Club): { ok: boolean; mult: number } {
+  const seller = w.clubs[p.clubId]
+  if (!seller || seller.id === w.userClubId) return { ok: true, mult: 1 }
+  const plan = squadPlan(w, seller)
+  const role = planRole(plan, p.id)
+  const style = finStyle(w, seller)
+  if (role === 'key') {
+    if (buyer.reputation < seller.reputation - 4 && style !== 'Seller') return { ok: false, mult: 1 }
+    // nobody hands a direct rival their best players, unless the player wants out
+    const rival = buyer.leagueId === seller.leagueId && Math.abs(buyer.reputation - seller.reputation) <= 8
+    if (rival && style !== 'Seller' && p.morale >= 40 && !p.transferListed) return { ok: false, mult: 1 }
+    // and even then most clubs keep their stars
+    if (style !== 'Seller' && hashString(`${p.id}:${buyer.id}:${seller.id}`) % 100 < 55) return { ok: false, mult: 1 }
+    return { ok: true, mult: style === 'Seller' ? 1.12 : 1.35 }
+  }
+  if (role === 'starter') return { ok: true, mult: style === 'Seller' ? 1.02 : 1.15 }
+  if (role === 'surplus') return { ok: true, mult: 0.85 }
+  return { ok: true, mult: 1 }
+}
+
+/** Before a player leaves an AI club: remember a lost starter so the club reacts (and the press can connect the dots). */
+export function noteDeparture(w: World, p: Player) {
+  const from = w.clubs[p.clubId]
+  if (!from || from.id === w.userClubId) return
+  const plan = squadPlan(w, from)
+  const slot = plan.slots.find((s) => s.id === p.id)
+  if (!slot) return
+  const tp = (from.transferPolicy ||= {})
+  tp.review = w.date
+  tp.lost = [...(tp.lost || []).filter((l) => diffDays(w.date, l.date) < 120), { id: p.id, pos: slot.pos, date: w.date, key: plan.key.has(p.id) }]
+}
+
+/** Why AI club-days end without a deal (QA counters). */
+export const aiMarketStats: Record<string, number> = {}
+const miss = (k: string) => { aiMarketStats[k] = (aiMarketStats[k] || 0) + 1 }
+
+/** One club's business for the day. */
+function aiClubDay(w: World, club: Club, rng: Rng, windowOpen: boolean) {
+  const plan = squadPlan(w, club)
+  const tp = (club.transferPolicy ||= {})
+  // move surplus on (listed players are what other clubs' bargain hunts find)
+  if (windowOpen) for (const p of plan.surplus.slice(0, 2)) if (!p.transferListed && rng.next() < 0.45) p.transferListed = true
+  const urgent = !!tp.review
+  // the top needs compete; lower ones only sometimes get attention
+  const pool = plan.needs.filter((n, i) => i < 3 && (n.priority >= 4 || rng.next() < 0.35 + n.priority / 8))
+  const need = pool[0]
+  if (!need) { tp.review = undefined; miss('no need'); return }
+  if (!windowOpen && need.kind !== 'starter') return
+  const list = findPlanTargets(w, club, plan, need, rng, !windowOpen)
+  if (!list.length) { if (urgent && rng.next() < 0.3) tp.review = undefined; miss(`no target:${need.kind}`); return }
+  // work down the shortlist until a club and a player say yes
+  let target: Player | undefined
+  let fee = 0
+  for (const cand of list) {
+    if (cand.clubId === w.userClubId) { if (need.priority >= 3 && rng.next() < 0.5) { aiBidForUserPlayer(w, club, cand, rng); return } continue }
+    if (cand.clubId) {
+      const terms = aiSellerTerms(w, cand, club)
+      if (!terms.ok) { miss('seller refuses'); continue }
+      if (!sellerStance(w, cand, club.id).willing) { miss('stance'); continue }
+      const f = roundValue(askingPrice(w, cand, club.id) * terms.mult * (0.93 + rng.next() * 0.1))
+      if (f > club.finance.transferBudget * Math.max(need.spend, urgent ? 0.9 : 0)) { miss('fee over budget'); continue }
+      fee = f
+    } else fee = 0
+    if (playerInterest(w, cand, club.id) < 40) { miss('player not interested'); continue }
+    target = cand
+    break
+  }
+  if (!target) return
+  const role = roleForBuyer(w, target, club.id)
+  const demand = contractDemand(w, target, club.id, role)
+  if (plan.wageBill + demand.wage > club.finance.wageBudget * WAGE_ROOM[finStyle(w, club)] && need.kind !== 'starter') { miss('wages'); return }
+  miss(`deal:${need.kind}`)
+  const lost = (tp.lost || []).find((l) => LINE_OF(l.pos) === LINE_OF(need.pos) && diffDays(w.date, l.date) < 120)
+  const o = makeOffer(w, { playerId: target.id, fee, type: target.clubId ? 'transfer' : 'free', fromClubId: club.id })
+  o.userIsBuyer = false
+  executeTransfer(w, o, demand)
+  tp.lastActivity = w.date
+  if (lost && need.kind !== 'prospect') {
+    tp.lost = tp.lost!.filter((l) => l !== lost)
+    const gone = w.players[lost.id]
+    const dest = gone ? w.clubs[gone.clubId] : undefined
+    if (gone && (dest?.id === w.userClubId || (lost.key && club.prestige.intl >= 7) || club.leagueId === w.clubs[w.userClubId]?.leagueId)) {
+      postNews(w, {
+        headline: `${club.short} replace ${callName(gone.name)} with ${target.name}`,
+        body: `${club.name} have moved to fill the gap left by ${gone.name}${dest ? `, who joined ${dest.name}` : ''}, signing ${target.name}${fee ? ` for ${fmtMoney(fee)}` : ' on a free transfer'}. The ${ageOn(target.dob, w.date)}-year-old ${target.positions[0]} is expected to go straight into the side.`,
+        kind: 'transfer', playerIds: [target.id, gone.id], clubIds: [club.id], importance: dest?.id === w.userClubId ? 3 : 2, userRelated: dest?.id === w.userClubId,
+      })
+    }
+  }
+  if (!tp.lost?.length) tp.review = undefined
 }
 
 export function aiTransferDay(w: World, rng: Rng) {
-  if (!w.settings.aiTransfers || !isWindowOpen(w)) return
+  if (!w.settings.aiTransfers) return
+  const open = isWindowOpen(w)
+  const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClubId)
+  const urgent = clubs.filter((c) => c.transferPolicy?.review)
+  if (!open) {
+    // outside a window only a club that lost a starter looks at free agents, now and then
+    for (const c of urgent) if (rng.next() < 0.15) aiClubDay(w, c, rng, false)
+    return
+  }
   const win = w.windows.find((x) => w.date >= x.open && w.date <= x.close)!
   const daysLeft = diffDays(win.close, w.date)
   const deadline = daysLeft === 0
   const intensity = deadline ? 3.5 : daysLeft <= 3 ? 1.8 : win.name === 'Summer' ? 1 : 0.55
-  const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClubId)
-  const n = Math.round(clubs.length * 0.018 * intensity)
-  for (let i = 0; i < n; i++) {
-    const club = rng.pick(clubs)
-    const needs = clubNeeds(w, club)
-    if (!needs.length) { aiSellSurplus(w, club, rng); continue }
-    const need = needs[0]
-    const target = findTarget(w, club, need, rng)
-    if (!target) continue
-    if (target.clubId === w.userClubId) { aiBidForUserPlayer(w, club, target, rng); continue }
-    const ask = target.clubId ? askingPrice(w, target, club.id) : 0
-    if (ask > club.finance.transferBudget) continue
-    const stance = target.clubId ? sellerStance(w, target, club.id) : { willing: true }
-    if (!stance.willing) continue
-    if (playerInterest(w, target, club.id) < 40) continue
-    const fee = target.clubId ? roundValue(ask * (0.92 + rng.next() * 0.12)) : 0
-    const o = makeOffer(w, { playerId: target.id, fee, type: target.clubId ? 'transfer' : 'free', fromClubId: club.id })
-    o.userIsBuyer = false
-    executeTransfer(w, o)
-    club.transferPolicy = { lastActivity: w.date }
-  }
+  const n = Math.round(clubs.length * 0.03 * intensity)
+  const picks = new Set<Club>()
+  // clubs that just lost a starter act first (within days, not weeks)
+  for (const c of urgent) if (picks.size < n && rng.next() < 0.6) picks.add(c)
+  // bigger leagues do more business
+  const weight = (c: Club) => 1 + (w.leagues[c.leagueId]?.prestige || 2) / 3
+  let guard = 0
+  while (picks.size < n && guard++ < n * 6) { const c = rng.pick(clubs); if (rng.next() * 4.4 < weight(c)) picks.add(c) }
+  for (const c of picks) aiClubDay(w, c, rng, true)
   // rumours
   if (rng.next() < 0.35 * intensity) rumour(w, rng)
-}
-
-function aiSellSurplus(w: World, club: Club, rng: Rng) {
-  const squad = rosterOf(w, club.id)
-  if (squad.length <= 28) return
-  const surplus = squad.filter((p) => p.contract.role === 'Sparingly').sort((a, b) => a.ovr - b.ovr)[0]
-  if (surplus && rng.next() < 0.5) surplus.transferListed = true
-}
-
-function findTarget(w: World, club: Club, need: Need, rng: Rng): Player | undefined {
-  const lg = w.leagues[club.leagueId]
-  const budget = club.finance.transferBudget
-  let best: Player | undefined, bs = -1
-  // sample the market for performance
-  const all = allPlayers(w)
-  for (let k = 0; k < 900; k++) {
-    const p = all[Math.floor(rng.next() * all.length)]
-    if (p.clubId === club.id || p.academy || p.loan || p.retiringAtSeasonEnd) continue
-    if (p.ovr < need.minOvr || p.ovr > club.squadAvg + 7) continue
-    if (POS_GROUP[p.positions[0]] !== need.group) continue
-    const age = ageOn(p.dob, w.date)
-    if (age > need.maxAge) continue
-    const cost = p.clubId ? p.value * 1.4 : 0
-    if (cost > budget) continue
-    const from = w.clubs[p.clubId]
-    if (from && from.reputation > club.reputation + 12) continue
-    const score = p.ovr + (p.pot - p.ovr) * 0.3 - cost / Math.max(1, budget) * 6 + rng.next() * 3 + (lg && from?.leagueId === lg.id ? 1 : 0)
-    if (score > bs) { bs = score; best = p }
-  }
-  return best
 }
 
 function aiBidForUserPlayer(w: World, club: Club, p: Player, rng: Rng) {

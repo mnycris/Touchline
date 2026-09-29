@@ -37,16 +37,9 @@ export function sackManager(w: World, club: Club, rng: Rng) {
   const pool = Object.values(w.managers).filter((m) => m.clubId === 0 && !m.retired)
   const fit = pool.sort((a, b) => Math.abs(a.reputation - club.reputation) - Math.abs(b.reputation - club.reputation))
   const next = fit[Math.floor(rng.next() * Math.min(3, fit.length))]
-  // user job offer opportunity
-  const userEligible = w.user.clubId !== club.id && w.user.reputation >= club.reputation - 12 && rng.next() < 0.55
-  if (userEligible) {
-    w.user.jobOffers.push({ clubId: club.id, date: w.date, expires: addDays(w.date, 7) })
-    sendInbox(w, {
-      from: `${club.name} Board`, fromRole: 'Chairman', category: 'Board', subject: `Job offer: ${club.name}`,
-      body: `Following the departure of ${old?.name ?? 'their manager'}, ${club.name} would like to offer you the manager's job. The offer stands until ${fmtDate(addDays(w.date, 7), 'dm')}.`,
-      actions: [{ label: 'View Offer', action: 'openJobOffer', payload: club.id, primary: true }], clubId: club.id, urgent: true, image: { kind: 'club', id: club.id },
-    })
-  }
+  // the vacancy may go to the user first, if it makes sense for both sides
+  const chance = userJobInterest(w, club)
+  if (chance > 0 && rng.next() < chance) offerUserJob(w, club, old?.name, rng)
   if (next) {
     next.clubId = club.id
     next.appointed = w.date
@@ -59,6 +52,65 @@ export function sackManager(w: World, club: Club, rng: Rng) {
     headline: `${club.short} part company with ${old?.name ?? 'manager'}`,
     body: `${club.name} have dismissed ${old?.name ?? 'their manager'} following a run of poor results.${next ? ` ${next.name} has been appointed as the new head coach.` : ''}`,
     kind: 'manager', playerIds: [], clubIds: [club.id], importance: club.reputation >= 70 ? 4 : 2, userRelated: false,
+  })
+}
+
+/** How attractive a job is: club reputation, league standing and continental level. */
+function standing(w: World, c: Club) {
+  // reputation saturates near the top, so squad quality and continental level carry the distinction
+  return c.squadAvg * 1.6 + c.prestige.intl * 2 + (w.leagues[c.leagueId]?.prestige || 3) * 1.2
+}
+
+/** Chance that a club with a vacancy approaches the user. Considers whether the move is up, sideways or down,
+ *  how the user is doing, how long they've been in the job and whether the club would realistically want them. */
+export function userJobInterest(w: World, club: Club): number {
+  if (club.id === w.userClubId || !club.leagueId) return 0
+  const rep = w.user.reputation
+  // the manager reputation a club of this size looks for (same scale as the user's)
+  const wanted = clamp((standing(w, club) - 110) * 1.1, 8, 95)
+  if (rep < wanted - 14) return 0
+  const recent = w.user.jobOffers.filter((o) => o.date > addDays(w.date, -30))
+  if (recent.length) return 0
+  if (w.flags.unemployed) return clamp(0.55 - Math.max(0, wanted - rep) / 30 - Math.max(0, rep - wanted - 20) / 40, 0.05, 0.6)
+  const cur = w.clubs[w.userClubId]
+  if (!cur) return 0
+  const move = standing(w, club) - standing(w, cur)
+  const h = w.user.history[w.user.history.length - 1]
+  const games = h ? h.p : 0
+  const winRate = games >= 8 ? h!.w / games : 0.4
+  const tenureDays = h ? (Date.parse(w.date) - Date.parse(h.from)) / 86400000 : 0
+  const form = clamp((winRate - 0.35) * 2.2, -0.4, 0.8) // 0 around a 35% win rate
+  const settled = tenureDays < 150 ? 0.25 : 1
+  const unhappy = w.board.overall < 35 ? 1 : 0
+  let p: number
+  if (move >= 6) p = 0.28 + form * 0.35 + Math.min(0.2, move / 60)
+  else if (move >= -4) p = 0.06 + Math.max(0, form) * 0.12 + unhappy * 0.12
+  else if (move >= -15) p = unhappy ? 0.12 : 0.012
+  else p = unhappy && move >= -25 ? 0.04 : 0
+  // a reputation short of what the club wants makes it a gamble for them; giant leaps are rarer still
+  const repFit = clamp(1 - (wanted - rep) / 20, 0.2, 1)
+  const leap = move > 20 ? 20 / move : 1
+  return clamp(p * settled * repFit * leap, 0, 0.55)
+}
+
+function offerUserJob(w: World, club: Club, oldName: string | undefined, rng: Rng) {
+  const cur = w.clubs[w.userClubId]
+  const move = cur ? standing(w, club) - standing(w, cur) : 0
+  const lg = w.leagues[club.leagueId]
+  const exp = expectedRank(w, club)
+  const pitch = w.flags.unemployed
+    ? rng.pick([`They believe you're the right person to get ${club.short} moving again.`, `The board want a quick appointment and your name is at the top of their list.`])
+    : move >= 6
+      ? rng.pick([`They have followed your work at ${cur?.short} closely and see you as the one to lead them forward.`, `${club.short} want a proven winner and believe you are ready for a job of this size.`, `The board are prepared to make you one of the best-paid coaches in ${lg?.name || 'the league'}.`])
+      : move >= -4
+        ? rng.pick([`They see it as a fresh project with backing from the board.`, `They like the way your sides play and think you'd fit their squad.`])
+        : rng.pick([`They know it would be a step down, but they are offering full control of the football side.`, `A long-term project: they would build the club around your ideas.`])
+  const target = exp <= 2 ? 'challenge for the title' : exp <= 4 ? 'finish in the top four' : exp <= Math.ceil((w.competitions[`L${club.leagueId}-${w.season}`]?.clubs.length || 20) / 2) ? 'push for Europe' : 'stay clear of trouble'
+  w.user.jobOffers.push({ clubId: club.id, date: w.date, expires: addDays(w.date, 7) })
+  sendInbox(w, {
+    from: `${club.name} Board`, fromRole: 'Chairman', category: 'Board', subject: `Job offer: ${club.name}`,
+    body: `Following the departure of ${oldName ?? 'their manager'}, ${club.name} would like to offer you the manager's job. ${pitch} The board's expectation would be to ${target}. The offer stands until ${fmtDate(addDays(w.date, 7), 'dm')}.`,
+    actions: [{ label: 'View Offer', action: 'openJobOffer', payload: club.id, primary: true }], clubId: club.id, urgent: move >= 6, image: { kind: 'club', id: club.id },
   })
 }
 

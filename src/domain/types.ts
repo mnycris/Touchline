@@ -214,7 +214,12 @@ export interface Club {
   squadAvg: number
   reputation: number // 1..100
   youthRating: number // 1..10 academy quality
-  transferPolicy?: { lastActivity?: ISODate; needs?: string[] }
+  transferPolicy?: {
+    lastActivity?: ISODate; needs?: string[]
+    /** lost a starter recently: recruit with priority */
+    review?: ISODate
+    lost?: { id: number; pos: Position; date: ISODate; key?: boolean }[]
+  }
   trophies: { compKey: string; season: number }[]
   lastSeasonPos?: number
   recent?: ('W' | 'D' | 'L')[]

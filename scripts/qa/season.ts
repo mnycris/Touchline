@@ -61,3 +61,16 @@ function diagnostics() {
   const goals = played.reduce((a, f) => a + f.result!.score[0] + f.result!.score[1], 0)
   console.log('PL goals/match', (goals / played.length).toFixed(2), 'matches', played.length)
 }
+{
+  const parts: Record<string, number> = {}
+  for (const [k, v] of Object.entries(w)) parts[k] = JSON.stringify(v).length
+  const fx = Object.values(w.fixtures)
+  const withPlayers = fx.filter((f) => f.result?.players?.length)
+  const resBytes = fx.reduce((a, f) => a + (f.result ? JSON.stringify(f.result).length : 0), 0)
+  const plBytes = withPlayers.reduce((a, f) => a + JSON.stringify(f.result!.players).length, 0)
+  console.log('save parts (MB):', Object.entries(parts).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => `${k} ${(v / 1e6).toFixed(1)}`).join(', '))
+  console.log(`fixtures: ${fx.length}, results ${(resBytes / 1e6).toFixed(1)}MB, with player stats ${withPlayers.length} (${(plBytes / 1e6).toFixed(1)}MB)`)
+  const players = Object.values(w.players)
+  const seasonBytes = players.reduce((a, p) => a + JSON.stringify(p.season).length + JSON.stringify(p.career).length + JSON.stringify(p.history || []).length, 0)
+  console.log(`players ${players.length}: ${(parts.players / 1e6).toFixed(1)}MB, of which season/career/history ${(seasonBytes / 1e6).toFixed(1)}MB`)
+}
