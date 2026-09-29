@@ -10,7 +10,8 @@ import { sortTable } from '../competitions/tables'
 import { callName } from '../match/commentary'
 import { matchFacts, streakText, type MatchFacts } from './storylines'
 import { fmtMoney } from '../../domain/finance'
-import { diffDays } from '../../domain/dates'
+import { diffDays, fmtDate } from '../../domain/dates'
+import { fmtFormation, media, personaOf, rememberLines } from './media'
 
 export type Tone = 'Confident' | 'Measured' | 'Humble' | 'Deflect' | 'Praise' | 'Critical' | 'Defiant' | 'Joke' | 'Bold'
 export interface PressEffect { team?: number; player?: number; playerId?: number; brand?: number; rep?: number; opponent?: number; youth?: number; promise?: 'win' | 'title' | 'survive' | 'trophy' | 'score' }
@@ -51,8 +52,30 @@ const pk = <T,>(c: Ctx, a: T[]): T => a[Math.floor(c.rng.next() * a.length)]
 const ord = (n: number) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`
 const cn = (p: Player) => callName(p.name)
 let optSeq = 0
+/** Same intent, different words: tone-matched openers and closers so answers don't read identically every time. */
+const TONE_OPEN: Partial<Record<Tone, string[]>> = {
+  Confident: ['Look, ', 'Honestly? ', "I'll be clear: ", '', '', ''], Measured: ['I think ', 'For me, ', '', '', ''], Humble: ['To be fair, ', 'Honestly, ', '', ''],
+  Defiant: ['Listen, ', 'Let me say this: ', '', ''], Critical: ['I have to be honest: ', 'The truth is ', '', ''], Praise: ['', 'Credit where it is due: ', ''],
+  Deflect: ['', 'With respect, ', ''], Bold: ['', 'I mean it: ', ''], Joke: ['', ''],
+}
+const TONE_CLOSE: Partial<Record<Tone, string[]>> = {
+  Confident: ['', '', ' The players know that.', " That's how I see it."], Measured: ['', '', ' We keep working.', ' That is the job.'], Humble: ['', '', ' We have to improve.'],
+  Defiant: ['', '', ' We will answer on the pitch.', ' Nothing changes for us.'], Critical: ['', '', ' I expect more.', ' And I include myself in that.'],
+  Praise: ['', ' They deserve it.'], Deflect: ['', ''], Bold: ['', ''], Joke: ['', ''],
+}
+function vary(c: Ctx, tone: Tone, text: string) {
+  let op = pk(c, TONE_OPEN[tone] || [''])
+  // never "Credit where it is due: credit to him..."
+  if (op && op.split(/\W/)[0].toLowerCase() === text.split(/\W/)[0].toLowerCase()) op = ''
+  const cl = pk(c, TONE_CLOSE[tone] || [''])
+  if (!op && !cl) return text
+  const body = op && !/[?!]\s$/.test(op) ? text.charAt(0).toLowerCase() + text.slice(1) : text
+  // don't lower-case names or "I"
+  const safe = op && /^(I\b|[A-Z][a-z]+\s(?!I\b)[A-Z]|[A-Z]{2})/.test(text) ? text : body
+  return `${op}${safe}${cl && /[.!?]$/.test(text) ? cl : ''}`
+}
 function o(c: Ctx, tone: Tone, texts: string[], effect: PressEffect, quote?: string, followUp?: PressQuestion): PressOption {
-  const text = pk(c, texts)
+  const text = vary(c, tone, pk(c, texts))
   return { id: `o${optSeq++}`, tone, text, effect, quote: `"${(quote || text).replace(/^"|"$/g, '')}"`, followUp }
 }
 const seasonGoals = (p: Player) => Object.values(p.season).reduce((a, s) => a + s.goals, 0)
@@ -60,6 +83,57 @@ const seasonApps = (p: Player) => Object.values(p.season).reduce((a, s) => a + s
 
 // ---------------------------------------------------------------- pre-match topics
 const PRE: Topic[] = [
+  {
+    // what the opposing manager said last time the sides met (or this week)
+    id: 'rivalWords', kind: 'pre', weight: (c) => (rivalQuote(c) ? 16 : 0), build: (c) => {
+      const q = rivalQuote(c)!
+      const when = diffDays(c.w.date, q.date) <= 10 ? 'this week' : `after your meeting in ${fmtDate(q.date, 'month')}`
+      return {
+        text: pk(c, [`${q.by} said ${when}: "${q.text}" Does that add anything to this game?`, `"${q.text}" That was ${callName(q.by)} ${when}. Your response?`, `${callName(q.by)} had plenty to say ${when}. Have you read it?`]),
+        options: [
+          o(c, 'Defiant', [`He can say what he likes. We will answer on the pitch.`, `Words are cheap. Ninety minutes will tell the story.`], { team: 3, brand: 1, opponent: 1 }),
+          o(c, 'Measured', [`He is entitled to his opinion. I respect him and his team.`, `Every coach sees a game his own way. It doesn't change our preparation.`], { team: 1, rep: 0.1 }),
+          o(c, 'Joke', [`I hope he's had a good week. I'm sure he'll have plenty to say on Saturday too.`, `I didn't know he read my press conferences so closely.`], { team: 2, brand: 2 }),
+          o(c, 'Deflect', [`I don't read what other managers say. I focus on my own team.`], { team: 0 }),
+        ],
+      }
+    },
+  },
+  {
+    // the set-up used last time against this opponent
+    id: 'sameApproach', kind: 'pre', weight: (c) => (lastMeetingWithSetup(c) ? 9 : 0), build: (c) => {
+      const m = lastMeetingWithSetup(c)!
+      const res = m.gf > m.ga ? `won ${m.gf}-${m.ga}` : m.gf < m.ga ? `lost ${m.gf}-${m.ga}` : `drew ${m.gf}-${m.ga}`
+      const when = m.season === c.w.season ? 'earlier this season' : m.season === c.w.season - 1 ? 'last season' : `in ${m.season}`
+      const won = m.gf > m.ga
+      return {
+        text: pk(c, [`When you played ${c.opp.short} ${when} you went with ${fmtFormation(m.formation)} and ${res}. Can we expect a similar approach?`, `${when[0].toUpperCase() + when.slice(1)} a ${fmtFormation(m.formation)} ${won ? 'worked well' : "didn't work"} against ${c.opp.short}. Will you ${won ? 'stick with it' : 'change things'}?`]),
+        options: won ? [
+          o(c, 'Confident', [`If something works, why change it? But they will have learned too.`, `We know what hurt them last time. We'll use it again.`], { team: 2, brand: 1 }),
+          o(c, 'Deflect', [`You'll see at kick-off.`, `I never give the opposition a head start.`], { team: 0 }),
+          o(c, 'Bold', [`We'll show them something they haven't seen before.`], { team: 2, brand: 2 }),
+        ] : [
+          o(c, 'Critical', [`We got it wrong that day. That's on me, and we've looked at it closely.`], { team: 1, rep: 0.1 }),
+          o(c, 'Measured', [`Every game is different. We have prepared for what they do now, not what they did then.`], { team: 1 }),
+          o(c, 'Defiant', [`We'll set up to win. Last time is last time.`], { team: 2, brand: 1 }),
+        ],
+      }
+    },
+  },
+  {
+    // the manager's own words from recently, when events have tested them
+    id: 'standBy', kind: 'pre', weight: (c) => (ownLine(c) ? 6 : 0), build: (c) => {
+      const l = ownLine(c)!
+      return {
+        text: pk(c, [`Last time out you said: "${l.text}" Do you stand by that?`, `You told us "${l.text}" Has anything changed your mind since?`]),
+        options: [
+          o(c, 'Confident', ['Every word. Nothing has changed.', 'Absolutely. I say what I believe.'], { team: 2, brand: 1 }),
+          o(c, 'Measured', ['It was true then and it is true now, but football moves quickly.'], { team: 1 }),
+          o(c, 'Humble', ['Maybe I got carried away. The results have to do the talking.'], { team: 0, rep: 0.1 }),
+        ],
+      }
+    },
+  },
   {
     id: 'final', kind: 'pre', weight: (c) => (c.x.final ? 30 : 0), build: (c) => ({
       text: pk(c, [
@@ -505,6 +579,83 @@ const PRE: Topic[] = [
 // ---------------------------------------------------------------- post-match topics
 const POST: Topic[] = [
   {
+    // the opposing manager's reaction to this match
+    id: 'rivalReaction', kind: 'post', weight: (c) => { const q = thisMatchQuote(c); return !q ? 0 : ['red', 'penalty', 'dig'].includes(q.topic) ? 16 : 5 }, build: (c) => {
+      const q = thisMatchQuote(c)!
+      const t = q.topic
+      const ask = pk(c, [`${callName(q.by)} has just said: "${q.text}" What's your reaction?`, `${q.by} says "${q.text}" Do you agree?`, ...(t === 'red' || t === 'penalty' || t === 'dig' ? [`The other dressing room isn't happy. ${callName(q.by)}: "${q.text}" Your response?`] : [])])
+      const sets: Record<string, PressOption[]> = {
+        complaint: [
+          o(c, 'Defiant', [`We won because we were the better team, not because of the referee.`, `Look at the whole game, not one decision.`], { team: 3, brand: 1, opponent: 1 }),
+          o(c, 'Measured', [`I understand his frustration. Every manager sees these moments differently.`, `I haven't seen it again yet. Decisions go for you and against you over a season.`], { team: 1, rep: 0.1 }),
+          o(c, 'Critical', [`Blaming the referee is the easy option.`, `If you need to talk about the referee, maybe look at your own team first.`], { team: 2, brand: 2, rep: -0.1, opponent: 2 }),
+        ],
+        dig: [
+          o(c, 'Humble', [`They deserved it. We have to take it on the chin.`, `Fair play to them. They wanted it more today.`], { team: -1, rep: 0.1 }),
+          o(c, 'Defiant', [`Enjoy it. We'll see where both teams finish.`, `One result doesn't change the table in May.`], { team: 2, brand: 1, opponent: 1 }),
+          o(c, 'Deflect', [`I'm not here to talk about him. I'm here to talk about my team.`, `He can enjoy his evening. I'll be looking at our mistakes.`], { team: 0 }),
+        ],
+        selfCritical: [
+          o(c, 'Praise', [`Credit to him for being honest. They're a good side and they'll bounce back.`, `I know how that feels. His team will recover quickly.`], { team: 1, rep: 0.2 }),
+          o(c, 'Confident', [`We were very good today. That's what I'll remember.`, `We forced them into those mistakes. That's our work.`], { team: 2, brand: 1 }),
+          o(c, 'Measured', [`Every game has its story. Today it went our way.`, `We take the points and move on.`], { team: 1 }),
+        ],
+        unlucky: [
+          o(c, 'Confident', [`Chances don't win games; goals do. We took ours.`, `We defended our box well. That's part of football too.`], { team: 2, brand: 1 }),
+          o(c, 'Humble', [`He has a point. We rode our luck at times.`, `They created a lot. We need to be better at stopping that.`], { team: 0, rep: 0.1 }),
+          o(c, 'Deflect', [`The table doesn't ask about expected goals.`], { team: 1 }),
+        ],
+        late: [
+          o(c, 'Confident', [`We kept going until the end. That's the mentality I want.`, `Games last ninety minutes and more. My team knows that.`], { team: 3, brand: 1 }),
+          o(c, 'Praise', [`It's hard on them, honestly. They were very good.`], { team: 0, rep: 0.2 }),
+          o(c, 'Measured', [`Late goals come from fitness and belief. We have both.`], { team: 2 }),
+        ],
+        theyWon: [
+          o(c, 'Humble', [`They deserved it. We have to take it on the chin.`, `Credit to them. They were better in the moments that mattered.`], { team: -1, rep: 0.1 }),
+          o(c, 'Critical', [`We handed them this game. That's what annoys me.`, `We were nowhere near our level. That's on us, not them.`], { team: 1, brand: 1 }),
+          o(c, 'Defiant', [`One result. We'll see where both teams finish.`], { team: 2, brand: 1, opponent: 1 }),
+        ],
+        point: [
+          o(c, 'Praise', [`They defended really well. Credit to them for the way they stuck at it.`, `He has every right to be pleased. They made it very hard for us.`], { team: 0, rep: 0.2 }),
+          o(c, 'Critical', [`We should have won. Not finding a way through annoys me.`, `Against a side sitting that deep we need more ideas. That's on us.`], { team: 1, brand: 1 }),
+          o(c, 'Measured', [`Some days the door stays shut. We move on.`, `A point away from home is never a disaster.`], { team: 1 }),
+        ],
+        draw: [
+          o(c, 'Confident', [`They'll be disappointed with a point, and that tells you how far we've come.`, `We came to win and we could have. That's the standard now.`], { team: 2, brand: 1 }),
+          o(c, 'Measured', [`A point is a fair reflection. We move on.`, `Both teams will feel they could have won it.`], { team: 1 }),
+          o(c, 'Critical', [`We should have won. I'm not happy with a draw.`], { team: 1, brand: 1 }),
+        ],
+      }
+      const key = t === 'red' || t === 'penalty' ? 'complaint' : t === 'dig' ? 'dig' : t === 'heavy' || t === 'beaten' ? 'selfCritical' : t === 'unlucky' ? 'unlucky' : t === 'late' ? 'late' : t === 'proud' || t === 'upset' ? 'theyWon' : t === 'point' ? 'point' : 'draw'
+      return { text: ask, options: sets[key] }
+    },
+  },
+  {
+    // a penalty that went against us in a game we didn't win
+    id: 'penaltyCall', kind: 'post', weight: (c) => (c.r && !c.won && c.r.events.some((e) => e.type === 'penGoal' && e.side !== c.us) ? 10 : 0), build: (c) => ({
+      text: pk(c, [`The penalty proved costly. Was it the right decision?`, `Were you happy with the penalty decision today?`, `Did the penalty change the game?`]),
+      options: [
+        o(c, 'Critical', [`I have seen it again. It was not a penalty, and it cost us.`, `For me it was soft. At this level, the decisions have to be right.`], { team: 2, brand: -1, rep: -0.2 }),
+        o(c, 'Measured', [`It's the referee's call. We had time to respond and didn't.`, `I won't hide behind one decision. We had chances.`], { team: 1, rep: 0.1 }),
+        o(c, 'Deflect', [`I won't talk about the referee.`], { team: 0 }),
+      ],
+    }),
+  },
+  {
+    // the manager's own words before this match
+    id: 'wordsTested', kind: 'post', weight: (c) => { const l = preLine(c); return l && (c.lost || c.drew) && /win|beat|confident|ready|best/i.test(l.text) ? 9 : 0 }, build: (c) => {
+      const l = preLine(c)!
+      return {
+        text: pk(c, [`Before the game you said: "${l.text}" What went wrong?`, `You were confident beforehand. "${l.text}" Do you regret saying that?`]),
+        options: [
+          o(c, 'Humble', ['Maybe. The result says we were not as ready as I thought.', 'I got that one wrong, and I take responsibility.'], { team: 0, rep: 0.1 }),
+          o(c, 'Defiant', ['No. I believe in this team. One result does not change that.'], { team: 2, brand: 1 }),
+          o(c, 'Deflect', ['That was before the game. I will not look back.'], { team: 0, brand: -1 }),
+        ],
+      }
+    },
+  },
+  {
     id: 'trophy', kind: 'post', weight: (c) => (c.x.final && c.won ? 40 : 0), build: (c) => ({
       text: pk(c, [`${c.comp?.name} winners! What does this trophy mean to you?`, `Champions. Who do you dedicate this one to?`, `You've delivered silverware. Is this the start of something bigger?`]),
       options: [
@@ -834,6 +985,28 @@ function titlePromiseDoubt(c: Ctx) {
   return t === c.w.season && c.x.kind === 'league' && (c.x.played || 0) >= 12 && (c.x.usPos || 1) >= 4 && c.rng.next() < 0.5
 }
 
+function rivalQuote(c: Ctx) {
+  const M = media(c.w)
+  const mgr = c.w.managers[c.opp.managerId]
+  // the current opposing manager's last words about us (recent, or from the last meeting)
+  return [...M.quotes].reverse().find((q) => q.about === c.club.id && q.clubId === c.opp.id && q.managerId === mgr?.id && diffDays(c.w.date, q.date) <= 400 && q.fixtureId !== c.f.id)
+}
+function thisMatchQuote(c: Ctx) {
+  return [...media(c.w).quotes].reverse().find((q) => q.fixtureId === c.f.id)
+}
+function lastMeetingWithSetup(c: Ctx) {
+  const list = media(c.w).meetings[c.opp.id] || []
+  return [...list].reverse().find((m) => m.fixtureId !== c.f.id && m.formation)
+}
+function ownLine(c: Ctx) {
+  const l = [...media(c.w).lines].reverse().find((x) => x.fixtureId !== c.f.id && diffDays(c.w.date, x.date) <= 21 && x.text.length > 25 && ['Confident', 'Bold', 'Defiant', 'Critical'].includes(x.tone))
+  return l
+}
+function preLine(c: Ctx) {
+  return [...media(c.w).lines].reverse().find((x) => x.fixtureId === c.f.id && x.kind === 'pre' && x.text.length > 20)
+}
+void personaOf
+
 function reporter(w: World, rng: Rng) {
   const c = w.clubs[w.userClubId]
   const o = OUTLETS[c.country] || OUTLETS._
@@ -920,6 +1093,7 @@ export function applyPress(w: World, kind: 'pre' | 'post', fixtureId: string, qu
   const personal = new Map<number, number>()
   const tones = (w.flags.pressTones ||= {}) as Record<string, number>
   let promiseWin = false, promiseQuote = ''
+  const said: { text: string; tone: string }[] = []
   for (const q of questions) {
     const o = q.options.find((x) => x.id === answers[q.id])
     if (!o) continue
@@ -929,6 +1103,7 @@ export function applyPress(w: World, kind: 'pre' | 'post', fixtureId: string, qu
     youth += o.effect.youth || 0
     if (o.effect.playerId) personal.set(o.effect.playerId, (personal.get(o.effect.playerId) || 0) + (o.effect.player || 0))
     quotes.push(o.quote)
+    said.push({ text: o.quote, tone: o.tone })
     tones[o.tone] = (tones[o.tone] || 0) + 1
     if (o.effect.promise === 'win' || o.effect.promise === 'trophy') { promiseWin = true; promiseQuote = o.quote.toLowerCase().replace(/^"|"$/g, '') }
     if (o.effect.promise === 'title') (w.flags.pressPromises ||= {}).title = w.season
@@ -962,6 +1137,7 @@ export function applyPress(w: World, kind: 'pre' | 'post', fixtureId: string, qu
       quote: { by: `${w.user.firstName} ${w.user.lastName}`, clubId: club.id, text: lead.replace(/^"|"$/g, '') },
     })
   }
+  rememberLines(w, fixtureId, kind, said)
   ;(w.flags.pressDone ||= {})[`${kind}:${fixtureId}`] = true
   return out
 }

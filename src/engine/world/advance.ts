@@ -17,6 +17,7 @@ import { dailyScouting, dailyYouth } from './scouting'
 import { monthlyAwards } from './awards'
 import { isDeepFixture } from './matchRunner'
 import { dailyWorldNews, matchWorldNews } from './worldNews'
+import { afterUserMatchMedia } from './media'
 import { aiManagerReview, userJobSecurity } from './managers'
 import { advancePlayoff, createPlayoffs, leagueFinished, seasonRollover } from './season'
 import { postNews, sendInbox, staffNames } from './messages'
@@ -85,6 +86,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
   matchWorldNews(w, f, result, res.injuries)
   // user-facing messages
   if (f.userInvolved) {
+    afterUserMatchMedia(w, f, result)
     const staff = staffNames(w)
     for (const inj of res.injuries) {
       const p = w.players[inj.id]
