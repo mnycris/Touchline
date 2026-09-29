@@ -193,11 +193,11 @@ export function Stars({ n, max = 5, size = 13, color = 'var(--gold)' }: { n: num
   )
 }
 
-export function StatRow({ label, v, max = 99, hidden }: { label: string; v: number; max?: number; hidden?: boolean }) {
+export function StatRow({ label, v, max = 99, hidden, gain }: { label: string; v: number; max?: number; hidden?: boolean; gain?: number }) {
   const col = v >= 80 ? '#2ee58a' : v >= 70 ? '#9be15d' : v >= 60 ? '#f5d33f' : v >= 50 ? '#ffa23e' : '#ff5a5a'
   return (
     <div className="row" style={{ gap: 10, padding: '5px 0' }}>
-      <div className="grow small muted ellipsis">{label}</div>
+      <div className="grow small muted ellipsis">{label}{!hidden && gain ? <span className={`attr-gain ${gain > 0 ? 'up' : 'down'}`} title="Recent change">{gain > 0 ? '▲' : '▼'}{Math.abs(gain)}</span> : null}</div>
       <div style={{ width: 88 }}>{hidden ? <div className="bar"><i style={{ width: '100%', background: 'rgba(255,255,255,.08)' }} /></div> : <Bar v={v} max={max} color={col} h={5} />}</div>
       <div className="num b" style={{ width: 26, textAlign: 'right', color: hidden ? 'var(--t3)' : col }}>{hidden ? '??' : v}</div>
     </div>

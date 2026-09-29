@@ -8,7 +8,7 @@ import { Confirm, Screen, Sheet, Tabs } from '../components/layout'
 import { ATTR_GROUPS, ATTR_LABEL, DEV_PLANS, GK_GROUPS, PLAYSTYLE_INFO, POS_GROUP, POS_NAME, POSITIONS, ROLE_GROUP, ROLES, SQUAD_ROLES, TRAINING_PLANS } from '../../domain/constants'
 import { faceStats, formLabel, formValue, moraleLevel, posRating, roleFit } from '../../domain/ratings'
 import { fmtMoney } from '../../domain/finance'
-import { fmtDate, seasonLabel } from '../../domain/dates'
+import { diffDays, fmtDate, seasonLabel } from '../../domain/dates'
 import { ageOf, avgRating, compLogoKey, playerStatus, totals } from '../selectors'
 import { playStyleIcon } from '../../services/assets'
 import { attrsVisible, knowledge, potRange, scoutPlayer } from '../../engine/world/scouting'
@@ -217,6 +217,9 @@ function AttributesTab({ w, p, vis }: { w: World; p: Player; vis: 'all' | 'parti
   const groups = gk ? GK_GROUPS : ATTR_GROUPS
   const fs = faceStats(p)
   const known = (k: string, i: number) => vis === 'all' || (vis === 'partial' && (i + k.length) % 3 !== 0)
+  // recent training gains (last month), your own players only
+  const gains = new Map<string, number>()
+  for (const g of p.attrGains || []) if (diffDays(w.date, g.date) <= 30) gains.set(g.k, (gains.get(g.k) || 0) + g.d)
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
       {vis !== 'all' && <div className="card pad-card small row tight"><Icon name="eye" size={16} color="var(--info)" /><span className="muted">Scout this player to reveal {vis === 'none' ? 'his' : 'all of his'} attributes and his true potential.</span></div>}
@@ -225,7 +228,7 @@ function AttributesTab({ w, p, vis }: { w: World; p: Player; vis: 'all' | 'parti
         {groups.map((g) => (
           <div key={g.key} className="card pad-card" style={{ padding: 12 }}>
             <div className="row between"><span className="label">{g.label}</span><b className="num">{vis === 'none' ? '??' : Math.round(g.attrs.reduce((a, k) => a + p.attrs[A[k]], 0) / g.attrs.length)}</b></div>
-            {g.attrs.map((k, i) => <StatRow key={k} label={ATTR_LABEL[k]} v={p.attrs[A[k]]} hidden={!known(k, i)} />)}
+            {g.attrs.map((k, i) => <StatRow key={k} label={ATTR_LABEL[k]} v={p.attrs[A[k]]} hidden={!known(k, i)} gain={gains.get(k)} />)}
           </div>
         ))}
         {gk && (

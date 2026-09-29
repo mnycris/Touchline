@@ -15,6 +15,7 @@ import { staffNames } from '../../engine/world/messages'
 import { hashString } from '../../domain/rng'
 import { askingPrice } from '../../engine/world/transfers'
 import { ChatLog, MoodMeter, useTypingChat } from '../components/Chat'
+import { MessageContext } from '../components/MessageContext'
 
 const CAT_ICON: Record<string, string> = {
   Board: 'board', Transfers: 'transfers', Squad: 'squad', Scouting: 'scout', Youth: 'youth', Medical: 'injury', Competitions: 'trophy',
@@ -70,7 +71,6 @@ export function Message({ params }: { params: { id: string } }) {
   const m = w.inbox.find((x) => x.id === params.id)
   if (!m) return <Screen title="Message" back><Empty icon="inbox" title="Message not found" /></Screen>
   const expired = m.expires && w.date > m.expires
-  const player = m.playerId ? w.players[m.playerId] : undefined
   return (
     <Screen title={m.category} back right={<button className="iconbtn" aria-label="Delete" onClick={() => { mutate((w) => { w.inbox = w.inbox.filter((x) => x.id !== m.id) }); back() }}><Icon name="trash" size={19} /></button>}>
       <div className="pad stack fade-up">
@@ -80,13 +80,7 @@ export function Message({ params }: { params: { id: string } }) {
         </div>
         <div className="h2" style={{ fontSize: 26 }}>{m.subject}</div>
         <div className="msg-body">{m.body}</div>
-        {player && (
-          <button className="card tap row" style={{ padding: 12, gap: 12, textAlign: 'left' }} onClick={() => useGame.getState().go({ name: 'player', params: { id: player.id } })}>
-            <Face p={player} size={46} radius={12} club={w.clubs[player.clubId]} />
-            <div className="grow"><div className="b">{player.name}</div><div className="tiny dim">{w.clubs[player.clubId]?.name || 'Free agent'} · {fmtMoney(player.value)}</div></div>
-            <PosChip pos={player.positions[0]} /><Ovr v={player.ovr} size="sm" />
-          </button>
-        )}
+        <MessageContext w={w} m={m} />
         {m.actions.length > 0 && (
           <div className="stack" style={{ gap: 8, marginTop: 6 }}>
             {m.resolved || expired ? <div className="tiny dim row tight"><Icon name="check" size={14} /> {expired && !m.resolved ? 'This request has expired.' : 'Actioned'}</div> : null}

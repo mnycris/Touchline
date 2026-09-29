@@ -60,6 +60,8 @@ function recentMinutes(p: Player): number {
 /** Converts accumulated XP into attribute growth (twice monthly), plus age decline. */
 export function applyGrowth(w: World, p: Player, rng: Rng): number {
   const before = p.ovr
+  const track = p.clubId === w.userClubId
+  const snap = track ? [...p.attrs] : undefined
   const age = ageOn(p.dob, w.date)
   // decline for veterans
   if (age >= 30) {
@@ -82,6 +84,11 @@ export function applyGrowth(w: World, p: Player, rng: Rng): number {
     const form = p.formRatings.length ? p.formRatings.reduce((a, b) => a + b, 0) / p.formRatings.length : 6.6
     if (form > 7.3) p.pot = Math.min(95, p.pot + 1)
     else if (form < 6.2) p.pot = Math.max(p.ovr, p.pot - 1)
+  }
+  if (snap) {
+    const gains: { date: string; k: AttrKey; d: number }[] = []
+    for (const k of Object.keys(A) as AttrKey[]) { const d = p.attrs[A[k]] - snap[A[k]]; if (d) gains.push({ date: w.date, k, d }) }
+    if (gains.length || p.attrGains?.length) p.attrGains = [...(p.attrGains || []).filter((g) => diffDays(w.date, g.date) <= 45), ...gains].slice(-16)
   }
   if (p.ovr !== before) {
     p.growthHistory.push({ date: w.date, ovr: p.ovr })

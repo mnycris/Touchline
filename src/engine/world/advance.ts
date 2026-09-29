@@ -222,17 +222,27 @@ function endOfDay(w: World, rng: Rng) {
   }
   // growth twice monthly
   if (dom === 1 || dom === 15) {
-    const user: { name: string; d: number; id: number }[] = []
+    const user: { name: string; d: number; id: number; from: number }[] = []
     for (const p of Object.values(w.players)) {
+      const before = p.ovr
       const dd = applyGrowth(w, p, rng)
-      if (dd && p.clubId === w.userClubId) user.push({ name: p.name, d: dd, id: p.id })
+      if (dd && p.clubId === w.userClubId) user.push({ name: p.name, d: dd, id: p.id, from: before })
     }
     if (user.length && !w.flags.unemployed) {
       const ups = user.filter((x) => x.d > 0).sort((a, b) => b.d - a.d)
-      const downs = user.filter((x) => x.d < 0)
+      const downs = user.filter((x) => x.d < 0).sort((a, b) => a.d - b.d)
+      const top = ups[0]
+      const young = ups.filter((u) => ageOn(w.players[u.id].dob, w.date) <= 21)
+      const opener = ups.length && downs.length ? `Mixed news from the training ground this fortnight.` : ups.length > 3 ? `A good fortnight on the training ground: ${ups.length} players have taken a step forward.` : ups.length ? `${top.name} ${top.d > 1 ? 'has made a big jump' : 'has kicked on'} in training.` : `A couple of players have lost a little sharpness.`
+      const detail = [young.length ? `${young.map((u) => u.name).slice(0, 2).join(' and ')} ${young.length > 1 ? 'are' : 'is'} developing nicely.` : '', downs.length ? `${downs.map((u) => u.name).slice(0, 2).join(' and ')} ${downs.length > 1 ? 'have' : 'has'} dropped off; age and minutes play a part.` : ''].filter(Boolean).join(' ')
+      const rows = [...ups, ...downs].slice(0, 10).map((u) => {
+        const p = w.players[u.id]
+        const attrs = (p.attrGains || []).filter((g) => g.date === w.date).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 4).map((g) => [g.k, g.d] as [typeof g.k, number])
+        return { id: u.id, from: u.from, to: p.ovr, attrs }
+      })
       sendInbox(w, {
-        from: staff.assistant, fromRole: 'Assistant Manager', category: 'Squad', subject: 'Player development update',
-        body: `${ups.length ? `Improved: ${ups.map((u) => `${u.name} (+${u.d})`).join(', ')}.` : ''}${downs.length ? ` Declined: ${downs.map((u) => `${u.name} (${u.d})`).join(', ')}.` : ''}`,
+        from: staff.assistant, fromRole: 'Assistant Manager', category: 'Squad', subject: ups.length && !downs.length ? `Development: ${ups.length} player${ups.length === 1 ? '' : 's'} improved` : 'Player development update',
+        body: `${opener} ${detail}`.trim(), dev: rows,
         actions: [{ label: 'Player Development', action: 'openDevelopment', primary: true }],
       })
     }

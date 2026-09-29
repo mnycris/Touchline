@@ -798,3 +798,24 @@ select.input option { background: #151b27; }
 .aw-comp { display: grid; place-items: center; }
 .aw-p { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left; }
 .aw-pn { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+/* message context panels */
+.mc { padding: 12px; }
+.mc-h { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); margin-bottom: 10px; }
+.mc-head { display: flex; align-items: center; gap: 10px; width: 100%; padding: 2px 0 10px; }
+.mc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.mc-fact { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--s2); min-width: 0; }
+.mc-fact .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mc-fact .pos { color: var(--pos); } .mc-fact .neg { color: var(--neg); } .mc-fact .warn { color: var(--warn); }
+.mc-list { margin-top: 10px; }
+.mc-rival { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); }
+.mc-club { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 10px; padding: 10px; border-radius: 12px; background: var(--s2); }
+.mc-dev { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border-top: 1px solid var(--line); }
+.mc-dev:first-of-type { border-top: 0; }
+.mc-attrs { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.mc-attr { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 5px; background: rgba(46,229,138,.12); color: #58e39a; }
+.mc-attr.neg { background: rgba(255,90,90,.12); color: #ff8a8a; }
+.mc-ovr { display: flex; align-items: center; gap: 3px; font-family: var(--display); font-size: 17px; }
+.mc-d { font-size: 11px; font-weight: 800; padding: 1px 5px; border-radius: 5px; margin-left: 3px; }
+.mc-d.pos { background: rgba(46,229,138,.16); color: #58e39a; } .mc-d.neg { background: rgba(255,90,90,.16); color: #ff8a8a; }
+.attr-gain { font-size: 9.5px; font-weight: 800; margin-left: 5px; padding: 0 4px; border-radius: 4px; vertical-align: 1px; }
+.attr-gain.up { color: #58e39a; background: rgba(46,229,138,.12); } .attr-gain.down { color: #ff8a8a; background: rgba(255,90,90,.12); }

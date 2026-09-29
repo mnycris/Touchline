@@ -120,6 +120,8 @@ export interface Player {
   devTargetPos?: Position // position conversion in progress
   devProgress: number // xp bucket 0..100 towards next attribute bump cycle
   growthHistory: { date: ISODate; ovr: number }[]
+  /** recent attribute changes (user's squad): shown as small arrows on the profile for a few weeks */
+  attrGains?: { date: ISODate; k: AttrKey; d: number }[]
   hidden: {
     consistency: number; professionalism: number; injuryProne: number; devRate: number; adaptability: number
     bigMatch: number; ambition: number; loyalty: number; temperament: number
@@ -534,6 +536,8 @@ export interface InboxMessage {
   urgent?: boolean
   expires?: ISODate
   image?: { kind: 'player' | 'club' | 'comp' | 'staff'; id: number | string }
+  /** structured content rendered under the text (development updates) */
+  dev?: { id: number; from: number; to: number; attrs: [AttrKey, number][] }[]
 }
 
 export interface NewsItem {
