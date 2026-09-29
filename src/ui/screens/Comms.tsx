@@ -102,46 +102,6 @@ export function Message({ params }: { params: { id: string } }) {
   )
 }
 
-// ---------------------------------------------------------------- news
-const NEWS_FILTERS = ['All', 'My Club', 'Transfers', 'Rumours', 'Results', 'Injuries', 'Awards']
-export function News() {
-  const w = useWorld()
-  const [f, setF] = useState('All')
-  const list = useMemo(() => w.news.filter((n) =>
-    f === 'All' ? true : f === 'My Club' ? n.userRelated : f === 'Transfers' ? n.kind === 'transfer' || n.kind === 'contract' : f === 'Rumours' ? n.kind === 'rumour'
-      : f === 'Results' ? n.kind === 'result' || n.kind === 'title' || n.kind === 'relegation' : f === 'Injuries' ? n.kind === 'injury' : n.kind === 'award' || n.kind === 'record' || n.kind === 'milestone'), [w.news.length, f])
-  return (
-    <Screen title="News" back>
-      <Chips items={NEWS_FILTERS.map((c) => ({ id: c, label: c }))} value={f} onChange={setF} />
-      {!list.length && <Empty icon="news" title="No stories yet" />}
-      <div className="pad stack" style={{ marginTop: 10 }}>
-        {list.slice(0, 120).map((n, i) => <NewsCard key={n.id} w={w} n={n} lead={i === 0} />)}
-      </div>
-    </Screen>
-  )
-}
-
-const KIND_LABEL: Record<string, string> = { transfer: 'Transfer', rumour: 'Rumour', result: 'Result', injury: 'Injury', manager: 'Manager', record: 'Record', milestone: 'Milestone', youth: 'Youth', contract: 'Contract', title: 'Champions', relegation: 'Relegation', award: 'Award', board: 'Board', preview: 'Preview' }
-
-function NewsCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolean }) {
-  const go = useGame((s) => s.go)
-  const p = n.playerIds[0] ? w.players[n.playerIds[0]] : undefined
-  const c = n.clubIds[0] ? w.clubs[n.clubIds[0]] : undefined
-  const comp = n.compId ? w.competitions[n.compId] : undefined
-  return (
-    <button className={`card tap news-item ${lead ? 'lead' : ''}`} onClick={() => p ? go({ name: 'player', params: { id: p.id } }) : c ? go({ name: 'club', params: { id: c.id } }) : undefined}>
-      <div className="row" style={{ gap: 12, padding: 12, alignItems: 'flex-start' }}>
-        {p ? <Face p={p} size={lead ? 64 : 48} radius={12} club={w.clubs[p.clubId]} /> : c ? <div className="msg-av" style={{ width: lead ? 64 : 48, height: lead ? 64 : 48 }}><Badge club={c} size={lead ? 50 : 36} /></div> : comp ? <div className="msg-av"><CompLogo k={comp.logoKey || comp.key} size={30} /></div> : null}
-        <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
-          <div className="row tight"><span className={`news-kind k-${n.kind}`}>{KIND_LABEL[n.kind] || n.kind}</span><span className="tiny dim">{fmtDate(n.date, 'dm')}</span></div>
-          <div className={lead ? 'h3' : 'b'} style={{ marginTop: 5, fontSize: lead ? 21 : 15, lineHeight: 1.12 }}>{n.headline}</div>
-          <div className="small muted" style={{ marginTop: 5 }}>{n.body}</div>
-        </div>
-      </div>
-    </button>
-  )
-}
-
 // ---------------------------------------------------------------- conversation
 export function ConversationScreen({ params }: { params: { id: string; msgId?: string } }) {
   const w = useWorld()

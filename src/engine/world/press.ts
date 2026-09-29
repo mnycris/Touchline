@@ -958,7 +958,8 @@ export function applyPress(w: World, kind: 'pre' | 'post', fixtureId: string, qu
     postNews(w, {
       headline: `${w.user.lastName}: ${lead.replace(/^"|"$/g, '')}`,
       body: `${w.user.firstName} ${w.user.lastName} spoke to the media ${kind === 'pre' ? `ahead of ${club.short}'s meeting with ${opp.short}` : `after ${club.short}'s game against ${opp.short}`}. ${quotes.join(' ')}`,
-      kind: 'manager', playerIds: [...personal.keys()], clubIds: [club.id, opp.id], compId: f.compId, importance: promiseWin ? 3 : 2, userRelated: true,
+      kind: 'manager', playerIds: [...personal.keys()], clubIds: [club.id, opp.id], compId: f.compId, importance: promiseWin ? 3 : 2, userRelated: true, fixtureId: f.id,
+      quote: { by: `${w.user.firstName} ${w.user.lastName}`, clubId: club.id, text: lead.replace(/^"|"$/g, '') },
     })
   }
   ;(w.flags.pressDone ||= {})[`${kind}:${fixtureId}`] = true

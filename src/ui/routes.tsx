@@ -1,7 +1,8 @@
 import type { ComponentType } from 'react'
 import type { Tab } from '../store/game'
 import { Hub } from './screens/Hub'
-import { Inbox, Message, News, ConversationScreen, PressConference, SellNegotiation } from './screens/Comms'
+import { Inbox, Message, ConversationScreen, PressConference, SellNegotiation } from './screens/Comms'
+import { Article, News } from './screens/NewsScreens'
 import { LiveMatch, PostMatch, FixtureReport } from './screens/Match'
 import { PreMatch } from './screens/MatchDay'
 import { SquadHub, SquadStatus, Contracts } from './screens/Squad'
@@ -26,6 +27,7 @@ export const ROUTES: Record<string, ComponentType<any>> = {
   inbox: Inbox,
   message: Message,
   news: News,
+  article: Article,
   conversation: ConversationScreen,
   press: PressConference,
   sellNegotiation: SellNegotiation,

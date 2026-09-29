@@ -547,6 +547,14 @@ export interface NewsItem {
   compId?: string
   importance: number // 1..5
   userRelated: boolean
+  /** match the story is about (result reports) */
+  fixtureId?: string
+  /** transfer fee, when relevant */
+  fee?: number
+  /** awards roundup month (YYYY-MM) */
+  month?: string
+  /** a manager's words, when the story is a quote */
+  quote?: { by: string; clubId: number; text: string }
 }
 
 // ---------------------------------------------------------------- board, promises, conversations

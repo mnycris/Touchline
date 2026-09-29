@@ -4,6 +4,7 @@ import { applyTheme } from './ui/theme'
 import { BottomNav } from './ui/components/layout'
 import { Icon } from './ui/icons/Icon'
 import { MainMenu } from './ui/screens/Menu'
+import { NewsDrop } from './ui/screens/NewsScreens'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 
 export default function App() {
@@ -79,6 +80,7 @@ function Career() {
         {View ? <View params={top!.params} /> : <Root />}
       </div>
       <BottomNav />
+      <NewsDrop />
       {Ov && (
         <div className="overlay overlay-in" key={`ov:${overlay.length}:${ov.name}`}>
           <Ov params={ov.params} />

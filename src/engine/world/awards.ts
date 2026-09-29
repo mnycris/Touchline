@@ -11,6 +11,8 @@ export function monthlyAwards(w: World) {
   const end = addDays(w.date, -1)
   const month = end.slice(0, 7)
   const mName = monthName(toDate(end).getUTCMonth())
+  // one roundup story per month instead of a headline per award
+  const winners: { comp: string; compId: string; own: boolean; playerId?: number; text: string; manager?: string }[] = []
   for (const comp of leagueComps(w)) {
     const fx = comp.fixtures.map((id) => w.fixtures[id]).filter((f) => f.played && f.date.startsWith(month))
     if (fx.length < comp.clubs.length) continue
@@ -49,11 +51,7 @@ export function monthlyAwards(w: World) {
       const e = score.get(best)!
       const award: Award = { id: `a${w.nextIds.misc++}`, name: `${comp.short} Player of the Month`, season: w.season, month, compKey: comp.key, playerId: p.id, clubId: p.clubId }
       w.awards.push(award)
-      postNews(w, {
-        headline: `${p.name} named ${comp.short} Player of the Month`,
-        body: `${p.name} has been voted ${comp.short} Player of the Month for ${mName} after ${e.g} goal${e.g === 1 ? '' : 's'} and ${e.a} assist${e.a === 1 ? '' : 's'} for ${w.clubs[p.clubId].name}.`,
-        kind: 'award', playerIds: [p.id], clubIds: [p.clubId], compId: comp.id, importance: comp.clubs.includes(w.userClubId) ? 3 : 2, userRelated: p.clubId === w.userClubId,
-      })
+      winners.push({ comp: comp.short, compId: comp.id, own: comp.clubs.includes(w.userClubId), playerId: p.id, text: `${p.name} (${w.clubs[p.clubId].short}) · ${e.g} G ${e.a} A` })
       if (p.clubId === w.userClubId) p.morale = Math.min(100, p.morale + 6)
     }
     // Manager of the Month
@@ -63,6 +61,8 @@ export function monthlyAwards(w: World) {
       const isUser = bc === w.userClubId
       const name = isUser ? `${w.user.firstName} ${w.user.lastName}` : w.managers[w.clubs[bc].managerId]?.name || ''
       w.awards.push({ id: `a${w.nextIds.misc++}`, name: `${comp.short} Manager of the Month`, season: w.season, month, compKey: comp.key, clubId: bc, managerName: name })
+      const pw = winners.find((x) => x.compId === comp.id)
+      if (pw) pw.manager = `${name} (${w.clubs[bc].short}, ${bp} pts)`
       if (isUser) {
         w.user.awards.push({ name: `${comp.short} Manager of the Month`, season: w.season, month: mName })
         w.user.reputation = Math.min(100, w.user.reputation + 2)
@@ -70,6 +70,17 @@ export function monthlyAwards(w: World) {
       }
     }
   }
+  if (!winners.length) return
+  winners.sort((a, b) => Number(b.own) - Number(a.own))
+  const lead = winners[0]
+  const leadP = lead.playerId ? w.players[lead.playerId] : undefined
+  const mine = winners.find((x) => x.playerId && w.players[x.playerId]?.clubId === w.userClubId)
+  postNews(w, {
+    headline: mine ? `${w.players[mine.playerId!].name} is ${mine.comp} Player of the Month` : leadP ? `${mName} awards: ${leadP.name} named ${lead.comp} Player of the Month` : `${mName} awards`,
+    body: winners.map((x) => `${x.comp}: ${x.text}${x.manager ? `; Manager of the Month ${x.manager}` : ''}.`).join(' '),
+    kind: 'award', playerIds: winners.filter((x) => x.playerId).map((x) => x.playerId!), clubIds: [], compId: lead.compId, month,
+    importance: mine ? 4 : lead.own ? 3 : 2, userRelated: !!mine,
+  })
 }
 
 export function seasonAwards(w: World) {

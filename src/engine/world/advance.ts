@@ -15,6 +15,8 @@ import { updateBoardConfidence, generateObjectives } from './board'
 import { checkPromises, maybeConversations, weeklyMorale } from './morale'
 import { dailyScouting, dailyYouth } from './scouting'
 import { monthlyAwards } from './awards'
+import { isDeepFixture } from './matchRunner'
+import { dailyWorldNews, matchWorldNews } from './worldNews'
 import { aiManagerReview, userJobSecurity } from './managers'
 import { advancePlayoff, createPlayoffs, leagueFinished, seasonRollover } from './season'
 import { postNews, sendInbox, staffNames } from './messages'
@@ -80,6 +82,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
     }
     if (comp.status === 'upcoming') comp.status = 'active'
   }
+  matchWorldNews(w, f, result, res.injuries)
   // user-facing messages
   if (f.userInvolved) {
     const staff = staffNames(w)
@@ -99,7 +102,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
       sendInbox(w, { from: staff.assistant, fromRole: 'Assistant Manager', category: 'Squad', subject: `Suspension: ${p.name}`, body: `${p.name} will miss the next ${b.games} ${comp?.short ?? ''} match${b.games > 1 ? 'es' : ''} through suspension.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
     }
     resultNews(w, f, result, true)
-  } else if (comp && (comp.clubs.includes(w.userClubId) || comp.format === 'uefa') && result.score[0] + result.score[1] >= 0) {
+  } else if (comp && (comp.clubs.includes(w.userClubId) || comp.format === 'uefa' || isDeepFixture(w, f))) {
     resultNews(w, f, result, false)
   }
 }
@@ -123,8 +126,8 @@ function resultNews(w: World, f: Fixture, r: MatchResult, user: boolean) {
   postNews(w, {
     headline,
     body: `${home.name} ${h}-${a} ${away.name}${r.pens ? ` (${r.pens[0]}-${r.pens[1]} pens)` : ''} · ${comp?.short ?? ''} ${f.roundName}. ${scorers ? `Scorers: ${scorers}.` : ''}${r.motm ? ` Player of the Match: ${w.players[r.motm]?.name}.` : ''}`,
-    kind: 'result', playerIds: hatTrick ? [hatTrick[0]] : r.motm ? [r.motm] : [], clubIds: [f.home, f.away], compId: f.compId,
-    importance: user ? 4 : upset || hatTrick ? 3 : 2, userRelated: user,
+    kind: 'result', playerIds: hatTrick ? [hatTrick[0]] : r.motm ? [r.motm] : [], clubIds: [f.home, f.away], compId: f.compId, fixtureId: f.id,
+    importance: user ? 4 : (upset && Math.max(home.squadAvg, away.squadAvg) >= 76) || (hatTrick && (w.leagues[comp?.leagueId ?? -1]?.prestige || 0) >= 8) || f.roundName === 'Final' ? 3 : 2, userRelated: user,
   })
 }
 
@@ -172,6 +175,7 @@ export function simulateDay(w: World, rng: Rng, includeUser = false) {
 }
 
 function endOfDay(w: World, rng: Rng) {
+  dailyWorldNews(w)
   const d = w.date
   const wd = weekday(d)
   const dom = Number(d.slice(8, 10))

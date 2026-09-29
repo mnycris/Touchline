@@ -73,6 +73,8 @@ interface GameState {
   advanceLabel?: string
   lastStop?: StopReason
   toast?: { id: number; text: string; kind: 'ok' | 'err' | 'info' }
+  /** "Latest news" drop-in: a few important fresh stories */
+  newsDrop?: { ids: string[]; nonce: number }
   prefs: AppPrefs
   saves: SaveMeta[]
   loadDb: () => Promise<RawDb | undefined>
@@ -102,6 +104,9 @@ interface GameState {
   watchFixture: (fixtureId: string) => void
   setLive: (l?: LiveMatch) => void
   notify: (text: string, kind?: 'ok' | 'err' | 'info') => void
+  /** show the latest-news drop-in if anything important happened since the last one */
+  checkNews: () => void
+  clearNewsDrop: () => void
   setPrefs: (p: Partial<AppPrefs>) => void
 }
 
@@ -290,6 +295,7 @@ export const useGame = create<GameState>((set, get) => ({
     } finally {
       set({ advancing: false, lastStop: stop, v: get().v + 1, stopRequested: false })
     }
+    get().checkNews()
     if (stop === 'match') get().open({ name: 'prematch' })
     else if (stop === 'watch' && w.flags.watch) get().watchFixture(w.flags.watch)
     else if (stop === 'season-end') get().open({ name: 'seasonReview', params: { season: w.season - 1 } })
@@ -316,6 +322,7 @@ export const useGame = create<GameState>((set, get) => ({
     w.rng = rng.state
     w.lastUserResult = f.id
     set({ v: get().v + 1, live: undefined })
+    window.setTimeout(() => get().checkNews(), 1800)
     get().save(true)
   },
 
@@ -351,6 +358,20 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   setLive(l) { set({ live: l, v: get().v + 1 }) },
+
+  checkNews() {
+    const w = get().world
+    if (!w) return
+    const num = (id: string) => Number(id.slice(1)) || 0
+    const seen = Number(w.flags.newsSeen || 0)
+    const fresh = w.news.filter((n) => num(n.id) > seen)
+    if (w.news[0]) w.flags.newsSeen = num(w.news[0].id)
+    const own = (n: (typeof fresh)[number]) => !!n.quote && n.quote.clubId === w.userClubId && n.kind === 'manager'
+    const pickd = fresh.filter((n) => n.importance >= 3 && !own(n)).sort((a, b) => b.importance - a.importance || num(b.id) - num(a.id)).slice(0, 3)
+    if (!seen || !pickd.length) return
+    set({ newsDrop: { ids: pickd.map((n) => n.id), nonce: Date.now() } })
+  },
+  clearNewsDrop() { set({ newsDrop: undefined }) },
 
   notify(text, kind = 'info') {
     const id = ++toastN

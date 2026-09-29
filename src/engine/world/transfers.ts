@@ -292,7 +292,7 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
       body: isLoan ? `${to.name} have agreed a season-long loan for ${p.name} from ${from?.name}.` : fee
         ? `${to.name} have completed the signing of ${p.name} from ${from?.name ?? 'free agency'} for a reported ${fmtMoney(fee)}. The ${ageOn(p.dob, w.date)}-year-old ${p.positions[0]} has signed a ${p.contract.until - w.season}-year contract.`
         : `${p.name} has joined ${to.name} as a free agent.`,
-      kind: 'transfer', playerIds: [p.id], clubIds: [to.id, ...(from ? [from.id] : [])], importance: fee >= 60_000_000 ? 5 : fee >= 25_000_000 ? 4 : 3,
+      kind: 'transfer', playerIds: [p.id], clubIds: [to.id, ...(from ? [from.id] : [])], fee: fee || undefined, importance: fee >= 60_000_000 ? 5 : fee >= 25_000_000 ? 4 : 3,
       userRelated: to.id === w.userClubId || from?.id === w.userClubId,
     })
   }
