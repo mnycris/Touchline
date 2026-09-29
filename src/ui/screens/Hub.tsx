@@ -272,13 +272,11 @@ function CalendarStrip({ w }: { w: World }) {
 
 function MiniTable({ w }: { w: World }) {
   const go = useGame((s) => s.go)
-  const setTab = useGame((s) => s.setTab)
   const comp = leagueOf(w, w.userClubId)!
   const rows = tableAround(w, comp, w.userClubId, 2)
   const total = comp.table?.length || 20
-  void go
   return (
-    <button className="card tap" onClick={() => setTab('season')}>
+    <button className="card tap" onClick={() => go({ name: 'comp', params: { id: comp.id } })}>
       <div className="card-h">
         <div className="row tight"><CompLogo k={compLogoKey(comp)} size={20} name={comp.name} /><span className="label">{comp.short}</span></div>
         <span className="tiny dim">Matchday {Math.max(...(comp.table || []).map((r) => r.p), 0)}</span>

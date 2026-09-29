@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Competition, Fixture, Player, World } from '../../domain/types'
@@ -24,7 +25,7 @@ import { sideInput } from '../../engine/world/matchRunner'
 export function SeasonHub() {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [tab, setTab] = useState<'mine' | 'fixtures' | 'world'>('mine')
+  const [tab, setTab] = useRemember<'mine' | 'fixtures' | 'world'>('tab', 'mine')
   const comps = w.flags.unemployed ? [] : seasonComps(w, w.userClubId)
   return (
     <Screen title="Season" sub={seasonLabel(w.season)} right={<HubActions />}>
@@ -133,7 +134,7 @@ export function CompScreen({ params }: { params: { id: string } }) {
   const c = w.competitions[params.id]
   const hasTable = !!c?.table
   const hasKO = !!c && c.rounds.length > 0
-  const [tab, setTab] = useState<'table' | 'fixtures' | 'bracket' | 'stats'>(hasTable ? 'table' : 'bracket')
+  const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : 'bracket')
   if (!c) return <Screen title="Competition" back><Empty icon="trophy" title="Competition not found" /></Screen>
   const items = [
     ...(hasTable ? [{ id: 'table' as const, label: c.format === 'uefa' ? 'League Phase' : 'Table' }] : []),
@@ -154,7 +155,7 @@ export function CompScreen({ params }: { params: { id: string } }) {
 
 export function TableView({ w, c, compact, highlight }: { w: World; c: Competition; compact?: boolean; highlight?: number[] }) {
   const go = useGame((s) => s.go)
-  const [mode, setMode] = useState<'short' | 'full' | 'form'>('short')
+  const [mode, setMode] = useRemember<'short' | 'full' | 'form'>('tableMode', 'short')
   const t = sortTable(w, c)
   const zones = new Map<Zone, true>()
   t.forEach((_, i) => { const z = zoneFor(w, c, i + 1, t.length); if (z) zones.set(z, true) })
@@ -343,7 +344,7 @@ function TeamOfTheWeek({ w, c }: { w: World; c: Competition }) {
 export function ClubProfile({ params }: { params: { id: number } }) {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [tab, setTab] = useState<'overview' | 'squad' | 'fixtures' | 'info'>('overview')
+  const [tab, setTab] = useRemember<'overview' | 'squad' | 'fixtures' | 'info'>('tab', 'overview')
   const c = w.clubs[params.id]
   if (!c) return <Screen title="Club" back><Empty icon="stadium" title="Club not found" /></Screen>
   const squad = [...rosterOf(w, c.id)].sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)

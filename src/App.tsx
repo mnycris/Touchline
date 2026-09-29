@@ -5,6 +5,7 @@ import { BottomNav } from './ui/components/layout'
 import { Icon } from './ui/icons/Icon'
 import { MainMenu } from './ui/screens/Menu'
 import { NewsDrop } from './ui/screens/NewsScreens'
+import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 
 export default function App() {
@@ -77,13 +78,17 @@ function Career() {
   return (
     <>
       <div className="layer layer-in" key={`${tab}:${stack.length}:${top?.name ?? 'root'}`}>
-        {View ? <View params={top!.params} /> : <Root />}
+        <ViewKey.Provider value={viewKeyFor(tab, stack.length, top?.name ?? 'root', top?.params)}>
+          {View ? <View params={top!.params} /> : <Root />}
+        </ViewKey.Provider>
       </div>
       <BottomNav />
       <NewsDrop />
       {Ov && (
         <div className="overlay overlay-in" key={`ov:${overlay.length}:${ov.name}`}>
-          <Ov params={ov.params} />
+          <ViewKey.Provider value={viewKeyFor('ov', overlay.length, ov.name, ov.params)}>
+            <Ov params={ov.params} />
+          </ViewKey.Provider>
         </div>
       )}
     </>

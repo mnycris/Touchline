@@ -9,6 +9,7 @@ import { Chips, Screen } from '../components/layout'
 import { fmtDate } from '../../domain/dates'
 import { articleFor } from '../../engine/world/articles'
 import { Ball } from '../components/Glyphs'
+import { useRemember } from '../memory'
 
 const KIND_LABEL: Record<string, string> = { transfer: 'Transfer', rumour: 'Rumour', result: 'Result', injury: 'Injury', manager: 'Manager', record: 'Record', milestone: 'Milestone', youth: 'Youth', contract: 'Contract', title: 'Title', relegation: 'Relegation', award: 'Awards', board: 'Board', preview: 'Preview' }
 const FILTERS = ['Top', 'My Club', 'World', 'Transfers', 'Results', 'Awards'] as const
@@ -30,7 +31,7 @@ function matches(w: World, n: NewsItem, f: Filter) {
 
 export function News() {
   const w = useWorld()
-  const [f, setF] = useState<Filter>('Top')
+  const [f, setF] = useRemember<Filter>('f', 'Top')
   const list = useMemo(() => w.news.filter((n) => matches(w, n, f)), [w.news.length, w.news[0]?.id, f])
   return (
     <Screen title="News" back>

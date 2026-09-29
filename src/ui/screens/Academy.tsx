@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
@@ -20,7 +21,7 @@ const YOUTH_COUNTRIES = ['England', 'Spain', 'France', 'Germany', 'Italy', 'Port
 
 export function Academy() {
   const w = useWorld()
-  const [tab, setTab] = useState<'squad' | 'prospects' | 'scouts'>('squad')
+  const [tab, setTab] = useRemember<'squad' | 'prospects' | 'scouts'>('tab', 'squad')
   if (w.flags.unemployed) return <Screen title="Youth Academy" right={<HubActions />}><Empty icon="academy" title="No club" /></Screen>
   const club = userClub(w)
   const squad = academyOf(w, club.id)

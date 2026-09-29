@@ -19,6 +19,7 @@ import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
+import { useRemember } from '../memory'
 
 // ============================================================================ helpers
 const EVENT_ICON: Record<string, [string, string]> = {
@@ -806,7 +807,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
   const go = useGame((s) => s.go)
   const r = f.result!
   const hasLineups = !!r.lineups && r.players.length > 0
-  const [tab, setTab] = useState<'summary' | 'lineups' | 'stats'>('summary')
+  const [tab, setTab] = useRemember<'summary' | 'lineups' | 'stats'>('reportTab', 'summary')
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const comp = w.competitions[f.compId]
   const colors = kitColors(home, away)

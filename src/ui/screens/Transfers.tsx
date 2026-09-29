@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useEffect, useMemo, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
@@ -22,7 +23,7 @@ export function TransferHub() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const open = useGame((s) => s.open)
-  const [tab, setTab] = useState<'hub' | 'shortlist' | 'deals'>('hub')
+  const [tab, setTab] = useRemember<'hub' | 'shortlist' | 'deals'>('tab', 'hub')
   const club = userClub(w)
   if (w.flags.unemployed) return <Screen title="Transfers" right={<HubActions />}><Empty icon="transfers" title="No club" text="You need a club to do business." /></Screen>
   const win = currentWindow(w)
@@ -158,7 +159,7 @@ export function PlayerLine({ w, p, sub, right }: { w: World; p: Player; sub?: st
 
 function DoneDeals({ w, mine }: { w: World; mine?: boolean }) {
   const go = useGame((s) => s.go)
-  const [f, setF] = useState<'mine' | 'all' | 'big'>(mine ? 'mine' : 'all')
+  const [f, setF] = useRemember<'mine' | 'all' | 'big'>('dealFilter', mine ? 'mine' : 'all')
   const list = w.transfers.history.filter((h) => h.season === w.season && (f === 'all' ? true : f === 'mine' ? h.from === w.userClubId || h.to === w.userClubId : h.fee >= 20e6)).slice(0, 150)
   return (
     <div className="pad" style={{ marginTop: 12 }}>
@@ -195,9 +196,9 @@ const POS_OPTS = ['Any', 'GK', 'CB', 'FB', 'CDM', 'CM', 'CAM', 'W', 'ST', 'DEF',
 
 export function Search() {
   const w = useWorld()
-  const [f, setF] = useState<Filters>(() => ({ ...DEF, ...(w.flags.searchFilters || {}) }))
+  const [f, setF] = useRemember<Filters>('searchFilters', () => ({ ...DEF, ...(w.flags.searchFilters || {}) }))
   const [open, setOpen] = useState(false)
-  const [sort, setSort] = useState<'ovr' | 'pot' | 'value' | 'age'>('ovr')
+  const [sort, setSort] = useRemember<'ovr' | 'pot' | 'value' | 'age'>('searchSort', 'ovr')
   const set = (p: Partial<Filters>) => { const n = { ...f, ...p }; setF(n); w.flags.searchFilters = n }
   const results = useMemo(() => {
     const q = f.q.trim().toLowerCase()

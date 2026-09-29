@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, World } from '../../domain/types'
@@ -20,9 +21,9 @@ export function SquadHub() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const club = userClub(w)
-  const [view, setView] = useState<View>('overview')
-  const [grp, setGrp] = useState('ALL')
-  const [sort, setSort] = useState<Sort>('pos')
+  const [view, setView] = useRemember<View>('view', 'overview')
+  const [grp, setGrp] = useRemember('grp', 'ALL')
+  const [sort, setSort] = useRemember<Sort>('sort', 'pos')
   const squad = rosterOf(w, club.id)
   const list = useMemo(() => {
     const l = squad.filter((p) => grp === 'ALL' || POS_GROUP[p.positions[0]] === grp)

@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, TeamSheet, TeamTactics, World } from '../../domain/types'
@@ -21,7 +22,7 @@ export function Tactics() {
   const mutate = useGame((s) => s.mutate)
   const club = userClub(w)
   const sheet = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
-  const [tab, setTab] = useState<'lineup' | 'roles' | 'tactics' | 'setpieces' | 'presets'>('lineup')
+  const [tab, setTab] = useRemember<'lineup' | 'roles' | 'tactics' | 'setpieces' | 'presets'>('tab', 'lineup')
   const [sel, setSel] = useState<Sel>()
   const [formOpen, setFormOpen] = useState(false)
   const [roleSlot, setRoleSlot] = useState<number>()

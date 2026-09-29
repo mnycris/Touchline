@@ -1,0 +1,50 @@
+// Navigation memory: squad filters/sort survive opening a player; competition tab survives a match report; scroll restores.
+import { chromium } from 'playwright'
+import fs from 'node:fs'
+const OUT = process.argv[2] || '/tmp/opus-nav'
+fs.mkdirSync(OUT, { recursive: true })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })).newPage()
+const errors = []
+page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
+let n = 0
+const shot = async (name, wait = 350) => { await page.waitForTimeout(wait); await page.screenshot({ path: `${OUT}/${String(++n).padStart(2, '0')}-${name}.png` }) }
+await page.goto('http://localhost:5173/')
+await page.getByText('New Career').first().click()
+await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
+await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
+await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.club-card').nth(2).click()
+await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.waitForSelector('.continue-btn', { timeout: 90000 })
+// squad: DEF + OVR, scroll, open a player, back
+await page.locator('.bnav button', { hasText: 'Squad' }).first().click().catch(async () => page.getByText('Squad').last().click())
+await page.waitForTimeout(500)
+await page.locator('.chip', { hasText: /^DEF$/ }).first().click()
+await page.locator('.chip', { hasText: /^OVR$/ }).first().click()
+await page.evaluate(() => { const s = [...document.querySelectorAll('.screen')].pop(); if (s) s.scrollTop = 300 })
+await page.waitForTimeout(300)
+const before = await page.evaluate(() => ({ scroll: [...document.querySelectorAll('.screen')].pop()?.scrollTop, on: [...document.querySelectorAll('.chip.on')].map((c) => c.textContent) }))
+await shot('squad-before')
+await page.locator('.screen .li.tap, .screen .sq-row, .screen button.tap').nth(3).click()
+await page.waitForTimeout(600)
+await shot('player')
+await page.evaluate(() => window.__game.getState().back())
+await page.waitForTimeout(600)
+const after = await page.evaluate(() => ({ scroll: [...document.querySelectorAll('.screen')].pop()?.scrollTop, on: [...document.querySelectorAll('.chip.on')].map((c) => c.textContent) }))
+await shot('squad-after')
+console.log('squad before', JSON.stringify(before), 'after', JSON.stringify(after))
+// season: open league, fixtures tab, open a fixture, back
+const compId = await page.evaluate(() => { const w = window.__game.getState().world; return Object.values(w.competitions).find((c) => c.format === 'league' && c.clubs.includes(w.userClubId) && c.season === w.season).id })
+await page.evaluate((id) => { const g = window.__game.getState(); g.setTab('season'); g.go({ name: 'comp', params: { id } }) }, compId)
+await page.waitForTimeout(600)
+await page.locator('.tab', { hasText: 'Fixtures' }).first().click()
+await page.waitForTimeout(400)
+await page.evaluate(() => window.__game.getState().go({ name: 'club', params: { id: window.__game.getState().world.userClubId } }))
+await page.waitForTimeout(500)
+await page.evaluate(() => window.__game.getState().back())
+await page.waitForTimeout(500)
+const tabOn = await page.evaluate(() => [...document.querySelectorAll('.tab.on, .tab.active, .tabs .on')].map((t) => t.textContent))
+console.log('competition tab after back:', JSON.stringify(tabOn))
+await shot('comp-after')
+console.log(JSON.stringify({ errors }))
+await browser.close()

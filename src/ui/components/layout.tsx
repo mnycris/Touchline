@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { rememberedScroll, saveScroll, ViewKey } from '../memory'
 import { Icon } from '../icons/Icon'
 import { haptic, useGame } from '../../store/game'
 import { unreadCount } from '../../engine/world/messages'
@@ -9,7 +10,22 @@ export function Screen({ title, sub, children, back, right, noNav, noTop, classN
   title?: ReactNode; sub?: ReactNode; children: ReactNode; back?: boolean; right?: ReactNode; noNav?: boolean; noTop?: boolean; className?: string; onBack?: () => void; scrollKey?: string; footer?: ReactNode; style?: React.CSSProperties
 }) {
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => { if (scrollKey !== undefined) ref.current?.scrollTo({ top: 0 }) }, [scrollKey])
+  const vk = useContext(ViewKey)
+  const first = useRef(true)
+  useEffect(() => {
+    if (first.current) { first.current = false; return }
+    if (scrollKey !== undefined) ref.current?.scrollTo({ top: 0 })
+  }, [scrollKey])
+  // come back to where you were: restore the scroll position once content has laid out, and keep it updated
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const top = rememberedScroll(vk)
+    if (top) { el.scrollTop = top; requestAnimationFrame(() => { if (el.scrollTop < top) el.scrollTop = top }) }
+    const onScroll = () => saveScroll(vk, el.scrollTop)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [vk])
   return (
     <>
       {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} />}

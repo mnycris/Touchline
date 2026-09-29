@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, SquadRole, World } from '../../domain/types'
@@ -23,7 +24,7 @@ type Tab = 'attributes' | 'playstyles' | 'stats' | 'career' | 'development'
 export function PlayerProfile({ params }: { params: { id: number } }) {
   const w = useWorld()
   const p = w.players[params.id]
-  const [tab, setTab] = useState<Tab>('attributes')
+  const [tab, setTab] = useRemember<Tab>('tab', 'attributes')
   if (!p) return <Screen title="Player" back><div className="pad muted">Player not found (retired or removed).</div></Screen>
   const mine = p.clubId === w.userClubId || p.loan?.fromClubId === w.userClubId
   const club = w.clubs[p.clubId]

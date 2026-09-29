@@ -1,3 +1,4 @@
+import { useRemember } from '../memory'
 import { DeepLeaguePicker } from '../components/DeepLeaguePicker'
 import { useState } from 'react'
 import { Fx } from '../components/Fx'
@@ -23,7 +24,7 @@ const CAT_ICON: Record<ObjectiveCategory, string> = { 'Domestic Success': 'troph
 // ============================================================================ office (board + finances)
 export function Office() {
   const w = useWorld()
-  const [tab, setTab] = useState<'board' | 'finance'>('board')
+  const [tab, setTab] = useRemember<'board' | 'finance'>('tab', 'board')
   if (w.flags.unemployed) return <Screen title="Office" back><Empty icon="office" title="No club" /></Screen>
   return (
     <Screen title="Office" back>
@@ -87,7 +88,7 @@ function Finances({ w }: { w: World }) {
   const club = userClub(w)
   const f = club.finance
   const bill = wageBill(w)
-  const [filter, setFilter] = useState<'all' | 'transfer' | 'wages' | 'revenue'>('all')
+  const [filter, setFilter] = useRemember<'all' | 'transfer' | 'wages' | 'revenue'>('ledgerFilter', 'all')
   const ledger = [...f.ledger].reverse().filter((l) => filter === 'all' ? true : filter === 'transfer' ? l.kind === 'transfer' || l.kind === 'bonus' : filter === 'wages' ? l.kind === 'wages' : l.amount > 0).slice(0, 80)
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
@@ -249,7 +250,7 @@ export function Jobs({ params }: { params?: { sacked?: boolean } }) {
 export function Awards() {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [tab, setTab] = useState<'awards' | 'history'>('awards')
+  const [tab, setTab] = useRemember<'awards' | 'history'>('tab', 'awards')
   return (
     <Screen title="Awards & History" back>
       <Tabs items={[{ id: 'awards', label: 'Awards' }, { id: 'history', label: 'Past Seasons' }]} value={tab} onChange={setTab} />
@@ -422,7 +423,7 @@ function CareerOptions() {
 function AwardsBoard() {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [scope, setScope] = useState<'mine' | 'all'>('mine')
+  const [scope, setScope] = useRemember<'mine' | 'all'>('scope', 'mine')
   const own = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))?.key
   const list = w.awards.filter((a) => scope === 'all' || !a.compKey || a.compKey === own || a.clubId === w.userClubId || (a.playerId && w.players[a.playerId]?.clubId === w.userClubId))
   if (!w.awards.length) return <div className="pad" style={{ marginTop: 12 }}><Empty icon="medal" title="No awards yet" text="Player and Manager of the Month awards are handed out at the start of every month; season awards at the end of the campaign." /></div>

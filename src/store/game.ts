@@ -11,6 +11,7 @@ import { positionOf } from '../engine/competitions/tables'
 import type { MatchSim } from '../engine/match/engine'
 import { touchRoster } from '../engine/world/roster'
 import { dynamicValue } from '../domain/finance'
+import { clearMemory } from '../ui/memory'
 
 export type Tab = 'central' | 'squad' | 'transfers' | 'academy' | 'season'
 export interface Route { name: string; params?: any }
@@ -174,6 +175,7 @@ export const useGame = create<GameState>((set, get) => ({
     if (!w) return false
     migrateWorld(w)
     touchRoster(w)
+    clearMemory()
     set({ world: w, saveId: id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined })
     await setKV('lastSave', id)
     return true

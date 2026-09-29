@@ -25,6 +25,7 @@ import { TableView } from './Competitions'
 import { FixtureRow, assignToFormation } from './Match'
 import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
+import { useRemember } from '../memory'
 
 function poisson(l: number, k: number) { let p = Math.exp(-l); for (let i = 1; i <= k; i++) p *= l / i; return p }
 
@@ -54,7 +55,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const setLive = useGame((s) => s.setLive)
   const prefs = useGame((s) => s.prefs)
   const finish = useGame((s) => s.finishUserMatch)
-  const [tab, setTab] = useState<'preview' | 'lineups' | 'table' | 'h2h'>('preview')
+  const [tab, setTab] = useRemember<'preview' | 'lineups' | 'table' | 'h2h'>('tab', 'preview')
   const [pick, setPick] = useState<LineupTap>()
   const [formOpen, setFormOpen] = useState(false)
   const todayFx = userFixtureOn(w, w.date)
