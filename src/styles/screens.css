@@ -449,6 +449,7 @@ select.input option { background: #151b27; }
 .lp-lines { position: absolute; inset: 0; width: 100%; height: 100%; }
 .lp-dot { position: absolute; width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; border-radius: 50%; background: var(--kit); border: 1.5px solid rgba(255, 255, 255, 0.85); font-size: 7.5px; font-weight: 800; display: grid; place-items: center; line-height: 1; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); will-change: left, top; }
 .lp-dot.gk { border-color: #0b0d11; }
+.lp-dot.has { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35), 0 1px 3px rgba(0, 0, 0, 0.5); z-index: 2; }
 .lp-ball { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; z-index: 3; will-change: left, top; display: grid; }
 .lp-ball.rolling svg { animation: ballRoll 0.5s linear infinite; }
 .lp-ball-shadow { position: absolute; width: 10px; height: 5px; margin: -1px 0 0 -4px; border-radius: 50%; background: rgba(0, 0, 0, 0.35); z-index: 2; filter: blur(1px); }

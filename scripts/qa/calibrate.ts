@@ -4,13 +4,14 @@ import fs from 'node:fs'
 import { createWorld } from '../../src/data/createWorld'
 import type { RawDb } from '../../src/data/rawTypes'
 import { Rng } from '../../src/domain/rng'
-import { applyMatchResult, createSim } from '../../src/engine/world/matchRunner'
+import { applyMatchResult, createSim, simulateFixture } from '../../src/engine/world/matchRunner'
 import { sortTable } from '../../src/engine/competitions/tables'
 
 const raw: RawDb = JSON.parse(fs.readFileSync('public/data/world.json', 'utf8'))
 const leagueId = Number(process.argv[2] || 13)
 const seed = Number(process.argv[3] || 7)
 const quiet = process.argv.includes('--quiet')
+const quick = process.argv.includes('--quick')
 const arsenal = raw.clubs.find((c) => c.dbName === 'Arsenal FC')!.id
 const t0 = Date.now()
 const w = createWorld(raw, {
@@ -36,9 +37,13 @@ const posG = (p: string) => (p === 'GK' ? 'GK' : p === 'CB' ? 'CB' : ['LB', 'RB'
 const t1 = Date.now()
 for (const id of comp.fixtures) {
   const f = w.fixtures[id]
-  const sim = createSim(w, f, false)
-  const r = sim.runToEnd()
-  bip += ((sim as any).sides[0].possSec + (sim as any).sides[1].possSec) / 60
+  let r
+  if (quick) r = simulateFixture(w, f, false)
+  else {
+    const sim = createSim(w, f, false)
+    r = sim.runToEnd()
+    bip += ((sim as any).sides[0].possSec + (sim as any).sides[1].possSec) / 60
+  }
   const res = applyMatchResult(w, f, r, rng)
   inj += res.injuries.length
   n++

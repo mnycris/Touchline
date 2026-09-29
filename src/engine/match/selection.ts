@@ -25,7 +25,8 @@ export function isAvailable(w: World, p: Player, comp?: Competition): boolean {
 function selectionScore(w: World, p: Player, pos: Position, rotate: number): number {
   let r = posRating(p, pos)
   const fit = p.fitness
-  if (fit < 85) r -= (85 - fit) * (0.12 + rotate * 0.25)
+  // a player who starts short of full fitness fades badly late on: freshness is worth real rating points
+  if (fit < 95) r -= (95 - fit) * (0.24 + rotate * 0.2)
   r += (p.sharpness - 60) * 0.03
   return r
 }
@@ -34,39 +35,51 @@ function selectionScore(w: World, p: Player, pos: Position, rotate: number): num
 export function pickXI(w: World, players: Player[], formationId: string, rotate = 0): number[] {
   const f = formationOf(formationId)
   const slots = f.slots
+  // score every player once per distinct slot position
+  const idx = new Map(players.map((p, i) => [p.id, i]))
+  const table = new Map<Position, Float64Array>()
+  for (const s of slots) {
+    if (table.has(s.pos)) continue
+    const arr = new Float64Array(players.length)
+    players.forEach((p, i) => { arr[i] = (s.pos === 'GK') !== (p.positions[0] === 'GK') ? -1e9 : selectionScore(w, p, s.pos, rotate) })
+    table.set(s.pos, arr)
+  }
+  const sc = (id: number, pos: Position) => table.get(pos)![idx.get(id)!]
   const order = slots.map((s, i) => i).sort((a, b) => priority(slots[a].pos) - priority(slots[b].pos))
   const used = new Set<number>()
   const xi: number[] = new Array(slots.length).fill(0)
   for (const i of order) {
-    let best: Player | undefined, bs = -1e9
-    for (const p of players) {
-      if (used.has(p.id)) continue
-      if (slots[i].pos === 'GK' && p.positions[0] !== 'GK') continue
-      if (slots[i].pos !== 'GK' && p.positions[0] === 'GK') continue
-      const s = selectionScore(w, p, slots[i].pos, rotate)
-      if (s > bs) { bs = s; best = p }
+    const arr = table.get(slots[i].pos)!
+    let best = -1, bs = -1e8
+    for (let k = 0; k < players.length; k++) {
+      if (arr[k] > bs && !used.has(players[k].id)) { bs = arr[k]; best = k }
     }
-    if (best) { xi[i] = best.id; used.add(best.id) }
+    if (best >= 0) { xi[i] = players[best].id; used.add(players[best].id) }
   }
   // local improvement by swapping pairs of outfield slots
-  const byId = new Map(players.map((p) => [p.id, p]))
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 1; i < slots.length; i++) {
       for (let j = i + 1; j < slots.length; j++) {
-        const a = byId.get(xi[i]), b = byId.get(xi[j])
+        const a = xi[i], b = xi[j]
         if (!a || !b) continue
-        const cur = selectionScore(w, a, slots[i].pos, rotate) + selectionScore(w, b, slots[j].pos, rotate)
-        const sw = selectionScore(w, a, slots[j].pos, rotate) + selectionScore(w, b, slots[i].pos, rotate)
-        if (sw > cur + 0.5) { xi[i] = b.id; xi[j] = a.id }
+        const cur = sc(a, slots[i].pos) + sc(b, slots[j].pos)
+        const sw = sc(a, slots[j].pos) + sc(b, slots[i].pos)
+        if (sw > cur + 0.5) { xi[i] = b; xi[j] = a }
       }
     }
     // try bench players into each slot
+    const inXI = new Set(xi)
     for (let i = 1; i < slots.length; i++) {
-      const cur = byId.get(xi[i])
-      for (const p of players) {
-        if (xi.includes(p.id) || p.positions[0] === 'GK') continue
-        if (!cur || selectionScore(w, p, slots[i].pos, rotate) > selectionScore(w, cur, slots[i].pos, rotate) + 0.5) {
+      const cur = xi[i]
+      const arr = table.get(slots[i].pos)!
+      const curS = cur ? arr[idx.get(cur)!] : -1e9
+      for (let k = 0; k < players.length; k++) {
+        const p = players[k]
+        if (inXI.has(p.id) || p.positions[0] === 'GK') continue
+        if (arr[k] > curS + 0.5) {
+          inXI.delete(cur)
           xi[i] = p.id
+          inXI.add(p.id)
           break
         }
       }

@@ -662,6 +662,8 @@ export interface CareerSettings {
   sacking: boolean
   aiTransfers: boolean
   startingBudget: 'Default' | 'Low' | 'High'
+  /** leagues simulated with the full match engine besides the user's own (max 5); the rest use the fast model */
+  deepLeagues?: number[]
 }
 
 export interface World {

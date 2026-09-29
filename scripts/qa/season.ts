@@ -32,6 +32,7 @@ for (let s = 0; s < seasons; s++) {
       matches++
     }
     if (r.stop === 'sacked') { console.log('SACKED on', w.date); break }
+    if (r.stop === 'match' && w.date >= '2027-05-10') diagnostics()
     for (const m of w.inbox) m.read = true
   }
   const arch = w.archive[w.archive.length - 1]
@@ -49,3 +50,14 @@ for (let s = 0; s < seasons; s++) {
 console.log('stops', stops, 'players', Object.keys(w.players).length)
 const json = JSON.stringify(w)
 console.log('save size', (json.length / 1e6).toFixed(1), 'MB')
+function diagnostics() {
+  const top = Object.values(w.players).map((p) => ({ p, s: Object.entries(p.season).find(([k]) => k.startsWith('L13'))?.[1] })).filter((x) => x.s).sort((a, b) => b.s!.goals - a.s!.goals).slice(0, 6)
+  console.log('PL scorers:', top.map(({ p, s }) => `${p.name} (${w.clubs[p.clubId]?.short}) g${s!.goals} apps${s!.apps} shots${s!.shots} xg${s!.xg.toFixed(1)} mins${s!.mins}`).join(' | '))
+  const pl = Object.values(w.players).filter((p) => w.clubs[p.clubId]?.leagueId === 13)
+  console.log('PL avg fitness', (pl.reduce((a, p) => a + p.fitness, 0) / pl.length).toFixed(1), 'sharpness', (pl.reduce((a, p) => a + p.sharpness, 0) / pl.length).toFixed(1))
+  const comp = Object.values(w.competitions).find((c) => c.key === 'L13' && c.season === w.season)
+  if (!comp) return
+  const played = comp.fixtures.map((id) => w.fixtures[id]).filter((f) => f.played && f.result)
+  const goals = played.reduce((a, f) => a + f.result!.score[0] + f.result!.score[1], 0)
+  console.log('PL goals/match', (goals / played.length).toFixed(2), 'matches', played.length)
+}

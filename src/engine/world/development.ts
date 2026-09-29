@@ -2,7 +2,7 @@ import type { AttrKey, Player, World } from '../../domain/types'
 import { A } from '../../domain/types'
 import { Rng, clamp } from '../../domain/rng'
 import { DEV_PLANS, POS_GROUP, POS_WEIGHT_KEY, RATING_WEIGHTS, TRAINING_PLANS } from '../../domain/constants'
-import { ageOn } from '../../domain/dates'
+import { ageOn, diffDays } from '../../domain/dates'
 import { computeOvr } from '../../domain/ratings'
 import { dynamicValue } from '../../domain/finance'
 
@@ -14,15 +14,21 @@ export function dailyTraining(w: World, p: Player, rng: Rng, matchDayGap: number
   const age = ageOn(p.dob, w.date)
   const stam = p.attrs[A.stamina]
   // recovery: faster for fitter, younger players and energy-focused plans
-  const ageF = age <= 23 ? 1.1 : age <= 29 ? 1 : age <= 32 ? 0.88 : 0.76
-  const rec = (6.2 + stam / 25) * plan.energy * ageF
-  const trainCost = plan.energy < 1 ? (1 - plan.energy) * 4.5 : 0
+  const ageF = age <= 23 ? 1.08 : age <= 29 ? 1 : age <= 32 ? 0.9 : 0.8
+  // recovery: quick at first, slower as the legs come back (Saturday → Tuesday leaves a player around 85%)
+  const deficit = 100 - p.fitness
+  const rec = (2.6 + deficit * 0.22) * (0.8 + stam / 250) * plan.energy * ageF
+  const trainCost = plan.energy < 1 ? (1 - plan.energy) * 4 : 0
   if (!p.injury) p.fitness = clamp(p.fitness + rec - trainCost, 20, 100)
-  else p.fitness = clamp(p.fitness + 2, 20, 90)
-  // sharpness decays without football, training plans slow it
-  const decay = p.lastMatchDate ? 0.9 : 0.45
-  p.sharpness = clamp(p.sharpness - decay + plan.sharp * 0.55, 0, 100)
-  if (p.injury) p.sharpness = clamp(p.sharpness - 1.2, 0, 100)
+  else p.fitness = clamp(p.fitness + 2, 20, 88)
+  // sharpness: training keeps it ticking over, only football tops it up; long lay-offs cost it
+  if (p.injury) p.sharpness = Math.max(Math.min(p.sharpness, 30), p.sharpness - 1.1)
+  else {
+    const idle = p.lastMatchDate ? Math.abs(diffDays(w.date, p.lastMatchDate)) : 30
+    const train = plan.sharp * 1.6 * Math.max(0, 1 - p.sharpness / 82)
+    const decay = idle > 7 && p.sharpness > 55 ? 0.6 : 0
+    p.sharpness = clamp(p.sharpness + train - decay, 0, 100)
+  }
   // development XP
   const head = p.pot - p.ovr
   let xp = 0

@@ -26,3 +26,11 @@ const other = Object.keys(d).filter((k) => !/^(pass|passL|open|prp|shot|xg|w)\./
 console.log(other.map((k) => `${k} ${(d[k] / n / 2).toFixed(2)}`).join('  '))
 console.log('ball x at decisions (per team per match):', [0,1,2,3,4,5,6,7,8,9].map((i) => `${i * 10}s ${((d['zx' + i] || 0) / n / 2).toFixed(0)}/${((d['zw' + i] || 0) / n / 2).toFixed(0)}w`).join('  '))
 console.log('turnovers by x of loss (per team):', [0,1,2,3,4,5,6,7,8,9].map((i) => `${i * 10}s ${((d['lost' + i] || 0) / n / 2).toFixed(1)}`).join('  '))
+{
+  const groups = ['ST', 'W', 'AM', 'CM', 'DM', 'FB', 'CB']
+  for (const g of groups) {
+    const ks = Object.keys(d).filter((k) => k.startsWith(`goal.${g}.`))
+    const sk = Object.keys(d).filter((k) => k.startsWith(`gshot.${g}.`))
+    console.log(`${g.padEnd(3)} goals/team ${((d['goal.' + g] || 0) / n / 2).toFixed(2)}  by how: ${ks.sort((a, b) => d[b] - d[a]).slice(0, 6).map((k) => `${k.split('.')[2]} ${(d[k] / n / 2).toFixed(2)}`).join(' ')}  | shots: ${sk.sort((a, b) => d[b] - d[a]).slice(0, 6).map((k) => `${k.split('.')[2]} ${(d[k] / n / 2).toFixed(2)}`).join(' ')}`)
+  }
+}

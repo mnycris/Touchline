@@ -63,3 +63,8 @@ if (process.argv[6] === 'trace') {
   const d = MatchSim.dbg!
   for (const i of [0, 1]) console.log(`${[pa, pb][i]} passes:`, ['short', 'back', 'prog', 'long', 'switch', 'through', 'cutback'].map((k) => `${k} ${((d[`s${i}.pass.${k}`] || 0) / G).toFixed(0)}@${((d[`s${i}.passL.${k}`] || 0) / (d[`s${i}.pass.${k}`] || 1)).toFixed(2)}`).join(' '))
 }
+{
+  const d = MatchSim.dbg!
+  const gs = ['ST', 'W', 'AM', 'CM', 'DM', 'FB', 'CB']
+  console.log('shots by group (both sides):', gs.map((g) => `${g} ${(Object.keys(d).filter((k) => k.startsWith(`gshot.${g}.`)).reduce((a, k) => a + d[k], 0) / G / 2).toFixed(1)}`).join(' '))
+}

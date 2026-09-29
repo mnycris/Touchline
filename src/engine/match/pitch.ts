@@ -66,7 +66,7 @@ export interface ShotContext { header?: boolean; oneOnOne?: boolean; counter?: b
 
 export function chanceXg(p: Pt, c: ShotContext): number {
   let xg = baseXg(p)
-  if (c.header) xg *= 0.55
+  if (c.header) xg *= c.setPiece ? 0.42 : 0.5
   if (c.volley) xg *= 0.75
   if (c.cutback) xg *= 1.25
   if (c.rebound) xg *= 1.2
@@ -144,7 +144,8 @@ export function playerSpot(slotX: number, slotY: number, pos: string, role: stri
   const rel = slotDepth(slotY, pos) - 16.5 // 0 for centre-backs … ≈36 for a striker
   let x: number, y: number
   if (inPoss) {
-    const anchor = ball.x * 0.7 - 2 + (s.lineHeight - 50) / 5 + s.mentality * 3
+    // with the ball even a deep side pushes out: the back line builds from the edge of its box
+    const anchor = Math.max(9 + ball.x * 0.25, ball.x * 0.7 - 2 + (s.lineHeight - 50) / 9 + s.mentality * 2.5)
     // a deep team still keeps its forwards high: the shape stretches when the defenders sit back
     const stretch = 1.05 + s.mentality * 0.04 - Math.max(0, ball.x - 50) / 400 + clamp((22 - anchor) / 45, 0, 0.35)
     x = anchor + rel * stretch + rs.dx

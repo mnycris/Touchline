@@ -58,6 +58,9 @@ export interface MinuteFrame {
 export interface LiveRating {
   id: number; rating: number; energy: number; on: boolean; pos: Position; yellow: boolean; red: boolean; injured: boolean; slot: number
   goals: number; assists: number; subOn?: number; subOff?: number; played: boolean
+  role?: string
+  /** missed a penalty in this match */
+  penMissed?: boolean
 }
 
 export interface SideInput {
@@ -158,7 +161,7 @@ const MENT: Record<string, number> = { 'Ultra Defensive': -2, Defensive: -1, Bal
 const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.1, AM: 0.96, W: 1.05, ST: 0.95 }
 
 /** Shooting instinct by position (inside the box; weaker from distance). */
-const SHOOT: Record<RG, number> = { GK: -2, CB: -0.45, FB: -0.75, DM: -0.3, CM: 0.12, AM: 0.08, W: 0.35, ST: 0 }
+const SHOOT: Record<RG, number> = { GK: -2, CB: -0.45, FB: -0.75, DM: -0.3, CM: 0.12, AM: 0.08, W: 0.25, ST: 0 }
 
 /** How much each position gets the ball in general circulation (centre-backs and full-backs see a lot of it). */
 const DEMAND: Record<RG, number> = { GK: 1, CB: 1.35, FB: 1.2, DM: 0.95, CM: 0.78, AM: 0.68, W: 0.95, ST: 0.78 }
@@ -167,16 +170,16 @@ const LN_DEMAND = Object.fromEntries(Object.entries(DEMAND).map(([k, v]) => [k, 
 
 const ZB: Bias = { sh: 0, ca: 0, dr: 0, cr: 0, pf: 0, rw: 0, bx: 0, dw: 0 }
 const ROLE_BIAS: Record<string, Partial<Bias>> = {
-  'Inside Forward': { sh: 0.35, dr: 0.3, cr: -0.45, bx: 0.3 },
+  'Inside Forward': { sh: 0.18, dr: 0.3, cr: -0.45, bx: 0.25 },
   Winger: { cr: 0.45, dr: 0.3, ca: 0.2 },
   'Wide Playmaker': { pf: 0.2, rw: 0.2, cr: 0.1, sh: -0.1 },
   'Wide Midfielder': { dw: 0.3, cr: 0.15 },
-  'Advanced Forward': { sh: 0.25, bx: 0.3, rw: 0.1 },
-  Poacher: { sh: 0.35, bx: 0.55, rw: -0.1, dw: -0.4, ca: -0.2 },
+  'Advanced Forward': { sh: 0.12, bx: 0.25, rw: 0.1 },
+  Poacher: { sh: 0.18, bx: 0.35, rw: -0.1, dw: -0.4, ca: -0.2 },
   'False 9': { pf: 0.25, rw: 0.25, sh: -0.15, bx: -0.25 },
   'Target Forward': { bx: 0.45, rw: 0.15, dr: -0.3 },
   Playmaker: { pf: 0.2, rw: 0.25 },
-  'Shadow Striker': { sh: 0.25, bx: 0.35 },
+  'Shadow Striker': { sh: 0.12, bx: 0.25 },
   'Half-Winger': { sh: 0.1, pf: 0.1 },
   'Classic 10': { pf: 0.3, rw: 0.3, dw: -0.3 },
   'Box-to-Box': { ca: 0.25, dw: 0.2, bx: 0.15 },
@@ -193,7 +196,7 @@ const ROLE_BIAS: Record<string, Partial<Bias>> = {
   'Ball-Playing Keeper': { pf: 0.2 },
 }
 const FOCUS_BIAS: Record<string, Partial<Bias>> = {
-  Attack: { sh: 0.1, bx: 0.15, dw: -0.15 },
+  Attack: { sh: 0.05, bx: 0.1, dw: -0.15 },
   Defend: { dw: 0.2, bx: -0.2, sh: -0.1, ca: -0.1 },
   'Build-Up': { pf: 0.1, rw: 0.1 },
   Roaming: { ca: 0.1, dr: 0.1, rw: 0.05 },
@@ -346,7 +349,7 @@ export class MatchSim {
     this.sides = [new Side(home, 0), new Side(away, 1)]
     const us = ctx.userSide
     for (const s of this.sides) {
-      s.dayForm = clamp(this.rng.normal(0, 1.5), -3.5, 3.5)
+      s.dayForm = clamp(this.rng.normal(0, 2), -4.5, 4.5)
       s.boost = us === 0 || us === 1 ? (s.idx === us ? 1 : ctx.aiBoost ?? 1) : 1
       s.home = ctx.neutral ? 0 : s.idx === 0 ? 1.5 : -0.35
       this.initSide(s)
@@ -805,7 +808,7 @@ export class MatchSim {
       // inverted wingers drift into the half-space in the final third; midfielders make late runs toward the box
       if (l.g === 'W' && l.inv && b.x > 56 && l !== this.car) p.y += (50 - p.y) * 0.3
       if (b.x > 64 && l !== this.car && (l.g === 'CM' || l.g === 'AM' || l.g === 'DM')) {
-        const run = l.g === 'AM' ? 0.4 : l.g === 'DM' ? 0.08 : l.role === 'Box-to-Box' || l.bias.bx > 0 ? 0.36 : 0.2
+        const run = l.g === 'AM' ? 0.5 : l.g === 'DM' ? 0.1 : l.role === 'Box-to-Box' || l.bias.bx > 0 ? 0.62 : l.role === 'Deep-Lying Playmaker' || l.role === 'Holding' ? 0.2 : 0.5
         p.x = Math.min(hold - 1, p.x + (b.x - 64) * run * (1 + X.shape.mentality * 0.15))
       }
       l.at.x = p.x
@@ -1030,12 +1033,15 @@ export class MatchSim {
       const xg0 = chanceXg(b, ctx)
       if (xg0 >= 0.012) {
         const inside = inBox(b)
-        let a = (inside ? -1.38 : -0.5) + 1.5 * Math.log(xg0 / 0.1) + SHOOT[c.g] * (inside ? 1 : 0.6)
+        const crowd = this.crowd(Y, b)
+        let a = (inside ? -0.98 : -0.64) + 1.5 * Math.log(xg0 / 0.1) + SHOOT[c.g] * (inside ? 1 : 0.6)
         a += inside ? (this.fin(c) - this.ref) / 70 : (this.lsh(c) - this.ref) / 34
         // patient sides pass up half-chances and work the ball into better ones
-        a += c.bias.sh + X.ment * 0.12 + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.08 ? -0.45 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
+        a += c.bias.sh + X.ment * 0.12 + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.06 ? -0.2 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
         if (X.state < -0.3) a -= 0.35
-        if (c.inv && !inside) a += 0.3
+        if (c.inv && !inside) a += 0.12
+        // nobody wants to shoot into a wall of bodies
+        a -= crowd * (inside ? 0.12 : 0.2)
         if (this.chain.oneOnOne) a += 1.2
         if (this.rng.next() < sigmoid(a)) return dwell * 0.6 + this.shoot(c, ctx, this.howNow(c, inside))
       }
@@ -1058,9 +1064,9 @@ export class MatchSim {
   private pressure(d: number, Y: Side, b: Pt, presser?: LP): number {
     const t = Y.tactics
     const zoneF = b.x < 33
-      ? 0.4 + t.pressing / 115 + (t.defApproach === 'High' || t.defApproach === 'Aggressive' ? 0.15 : t.defApproach === 'Deep' ? -0.22 : 0)
+      ? 0.45 + t.pressing / 150 + (t.defApproach === 'High' || t.defApproach === 'Aggressive' ? 0.1 : t.defApproach === 'Deep' ? -0.2 : 0)
       : b.x < 62
-        ? 0.72 + t.pressing / 260 + (t.defApproach === 'Aggressive' ? 0.1 : t.defApproach === 'Deep' ? -0.08 : 0)
+        ? 0.75 + t.pressing / 400 + (t.defApproach === 'Aggressive' ? 0.06 : t.defApproach === 'Deep' ? -0.06 : 0)
         : 1 + (t.defApproach === 'Deep' ? 0.08 : 0)
     const pq = presser ? clamp(0.86 + (this.pressS(presser) - this.ref + 2) / 220 + presser.bias.dw * 0.1, 0.7, 1.12) : 1
     return clamp(((9.5 - d) / 8.5) * zoneF * pq, 0, 1)
@@ -1120,7 +1126,7 @@ export class MatchSim {
     const lineX = this.lineCache
     // pass targets
     const dir = X.dir
-    const fp = (b.x < 40 ? 0.024 : b.x < 70 ? 0.032 : 0.022) * clamp(1 + 0.3 * dir, 0.75, 1.5) * (this.counter ? 1.3 : 1) + ment * 0.006
+    const fp = (b.x < 40 ? 0.024 : b.x < 70 ? 0.032 : 0.022) * clamp(1 + 0.25 * dir, 0.85, 1.4) * (this.counter ? 1.3 : 1) + ment * 0.006
       + c.bias.pf * 0.03 + (X.state < 0 ? X.state * 0.01 : X.state * 0.004)
     const longPref = (t.buildUp === 'Long Ball' ? 2.3 : t.buildUp === 'Counter' ? 1.4 : t.buildUp === 'Short Passing' ? 0.45 : 1) * (this.passL(c) / this.ref)
     const thruPref = (t.chanceCreation === 'Direct Passing' ? 1.5 : t.chanceCreation === 'Forward Runs' ? 1.3 : t.chanceCreation === 'Possession' ? 0.7 : 1) * Math.pow(this.thru(c) / this.ref, 2)
@@ -1129,12 +1135,14 @@ export class MatchSim {
     const cR = this.cR, cW = this.cW, cK = this.cK, cT = this.cT, cO = this.cO
     let nc = 0
     let wPassSum = 0
-    const lnLong = Math.log((b.x < 50 ? 0.7 : 0.2) * longPref) + 0.35 * dir
+    const lnLong = Math.log((b.x < 50 ? 0.7 : 0.2) * longPref) + 0.35 * dir + 0.6 * Math.max(0, -X.shape.mentality) * (b.x < 50 ? 1 : 0)
     const lnSwitch = Math.log(0.07 * (0.6 + t.width / 100) * (this.passL(c) / this.ref))
     const lnThru = Math.log(0.011 * thruPref)
     const longMin = t.buildUp === 'Long Ball' ? 26 : 34
-    const patience = Math.max(0, -dir) * 0.08
-    const backF = Math.log((b.x < 45 ? 0.8 : b.x > 62 ? 0.4 : 0.6)) - 0.15 * dir
+    const patience = Math.max(0, -dir) * 0.11
+    // sides sitting deep don't keep the ball at the back: they look long early
+    const sitDeep = Math.max(0, -X.shape.mentality) * (dir > 0.3 ? 1 : 0.4) * (b.x < 50 ? 1 : 0)
+    const backF = Math.log((b.x < 45 ? 0.8 : b.x > 62 ? 0.4 : 0.6)) - 0.15 * dir - 0.45 * sitDeep
     const lbShort = t.buildUp === 'Long Ball' && b.x < 45
     for (const r of X.on) {
       if (r === c) continue
@@ -1191,7 +1199,8 @@ export class MatchSim {
     const wCarry = 0.42 * Math.pow(1 - pr, 1.5) * clamp(aheadSpace / 14, 0.1, 1.4) * Math.pow(this.drib(c) / this.ref, 1.5) * zoneF
       * (t.chanceCreation === 'Forward Runs' ? 1.3 : 1) * Math.exp(c.bias.ca) * (this.counter ? 1.6 : 1)
     const wDrib = pr > 0.35 && b.x > 35 && c.g !== 'CB' ? 0.12 * pr * Math.pow(this.drib(c) / this.ref, 4) * Math.exp(c.bias.dr) * (b.x > 62 ? 1.4 : 0.55) * (c.g === 'DM' ? 0.4 : 1) : 0
-    const wCross = b.x >= 68 && wide && nBox > 0 ? 0.5 * (0.5 + t.width / 100) * clamp(nBox / 2.3, 0.4, 1.6) * Math.pow(this.crs(c) / this.ref, 2) * Math.exp(c.bias.cr) * (b.x > 80 ? 1.3 : 1) * (0.6 + t.playersInBox / 12) : 0
+    // crosses come mostly from near the byline; from deeper out a wide player usually keeps the move going
+    const wCross = b.x >= 68 && wide && nBox > 0 ? 0.32 * (0.5 + t.width / 100) * clamp(nBox / 2.3, 0.4, 1.6) * Math.pow(this.crs(c) / this.ref, 2) * Math.exp(c.bias.cr * 0.7) * clamp((b.x - 64) / 18, 0.25, 1.5) * (0.6 + t.playersInBox / 12) : 0
     const wCut = cutZone ? 1.1 * (this.e(c, A.vision) / this.ref) : 0
     const wClear = b.x < 22 && pr > 0.5 && c.g !== 'W' && c.g !== 'ST' ? 1.3 * pr * (1.25 - (this.e(c, A.composure) + 72 - this.ref) / 100) * (t.buildUp === 'Long Ball' ? 1.5 : 1) : 0
     const wPass = nc ? 1 : 0
@@ -1578,7 +1587,7 @@ export class MatchSim {
         this.rp(m, RP.clearanceBox)
         this.note('crossCleared', 1, { p: callName(m.p.name), q: callName(c.p.name) })
       }
-      if (this.rng.next() < 0.25) this.cornerFor(X.idx)
+      if (this.rng.next() < 0.33) this.cornerFor(X.idx)
       else this.loose({ x: 62 + this.rng.next() * 16, y: 25 + this.rng.next() * 50 }, -0.45)
       return dur
     }
@@ -1630,7 +1639,7 @@ export class MatchSim {
       // the rare own goal from a defender under pressure at the near post
       if (this.rng.next() < 0.006) return dur + this.ownGoal(mk, X, Y)
     }
-    if (this.rng.next() < 0.28) this.cornerFor(X.idx)
+    if (this.rng.next() < 0.36) this.cornerFor(X.idx)
     else this.loose({ x: 64 + this.rng.next() * 14, y: 22 + this.rng.next() * 56 }, -0.4)
     return dur
   }
@@ -1736,9 +1745,11 @@ export class MatchSim {
     const X = this.sides[c.side], Y = this.sides[1 - c.side]
     const gk = Y.gk
     const b = { x: this.b.x, y: this.b.y }
-    const xg = chanceXg(b, ctx)
+    const crowd = ctx.header || ctx.oneOnOne ? 0 : this.crowd(Y, b)
+    // chance quality counts the bodies between the ball and the goal, like modern xG models
+    const xg = chanceXg(b, ctx) * (1 - 0.055 * crowd)
     const inside = inBox(b)
-    if (MatchSim.dbg) { dbg('crowd', this.crowd(Y, b)); dbg('shot.' + how); dbg('xg.' + how, xg); dbg(`s${X.idx}.shot.${how}`); dbg(`s${X.idx}.xg.${how}`, xg); dbg(`s${X.idx}.shotx${Math.floor(b.x / 5) * 5}`) }
+    if (MatchSim.dbg) { dbg(`gshot.${c.g}.${how}`); dbg('crowd', this.crowd(Y, b)); dbg('shot.' + how); dbg('xg.' + how, xg); dbg(`s${X.idx}.shot.${how}`); dbg(`s${X.idx}.xg.${how}`, xg); dbg(`s${X.idx}.shotx${Math.floor(b.x / 5) * 5}`) }
     c.st.shots++
     c.st.xg += xg
     X.stats.shots++
@@ -1763,10 +1774,9 @@ export class MatchSim {
     }
     let sk = ctx.header ? this.hfin(c) : ctx.volley ? this.vol(c) : inside ? this.fin(c) : this.lsh(c)
     if (!ctx.header && this.rng.next() < 0.26) sk -= (5 - clamp(c.p.weakFoot, 1, 5)) * 2.8
-    if (big) sk += (this.e(c, A.composure) - this.ref + 2) * 0.25
+    if (big) sk += (this.e(c, A.composure) - this.ref + 2) * 0.15
     if (ctx.oneOnOne) sk += c.pb.chip * 0.7
     const pr = ctx.pressure || 0
-    const crowd = ctx.header || ctx.oneOnOne ? 0 : this.crowd(Y, b)
     const pBlock = ctx.header ? 0.04 : ctx.oneOnOne ? 0.03 : ctx.setPiece && how === 'freekick' ? 0.24 : clamp((inside ? 0.06 + 0.2 * pr : 0.12 + 0.22 * pr) + 0.085 * crowd, 0, 0.62)
     const loc: [number, number] = (() => { const a = toAbs(X.idx, b); return [r1(a.x), r1(a.y)] as [number, number] })()
     const v = { p: callName(c.p.name), a: passer ? callName(passer.p.name) : '', t: X.name, o: Y.name, gk: gk ? callName(gk.p.name) : 'the keeper', venue: this.ctx.venue }
@@ -1782,16 +1792,16 @@ export class MatchSim {
       this.log('block', Y.idx, blocker, flip(blocker.at), flip(blocker.at), true)
       this.ev('chance', X.idx, `${intro} ${line(this.crng, 'blocked', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), loc, how })
       const u = this.rng.next()
-      if (u < 0.34) this.cornerFor(X.idx)
+      if (u < 0.42) this.cornerFor(X.idx)
       else this.loose({ x: b.x - 6 - this.rng.next() * 12, y: b.y + (this.rng.next() - 0.5) * 20 }, -0.15)
       return 2
     }
     // bodies in the way also narrow the target for shots that get through
-    const xgNb = clamp((xg / (1 - pBlock)) * (1 - 0.065 * crowd), 0.005, 0.96)
+    const xgNb = clamp((xg / (1 - pBlock)) * (1 - 0.015 * crowd), 0.005, 0.96)
     const gq = gk ? this.gkStop(gk) : 20
-    const Lg = logit(xgNb) + 0.017 * (sk - this.ref) - 0.02 * (gq - this.ref - 4)
+    const Lg = logit(xgNb) + 0.013 * (sk - this.ref) - 0.02 * (gq - this.ref - 4)
     const pGoal = sigmoid(Lg)
-    const pAvg = sigmoid(logit(xgNb) + 0.017 * (sk - this.ref))
+    const pAvg = sigmoid(logit(xgNb) + 0.013 * (sk - this.ref))
     const pOn = clamp(0.26 + xgNb * 0.8 + 0.011 * (sk - this.ref), Math.max(0.16, pAvg + 0.02), 0.97)
     const xgot = clamp(pAvg / pOn, 0.02, 0.98)
     const u = this.rng.next()
@@ -1896,6 +1906,7 @@ export class MatchSim {
   private goal(c: LP, passer: LP | undefined, how: string, xg: number, xgot: number, intro: string, loc: [number, number], errBy?: LP) {
     const X = this.sides[c.side], Y = this.sides[1 - c.side]
     const gk = Y.gk
+    if (MatchSim.dbg) { dbg(`goal.${c.g}.${how}`); dbg(`goal.${c.g}`) }
     this.score[X.idx]++
     X.stats.sot = X.stats.sot // already counted
     c.st.goals++
@@ -2061,7 +2072,7 @@ export class MatchSim {
     X.stats.passes++
     const gk = Y.gk
     const style = X.tactics.corners
-    const spot = { x: style === 'Near Post' ? 92 + this.rng.next() * 3 : style === 'Far Post' ? 89 + this.rng.next() * 4 : 88 + this.rng.next() * 7, y: 0 }
+    const spot = { x: style === 'Near Post' ? 90 + this.rng.next() * 3 : style === 'Far Post' ? 87 + this.rng.next() * 4 : 86 + this.rng.next() * 7, y: 0 }
     spot.y = style === 'Near Post' ? (from.y < 50 ? 40 : 60) : style === 'Far Post' ? (from.y < 50 ? 60 : 40) : 38 + this.rng.next() * 24
     const delivery = sigmoid(0.55 + 0.04 * (this.crs(taker) + taker.pb.fk - this.ref))
     const m0 = this.nearestOutfield(Y.on, spot).l
@@ -2084,7 +2095,7 @@ export class MatchSim {
     }
     // attackers attack the ball: centre-backs and big strikers
     const atk = X.on.filter((l) => l !== taker && l !== X.gk)
-    const tgt = this.rng.weighted(atk, (l) => Math.pow(Math.max(30, this.aer(l)) / 70, 4) * (l.g === 'CB' || l.g === 'ST' ? 1.6 : l.g === 'FB' || l.g === 'W' ? 0.5 : 1))
+    const tgt = this.rng.weighted(atk, (l) => Math.pow(Math.max(30, this.aer(l)) / 70, 2.5) * (l.g === 'CB' || l.g === 'ST' ? 1.5 : l.g === 'FB' || l.g === 'W' ? 0.5 : 1))
     const defs = Y.on.filter((l) => l !== gk)
     const mk = this.rng.next() < 0.55 ? this.rng.weighted(defs, (l) => Math.pow(Math.max(30, this.aer(l)) / 70, 4)) : this.nearestOutfield(Y.on, spot).l
     if (!tgt || !mk) return 3
@@ -2444,7 +2455,7 @@ export class MatchSim {
   private fatigue() {
     for (const s of this.sides) {
       const t = s.tactics
-      const tacF = 1 + (t.pressing - 50) / 160 + (t.tempo - 50) / 250 + (s.on.length < 11 ? 0.06 : 0)
+      const tacF = 1 + (t.pressing - 50) / 130 + (t.tempo - 50) / 240 + (s.on.length < 11 ? 0.06 : 0)
       for (const lp of s.on) {
         lp.st.mins++
         lp.gm[lp.g] = (lp.gm[lp.g] || 0) + 1
@@ -2665,9 +2676,10 @@ export class MatchSim {
   // =========================================================== UI helpers
   liveRatings(side: 0 | 1): LiveRating[] {
     const s = this.sides[side]
+    const missed = new Set(this.events.filter((e) => e.type === 'penMiss' && e.side === side).map((e) => e.player))
     return [...s.lps, ...s.bench].map((l) => ({
       id: l.p.id, rating: this.finished ? l.st.rating : this.liveRating(l), energy: l.energy, on: l.on, pos: l.pos, yellow: l.yellow, red: l.red, injured: l.injured, slot: l.slot,
-      goals: l.st.goals, assists: l.st.assists, subOn: l.subOn, subOff: l.subOff, played: l.st.mins > 0 || l.st.started,
+      goals: l.st.goals, assists: l.st.assists, subOn: l.subOn, subOff: l.subOff, played: l.st.mins > 0 || l.st.started, role: l.role, penMissed: missed.has(l.p.id) || undefined,
     }))
   }
 

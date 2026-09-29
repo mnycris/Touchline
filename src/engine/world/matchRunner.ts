@@ -3,6 +3,7 @@ import { Rng, clamp, hashString } from '../../domain/rng'
 import { addDays } from '../../domain/dates'
 import { INJURIES } from '../../domain/constants'
 import { MatchSim, type MatchContext, type SideInput } from '../match/engine'
+import { quickSim } from '../match/quick'
 import { aiMatchSheet, validateSheet } from '../match/selection'
 import { aggregateBefore } from '../competitions/cups'
 import { applyResultToTable } from '../competitions/tables'
@@ -76,8 +77,34 @@ export function createSim(w: World, f: Fixture, userLive: boolean): MatchSim {
   return new MatchSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
 }
 
-/** Simulate a non-interactive fixture completely. */
-export function simulateFixture(w: World, f: Fixture): MatchResult {
+/** The big five: followed closely unless the player chooses otherwise. */
+export const DEFAULT_DEEP_LEAGUES = [13, 53, 19, 31, 16]
+
+/** Leagues whose matches run through the full match engine: the user's league plus up to five chosen ones. */
+export function deepLeagueSet(w: World): Set<number> {
+  const own = w.clubs[w.userClubId]?.leagueId
+  const extra = (w.settings.deepLeagues ?? DEFAULT_DEEP_LEAGUES).slice(0, 5)
+  return new Set([own, ...extra].filter((x) => x != null) as number[])
+}
+
+/** Whether a fixture gets the full match engine (the user's games always do). */
+export function isDeepFixture(w: World, f: Fixture, set = deepLeagueSet(w)): boolean {
+  if (f.userInvolved) return true
+  const comp = w.competitions[f.compId]
+  if (comp?.format === 'league' && comp.leagueId != null) return set.has(comp.leagueId)
+  const h = w.clubs[f.home], a = w.clubs[f.away]
+  return (!!h && set.has(h.leagueId)) || (!!a && set.has(a.leagueId))
+}
+
+/** Simulate a non-interactive fixture completely (full engine or the fast model, by league). */
+export function simulateFixture(w: World, f: Fixture, deep = isDeepFixture(w, f)): MatchResult {
+  if (!deep) {
+    const comp = w.competitions[f.compId]
+    const ctx = matchContext(w, f, false)
+    const home = sideInput(w, f.home, comp, false)
+    const away = sideInput(w, f.away, comp, false)
+    return quickSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
+  }
   const sim = createSim(w, f, false)
   return sim.runToEnd()
 }
@@ -127,7 +154,8 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
       p.formRatings.push(st.rating)
       if (p.formRatings.length > 5) p.formRatings.shift()
       p.fitness = clamp(Math.round(st.energy ?? p.fitness - st.mins * 0.25), 5, 100)
-      p.sharpness = clamp(Math.round(p.sharpness + (st.mins / 90) * 11), 0, 100)
+      // match minutes are what really build sharpness, fastest when a player is short of it
+      p.sharpness = clamp(Math.round(p.sharpness + (st.mins / 90) * 20 * Math.max(0.15, 1.25 - p.sharpness / 100)), 0, 100)
       p.lastMatchDate = f.date
       const won = st.side === 0 ? hs > as : as > hs
       const lost = st.side === 0 ? hs < as : as < hs

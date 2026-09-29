@@ -1,13 +1,15 @@
-// Live 2D match view: a properly proportioned (105×68) pitch with all 22 players as kit-coloured, numbered dots moving
-// with the phase of play, and a real football that travels through each simulated minute's build-up, shots and set
-// pieces. Plus the FotMob-style momentum graph.
+// Live 2D match view: a properly proportioned (105×68) pitch with all 22 players as kit-coloured, numbered dots and a
+// real football. It plays back what the match engine actually did each minute — the passes, carries, take-ons,
+// crosses, tackles, shots and set pieces from the action log — and places the players with the engine's own shape
+// model, so a high press, a deep block, a counter or an attack down the right look like what they are.
+// Plus the FotMob-style momentum graph.
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import type { Club, World } from '../../domain/types'
 import { formationOf } from '../../domain/constants'
-import type { MatchSim, MinuteFrame } from '../../engine/match/engine'
+import type { Act, MatchSim, MinuteFrame } from '../../engine/match/engine'
+import { playerSpot, type Pt } from '../../engine/match/pitch'
 import { Ball } from './Lineup'
 
-interface Pt { x: number; y: number }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const hash = (a: number, b: number) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295 }
 
@@ -26,52 +28,63 @@ export function kitColors(home: Club, away: Club): [string, string] {
   return [h, a]
 }
 
-const SHOT = new Set(['goal', 'penGoal', 'owngoal', 'save', 'miss', 'chance', 'woodwork', 'penMiss', 'var'])
 const LABEL: Record<string, string> = {
   goal: 'GOAL', penGoal: 'GOAL', owngoal: 'OWN GOAL', save: 'SAVE', miss: 'OFF TARGET', chance: 'BLOCKED', woodwork: 'WOODWORK', penMiss: 'PENALTY MISSED',
-  var: 'VAR · NO GOAL', corner: 'CORNER', freekick: 'FREE KICK', offside: 'OFFSIDE', foul: 'FOUL', yellow: 'YELLOW CARD', red: 'RED CARD', secondYellow: 'RED CARD', injury: 'INJURY',
+  var: 'VAR · NO GOAL', corner: 'CORNER', freekick: 'FREE KICK', offside: 'OFFSIDE', foul: 'FOUL', yellow: 'YELLOW CARD', red: 'RED CARD', secondYellow: 'RED CARD',
+  injury: 'INJURY', penalty: 'PENALTY',
+}
+/** Actions worth showing even when the minute has to be condensed. */
+const KEY_ACT = new Set(['shot', 'goal', 'save', 'block', 'cross', 'corner', 'fk', 'pen', 'through', 'drib', 'tackle', 'int', 'clear', 'claim', 'off', 'foul', 'long'])
+/** The side on the ball once an action is done. */
+function sideAfter(a: Act): 0 | 1 {
+  if (a.k === 'tackle' || a.k === 'int' || a.k === 'rec' || a.k === 'claim' || a.k === 'save' || a.k === 'block') return a.s
+  if (!a.ok && (a.k === 'pass' || a.k === 'long' || a.k === 'through' || a.k === 'cross' || a.k === 'drib' || a.k === 'shot')) return (1 - a.s) as 0 | 1
+  return a.s
 }
 
-/** Ball waypoints for one simulated minute, starting from where the ball is now. */
-function pathFor(f: MinuteFrame, from: Pt, idx: number): Pt[] {
-  const r = (k: number) => hash(idx, k)
-  const atk = f.s
-  const edge = (v: number) => (atk === 0 ? v : 100 - v)
-  const end: Pt = { x: f.x, y: f.y }
-  const lerp = (t: number, lat: number): Pt => ({ x: from.x + (end.x - from.x) * t, y: clamp(lat, 6, 94) })
-  if (SHOT.has(f.k)) {
-    const shotAt: Pt = f.k === 'goal' || f.k === 'penGoal' || f.k === 'owngoal' ? { x: edge(84 + r(1) * 8), y: 32 + r(2) * 36 } : { x: f.x, y: f.y }
-    const target: Pt =
-      f.k === 'goal' || f.k === 'penGoal' || f.k === 'owngoal' ? { x: edge(101.2), y: 46 + r(3) * 8 }
-        : f.k === 'save' || f.k === 'penMiss' ? { x: edge(97.2), y: 45 + r(3) * 10 }
-          : f.k === 'woodwork' ? { x: edge(99.6), y: r(3) < 0.5 ? 44.2 : 55.8 }
-            : f.k === 'miss' ? { x: edge(102), y: r(3) < 0.5 ? 36 + r(4) * 5 : 59 + r(4) * 5 }
-              : { x: edge(91), y: shotAt.y + (r(3) - 0.5) * 8 }
-    const build = { x: edge(62 + r(5) * 14), y: 15 + r(6) * 70 }
-    return [build, shotAt, target]
+interface Dot { id: number; no: number; side: 0 | 1; gk: boolean; slotX: number; slotY: number; pos: string; role: string }
+interface Beat { ball: Pt; poss: 0 | 1; hold?: number; from?: { id: number; at: Pt }; dur: number; label?: string; net?: 0 | 1 }
+
+/** Condense a minute's action log into the beats we can show at this speed. */
+function beatsFor(f: MinuteFrame, budget: number): Beat[] {
+  const acts = (f.acts || []).filter((a) => a.k !== 'rec' || a.ok)
+  if (!acts.length) return [{ ball: { x: f.x, y: f.y }, poss: f.s, dur: 1 }]
+  let pick = acts
+  if (acts.length > budget) {
+    const keep = new Set<number>()
+    acts.forEach((a, i) => { if (KEY_ACT.has(a.k)) keep.add(i) })
+    const rest = acts.map((_, i) => i).filter((i) => !keep.has(i))
+    const room = Math.max(0, budget - keep.size)
+    for (let k = 0; k < room && rest.length; k++) keep.add(rest[Math.floor((k + 0.5) * rest.length / room)])
+    pick = acts.filter((_, i) => keep.has(i))
+    if (pick.length > budget + 3) pick = pick.filter((a) => a.k !== 'pass' && a.k !== 'carry').slice(-budget)
   }
-  if (f.k === 'corner') return [{ x: edge(80 + r(1) * 10), y: end.y < 50 ? 10 : 90 }, end]
-  if (f.k === 'kickoff') return [{ x: 50, y: 50 }]
-  return [lerp(0.35, 20 + r(1) * 60), lerp(0.72, 20 + r(2) * 60), end]
+  return pick.map((a) => {
+    const goal = a.k === 'goal'
+    return {
+      ball: { x: a.x1, y: a.y1 }, poss: goal ? a.s : sideAfter(a), hold: a.q ?? (a.ok ? a.p : undefined), from: { id: a.p, at: { x: a.x0, y: a.y0 } },
+      dur: a.k === 'shot' || goal ? 0.5 : a.k === 'carry' || a.k === 'drib' ? 1.2 : 1,
+      label: goal ? 'GOAL' : a.k === 'save' ? 'SAVE' : a.k === 'block' ? 'BLOCKED' : a.k === 'shot' && !a.ok ? 'OFF TARGET' : a.k === 'corner' ? 'CORNER' : a.k === 'off' ? 'OFFSIDE' : a.k === 'foul' ? 'FOUL' : a.k === 'pen' ? (a.ok ? 'GOAL' : 'PENALTY MISSED') : a.k === 'claim' ? 'CLAIMED' : undefined,
+      net: goal || (a.k === 'pen' && a.ok) ? a.s : undefined,
+    }
+  })
 }
-
-interface Dot { id: number; no: number; side: 0 | 1; gk: boolean; sx: number; sy: number }
 
 export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, home, away }: { sim: MatchSim; w: World; speed: number; frameCount: number; home: Club; away: Club }) {
   const [ball, setBall] = useState<Pt>({ x: 50, y: 50 })
   const [dur, setDur] = useState(600)
   const [poss, setPoss] = useState<0 | 1 | -1>(-1)
+  const [holder, setHolder] = useState<number>()
+  const [passer, setPasser] = useState<{ id: number; at: Pt }>()
   const [tag, setTag] = useState<{ text: string; x: number; y: number; k: string; id: number }>()
   const [net, setNet] = useState<{ side: 0 | 1; id: number }>()
   const [tick, setTick] = useState(0)
   const timers = useRef<number[]>([])
   const lastAt = useRef(0)
   const frameCountPrev = useRef(0)
-  const ballRef = useRef(ball)
-  ballRef.current = ball
   const [hc, ac] = useMemo(() => kitColors(home, away), [home.id, away.id])
 
-  // players currently on the pitch, positioned from their formation slots
+  // players currently on the pitch, with their slots and roles (for the engine's shape model)
   const dots: Dot[] = useMemo(() => {
     const out: Dot[] = []
     for (const side of [0, 1] as const) {
@@ -79,7 +92,7 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
       for (const r of sim.liveRatings(side)) {
         if (!r.on) continue
         const s = f.slots[r.slot] || f.slots[0]
-        out.push({ id: r.id, no: w.players[r.id]?.jersey || 0, side, gk: r.pos === 'GK', sx: s.x, sy: s.y })
+        out.push({ id: r.id, no: w.players[r.id]?.jersey || 0, side, gk: r.pos === 'GK', slotX: s.x, slotY: s.y, pos: r.pos, role: r.role || '' })
       }
     }
     return out
@@ -95,40 +108,47 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
     lastAt.current = now
     const brk = sim.phase === 'HT' || sim.phase === 'ETHT' || sim.phase === 'pre' || sim.phase === 'PENS' || (sim.phase === 'FT' && !f)
     if (!f || brk) {
-      setDur(700); setBall({ x: 50, y: 50 }); setPoss(-1); setTick((t) => t + 1)
+      setDur(700); setBall({ x: 50, y: 50 }); setPoss(-1); setHolder(undefined); setPasser(undefined); setTick((t) => t + 1)
       return
     }
     const minuteMs = 1000 / speed
     // fast-forwarding (seek / next break): snap to the minute's end state
     if (gap < minuteMs * 0.5 || frames.length - frameCountPrev.current > 1) {
       frameCountPrev.current = frames.length
+      const last = f.acts?.[f.acts.length - 1]
       setDur(Math.max(60, Math.min(220, gap)))
-      setBall({ x: clamp(f.x, -1, 101), y: f.y }); setPoss(f.s); setTick((t) => t + 1)
+      setBall({ x: clamp(f.x, -1, 101), y: f.y }); setPoss(f.s); setHolder(last?.q ?? last?.p); setPasser(undefined); setTick((t) => t + 1)
       return
     }
     frameCountPrev.current = frames.length
-    const prev = frames[frames.length - 2]
-    const from: Pt = prev && (prev.k === 'goal' || prev.k === 'penGoal' || prev.k === 'owngoal') ? { x: 50, y: 50 } : ballRef.current
-    const pts = pathFor(f, from, frames.length)
-    const seg = (minuteMs * 0.92) / pts.length
-    setPoss(f.s)
-    pts.forEach((p, i) => {
+    // how many beats fit in a minute at this speed (about one every ~0.2s of screen time)
+    const budget = clamp(Math.round(minuteMs / 190), 3, 16)
+    const beats = beatsFor(f, budget)
+    const unit = (minuteMs * 0.94) / beats.reduce((a, b) => a + b.dur, 0)
+    let at = 0
+    beats.forEach((bt, i) => {
+      const ms = bt.dur * unit
       timers.current.push(window.setTimeout(() => {
-        setDur(seg * (i === pts.length - 1 && SHOT.has(f.k) ? 0.55 : 1))
-        setBall(p)
+        setDur(Math.max(90, ms * 0.9))
+        setPasser(bt.from)
+        setBall(bt.ball)
+        setPoss(bt.poss)
+        setHolder(bt.hold)
         setTick((t) => t + 1)
-        if (i === pts.length - 1 && LABEL[f.k]) {
-          setTag({ text: LABEL[f.k], x: p.x, y: p.y, k: f.k, id: frames.length })
-          if (f.k === 'goal' || f.k === 'penGoal' || f.k === 'owngoal') setNet({ side: f.s, id: frames.length })
-        }
-      }, i === 0 ? 0 : seg * i))
+        if (bt.label) setTag({ text: bt.label, x: bt.ball.x, y: bt.ball.y, k: bt.label === 'GOAL' ? 'goal' : bt.label === 'SAVE' ? 'save' : 'play', id: frames.length * 100 + i })
+        if (bt.net != null) setNet({ side: bt.net, id: frames.length })
+      }, at))
+      at += ms
     })
+    // the minute's headline event (a card, an injury, a penalty award) gets a tag at the end
+    const lateTag = LABEL[f.k] && !['goal', 'penGoal', 'owngoal', 'save', 'miss', 'chance', 'corner'].includes(f.k)
+    if (lateTag) timers.current.push(window.setTimeout(() => setTag({ text: LABEL[f.k], x: f.x, y: f.y, k: f.k, id: frames.length * 100 + 99 }), Math.min(at, minuteMs * 0.9)))
     return () => { timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [] }
   }, [frameCount, sim.phase])
 
   useEffect(() => {
     if (!tag) return
-    const t = window.setTimeout(() => setTag(undefined), 1700)
+    const t = window.setTimeout(() => setTag(undefined), 1500)
     return () => window.clearTimeout(t)
   }, [tag?.id])
   useEffect(() => {
@@ -137,42 +157,37 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
     return () => window.clearTimeout(t)
   }, [net?.id])
 
-  // team shapes follow the ball; the nearest player of each side engages it
+  // team shapes from the engine's positioning model around the ball
   const placed = useMemo(() => {
     const bx = clamp(ball.x, 0, 100), by = clamp(ball.y, 0, 100)
-    const pos = dots.map((d) => {
+    const shapes = [sim.sideShape(0), sim.sideShape(1)]
+    const out = dots.map((d) => {
+      const own: Pt = d.side === 0 ? { x: bx, y: by } : { x: 100 - bx, y: 100 - by }
+      const kickoff = poss === -1
       const inPoss = poss === d.side
-      // work in the side's own frame: 0 = own goal, 100 = opponent goal
-      const bOwn = d.side === 0 ? bx : 100 - bx
-      const byOwn = d.side === 0 ? by : 100 - by
-      let x: number, y: number
-      if (d.gk) {
-        x = clamp(4 + bOwn * 0.1, 3, 14)
-        y = 50 + (byOwn - 50) * 0.18
-      } else {
-        const cx = poss === -1 ? 30 : clamp(bOwn * 0.72 + (inPoss ? 9 : -7), 18, 70)
-        x = cx + (d.sy - 48) * (inPoss ? 0.46 : 0.34)
-        y = 50 + (d.sx - 50) * (inPoss ? 0.98 : 0.78) + (byOwn - 50) * 0.2
-        if (poss === -1) x = clamp(x, 6, 48)
-      }
-      const j = 1.6
-      x += (hash(d.id, tick) - 0.5) * j
-      y += (hash(d.id + 7, tick) - 0.5) * j * 1.4
+      let p = playerSpot(d.slotX, d.slotY, d.pos, d.role, shapes[d.side], kickoff ? true : inPoss, kickoff ? { x: 25, y: 50 } : own)
+      if (kickoff && !d.gk) p = { x: Math.min(p.x, 47), y: p.y }
+      const j = 1.4
+      const x = p.x + (hash(d.id, tick) - 0.5) * j
+      const y = p.y + (hash(d.id + 7, tick) - 0.5) * j * 1.4
       return { d, x: d.side === 0 ? x : 100 - x, y: d.side === 0 ? y : 100 - y }
     })
+    // the man on the ball is on the ball; the passer stays where he played it from
+    for (const o of out) {
+      if (holder === o.d.id) { o.x = bx + (o.d.side === 0 ? -1 : 1); o.y = by }
+      else if (passer && passer.id === o.d.id && passer.id !== holder) { o.x = passer.at.x; o.y = passer.at.y }
+    }
+    // the nearest defender closes the ball down
     if (poss !== -1) {
-      for (const side of [0, 1] as const) {
-        const cand = pos.filter((p) => p.d.side === side && !p.d.gk)
-        if (!cand.length) continue
-        const near = cand.reduce((a, b) => (Math.hypot(a.x - bx, (a.y - by) * 0.65) < Math.hypot(b.x - bx, (b.y - by) * 0.65) ? a : b))
-        const k = side === poss ? 0.92 : 0.6
-        const back = side === 0 ? -1.4 : 1.4
-        near.x = near.x + (bx + (side === poss ? back : -back) - near.x) * k
-        near.y = near.y + (by - near.y) * k
+      const def = out.filter((o) => o.d.side !== poss && !o.d.gk)
+      if (def.length) {
+        const near = def.reduce((a, b) => (Math.hypot(a.x - bx, (a.y - by) * 0.65) < Math.hypot(b.x - bx, (b.y - by) * 0.65) ? a : b))
+        near.x += (bx + (poss === 0 ? 2.2 : -2.2) - near.x) * 0.55
+        near.y += (by - near.y) * 0.55
       }
     }
-    return pos
-  }, [dots, ball, poss, tick])
+    return out
+  }, [dots, ball, poss, tick, holder, passer])
 
   const move = `${Math.round(dur)}ms`
   return (
@@ -193,12 +208,15 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
         </g>
       </svg>
       {net && <span className={`lp-net ${net.side === 0 ? 'r' : 'l'}`} key={net.id} />}
-      {placed.map(({ d, x, y }) => (
-        <span key={d.id} className={`lp-dot ${d.gk ? 'gk' : ''}`}
-          style={{ left: `${x}%`, top: `${y}%`, transition: `left ${move} ease-in-out, top ${move} ease-in-out`, ['--kit' as any]: d.gk ? (d.side === 0 ? '#f5d90a' : '#b16cf0') : d.side === 0 ? hc : ac, color: lum(d.gk ? (d.side === 0 ? '#f5d90a' : '#b16cf0') : d.side === 0 ? hc : ac) > 150 ? '#0b0d11' : '#fff' }}>
-          {d.no || ''}
-        </span>
-      ))}
+      {placed.map(({ d, x, y }) => {
+        const kit = d.gk ? (d.side === 0 ? '#f5d90a' : '#b16cf0') : d.side === 0 ? hc : ac
+        return (
+          <span key={d.id} className={`lp-dot ${d.gk ? 'gk' : ''} ${holder === d.id ? 'has' : ''}`}
+            style={{ left: `${clamp(x, 1, 99)}%`, top: `${clamp(y, 2, 98)}%`, transition: `left ${move} ease-in-out, top ${move} ease-in-out`, ['--kit' as any]: kit, color: lum(kit) > 150 ? '#0b0d11' : '#fff' }}>
+            {d.no || ''}
+          </span>
+        )
+      })}
       <span className="lp-ball-shadow" style={{ left: `${clamp(ball.x, -1.5, 101.5)}%`, top: `${ball.y}%`, transition: `left ${move} ease-out, top ${move} ease-out` }} />
       <span className={`lp-ball ${dur > 150 ? 'rolling' : ''}`} style={{ left: `${clamp(ball.x, -1.5, 101.5)}%`, top: `${ball.y}%`, transition: `left ${move} ease-out, top ${move} ease-out` }}>
         <Ball size={11} />
