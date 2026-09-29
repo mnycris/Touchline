@@ -790,3 +790,11 @@ select.input option { background: #151b27; }
 .ndrop-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 0; border-top: 1px solid var(--line); animation: fadeIn .4s ease both; }
 .ndrop-row:nth-child(3) { animation-delay: .08s } .ndrop-row:nth-child(4) { animation-delay: .16s }
 .ndrop-row .face, .ndrop-row .msg-av { flex: none; }
+/* awards board */
+.aw-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 0 12px 12px; }
+.aw-season { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; background: linear-gradient(180deg, rgba(244,197,66,.12), var(--s2)); min-width: 0; }
+.aw-row { display: grid; grid-template-columns: 30px 1fr 1fr; gap: 8px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); }
+.aw-row:first-child { border-top: 0; }
+.aw-comp { display: grid; place-items: center; }
+.aw-p { display: flex; align-items: center; gap: 8px; min-width: 0; text-align: left; }
+.aw-pn { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }

@@ -250,28 +250,10 @@ export function Awards() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const [tab, setTab] = useState<'awards' | 'history'>('awards')
-  const awards = [...w.awards].reverse().slice(0, 120)
   return (
     <Screen title="Awards & History" back>
       <Tabs items={[{ id: 'awards', label: 'Awards' }, { id: 'history', label: 'Past Seasons' }]} value={tab} onChange={setTab} />
-      {tab === 'awards' && (
-        <div className="pad" style={{ marginTop: 12 }}>
-          {!awards.length && <Empty icon="medal" title="No awards yet" text="Player and Manager of the Month awards are handed out at the start of every month; season awards at the end of the campaign." />}
-          <div className="card list">
-            {awards.map((a) => {
-              const p = a.playerId ? w.players[a.playerId] : undefined
-              const c = a.clubId ? w.clubs[a.clubId] : undefined
-              return (
-                <button key={a.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => p && go({ name: 'player', params: { id: p.id } })}>
-                  {p ? <Face p={p} size={40} radius={10} club={w.clubs[p.clubId]} /> : c ? <Badge club={c} size={36} /> : <Icon name="medal" size={24} color="var(--gold)" />}
-                  <div className="meta"><div className="t small">{a.name}</div><div className="s">{p?.name || a.managerName || c?.name}{a.value ? ` · ${a.value}` : ''} · {a.month ? fmtDate(`${a.month}-01`, 'month') : seasonLabel(a.season)}</div></div>
-                  {a.compKey && <CompLogo k={a.compKey} size={22} />}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {tab === 'awards' && <AwardsBoard />}
       {tab === 'history' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           {!w.archive.length && <Empty icon="history" title="No completed seasons yet" />}
@@ -432,6 +414,73 @@ function CareerOptions() {
         <Toggle label="AI transfers" sub="Other clubs buy, sell and loan players" on={st.aiTransfers} onChange={(v) => set({ aiTransfers: v })} />
       </div>
       <div className="tiny dim">Changes apply from the next day or match. The starting budget was set when the career began.</div>
+    </div>
+  )
+}
+
+/** Awards grouped the way they're presented: season honours, then each month's winners by competition. */
+function AwardsBoard() {
+  const w = useWorld()
+  const go = useGame((s) => s.go)
+  const [scope, setScope] = useState<'mine' | 'all'>('mine')
+  const own = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))?.key
+  const list = w.awards.filter((a) => scope === 'all' || !a.compKey || a.compKey === own || a.clubId === w.userClubId || (a.playerId && w.players[a.playerId]?.clubId === w.userClubId))
+  if (!w.awards.length) return <div className="pad" style={{ marginTop: 12 }}><Empty icon="medal" title="No awards yet" text="Player and Manager of the Month awards are handed out at the start of every month; season awards at the end of the campaign." /></div>
+  const seasonAw = list.filter((a) => !a.month).reverse()
+  const months = [...new Set(list.filter((a) => a.month).map((a) => a.month!))].sort().reverse()
+  const person = (a: (typeof list)[number]) => {
+    const p = a.playerId ? w.players[a.playerId] : undefined
+    const c = a.clubId ? w.clubs[a.clubId] : undefined
+    return (
+      <button className="aw-p" onClick={() => p ? go({ name: 'player', params: { id: p.id } }) : c && go({ name: 'club', params: { id: c.id } })}>
+        {p ? <Face p={p} size={40} radius={12} club={w.clubs[p.clubId]} /> : c ? <Badge club={c} size={34} /> : <Icon name="medal" size={24} color="var(--gold)" />}
+        <span className="aw-pn"><span className="tiny dim">{/Manager/.test(a.name) ? 'Manager of the Month' : /Month/.test(a.name) ? 'Player of the Month' : a.name}</span><span className="small b ellipsis">{p?.name || a.managerName || c?.name}</span>{a.value ? <span className="tiny dim">{a.value}</span> : null}</span>
+      </button>
+    )
+  }
+  return (
+    <div className="pad stack" style={{ marginTop: 12 }}>
+      <Seg small items={[{ id: 'mine', label: 'My league & club' }, { id: 'all', label: 'All leagues' }]} value={scope} onChange={setScope} />
+      {seasonAw.length > 0 && (
+        <div className="card">
+          <div className="card-h"><span className="label">Season awards</span></div>
+          <div className="aw-grid">
+            {seasonAw.slice(0, 18).map((a) => {
+              const p = a.playerId ? w.players[a.playerId] : undefined
+              return (
+                <button key={a.id} className="aw-season" onClick={() => p && go({ name: 'player', params: { id: p.id } })}>
+                  {p ? <Face p={p} size={50} radius={14} club={w.clubs[p.clubId]} /> : <Icon name="medal" size={30} color="var(--gold)" />}
+                  <span className="tiny b" style={{ color: 'var(--gold)', textAlign: 'center' }}>{a.name}</span>
+                  <span className="small b ellipsis" style={{ maxWidth: '100%' }}>{p?.name || a.managerName}</span>
+                  <span className="tiny dim">{seasonLabel(a.season)}{a.value ? ` · ${a.value}` : ''}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {months.map((m) => {
+        const inMonth = list.filter((a) => a.month === m)
+        const comps = [...new Set(inMonth.map((a) => a.compKey || ''))].sort((a, b) => (a === own ? -1 : b === own ? 1 : 0))
+        return (
+          <div key={m} className="card">
+            <div className="card-h"><span className="label">{fmtDate(`${m}-01`, 'month')}</span></div>
+            <div className="list">
+              {comps.map((k) => {
+                const rows = inMonth.filter((a) => (a.compKey || '') === k)
+                const player = rows.find((a) => a.playerId), manager = rows.find((a) => !a.playerId)
+                return (
+                  <div key={k} className="aw-row">
+                    <div className="aw-comp">{k && <CompLogo k={k} size={22} />}</div>
+                    {player && person(player)}
+                    {manager && person(manager)}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
