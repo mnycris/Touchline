@@ -4,6 +4,7 @@ import type { Player, TeamSheet, TeamTactics, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Slider, Tabs, Toggle } from '../components/layout'
+import { TacticsBoard } from '../components/TacticsBoard'
 import { Pitch } from '../components/Pitch'
 import { DEFAULT_TACTICS, FORMATIONS, formationOf, MENTALITIES, ROLE_GROUP, ROLES, VISION_TACTICS } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
@@ -234,30 +235,8 @@ export function TacticsPanel({ t, onChange }: { t: TeamTactics; onChange: (p: Pa
           {Object.keys(VISION_TACTICS).map((v) => <button key={v} className="chip" onClick={() => { haptic('medium'); onChange({ ...DEFAULT_TACTICS, ...VISION_TACTICS[v], mentality: t.mentality }) }}>{v}</button>)}
         </div>
       </div>
-      <div className="card pad-card stack" style={{ gap: 12 }}>
-        <div className="label">Mentality</div>
-        <div className="mentality">
-          {MENTALITIES.map((m, i) => <button key={m} className={t.mentality === m ? 'on' : ''} onClick={() => onChange({ mentality: m })}><span className="display">{['UD', 'D', 'B', 'A', 'UA'][i]}</span><span className="tiny">{m}</span></button>)}
-        </div>
-      </div>
-      <div className="card pad-card stack" style={{ gap: 12 }}>
-        <div className="label">In possession</div>
-        <div><div className="small b" style={{ marginBottom: 6 }}>Build-up play</div><Seg small items={(['Balanced', 'Short Passing', 'Counter', 'Long Ball'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '') }))} value={t.buildUp} onChange={(v) => onChange({ buildUp: v })} /></div>
-        <div><div className="small b" style={{ marginBottom: 6 }}>Chance creation</div><Seg small items={(['Balanced', 'Possession', 'Direct Passing', 'Forward Runs'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '').replace('Forward ', '') }))} value={t.chanceCreation} onChange={(v) => onChange({ chanceCreation: v })} /></div>
-        <Slider label="Width" value={t.width} onChange={(v) => onChange({ width: v })} left="Narrow" right="Wide" />
-        <Slider label="Tempo" value={t.tempo} onChange={(v) => onChange({ tempo: v })} left="Patient" right="Fast" />
-        <Slider label="Players in box" value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} />
-      </div>
-      <div className="card pad-card stack" style={{ gap: 12 }}>
-        <div className="label">Out of possession</div>
-        <div><div className="small b" style={{ marginBottom: 6 }}>Defensive approach</div><Seg small items={(['Deep', 'Balanced', 'High', 'Aggressive'] as const).map((x) => ({ id: x, label: x }))} value={t.defApproach} onChange={(v) => onChange({ defApproach: v, lineHeight: v === 'Deep' ? 30 : v === 'Balanced' ? 50 : v === 'High' ? 68 : 75, pressing: v === 'Deep' ? 30 : v === 'Balanced' ? 50 : v === 'High' ? 68 : 85 })} /></div>
-        <Slider label="Line height" value={t.lineHeight} onChange={(v) => onChange({ lineHeight: v })} left="Deep" right="High" />
-        <Slider label="Pressing intensity" value={t.pressing} onChange={(v) => onChange({ pressing: v })} left="Low" right="Relentless" />
-      </div>
-      <div className="card">
-        <Toggle label="Offside trap" sub="Step up to catch forwards — risky against pace" on={t.offsideTrap} onChange={(v) => onChange({ offsideTrap: v })} />
-        <Toggle label="Time wasting" sub="Slow the game down when protecting a lead" on={t.timeWasting} onChange={(v) => onChange({ timeWasting: v })} />
-      </div>
+      <TacticsBoard t={t} onChange={onChange} />
+      <div className="card pad-card"><Slider label="Players in the box" value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} fmt={(v) => `${v}`} /><div className="tiny dim">How many arrive in the box for crosses and cut-backs.</div></div>
       <div className="card pad-card stack" style={{ gap: 12 }}>
         <div className="label">Set pieces</div>
         <div><div className="small b" style={{ marginBottom: 6 }}>Corners</div><Seg small items={(['Balanced', 'Near Post', 'Far Post', 'Short'] as const).map((x) => ({ id: x, label: x }))} value={t.corners} onChange={(v) => onChange({ corners: v })} /></div>

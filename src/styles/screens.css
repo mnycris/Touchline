@@ -705,3 +705,31 @@ select.input option { background: #151b27; }
 .spec { z-index: 50; animation: sheetIn .3s cubic-bezier(.2,.8,.2,1) both; }
 .spec-back { display: flex; align-items: center; gap: 5px; padding: 5px 9px 5px 6px; border-radius: 999px; background: rgba(255,255,255,.08); }
 .spec-pip { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.08); }
+
+/* ---------- tactics board ---------- */
+.tb-plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-top: 8px; }
+.tb-plan { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 9px 9px 10px; border-radius: 12px; background: rgba(255,255,255,.05); border: 1px solid var(--line); text-align: left; color: var(--t1); }
+.tb-plan b { font-size: 12.5px; line-height: 1.15; }
+.tb-plan .tiny { font-size: 10px; line-height: 1.25; }
+.tb-plan.sug { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
+.tb-plan:active { transform: scale(.97); }
+.tb-ment { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); margin-top: 10px; padding: 4px; border-radius: 12px; background: linear-gradient(90deg, rgba(62,166,255,.28), rgba(255,255,255,.06) 50%, rgba(255,90,90,.3)); }
+.tb-ment-track { position: absolute; top: 4px; bottom: 4px; left: calc(4px + (100% - 8px) / 5 * var(--i)); width: calc((100% - 8px) / 5); border-radius: 9px; background: rgba(var(--club-rgb), .9); box-shadow: 0 4px 12px rgba(0,0,0,.35); transition: left .28s cubic-bezier(.3,1.3,.5,1); }
+.tb-ment button { position: relative; height: 40px; border-radius: 9px; color: var(--t2); }
+.tb-ment button.on { color: #fff; }
+.tb-ment .display { font-size: 18px; }
+.tb-h { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--t2); margin-bottom: 8px; }
+.tb-top { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
+.tb-ctrls { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.tb-ctrls .chip { align-self: flex-start; margin-top: 4px; }
+.tb-diag { flex: none; width: 96px; height: 67px; display: block; border-radius: 6px; }
+.tb-eff { position: sticky; bottom: -18px; z-index: 2; max-height: 140px; overflow-y: auto; box-shadow: 0 -10px 24px rgba(0,0,0,.45); background: var(--s3); }
+.tb-diag path, .tb-diag circle, .tb-diag rect { transition: all .3s ease; }
+.tb-desc { min-height: 26px; margin: 2px 0 2px; line-height: 1.3; }
+.tb-sub { color: var(--t2); margin-top: 4px; }
+.tb-sw { flex: none; width: 42px; height: 25px; border-radius: 13px; background: var(--s4); position: relative; transition: background .2s; }
+.tb-sw i { position: absolute; top: 3px; left: 3px; width: 19px; height: 19px; border-radius: 50%; background: #fff; transition: transform .22s cubic-bezier(.3,1.4,.5,1); }
+.tb-sw.on { background: var(--acc); }
+.tb-sw.on i { transform: translateX(17px); }
+.tb-eff-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 4px 0; color: var(--t1); animation: fadeIn .3s ease both; }
+.tb-eff-row.neg svg { color: var(--neg); } .tb-eff-row.pos svg { color: var(--pos); } .tb-eff-row.neu svg { color: var(--t3); }

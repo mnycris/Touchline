@@ -15,6 +15,7 @@ import { posRating } from '../../domain/ratings'
 import { Ball, BenchRowFM, Boot, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
+import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
@@ -582,7 +583,10 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
   useEffect(() => { if (open && waiting.length) { setTab('subs'); setOut(waiting[0]) } }, [open, waiting.join(',')])
   useEffect(() => { if (open && initialOut) { setTab('subs'); setOut(initialOut) } }, [open, initialOut])
   const t = sim.sideTactics(side)
-  const setT = (p: Partial<TeamTactics>) => { sim.setTactics(side, p); haptic(); force() }
+  const setT = (p: Partial<TeamTactics>) => { sim.setTactics(side, p); force() }
+  // what the tactics were when the sheet opened: the board explains the difference
+  const [base, setBase] = useState<TeamTactics>()
+  useEffect(() => { if (open) setBase({ ...sim.sideTactics(side) }) }, [open])
   const ratings = sim.liveRatings(side)
   const onIds = sim.onPitchIds(side)
   const bench = sim.benchIds(side)
@@ -645,21 +649,8 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
         </div>
       )}
       {tab === 'tactics' && (
-        <div className="stack" style={{ marginTop: 12, gap: 14 }}>
-          <div>
-            <div className="label" style={{ marginBottom: 6 }}>Mentality</div>
-            <div className="mentality">
-              {MENTALITIES.map((m, i) => <button key={m} className={t.mentality === m ? 'on' : ''} onClick={() => setT({ mentality: m })}><span className="display">{['UD', 'D', 'B', 'A', 'UA'][i]}</span><span className="tiny">{m}</span></button>)}
-            </div>
-          </div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Defensive approach</div><Seg small items={(['Deep', 'Balanced', 'High', 'Aggressive'] as const).map((x) => ({ id: x, label: x }))} value={t.defApproach} onChange={(v) => setT({ defApproach: v, lineHeight: v === 'Deep' ? 30 : v === 'Balanced' ? 50 : v === 'High' ? 68 : 75, pressing: v === 'Deep' ? 30 : v === 'Balanced' ? 50 : v === 'High' ? 68 : 85 })} /></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Build-up play</div><Seg small items={(['Balanced', 'Short Passing', 'Counter', 'Long Ball'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '') }))} value={t.buildUp} onChange={(v) => setT({ buildUp: v })} /></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Chance creation</div><Seg small items={(['Balanced', 'Possession', 'Direct Passing', 'Forward Runs'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '').replace('Forward ', '') }))} value={t.chanceCreation} onChange={(v) => setT({ chanceCreation: v })} /></div>
-          <div className="row" style={{ gap: 8 }}>
-            <button className={`chip ${t.timeWasting ? 'on' : ''}`} onClick={() => setT({ timeWasting: !t.timeWasting })}><Icon name="clock" size={14} /> Time wasting</button>
-            <button className={`chip ${t.offsideTrap ? 'on' : ''}`} onClick={() => setT({ offsideTrap: !t.offsideTrap })}><Icon name="flag" size={14} /> Offside trap</button>
-          </div>
-          <div className="tiny dim">Changes take effect immediately and alter every remaining minute of the simulation.</div>
+        <div style={{ marginTop: 12 }}>
+          <TacticsBoard t={t} onChange={setT} base={base} game={{ score: sim.score, side, minute: sim.minute, reds: [0, 1].map((x) => sim.events.filter((e) => e.side === x && (e.type === 'red' || e.type === 'secondYellow')).length) as [number, number] }} />
         </div>
       )}
       {tab === 'formation' && (
