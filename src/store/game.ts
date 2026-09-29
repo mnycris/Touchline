@@ -3,7 +3,9 @@ import type { MatchResult, World } from '../domain/types'
 import type { RawDb } from '../data/rawTypes'
 import { createWorld, type NewCareerOptions } from '../data/createWorld'
 import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, simulateDay, userFixtureOn, worldRng, type StopReason } from '../engine/world/advance'
-import { simulateFixture } from '../engine/world/matchRunner'
+import { createSim, simulateFixture } from '../engine/world/matchRunner'
+import { createOthers, type OtherLive } from '../engine/world/liveDay'
+import { fmtDate } from '../domain/dates'
 import { loadCareer as loadSave, saveCareer, listSaves, deleteSave, getKV, setKV, type SaveMeta } from '../services/saves'
 import { positionOf } from '../engine/competitions/tables'
 import type { MatchSim } from '../engine/match/engine'
@@ -29,6 +31,14 @@ function migrateWorld(w: World) {
 export interface LiveMatch {
   sim: MatchSim
   fixtureId: string
+  /** matches kicking off at the same time, stepped in sync with this one */
+  others?: OtherLive[]
+  /** the one other match pinned as a floating mini player */
+  pip?: string
+  /** watching as a spectator: nobody's controls, the result is applied like any other game */
+  spectator?: boolean
+  /** other matches the manager opened or pinned: their full reports are kept */
+  viewed?: string[]
   speed: number
   running: boolean
   tick: number
@@ -85,7 +95,11 @@ interface GameState {
   advance: (until?: string) => Promise<StopReason | undefined>
   stopAdvance: () => void
   stopRequested: boolean
-  finishUserMatch: (fixtureId: string, result: MatchResult) => void
+  finishUserMatch: (fixtureId: string, result: MatchResult, others?: OtherLive[]) => void
+  /** apply a watched (spectated) match and whatever ran alongside it */
+  finishWatched: (fixtureId: string, result: MatchResult, others?: OtherLive[]) => void
+  /** watch a fixture live: today it opens straight away; a future one stops the calendar on its day */
+  watchFixture: (fixtureId: string) => void
   setLive: (l?: LiveMatch) => void
   notify: (text: string, kind?: 'ok' | 'err' | 'info') => void
   setPrefs: (p: Partial<AppPrefs>) => void
@@ -240,7 +254,6 @@ export const useGame = create<GameState>((set, get) => ({
     if (!w || get().advancing) return
     set({ advancing: true, stopRequested: false })
     let stop: StopReason = 'limit'
-    const started = Date.now()
     const stopOn = get().prefs.stopOn
     const seenInbox = new Set(w.inbox.map((m) => m.id))
     try {
@@ -275,10 +288,10 @@ export const useGame = create<GameState>((set, get) => ({
         await new Promise((res) => setTimeout(res, get().prefs.reduceMotion ? 0 : until ? 25 : 70))
       }
     } finally {
-      w.meta.playTimeMin += Math.round((Date.now() - started) / 60000)
       set({ advancing: false, lastStop: stop, v: get().v + 1, stopRequested: false })
     }
     if (stop === 'match') get().open({ name: 'prematch' })
+    else if (stop === 'watch' && w.flags.watch) get().watchFixture(w.flags.watch)
     else if (stop === 'season-end') get().open({ name: 'seasonReview', params: { season: w.season - 1 } })
     else if (stop === 'sacked') get().open({ name: 'jobs', params: { sacked: true } })
     else if (stop === 'deadline') get().notify('Transfer Deadline Day!', 'info')
@@ -290,19 +303,51 @@ export const useGame = create<GameState>((set, get) => ({
 
   stopAdvance() { set({ stopRequested: true }) },
 
-  finishUserMatch(fixtureId, result) {
+  finishUserMatch(fixtureId, result, others) {
     const w = get().world
     if (!w) return
     const f = w.fixtures[fixtureId]
     if (!f || f.played) return
     const rng = worldRng(w)
     afterMatch(w, f, result, rng)
+    applyOthers(w, others, rng, get().live?.viewed)
     // play the rest of the day's fixtures so tables and other results are current
     simulateDay(w, rng)
     w.rng = rng.state
     w.lastUserResult = f.id
     set({ v: get().v + 1, live: undefined })
     get().save(true)
+  },
+
+  finishWatched(fixtureId, result, others) {
+    const w = get().world
+    if (!w) return
+    const f = w.fixtures[fixtureId]
+    const rng = worldRng(w)
+    if (f && !f.played) afterMatch(w, f, result, rng, true)
+    applyOthers(w, others, rng, get().live?.viewed)
+    w.rng = rng.state
+    set({ v: get().v + 1, live: undefined })
+    get().save(true)
+  },
+
+  watchFixture(fixtureId) {
+    const w = get().world
+    if (!w || get().live) return
+    const f = w.fixtures[fixtureId]
+    if (!f || f.played || f.userInvolved) return
+    if (f.date > w.date) {
+      w.flags.watch = f.id
+      get().notify(`Set to watch ${w.clubs[f.home]?.short} v ${w.clubs[f.away]?.short}: Continue stops on ${fmtDate(f.date, 'dm')}`, 'ok')
+      set({ v: get().v + 1 })
+      return
+    }
+    if (f.date < w.date) return
+    w.flags.watch = undefined
+    const sim = createSim(w, f, false, true)
+    set({ live: { sim, fixtureId: f.id, speed: get().prefs.matchSpeed, running: true, tick: 0, finished: false, applied: false, spectator: true, others: createOthers(w, f) }, v: get().v + 1 })
+    get().closeAll()
+    get().open({ name: 'match' })
   },
 
   setLive(l) { set({ live: l, v: get().v + 1 }) },
@@ -328,3 +373,13 @@ export function useWorld(): World {
 
 // dev builds only: lets the QA scripts reach the store (stripped from production bundles)
 if (import.meta.env.DEV) (window as unknown as { __game: typeof useGame }).__game = useGame
+
+/** Apply matches that ran live alongside another one, with exactly the results that were on screen. */
+function applyOthers(w: World, others: OtherLive[] | undefined, rng: ReturnType<typeof worldRng>, viewed?: string[]) {
+  for (const o of others || []) {
+    const f = w.fixtures[o.fixtureId]
+    if (!f || f.played) continue
+    const r = o.sim.finished ? o.sim.result() : o.sim.runToEnd()
+    afterMatch(w, f, r, rng, !!viewed?.includes(o.fixtureId))
+  }
+}

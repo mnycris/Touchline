@@ -22,7 +22,7 @@ import { rollInjury } from './matchRunner'
 import { rosterOf } from './roster'
 import { processPendingDeals } from './userActions'
 
-export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit'
+export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
 function dateIndex(w: World): ClubDateIndex {
   return worldDateIndex(w)
@@ -52,8 +52,8 @@ export function nextUserFixture(w: World): Fixture | undefined {
 }
 
 /** Everything that happens after a fixture result is known. */
-export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng) {
-  const res = applyMatchResult(w, f, result, rng)
+export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, full = false) {
+  const res = applyMatchResult(w, f, result, rng, full)
   const comp = w.competitions[f.compId]
   const idx = dateIndex(w)
   if (comp) {
@@ -374,6 +374,12 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
     if (win && w.date === win.close) return result('deadline')
     if (win && w.date === win.open) return result('window')
     if (w.flags.stopForInbox) return result('inbox')
+    // a match the manager asked to watch: stop on its day (unless it has gone, e.g. postponed or already played)
+    if (w.flags.watch) {
+      const wf = w.fixtures[w.flags.watch]
+      if (!wf || wf.played || wf.date < w.date) w.flags.watch = undefined
+      else if (wf.date === w.date && !userFixtureOn(w, w.date)) return result('watch', wf)
+    }
   }
   return result('limit')
 }

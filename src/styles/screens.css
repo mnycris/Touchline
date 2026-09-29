@@ -669,3 +669,39 @@ select.input option { background: #151b27; }
 .ga { display: inline-flex; align-items: center; gap: 3px; color: var(--t1); }
 .ga b { font-weight: 800; font-size: 12.5px; }
 .fl-pl.sent .fl-ph::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px dashed rgba(255, 255, 255, 0.45); }
+
+/* ---------- other live matches: Matches tab, mini player, spectator ---------- */
+.om-h { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--t2); margin: 4px 2px 8px; }
+.om-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.om-card { position: relative; border-radius: 14px; background: var(--s2); overflow: hidden; }
+.om-main { display: block; width: 100%; padding: 10px 12px 10px; text-align: left; }
+.om-row { display: flex; align-items: center; gap: 8px; }
+.om-team { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; }
+.om-team.r { justify-content: flex-end; }
+.om-score { font-family: var(--display); font-weight: 800; font-size: 24px; display: flex; gap: 5px; min-width: 64px; justify-content: center; }
+.om-score i { font-style: normal; opacity: .4; }
+.om-meta { display: flex; align-items: center; gap: 8px; margin: 6px 0 8px; min-width: 0; font-size: 11.5px; color: var(--t2); }
+.om-clock { flex: none; font-family: var(--display); font-weight: 800; font-size: 12.5px; padding: 1px 7px; border-radius: 5px; background: rgba(255,255,255,.08); color: var(--t1); }
+.om-clock.live { background: var(--acc); color: #03170c; }
+.om-sc { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.om-pin { position: absolute; right: 8px; bottom: 8px; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: rgba(0,0,0,.45); color: var(--t2); }
+.om-pin.on { background: var(--acc); color: #03170c; }
+.mini-pitch { display: block; width: 100%; height: 34px; border-radius: 6px; }
+.om-main .mini-pitch { width: calc(100% - 38px); }
+.mini-ball { transition: cx .9s ease, cy .9s ease; }
+.mini-pitch.goal rect:first-child { animation: miniGoal 1s ease 2; }
+@keyframes miniGoal { 50% { fill: #2f8f47 } }
+.elsewhere { display: flex; align-items: center; gap: 6px; margin: 6px auto 0; max-width: 100%; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.07); animation: gcIn .4s cubic-bezier(.2,.9,.3,1.2) both; min-width: 0; }
+.elsewhere .b { color: var(--t1); }
+.pip { position: absolute; right: 10px; bottom: calc(var(--sab) + 128px); z-index: 30; width: 186px; border-radius: 14px; background: rgba(14, 17, 23, .94); border: 1px solid var(--line2); box-shadow: 0 12px 30px rgba(0,0,0,.55); backdrop-filter: blur(8px); animation: gcIn .35s cubic-bezier(.2,.9,.3,1.2) both; }
+.pip-main { display: block; width: 100%; padding: 8px 9px 9px; text-align: left; }
+.pip-row { display: flex; align-items: center; gap: 5px; }
+.pip-n { flex: 1; min-width: 0; font-weight: 800; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pip-n.r { text-align: right; }
+.pip-s { font-family: var(--display); font-weight: 800; font-size: 17px; animation: pop .4s ease both; }
+.pip-meta { display: flex; align-items: center; gap: 6px; margin: 5px 0 6px; font-size: 10.5px; color: var(--t2); min-width: 0; }
+.pip .mini-pitch { height: 30px; }
+.pip-x { position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--s4); border: 1px solid var(--line2); color: var(--t1); }
+.spec { z-index: 50; animation: sheetIn .3s cubic-bezier(.2,.8,.2,1) both; }
+.spec-back { display: flex; align-items: center; gap: 5px; padding: 5px 9px 5px 6px; border-radius: 999px; background: rgba(255,255,255,.08); }
+.spec-pip { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.08); }

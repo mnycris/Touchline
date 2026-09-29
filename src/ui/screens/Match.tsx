@@ -15,6 +15,8 @@ import { posRating } from '../../domain/ratings'
 import { Ball, BenchRowFM, Boot, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
+import { syncOthers } from '../../engine/world/liveDay'
+import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
 
 // ============================================================================ helpers
@@ -26,10 +28,10 @@ const EVENT_ICON: Record<string, [string, string]> = {
   kickoff: ['whistle', '#fff'], info: ['info', 'var(--t3)'], et: ['clock', '#fff'], pens: ['ball', '#fff'], shootout: ['ball', '#fff'], penalty: ['target', 'var(--warn)'],
 }
 const KEY_EVENTS = new Set(['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'injury', 'sub', 'var', 'woodwork', 'ht', 'ft', 'pens', 'et', 'penalty'])
-const isGoal = (e: MatchEvent) => e.type === 'goal' || e.type === 'penGoal' || e.type === 'owngoal'
+export const isGoal = (e: MatchEvent) => e.type === 'goal' || e.type === 'penGoal' || e.type === 'owngoal'
 const minLabel = (e: MatchEvent) => `${e.min}${e.add ? `+${e.add}` : ''}'`
 
-function clock(sim: MatchSim) {
+export function clock(sim: MatchSim) {
   if (sim.phase === 'pre') return "0'"
   if (sim.phase === 'HT') return 'HT'
   if (sim.phase === 'FT') return 'FT'
@@ -52,22 +54,66 @@ function goalScorers(w: World, r: Pick<MatchResult, 'events'>, side: 0 | 1) {
 
 export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: number }) {
   const go = useGame((s) => s.go)
+  const [sheet, setSheet] = useState(false)
   const comp = w.competitions[f.compId]
   const o = clubId ? outcomeFor(f, clubId) : undefined
+  const watching = w.flags.watch === f.id
   return (
-    <button className="li tap fixture-row" style={{ width: '100%' }} onClick={() => f.played ? go({ name: 'fixture', params: { id: f.id } }) : go({ name: 'club', params: { id: clubId && f.home === clubId ? f.away : f.home } })}>
-      <div className="col" style={{ width: 44, alignItems: 'center', gap: 2 }}>
-        {comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}
-        <span className="tiny dim">{fmtDate(f.date, 'dm')}</span>
+    <>
+      <button className="li tap fixture-row" style={{ width: '100%' }} onClick={() => { if (f.played) go({ name: 'fixture', params: { id: f.id } }); else { haptic(); setSheet(true) } }}>
+        <div className="col" style={{ width: 44, alignItems: 'center', gap: 2 }}>
+          {comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}
+          <span className="tiny dim">{fmtDate(f.date, 'dm')}</span>
+        </div>
+        <div className="grow row" style={{ gap: 6, minWidth: 0 }}>
+          <span className="grow ellipsis small b" style={{ textAlign: 'right' }}>{w.clubs[f.home]?.short}</span>
+          <Badge club={w.clubs[f.home]} size={20} />
+          <span className={`score-pill sm ${o || ''}`}>{f.played ? scoreLine(f) : f.time}</span>
+          <Badge club={w.clubs[f.away]} size={20} />
+          <span className="grow ellipsis small b">{w.clubs[f.away]?.short}</span>
+        </div>
+        {watching && <Icon name="eye" size={14} color="var(--acc)" />}
+      </button>
+      {sheet && <FixtureSheet w={w} f={f} onClose={() => setSheet(false)} />}
+    </>
+  )
+}
+
+/** An upcoming fixture: watch it live (today, or stop the calendar on its day) or open either club. */
+function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => void }) {
+  const go = useGame((s) => s.go)
+  const watch = useGame((s) => s.watchFixture)
+  const live = useGame((s) => s.live)
+  const [, force] = useReducer((x: number) => x + 1, 0)
+  const home = w.clubs[f.home], away = w.clubs[f.away]
+  const comp = w.competitions[f.compId]
+  const today = f.date === w.date
+  const watching = w.flags.watch === f.id
+  const canWatch = !f.userInvolved && !f.played && f.date >= w.date && !live
+  return (
+    <Sheet open onClose={onClose}>
+      <div className="row tight" style={{ justifyContent: 'center', gap: 6 }}>{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="tiny b upper dim">{comp?.short} · {f.roundName}</span></div>
+      <div className="md-teams" style={{ marginTop: 10 }}>
+        <button className="md-team" onClick={() => { onClose(); go({ name: 'club', params: { id: home.id } }) }}><Badge club={home} size={52} /><b>{home.short}</b></button>
+        <div className="col center" style={{ minWidth: 90 }}><div className="display" style={{ fontSize: 26 }}>{f.time}</div><div className="tiny dim">{today ? 'Today' : fmtDate(f.date, 'long')}</div></div>
+        <button className="md-team" onClick={() => { onClose(); go({ name: 'club', params: { id: away.id } }) }}><Badge club={away} size={52} /><b>{away.short}</b></button>
       </div>
-      <div className="grow row" style={{ gap: 6, minWidth: 0 }}>
-        <span className="grow ellipsis small b" style={{ textAlign: 'right' }}>{w.clubs[f.home]?.short}</span>
-        <Badge club={w.clubs[f.home]} size={20} />
-        <span className={`score-pill sm ${o || ''}`}>{f.played ? scoreLine(f) : f.time}</span>
-        <Badge club={w.clubs[f.away]} size={20} />
-        <span className="grow ellipsis small b">{w.clubs[f.away]?.short}</span>
+      {canWatch && (
+        today ? (
+          <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => { onClose(); watch(f.id) }}><Icon name="eye" size={18} /> Watch live</button>
+        ) : watching ? (
+          <button className="btn block" style={{ marginTop: 14 }} onClick={() => { haptic(); w.flags.watch = undefined; force(); useGame.getState().notify('No longer watching this match', 'info') }}><Icon name="check" size={18} color="var(--acc)" /> Watching · tap to cancel</button>
+        ) : (
+          <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => { watch(f.id); force() }}><Icon name="eye" size={18} /> Watch this match</button>
+        )
+      )}
+      {canWatch && <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>{today ? 'You watch as a spectator: no team controls. The other games kicking off at the same time run alongside it.' : `Continue will stop on ${fmtDate(f.date, 'long')} so you can watch it live.`}</div>}
+      {f.userInvolved && <div className="tiny dim" style={{ textAlign: 'center', marginTop: 12 }}>Your own match. Play it from Match Day.</div>}
+      <div className="row" style={{ gap: 8, marginTop: 14 }}>
+        <button className="btn grow" onClick={() => { onClose(); go({ name: 'club', params: { id: home.id } }) }}><Badge club={home} size={16} /> {home.short}</button>
+        <button className="btn grow" onClick={() => { onClose(); go({ name: 'club', params: { id: away.id } }) }}><Badge club={away} size={16} /> {away.short}</button>
       </div>
-    </button>
+    </Sheet>
   )
 }
 
@@ -77,11 +123,16 @@ export function LiveMatch() {
   const live = useGame((s) => s.live)
   const setLive = useGame((s) => s.setLive)
   const finish = useGame((s) => s.finishUserMatch)
+  const finishWatched = useGame((s) => s.finishWatched)
   const closeAll = useGame((s) => s.closeAll)
   const open = useGame((s) => s.open)
   const go = useGame((s) => s.go)
   const [, force] = useReducer((x: number) => x + 1, 0)
-  const [tab, setTab] = useState<'feed' | 'lineups' | 'stats'>('feed')
+  const [tab, setTab] = useState<'feed' | 'lineups' | 'stats' | 'matches'>('feed')
+  const [spectate, setSpectate] = useState<string>()
+  const [elsewhere, setElsewhere] = useState<{ id: number; text: string }>()
+  const spectateRef = useRef<string | undefined>(undefined)
+  spectateRef.current = spectate
   const [manage, setManage] = useState(false)
   const [manageOut, setManageOut] = useState<number>()
   const [moments, setMoments] = useState<Moment[]>([])
@@ -97,6 +148,8 @@ export function LiveMatch() {
   const sim = live?.sim
   const f = live ? w.fixtures[live.fixtureId] : undefined
   const us: 0 | 1 = f ? (f.home === w.userClubId ? 0 : 1) : 0
+  const spectator = !!live?.spectator
+  const others = live?.others || []
 
   const running = !!live?.running && !manage && !moment
   const speed = live?.speed || 1
@@ -122,7 +175,23 @@ export function LiveMatch() {
     if (!sim || !live) return
     const before = sim.phase
     const evs = sim.step()
+    const oev = syncOthers(sim, live.others)
+    // goals elsewhere: a short ticker under the scoreboard (and the mini player flashes)
     if (!fastRef.current) {
+      const g = [...oev].reverse().find((x) => isGoal(x.e))
+      if (g) {
+        const of = w.fixtures[g.fixtureId], o = live.others?.find((x) => x.fixtureId === g.fixtureId)
+        if (of && o) setElsewhere({ id: Date.now(), text: `${g.e.min}' ${callName(w.players[g.e.player || 0]?.name || '')} · ${w.clubs[of.home]?.short} ${o.sim.score[0]}–${o.sim.score[1]} ${w.clubs[of.away]?.short}` })
+      }
+    }
+    if (!fastRef.current && spectateRef.current) {
+      // watching another game: your own match's goals and red cards arrive as a banner instead of stopping the clock
+      const big = evs.find((e) => isGoal(e) || e.type === 'red' || e.type === 'secondYellow')
+      if (big) {
+        haptic('medium')
+        useGame.getState().notify(`Your match: ${isGoal(big) ? 'GOAL' : 'Red card'} ${big.min}' ${callName(w.players[big.player || 0]?.name || '')} · ${w.clubs[f!.home]?.short} ${sim.score[0]}–${sim.score[1]} ${w.clubs[f!.away]?.short}`, isGoal(big) && big.side === us ? 'ok' : 'info')
+      }
+    } else if (!fastRef.current) {
       const add: Moment[] = []
       const mk = (kind: MomentKind, e: MatchEvent) => add.push({ kind, e, id: ++momentId.current })
       for (const e of evs) {
@@ -140,7 +209,8 @@ export function LiveMatch() {
       }
     }
     const pauseFor = () => { live.running = false; seekRef.current = null }
-    if (sim.injuredWaiting.some((x) => x.side === us)) { pauseFor(); setManage(true) }
+    if (!spectator && sim.injuredWaiting.some((x) => x.side === us)) { pauseFor(); setSpectate(undefined); setManage(true) }
+    else if (spectator && sim.injuredWaiting.length) sim.autoResolveInjuries()
     if (sim.phase === 'HT' && before !== 'HT') pauseFor()
     if (sim.phase === 'ETHT' && before !== 'ETHT') pauseFor()
     if (sim.phase === 'PENS' && before !== 'PENS') pauseFor()
@@ -152,6 +222,12 @@ export function LiveMatch() {
     if (seekRef.current === 'event' && evs.some((e) => KEY_EVENTS.has(e.type) || e.big)) seekRef.current = null
     force()
   }
+
+  useEffect(() => {
+    if (!elsewhere) return
+    const t = window.setTimeout(() => setElsewhere(undefined), 6500)
+    return () => window.clearTimeout(t)
+  }, [elsewhere?.id])
 
   // shoot-out reveal, one kick at a time
   const shootout = sim ? sim.events.filter((e) => e.type === 'shootout') : []
@@ -192,7 +268,7 @@ export function LiveMatch() {
     let guard = 0
     const stopAt = sim.phase === '1H' || sim.phase === 'pre' ? 'HT' : null
     while (!sim.finished && guard++ < 200) {
-      if (sim.injuredWaiting.some((x) => x.side === us)) break
+      if (!spectator && sim.injuredWaiting.some((x) => x.side === us)) break
       tick()
       if (stopAt && sim.phase === 'HT') break
       if (!stopAt && (sim.phase === 'ETHT' || sim.phase === 'PENS' || sim.phase === 'FT')) break
@@ -210,6 +286,7 @@ export function LiveMatch() {
       if (sim.injuredWaiting.length) sim.autoResolveInjuries()
       sim.step()
     }
+    syncOthers(sim, live.others)
     live.running = false
     if (sim.pens) setReveal(shootout.length + 99)
     force()
@@ -217,10 +294,12 @@ export function LiveMatch() {
   const complete = () => {
     haptic('medium')
     const result = sim.result()
-    finish(f.id, result)
+    syncOthers(sim, live.others)
+    if (spectator) finishWatched(f.id, result, live.others)
+    else finish(f.id, result, live.others)
     setLive(undefined)
     closeAll()
-    open({ name: 'postmatch', params: { id: f.id } })
+    open({ name: spectator ? 'fixture' : 'postmatch', params: { id: f.id } })
   }
   const togglePitch = () => { const v = !pitchOpen; setPitchOpen(v); try { localStorage.setItem('opus:pitch', v ? '1' : '0') } catch { /* private mode */ } }
 
@@ -230,12 +309,17 @@ export function LiveMatch() {
   const goalsForGraph = sim.events.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))
 
   const onLineupTap = (t: LineupTap) => { haptic(); setPanel({ side: t.side, id: t.id }) }
+  const markViewed = (id: string) => { if (!live.viewed?.includes(id)) live.viewed = [...(live.viewed || []), id] }
+  const openOther = (id: string) => { live.running = false; setMoments([]); markViewed(id); setSpectate(id); force() }
+  const setPip = (id?: string) => { live.pip = id; if (id) markViewed(id); force() }
+  const specO = spectate ? others.find((o) => o.fixtureId === spectate) : undefined
+  const pipO = live.pip && !spectate ? others.find((o) => o.fixtureId === live.pip) : undefined
 
   return (
     <div className="match-screen" style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
       <div className="match-top">
         <div className="row between" style={{ padding: '0 4px' }}>
-          <div className="row tight">{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span></div>
+          <div className="row tight">{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}{spectator ? ' · Spectating' : ''}</span></div>
           <button className="tiny dim row tight" onClick={togglePitch}><Icon name="pitch" size={14} /> {pitchOpen ? 'Hide pitch' : 'Show pitch'}</button>
         </div>
         <div className="scoreboard">
@@ -252,6 +336,7 @@ export function LiveMatch() {
           <div className="scorers">{goalScorers(w, sim, 0).map((s) => <div key={s} className="ellipsis">{s}</div>)}</div>
           <div className="scorers r">{goalScorers(w, sim, 1).map((s) => <div key={s} className="ellipsis">{s}</div>)}</div>
         </div>
+        {elsewhere && <button key={elsewhere.id} className="elsewhere tiny" onClick={() => { haptic(); setTab('matches') }}><Ball size={10} /><span className="dim">Elsewhere</span><span className="ellipsis b">{elsewhere.text}</span></button>}
       </div>
 
       {pitchOpen && (
@@ -264,11 +349,11 @@ export function LiveMatch() {
         <MomentumGraph data={sim.timeline.map((x) => [x.m + x.add / 100, x.mom])} goals={goalsForGraph} colors={colors} live={!sim.finished} et={sim.phase.startsWith('ET') || sim.timeline.some((x) => x.m > 90)} />
       </div>
 
-      <Tabs items={[{ id: 'feed', label: 'Live' }, { id: 'lineups', label: 'Line-ups' }, { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} />
+      <Tabs items={[{ id: 'feed', label: 'Live' }, { id: 'lineups', label: 'Line-ups' }, { id: 'stats', label: 'Stats' }, ...(others.length ? [{ id: 'matches' as const, label: `Matches (${others.length})` }] : [])]} value={tab} onChange={setTab} />
 
       <div className="match-body">
         {!pitchOpen && moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 310 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}
-        {brk && (
+        {brk && !spectator && (
           <div className="card pad-card" style={{ margin: '12px 16px 0', textAlign: 'center' }}>
             <div className="kicker">{sim.phase === 'HT' ? 'Half-time' : 'Extra-time break'}</div>
             <div className="muted small" style={{ marginTop: 6 }}>Make changes now. Substitutions at the break don't use a window.</div>
@@ -289,12 +374,13 @@ export function LiveMatch() {
           </div>
         )}
         {tab === 'stats' && <StatsPanel stats={stats} homeId={home.id} awayId={away.id} w={w} />}
+        {tab === 'matches' && <MatchesTab w={w} others={others} compId={f.compId} pip={live.pip} onOpen={openOther} onPin={setPip} />}
       </div>
 
       {panel && (
         <PlayerMatchPanel w={w} st={sim.playerStats(panel.side, panel.id)} club={panel.side === 0 ? home : away} events={sim.events} live={!sim.finished}
           onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }}
-          actions={panel.side === us && !sim.finished && sim.onPitchIds(us).includes(panel.id) ? (
+          actions={!spectator && panel.side === us && !sim.finished && sim.onPitchIds(us).includes(panel.id) ? (
             <button className="btn primary grow" onClick={() => { haptic(); setPanel(undefined); setManageOut(panel.id); setManage(true) }}><Icon name="sub" size={16} /> Substitute</button>
           ) : undefined} />
       )}
@@ -310,9 +396,11 @@ export function LiveMatch() {
               <div className="seg grow" style={{ height: 48 }}>
                 {speeds.map((s, i) => <button key={i} className={speed === s ? 'on' : ''} style={{ height: 40 }} onClick={() => setSpeed(s)}>{fmtSpeed(s)}</button>)}
               </div>
-              <button className="ctl-btn manage" onClick={() => { haptic(); setManageOut(undefined); setManage(true) }} disabled={sim.finished}>
-                <Icon name="tactics" size={22} /><span>Manage</span>
-              </button>
+              {!spectator && (
+                <button className="ctl-btn manage" onClick={() => { haptic(); setManageOut(undefined); setManage(true) }} disabled={sim.finished}>
+                  <Icon name="tactics" size={22} /><span>Manage</span>
+                </button>
+              )}
             </div>
             <div className="row" style={{ gap: 8, marginTop: 8 }}>
               <button className="btn sm grow" onClick={nextEvent} disabled={sim.finished}><Icon name="skip" size={16} /> Next event</button>
@@ -323,7 +411,14 @@ export function LiveMatch() {
         )}
       </div>
 
-      <ManageSheet open={manage} initialOut={manageOut} onClose={() => { setManage(false); setManageOut(undefined); force() }} sim={sim} side={us} w={w} />
+      {pipO && <PipCard w={w} o={pipO} onOpen={() => openOther(pipO.fixtureId)} onClose={() => setPip(undefined)} />}
+      {specO && (
+        <SpectatorView w={w} o={specO} lead={sim} speed={speed} running={!!live.running && !sim.finished}
+          onToggle={() => { haptic(); if (sim.phase === 'HT' || sim.phase === 'ETHT' || sim.phase === 'PENS') tick(); live.running = !live.running && !sim.finished; force() }}
+          onClose={() => { haptic(); setSpectate(undefined) }} onPip={() => { haptic(); setPip(specO.fixtureId); setSpectate(undefined) }}
+          onPlayer={(id) => { setSpectate(undefined); go({ name: 'player', params: { id } }) }} />
+      )}
+      {!spectator && <ManageSheet open={manage} initialOut={manageOut} onClose={() => { setManage(false); setManageOut(undefined); force() }} sim={sim} side={us} w={w} />}
     </div>
   )
 }
@@ -424,7 +519,7 @@ function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchS
   )
 }
 
-function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: number; away: number }) {
+export function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: number; away: number }) {
   const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
   const key = isGoal(e)
   const big = key || e.type === 'red' || e.type === 'secondYellow' || e.type === 'ht' || e.type === 'ft'
@@ -444,7 +539,7 @@ function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: number;
   )
 }
 
-function StatsPanel({ stats, homeId, awayId, w }: { stats: [TeamMatchStats, TeamMatchStats]; homeId: number; awayId: number; w: World }) {
+export function StatsPanel({ stats, homeId, awayId, w }: { stats: [TeamMatchStats, TeamMatchStats]; homeId: number; awayId: number; w: World }) {
   const rows: [string, keyof TeamMatchStats, (v: number) => string, boolean][] = [
     ['Expected goals (xG)', 'xg', (v) => v.toFixed(2), true], ['Total shots', 'shots', String, true], ['Shots on target', 'sot', String, true],
     ['Big chances', 'bigChances', String, true], ['Passes', 'passes', String, true], ['Pass accuracy', 'passAcc', (v) => `${v}%`, true], ['Corners', 'corners', String, true],

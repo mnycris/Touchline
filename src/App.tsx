@@ -24,6 +24,23 @@ export default function App() {
     applyTheme(world && !world.flags.unemployed ? world.clubs[world.userClubId] : undefined)
   }, [userClubId, clubTheme, world?.flags.unemployed])
 
+  // play time: counted while a career is open and the app is in the foreground (saved with the career)
+  useEffect(() => {
+    if (!world) return
+    let last = Date.now()
+    const tick = () => {
+      const now = Date.now()
+      const w = useGame.getState().world
+      // gaps longer than a couple of minutes mean the device slept or the tab was frozen: don't count them
+      if (w && document.visibilityState === 'visible' && now - last < 120000) w.meta.playTimeMin += (now - last) / 60000
+      last = now
+    }
+    const id = window.setInterval(tick, 15000)
+    const onVis = () => { if (document.visibilityState === 'visible') last = Date.now(); else tick() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => { tick(); window.clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
+  }, [world?.meta.id])
+
   // Android back button / browser back → in-app back
   useEffect(() => {
     const onPop = () => {

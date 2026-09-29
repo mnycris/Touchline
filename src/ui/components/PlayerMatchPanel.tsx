@@ -126,6 +126,13 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
       : [['Attack', attack], ['Passing', passing], ['Duels', duels], ['Defending', defending]]
 
   const role = st.pos
+  // results kept in summary form (deep-simulated leagues) carry only the core numbers
+  const ext = st.touches !== undefined
+  const basic: Row[] = [
+    ['Minutes played', `${st.mins}'`], ['Goals', st.goals, st.goals > 0], ['Assists', st.assists, st.assists > 0],
+    ...(gk ? [['Saves', n(st.saves)]] as Row[] : [['Shots', `${st.shots} (${st.sot} on target)`], ['Expected goals (xG)', x2(st.xg)]] as Row[]),
+    ['Accurate passes', frac(st.passesCompleted, st.passes)], ['Chances created', st.keyPasses], ['Tackles won', st.tackles], ['Interceptions', st.interceptions], ['Fouls committed', st.fouls],
+  ]
   const topLabels = new Set(top.map((r) => r[0]))
   return (
     <Sheet open onClose={onClose}>
@@ -153,11 +160,17 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
           </div>
         </div>
 
-        {played && (
+        {played && ext && (
           <>
             <HeatMap heat={st.heat} />
             <Section title="Top stats" rows={top} />
             {order.map(([t, rows]) => <Section key={t} title={t} rows={rows.filter((r) => !topLabels.has(r[0]))} />)}
+          </>
+        )}
+        {played && !ext && (
+          <>
+            <Section title="Match stats" rows={basic} />
+            <div className="tiny dim" style={{ marginTop: 8 }}>Summary stats only: the full breakdown and heat map are kept for matches you play or watch.</div>
           </>
         )}
         {!played && <div className="muted small" style={{ padding: '18px 4px' }}>{p.name} hasn't played in this match.</div>}

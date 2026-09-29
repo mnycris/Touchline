@@ -68,9 +68,10 @@ export function sideInput(w: World, clubId: number, comp: Competition | undefine
   return { clubId, name: club.name, short: club.short, sheet, players, controlledByUser: user, managerVision: mgr?.vision }
 }
 
-export function createSim(w: World, f: Fixture, userLive: boolean): MatchSim {
+/** `detail` keeps commentary, action log and heat maps (live, watched and user-relevant matches). */
+export function createSim(w: World, f: Fixture, userLive: boolean, detail = userLive || f.userInvolved === true): MatchSim {
   const comp = w.competitions[f.compId]
-  const ctx = matchContext(w, f, userLive || f.userInvolved === true)
+  const ctx = matchContext(w, f, detail)
   ctx.assistantSubs = !!w.flags.assistantSubs
   const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId)
   const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId)
@@ -112,12 +113,14 @@ export function simulateFixture(w: World, f: Fixture, deep = isDeepFixture(w, f)
 const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 4], uefa: [3, 5, 7], supercup: [99], playoff: [99] }
 
 /** Apply a finished result to the authoritative world state. */
-export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng: Rng): { injuries: { id: number; days: number; type: string }[]; bans: { id: number; games: number }[] } {
+/** `full` keeps the complete result (commentary, extended stats, heat maps) — for matches the manager watched. */
+export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng: Rng, full = false): { injuries: { id: number; days: number; type: string }[]; bans: { id: number; games: number }[] } {
   const comp = w.competitions[f.compId]
-  const keepFull = f.userInvolved
+  const keepFull = f.userInvolved || full
   const inUserComp = comp?.clubs.includes(w.userClubId) || comp?.format === 'uefa'
   f.played = true
-  f.result = keepFull ? result : compact(result, !!inUserComp)
+  // followed competitions and deep-simulated leagues keep line-ups, ratings and key events for their match reports
+  f.result = keepFull ? result : compact(result, !!inUserComp || (result.detail === 'full' && isDeepFixture(w, f)))
   if (comp?.format === 'league' || (comp?.format === 'uefa' && !f.roundId)) applyResultToTable(comp, f)
   const injuries: { id: number; days: number; type: string }[] = []
   const bans: { id: number; games: number }[] = []

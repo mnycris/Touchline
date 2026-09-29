@@ -395,7 +395,7 @@ export function CareerSettingsScreen() {
           <div className="row between"><span className="muted">Transfers</span><b>{w.settings.transferDifficulty}</b></div>
           <div className="row between"><span className="muted">Injuries · Growth</span><b>{w.settings.injuries} · {w.settings.growth}</b></div>
           <div className="row between"><span className="muted">Sacking · AI transfers</span><b>{w.settings.sacking ? 'On' : 'Off'} · {w.settings.aiTransfers ? 'On' : 'Off'}</b></div>
-          <div className="row between"><span className="muted">Play time</span><b>{Math.floor(w.meta.playTimeMin / 60)}h {w.meta.playTimeMin % 60}m</b></div>
+          <div className="row between"><span className="muted">Play time</span><b>{fmtPlayTime(w.meta.playTimeMin)}</b></div>
         </div>
       </div>
       <Confirm open={quit} title="Return to main menu?" text="Your career is saved first." confirm="Save & exit" onConfirm={async () => { await save(true); exit() }} onClose={() => setQuit(false)} />
@@ -405,3 +405,8 @@ export function CareerSettingsScreen() {
 
 void sortTable
 void compLogoKey
+
+export function fmtPlayTime(min: number) {
+  const m = Math.floor(min || 0)
+  return `${Math.floor(m / 60)}h ${m % 60}m`
+}

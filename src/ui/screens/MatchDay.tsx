@@ -1,5 +1,6 @@
 // Match day (pre-match), FotMob-style: header, preview (prediction, storylines, form, key players, season stats),
 // editable line-ups on the pitch for both teams, league table and head-to-head, with play / quick sim / press.
+import { createOthers } from '../../engine/world/liveDay'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Fixture, Player, TeamSheet, World } from '../../domain/types'
@@ -92,7 +93,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       open({ name: 'postmatch', params: { id: f.id } })
       return
     }
-    setLive({ sim, fixtureId: f.id, speed: prefs.matchSpeed, running: true, tick: 0, finished: false, applied: false })
+    setLive({ sim, fixtureId: f.id, speed: prefs.matchSpeed, running: true, tick: 0, finished: false, applied: false, others: createOthers(w, f) })
     closeAll()
     open({ name: 'match' })
   }
