@@ -838,3 +838,10 @@ select.input option { background: #151b27; }
 .sq-meter i { display: block; height: 3px; border-radius: 2px; align-self: stretch; margin: 0 6px; opacity: .9; }
 .sq-meter b { font-size: 12px; }
 .sq-rt { font-size: 11.5px; font-weight: 800; color: #fff; padding: 2px 6px; border-radius: 6px; }
+/* transfer hub: squad needs */
+.tn-list { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px; }
+.tn { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 9px 10px; border-radius: 12px; background: var(--s2); text-align: left; border: 1px solid var(--line); min-width: 0; }
+.tn-k { font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
+.tn.starter .tn-k { color: #ff8a95; } .tn.depth .tn-k { color: var(--warn); } .tn.succession .tn-k { color: var(--info); } .tn.upgrade .tn-k { color: var(--acc); } .tn.prospect .tn-k { color: #c9a6ff; }
+.tn-p { font-family: var(--display); font-weight: 800; font-size: 20px; line-height: 1; }
+.tn:active { transform: scale(.97); }

@@ -1,4 +1,6 @@
 import { useRemember } from '../memory'
+import { squadPlan } from '../../engine/world/squadPlan'
+import { callName } from '../../engine/match/commentary'
 import { useEffect, useMemo, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
@@ -57,6 +59,7 @@ export function TransferHub() {
       {tab === 'hub' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           {win && diffDays(win.close, w.date) <= 1 && <DeadlineTicker w={w} />}
+          <SquadNeeds w={w} />
           {incoming.length > 0 && <>
             <div className="label">Offers for your players</div>
             <div className="card list">
@@ -82,12 +85,49 @@ export function TransferHub() {
       {tab === 'shortlist' && (
         <div className="pad" style={{ marginTop: 12 }}>
           {!w.transfers.shortlist.length ? <Empty icon="shortlist" title="Shortlist is empty" text="Tap the star on any player profile to track him here." /> : (
-            <div className="card list">{w.transfers.shortlist.map((id) => w.players[id] && <PlayerLine key={id} w={w} p={w.players[id]} />)}</div>
+            <div className="card list">{w.transfers.shortlist.map((id) => {
+              const p = w.players[id]
+              if (!p) return null
+              const tags = [p.transferListed && 'Listed', p.loanListed && 'Loan listed', !p.clubId && 'Free agent', p.clubId && yearsLeft(w, p) <= 0 && 'Expiring', p.injury && 'Injured'].filter(Boolean).join(' · ')
+              return <PlayerLine key={id} w={w} p={p} sub={`${fmtMoney(p.value, { short: true })}${tags ? ` · ${tags}` : ''}`} right={<>
+                <div className="col" style={{ alignItems: 'center' }}><Ovr v={p.ovr} size="sm" /><span className="tiny dim num">{p.positions[0]}</span></div>
+                <button className="btn xs club" onClick={(e) => { e.stopPropagation(); haptic(); open({ name: 'negotiation', params: { playerId: p.id } }) }}>{p.clubId ? 'Bid' : 'Sign'}</button>
+              </>} />
+            })}</div>
           )}
         </div>
       )}
       {tab === 'deals' && <DoneDeals w={w} mine />}
     </Screen>
+  )
+}
+
+/** What the squad actually needs (the same planner the AI clubs use), each a one-tap search. */
+const NEED_POS: Record<string, string> = { GK: 'GK', CB: 'CB', RB: 'FB', LB: 'FB', RWB: 'FB', LWB: 'FB', CDM: 'CDM', CM: 'CM', CAM: 'CAM', RM: 'W', LM: 'W', RW: 'W', LW: 'W', CF: 'ST', ST: 'ST' }
+const NEED_LABEL: Record<string, string> = { starter: 'Starter', depth: 'Cover', succession: 'Successor', upgrade: 'Upgrade', prospect: 'Prospect' }
+function SquadNeeds({ w }: { w: World }) {
+  const go = useGame((s) => s.go)
+  const club = userClub(w)
+  const plan = useMemo(() => squadPlan(w, club), [w.date, useGame.getState().v])
+  const needs = plan.needs.filter((n, i, a) => a.findIndex((x) => NEED_POS[x.pos] === NEED_POS[n.pos] && x.kind === n.kind) === i).slice(0, 4)
+  if (!needs.length) return null
+  return (
+    <div className="card pad-card">
+      <div className="row between"><div className="label">Squad needs</div><span className="tiny dim">From your XI in {plan.formation}</span></div>
+      <div className="tn-list">
+        {needs.map((n) => {
+          const who = n.replaces ? w.players[n.replaces] : undefined
+          const why = n.kind === 'starter' ? (who && who.clubId !== club.id ? `replace ${callName(who.name)}` : who ? `${callName(who.name)} is below the level` : 'no natural starter') : n.kind === 'succession' && who ? `${callName(who.name)} is ${ageOf(w, who)}` : n.kind === 'depth' ? 'thin cover' : n.kind === 'upgrade' && who ? `better than ${callName(who.name)}` : 'for the future'
+          return (
+            <button key={`${n.kind}${n.pos}`} className={`tn ${n.kind}`} onClick={() => { haptic(); go({ name: 'search', params: { preset: { pos: NEED_POS[n.pos] || 'Any', ovrMin: Math.max(40, n.minRating - 2), ageMax: n.maxAge, potMin: n.minPot || 0, valueMax: Math.max(1e6, Math.round(club.finance.transferBudget * n.spend * 1.15 / 1e5) * 1e5) }, label: `${NEED_LABEL[n.kind]} · ${n.pos}` } }) }}>
+              <span className="tn-k">{NEED_LABEL[n.kind]}</span>
+              <span className="row between" style={{ width: '100%' }}><span className="tn-p">{n.pos}</span><span className="tiny dim num">{n.minRating}+ OVR</span></span>
+              <span className="tiny dim ellipsis" style={{ maxWidth: '100%' }}>{why}</span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -134,9 +174,27 @@ function OfferRow({ w, o, incoming, onClick }: { w: World; o: TransferOffer; inc
         <div className="t small ellipsis">{p.name}</div>
         <div className="s row tight">{other && <Badge club={other} size={14} />}{incoming ? `${other?.short} bid` : other?.short || 'Free agent'} · {o.type.startsWith('loan') ? 'Loan' : fmtMoney(o.counterFee && o.status === 'Counter Offer' ? o.counterFee : o.fee, { short: true })}</div>
       </div>
-      <span className="pill" style={{ background: 'rgba(255,255,255,.06)', color }}>{o.status}</span>
+      <div className="col" style={{ alignItems: 'flex-end', gap: 3 }}>
+        <span className="pill" style={{ background: 'rgba(255,255,255,.06)', color }}>{o.status}</span>
+        <span className="tiny dim">{nextStep(o, incoming)}</span>
+      </div>
     </button>
   )
+}
+
+/** What happens next in a deal, in plain words. */
+function nextStep(o: TransferOffer, incoming?: boolean): string {
+  if (incoming) return o.status === 'Awaiting Window' ? 'Leaves when window opens' : o.respondBy ? `Reply by ${fmtDate(o.respondBy, 'dm')}` : 'Awaiting your reply'
+  switch (o.status) {
+    case 'Offer Submitted': return o.respondBy ? `Answer by ${fmtDate(o.respondBy, 'dm')}` : 'Awaiting reply'
+    case 'Counter Offer': return 'Respond to counter'
+    case 'Offer Accepted': return 'Agree personal terms'
+    case 'Contract Negotiation': case 'Contract Offered': return 'In contract talks'
+    case 'Awaiting Window': return 'Joins when window opens'
+    case 'Pre-Contract': return 'Joins in the summer'
+    case 'Offer Rejected': return 'Improve or walk away'
+    default: return ''
+  }
 }
 
 export function PlayerLine({ w, p, sub, right }: { w: World; p: Player; sub?: string; right?: React.ReactNode }) {
@@ -194,9 +252,10 @@ interface Filters { q: string; pos: string; ageMin: number; ageMax: number; ovrM
 const DEF: Filters = { q: '', pos: 'Any', ageMin: 16, ageMax: 40, ovrMin: 60, potMin: 0, valueMax: 0, league: 'Any', nation: 'Any', special: 'all' }
 const POS_OPTS = ['Any', 'GK', 'CB', 'FB', 'CDM', 'CM', 'CAM', 'W', 'ST', 'DEF', 'MID', 'ATT']
 
-export function Search() {
+export function Search({ params }: { params?: { preset?: Partial<Filters>; label?: string } }) {
   const w = useWorld()
-  const [f, setF] = useRemember<Filters>('searchFilters', () => ({ ...DEF, ...(w.flags.searchFilters || {}) }))
+  // a preset (e.g. from Squad needs) starts a fresh search; otherwise pick up where you left off
+  const [f, setF] = useRemember<Filters>('searchFilters', () => (params?.preset ? { ...DEF, ...params.preset } : { ...DEF, ...(w.flags.searchFilters || {}) }))
   const [open, setOpen] = useState(false)
   const [sort, setSort] = useRemember<'ovr' | 'pot' | 'value' | 'age'>('searchSort', 'ovr')
   const set = (p: Partial<Filters>) => { const n = { ...f, ...p }; setF(n); w.flags.searchFilters = n }
@@ -234,8 +293,20 @@ export function Search() {
       </div>
       <Chips items={[{ id: 'all', label: 'All players' }, { id: 'free', label: 'Free agents' }, { id: 'expiring', label: 'Expiring' }, { id: 'listed', label: 'Transfer listed' }, { id: 'loan', label: 'Loan listed' }]} value={f.special} onChange={(v) => set({ special: v as Filters['special'] })} />
       <div className="chips" style={{ marginTop: 6 }}>{POS_OPTS.map((p) => <button key={p} className={`chip ${f.pos === p ? 'on' : ''}`} style={{ height: 26 }} onClick={() => set({ pos: p })}>{p}</button>)}</div>
+      <div className="pad" style={{ marginTop: 8 }}>
+        <div className="row wrap" style={{ gap: 6 }}>
+          {params?.label && <span className="chip sm on"><Icon name="target" size={12} /> {params.label}</span>}
+          {f.ovrMin !== DEF.ovrMin && <button className="chip sm" onClick={() => set({ ovrMin: DEF.ovrMin })}>OVR {f.ovrMin}+ ×</button>}
+          {f.potMin > 0 && <button className="chip sm" onClick={() => set({ potMin: 0 })}>POT {f.potMin}+ ×</button>}
+          {(f.ageMin !== DEF.ageMin || f.ageMax !== DEF.ageMax) && <button className="chip sm" onClick={() => set({ ageMin: DEF.ageMin, ageMax: DEF.ageMax })}>Age {f.ageMin}–{f.ageMax} ×</button>}
+          {f.valueMax > 0 && <button className="chip sm" onClick={() => set({ valueMax: 0 })}>≤ {fmtMoney(f.valueMax, { short: true })} ×</button>}
+          {f.league !== 'Any' && <button className="chip sm" onClick={() => set({ league: 'Any' })}>{w.leagues[Number(f.league)]?.short || 'League'} ×</button>}
+          {f.nation !== 'Any' && <button className="chip sm" onClick={() => set({ nation: 'Any' })}>{f.nation} ×</button>}
+          <button className="chip sm" onClick={() => setOpen(true)}><Icon name="filter" size={12} /> Filters</button>
+        </div>
+      </div>
       <div className="pad row between" style={{ marginTop: 10 }}>
-        <span className="tiny dim">{results.length >= 120 ? '120+ results' : `${results.length} results`} · OVR {f.ovrMin}+ · Age {f.ageMin}–{f.ageMax}{f.valueMax ? ` · ≤ ${fmtMoney(f.valueMax, { short: true })}` : ''}</span>
+        <span className="tiny dim">{results.length >= 120 ? '120+ results' : `${results.length} results`}</span>
         <div className="seg" style={{ width: 180 }}>{(['ovr', 'pot', 'value', 'age'] as const).map((s) => <button key={s} className={sort === s ? 'on' : ''} style={{ height: 26, fontSize: 11 }} onClick={() => setSort(s)}>{s.toUpperCase()}</button>)}</div>
       </div>
       <div className="pad" style={{ marginTop: 8 }}>
