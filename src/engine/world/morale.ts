@@ -5,9 +5,10 @@ import { ROLE_EXPECTED_SHARE } from '../../domain/constants'
 import { rosterOf } from './roster'
 import { sendInbox } from './messages'
 import { yearsLeft } from './transfers'
+import { buildConversation } from './conversations'
 
 export function minutesShare(w: World, p: Player): number {
-  const m = p.recentMins
+  const m = p.recentMins?.slice(-6)
   if (!m || !m.length) return ROLE_EXPECTED_SHARE[p.contract.role] || 0.4
   return m.reduce((a, b) => a + b, 0) / (m.length * 90)
 }
@@ -41,6 +42,10 @@ export function weeklyMorale(w: World, clubId: number, rng: Rng, detailed: boole
 
 // ---------------------------------------------------------------- conversations
 const CONV_COOLDOWN = 35
+const SUBJECT: Record<string, string> = {
+  'Transfer Request': 'wants to leave', Dropped: 'asks why he was dropped', 'No Football': 'needs to play', 'Playing Time': 'wants more football', Interest: 'has heard about interest',
+  Contract: 'asks about his contract', Development: 'asks about a loan', Confidence: 'needs your backing', Thanks: 'wants a word',
+}
 
 export function maybeConversations(w: World, rng: Rng) {
   const club = w.clubs[w.userClubId]
@@ -50,92 +55,13 @@ export function maybeConversations(w: World, rng: Rng) {
   for (const p of rosterOf(w, club.id)) {
     if (open.has(p.id)) continue
     if (recent[p.id] && recent[p.id] > addDays(w.date, -CONV_COOLDOWN)) continue
-    const share = minutesShare(w, p)
-    const exp = ROLE_EXPECTED_SHARE[p.contract.role] || 0.4
-    const age = ageOn(p.dob, w.date)
-    const yl = yearsLeft(w, p)
-    // playing-time grievances need a meaningful sample of recent matches
-    const sample = (p.recentMins?.length || 0) >= 4
-    let conv: Omit<Conversation, 'id' | 'opened'> | null = null
-    if (p.morale < 22 && rng.next() < 0.3) {
-      conv = {
-        playerId: p.id, kind: 'Transfer Request',
-        prompt: rng.pick([
-          `Boss, I've thought about this a lot. I'm not happy here and I think it's best for everyone if I move on. I'm asking to be transfer listed.`,
-          `I'll be honest with you: my head isn't here anymore. I want to leave, and I'd like the club to accept offers.`,
-          `I've spoken to my family and my agent. I need a new challenge. Please put me on the transfer list.`,
-          `It's not working for me here. I don't want to cause problems, but I want to go, ideally this window.`,
-        ]),
-        options: [
-          { id: 'list', text: 'I understand. We will listen to offers.', effect: 'list' },
-          { id: 'role', text: 'Stay — I promise you a bigger role in this team.', effect: 'promiseRole' },
-          { id: 'refuse', text: 'You are under contract. You are going nowhere.', effect: 'refuse' },
-        ],
-      }
-    } else if (sample && share < exp - 0.28 && p.morale < 55 && rng.next() < 0.35 && !p.injury) {
-      conv = {
-        playerId: p.id, kind: 'Playing Time',
-        prompt: rng.pick([
-          `I came here to play football. I've barely featured recently and I expect to be playing more as a${/^[AEIOU]/.test(p.contract.role) ? 'n' : ''} ${p.contract.role.toLowerCase()} player.`,
-          `${Math.round((p.recentMins || []).reduce((a, b) => a + b, 0))} minutes in our last ${(p.recentMins || []).length} games. Boss, that's not what we agreed when I signed.`,
-          `Can I ask what I have to do to get in the team? I'm training well and still sitting on the bench.`,
-          `I'm not getting any rhythm. If this carries on, my place in the national team is at risk too.`,
-        ]),
-        options: [
-          { id: 'promise', text: 'You will start more matches over the next month.', effect: 'promiseStarts' },
-          { id: 'cup', text: 'You will get your chances in the cups.', effect: 'promiseCup' },
-          { id: 'earn', text: 'Keep working hard in training and earn your place.', effect: 'earn' },
-          { id: 'loan', text: 'A loan move might be best for your development.', effect: 'loanList' },
-        ],
-      }
-    } else if (yl <= 1 && (p.contract.role === 'Crucial' || p.contract.role === 'Important') && rng.next() < 0.12) {
-      conv = {
-        playerId: p.id, kind: 'Contract',
-        prompt: rng.pick([
-          `My contract runs out at the end of the season. I'd like to know where I stand. Are you going to offer me a new deal?`,
-          `Other clubs are asking my agent about my situation. I'd prefer to stay, but I need to know if the club wants me.`,
-          `I love it here, but I'm entering the last year of my deal. Is there a plan for me beyond this season?`,
-        ]),
-        options: [
-          { id: 'talks', text: "Absolutely. Let's open talks now.", effect: 'openRenewal' },
-          { id: 'promise', text: 'You will get a new contract before the end of the season.', effect: 'promiseContract' },
-          { id: 'later', text: "We'll discuss it when the time is right.", effect: 'later' },
-        ],
-      }
-    } else if (sample && age <= 21 && p.pot - p.ovr >= 8 && share < 0.12 && rng.next() < 0.1) {
-      conv = {
-        playerId: p.id, kind: 'Development',
-        prompt: rng.pick([
-          `I want to keep improving and I need minutes. Could I go out on loan to play regular first-team football?`,
-          `I feel ready for senior football every week. Would you consider sending me on loan somewhere I'll play?`,
-          `Training with the first team is great, but I need matches. A loan could help me come back stronger.`,
-        ]),
-        options: [
-          { id: 'loan', text: 'Good idea. We will find you the right loan.', effect: 'loanList' },
-          { id: 'stay', text: 'Stay and fight — you will get cup minutes.', effect: 'promiseCup' },
-          { id: 'no', text: 'You are part of my plans here.', effect: 'earn' },
-        ],
-      }
-    } else if (p.morale > 88 && p.formRatings.length >= 3 && p.formRatings.slice(-3).every((r) => r >= 7.6) && rng.next() < 0.08) {
-      conv = {
-        playerId: p.id, kind: 'Thanks',
-        prompt: rng.pick([
-          `I just wanted to say thanks for the trust you're showing in me. I've never felt this sharp.`,
-          `Boss, I'm loving my football right now. Thank you for believing in me.`,
-          `The way we're playing suits me perfectly. I wanted you to know I'm fully committed.`,
-        ]),
-        options: [
-          { id: 'keep', text: 'You deserve it. Keep it up.', effect: 'praise' },
-          { id: 'more', text: "Don't get complacent — there's more to come.", effect: 'demand' },
-        ],
-      }
-    }
+    const conv = buildConversation(w, p, rng)
     if (conv) {
       const c: Conversation = { ...conv, id: `c${w.nextIds.misc++}`, opened: w.date }
       w.conversations.push(c)
       recent[p.id] = w.date
       sendInbox(w, {
-        from: p.name, fromRole: 'Player', category: 'Player', subject: conv.kind === 'Thanks' ? `${p.name} wants a word` : `${p.name}: ${conv.kind.toLowerCase()}`,
+        from: p.name, fromRole: 'Player', category: 'Player', subject: SUBJECT[conv.kind] ? `${p.name} ${SUBJECT[conv.kind]}` : `${p.name}: ${conv.kind.toLowerCase()}`,
         body: c.prompt, actions: [{ label: 'Respond', action: 'openConversation', payload: c.id, primary: true }], playerId: p.id,
         urgent: conv.kind !== 'Thanks', image: { kind: 'player', id: p.id },
       })
@@ -171,6 +97,9 @@ export function respondConversation(w: World, convId: string, optionId: string):
     case 'openRenewal': p.morale = clamp(p.morale + 6, 0, 100); w.flags.openRenewal = p.id; reply = say(['Great, my agent will be in touch.', "Brilliant. I want to stay, let's get it done.", "That means a lot. I'll tell my agent to call the club."]); break
     case 'promiseContract': promise('New Contract', 150, 1); p.morale = clamp(p.morale + 8, 0, 100); reply = say(["I'm glad to hear that.", "Good. I don't want to be left waiting too long.", "Okay. I'll trust you on that."]); break
     case 'later': p.morale = clamp(p.morale - (hot ? 10 : 6), 0, 100); reply = hot ? say(["Later? I've heard that before.", "Don't make me wait too long, boss."]) : say(['I hope we can sort it soon.', "Okay. I'll be patient, but not forever."]); break
+    case 'reassure': p.morale = clamp(p.morale + (pro ? 8 : 5), 0, 100); reply = hot ? say(["Words are easy. Show me.", "Alright. I'll take you at your word, for now.", "Fine. But I want to see it on the team sheet."]) : say(["That's good to hear. Thank you for being straight with me.", "Okay, I understand. I'll be ready.", "Thanks, boss. That helps."]); break
+    case 'promiseCupNext': promise('Cup Appearances', 21, cupAppsOf(w, p) + 1); p.morale = clamp(p.morale + 9, 0, 100); reply = say(["I'll be ready. Thank you.", "Good. I'll make the most of it.", "That's a start. I'll show you what I can do."]); break
+    case 'rest': p.morale = clamp(p.morale + (hot ? -3 : 3), 0, 100); p.formRatings = (p.formRatings || []).slice(-2); reply = hot ? say(["So I'm being dropped. Great.", "If that's what you think."]) : say(["Maybe you're right. A reset could help.", "Okay. I'll come back fresher."]); break
     case 'praise': p.morale = clamp(p.morale + 3, 0, 100); reply = say(['Thanks, boss.', 'That means a lot coming from you.', "Appreciate it. I'll keep it going.", 'Thanks. The team makes it easy.']); break
     case 'demand': p.morale = clamp(p.morale - (hot ? 3 : 1), 0, 100); p.hidden.professionalism = clamp(p.hidden.professionalism + 2, 0, 99); reply = hot ? say(['Alright, alright. Message received.', "I'm already giving everything, but okay."]) : say(["You're right. I'll keep pushing.", "Understood. There's more in me.", "I know. I'll step it up."]); break
   }

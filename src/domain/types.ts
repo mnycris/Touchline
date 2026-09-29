@@ -134,7 +134,8 @@ export interface Player {
   happinessFactors?: Record<string, number>
   lastMatchDate?: ISODate
   interestedClubs?: number[]
-  recentMins?: number[] // minutes in the club's last 6 matches
+  recentMins?: number[] // minutes in the club's last matches (6; 12 for the user's squad)
+  lastStart?: ISODate
 }
 
 // ---------------------------------------------------------------- tactics

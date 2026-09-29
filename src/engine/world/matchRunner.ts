@@ -199,12 +199,18 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   }
   // --- rolling form / minutes (used by morale & AI)
   const minsBy = new Map(result.players.map((x) => [x.id, x.mins]))
+  const startedBy = new Set(result.players.filter((x) => x.started).map((x) => x.id))
   for (const [clubId, gf, ga] of [[f.home, hs, as], [f.away, as, hs]] as const) {
     const club = w.clubs[clubId]
     if (!club) continue
     const r = gf > ga ? 'W' : gf < ga ? 'L' : 'D'
     club.recent = [...(club.recent || []), r].slice(-6) as ('W' | 'D' | 'L')[]
-    for (const p of rosterOf(w, clubId)) p.recentMins = [...(p.recentMins || []), minsBy.get(p.id) || 0].slice(-6)
+    // the user's squad keeps a longer memory: conversations know the difference between one game and two months
+    const keep = clubId === w.userClubId ? 12 : 6
+    for (const p of rosterOf(w, clubId)) {
+      p.recentMins = [...(p.recentMins || []), minsBy.get(p.id) || 0].slice(-keep)
+      if (clubId === w.userClubId && startedBy.has(p.id)) p.lastStart = f.date
+    }
   }
   // --- managers & user history
   for (const [clubId, gf, ga] of [[f.home, hs, as], [f.away, as, hs]] as const) {
