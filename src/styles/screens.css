@@ -743,3 +743,12 @@ select.input option { background: #151b27; }
 .feed-div-l { height: 1px; background: var(--line2); }
 .feed-div-t { font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--t1); }
 .feed-div-s { grid-column: 1 / -1; text-align: center; margin-top: 2px; }
+/* followed leagues picker */
+.dlp { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.dlp-t { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 12px; background: rgba(255,255,255,.04); border: 1px solid var(--line); text-align: left; min-width: 0; transition: background .2s, border-color .2s, transform .15s; }
+.dlp-t:active { transform: scale(.97); }
+.dlp-t.on { background: rgba(var(--club-rgb), .22); border-color: rgba(var(--club-rgb), .8); }
+.dlp-t.mine { opacity: 1; }
+.dlp-t.full { opacity: .45; }
+.dlp-n { display: flex; flex-direction: column; min-width: 0; font-size: 12.5px; line-height: 1.2; }
+.dlp-ck { position: absolute; top: -5px; right: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: var(--acc); color: #03170c; box-shadow: 0 1px 4px rgba(0,0,0,.4); animation: pop .3s ease both; }

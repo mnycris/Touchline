@@ -81,10 +81,15 @@ export function createSim(w: World, f: Fixture, userLive: boolean, detail = user
 /** The big five: followed closely unless the player chooses otherwise. */
 export const DEFAULT_DEEP_LEAGUES = [13, 53, 19, 31, 16]
 
+/** Default followed leagues for a manager in `own`: the big five, topped up with the next strongest when one is theirs. */
+export function defaultDeepLeagues(own?: number): number[] {
+  return [...DEFAULT_DEEP_LEAGUES, 308, 10].filter((id) => id !== own).slice(0, 5)
+}
+
 /** Leagues whose matches run through the full match engine: the user's league plus up to five chosen ones. */
 export function deepLeagueSet(w: World): Set<number> {
   const own = w.clubs[w.userClubId]?.leagueId
-  const extra = (w.settings.deepLeagues ?? DEFAULT_DEEP_LEAGUES).slice(0, 5)
+  const extra = (w.settings.deepLeagues ?? defaultDeepLeagues(own)).filter((id) => id !== own).slice(0, 5)
   return new Set([own, ...extra].filter((x) => x != null) as number[])
 }
 

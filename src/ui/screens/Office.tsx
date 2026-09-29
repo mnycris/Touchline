@@ -1,3 +1,4 @@
+import { DeepLeaguePicker } from '../components/DeepLeaguePicker'
 import { useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
@@ -389,14 +390,12 @@ export function CareerSettingsScreen() {
           <Toggle label="Reduce motion" on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
         </div>
         <ImageCheck />
-        <div className="card pad-card small stack" style={{ gap: 6 }}>
-          <div className="label">Career settings</div>
-          <div className="row between"><span className="muted">Difficulty</span><b>{w.settings.difficulty}</b></div>
-          <div className="row between"><span className="muted">Transfers</span><b>{w.settings.transferDifficulty}</b></div>
-          <div className="row between"><span className="muted">Injuries · Growth</span><b>{w.settings.injuries} · {w.settings.growth}</b></div>
-          <div className="row between"><span className="muted">Sacking · AI transfers</span><b>{w.settings.sacking ? 'On' : 'Off'} · {w.settings.aiTransfers ? 'On' : 'Off'}</b></div>
-          <div className="row between"><span className="muted">Play time</span><b>{fmtPlayTime(w.meta.playTimeMin)}</b></div>
+        <CareerOptions />
+        <div className="card pad-card">
+          <div className="label" style={{ marginBottom: 8 }}>Followed leagues</div>
+          <DeepLeaguePicker leagues={Object.values(w.leagues)} own={w.clubs[w.userClubId]?.leagueId} value={w.settings.deepLeagues} onChange={(v) => mutate((x) => { x.settings.deepLeagues = v })} />
         </div>
+        <div className="card pad-card small"><div className="row between"><span className="muted">Play time</span><b>{fmtPlayTime(w.meta.playTimeMin)}</b></div></div>
       </div>
       <Confirm open={quit} title="Return to main menu?" text="Your career is saved first." confirm="Save & exit" onConfirm={async () => { await save(true); exit() }} onClose={() => setQuit(false)} />
     </Screen>
@@ -409,4 +408,30 @@ void compLogoKey
 export function fmtPlayTime(min: number) {
   const m = Math.floor(min || 0)
   return `${Math.floor(m / 60)}h ${m % 60}m`
+}
+
+/** Career options that can change mid-save; each takes effect from the next day or match. */
+function CareerOptions() {
+  const w = useWorld()
+  const mutate = useGame((s) => s.mutate)
+  const st = w.settings
+  const set = (p: Partial<typeof st>) => { haptic(); mutate((x) => { Object.assign(x.settings, p) }) }
+  const diffs: (typeof st.difficulty)[] = ['Beginner', 'Amateur', 'Semi-Pro', 'Professional', 'World Class', 'Legendary', 'Ultimate']
+  return (
+    <div className="card pad-card stack" style={{ gap: 12 }}>
+      <div className="label">Career options</div>
+      <div>
+        <div className="small b" style={{ marginBottom: 6 }}>Match difficulty</div>
+        <div className="row wrap" style={{ gap: 6 }}>{diffs.map((d) => <button key={d} className={`chip sm ${st.difficulty === d ? 'on' : ''}`} onClick={() => set({ difficulty: d })}>{d}</button>)}</div>
+      </div>
+      <div><div className="small b" style={{ marginBottom: 6 }}>Transfer negotiations</div><Seg small items={[{ id: 'Easy', label: 'Easy' }, { id: 'Normal', label: 'Normal' }, { id: 'Hard', label: 'Hard' }]} value={st.transferDifficulty} onChange={(v) => set({ transferDifficulty: v })} /></div>
+      <div><div className="small b" style={{ marginBottom: 6 }}>Injury frequency</div><Seg small items={[{ id: 'Low', label: 'Low' }, { id: 'Normal', label: 'Normal' }, { id: 'High', label: 'High' }]} value={st.injuries} onChange={(v) => set({ injuries: v })} /></div>
+      <div><div className="small b" style={{ marginBottom: 6 }}>Player growth</div><Seg small items={[{ id: 'Slow', label: 'Slow' }, { id: 'Normal', label: 'Normal' }, { id: 'Fast', label: 'Fast' }]} value={st.growth} onChange={(v) => set({ growth: v })} /></div>
+      <div style={{ margin: '0 -14px -14px' }}>
+        <Toggle label="Manager sacking" sub="The board can dismiss you if confidence collapses" on={st.sacking} onChange={(v) => set({ sacking: v })} />
+        <Toggle label="AI transfers" sub="Other clubs buy, sell and loan players" on={st.aiTransfers} onChange={(v) => set({ aiTransfers: v })} />
+      </div>
+      <div className="tiny dim">Changes apply from the next day or match. The starting budget was set when the career began.</div>
+    </div>
+  )
 }

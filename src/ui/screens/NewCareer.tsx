@@ -1,3 +1,4 @@
+import { DeepLeaguePicker, type PickLeague } from '../components/DeepLeaguePicker'
 import { useEffect, useMemo, useState } from 'react'
 import { useGame, haptic } from '../../store/game'
 import type { RawClub, RawDb, RawLeague } from '../../data/rawTypes'
@@ -75,7 +76,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
       {step === 'league' && <LeagueStep raw={raw} onPick={(id) => { setLeagueId(id); setClubId(undefined); next() }} />}
       {step === 'club' && league && <ClubStep raw={raw} league={league} onPick={(id) => { setClubId(id); next() }} />}
       {step === 'inspect' && club && <InspectStep raw={raw} club={club} onNext={next} />}
-      {step === 'settings' && <SettingsStep settings={settings} setSettings={setSettings} onNext={next} />}
+      {step === 'settings' && <SettingsStep settings={settings} setSettings={setSettings} onNext={next} leagues={raw.leagues} own={club?.leagueId} />}
       {step === 'confirm' && club && (
         <div className="pad stack fade-up">
           <div className="hero" style={{ padding: 18, background: `linear-gradient(135deg, ${clubAccent(club)}, #06080d 80%)` }}>
@@ -402,7 +403,7 @@ function Info({ icon, k, v }: { icon: string; k: string; v: any }) {
 }
 
 // ----------------------------------------------------------------- settings
-function SettingsStep({ settings, setSettings, onNext }: { settings: CareerSettings; setSettings: (s: CareerSettings) => void; onNext: () => void }) {
+function SettingsStep({ settings, setSettings, onNext, leagues, own }: { settings: CareerSettings; setSettings: (s: CareerSettings) => void; onNext: () => void; leagues: PickLeague[]; own?: number }) {
   const set = (p: Partial<CareerSettings>) => setSettings({ ...settings, ...p })
   const diffs: CareerSettings['difficulty'][] = ['Beginner', 'Amateur', 'Semi-Pro', 'Professional', 'World Class', 'Legendary', 'Ultimate']
   return (
@@ -421,6 +422,10 @@ function SettingsStep({ settings, setSettings, onNext }: { settings: CareerSetti
       <div className="card">
         <Toggle label="Manager sacking" sub="The board can dismiss you if confidence collapses" on={settings.sacking} onChange={(v) => set({ sacking: v })} />
         <Toggle label="AI transfers" sub="Other clubs buy, sell and loan players" on={settings.aiTransfers} onChange={(v) => set({ aiTransfers: v })} />
+      </div>
+      <div className="card pad-card">
+        <div className="label" style={{ marginBottom: 8 }}>Followed leagues</div>
+        <DeepLeaguePicker leagues={leagues} own={own} value={settings.deepLeagues} onChange={(v) => set({ deepLeagues: v })} />
       </div>
       <button className="btn primary block" onClick={onNext}>Continue <Icon name="forward" size={18} /></button>
     </div>
