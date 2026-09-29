@@ -14,6 +14,7 @@ import { worldRng } from '../../engine/world/advance'
 import { compLogoKey, leaguePos, userClub } from '../selectors'
 import { ordinal } from './Menu'
 import { ImageCheck } from '../components/ImageCheck'
+import { SpeedEditor } from '../components/SpeedEditor'
 import { sortTable } from '../../engine/competitions/tables'
 
 const CAT_ICON: Record<ObjectiveCategory, string> = { 'Domestic Success': 'trophy', 'Continental Success': 'globe', Financial: 'money', 'Brand Exposure': 'star', 'Youth Development': 'youth' }
@@ -378,8 +379,8 @@ export function CareerSettingsScreen() {
           <div className="li tiny dim">Your matches, transfer window open/deadline days and urgent board messages always stop the calendar.</div>
         </div>
         <div className="card">
-          <div className="card-h"><span className="label">Match</span></div>
-          <div className="li"><div className="meta"><div className="t small">Default speed</div></div><div className="seg" style={{ width: 150 }}>{[1, 2, 4].map((v) => <button key={v} className={prefs.matchSpeed === v ? 'on' : ''} onClick={() => setPrefs({ matchSpeed: v })}>{v}×</button>)}</div></div>
+          <div className="card-h"><span className="label">Match speed buttons</span></div>
+          <SpeedEditor />
           <Toggle label="Assistant manages substitutions" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
         </div>
         <div className="card">

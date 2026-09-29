@@ -283,3 +283,19 @@ input[type='range']::-moz-range-thumb { width: 22px; height: 22px; border-radius
 }
 .pitch .lines { position: absolute; inset: 0; }
 .pitch-slot { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; width: 70px; transition: left 0.35s, top 0.35s; }
+
+/* ---------------------------------------------------------------- speed editor */
+.spd { padding: 4px 14px 14px; }
+.spd-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line, rgba(255,255,255,.06)); }
+.spd-l { display: flex; flex-direction: column; width: 62px; flex: none; }
+.spd-step { width: 28px; height: 28px; border-radius: 9px; background: var(--s2); display: grid; place-items: center; color: var(--t2); flex: none; }
+.spd-step:active { transform: scale(.92); }
+.spd-v { width: 46px; text-align: right; font-family: var(--display); font-weight: 800; font-size: 16px; color: #fff; flex: none; }
+.spd-start { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.spd-start .seg { flex: 1; }
+.spd-range { -webkit-appearance: none; appearance: none; flex: 1; min-width: 0; height: 28px; background: transparent; }
+.spd-range::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--acc) var(--p, 50%), var(--s3) var(--p, 50%)); }
+.spd-range::-moz-range-track { height: 6px; border-radius: 3px; background: var(--s3); }
+.spd-range::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--acc); }
+.spd-range::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -8px; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45), 0 0 0 3px rgba(31,214,122,.25); }
+.spd-range::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,.45); }

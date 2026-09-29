@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import { useGame, useWorld, haptic } from '../../store/game'
+import { DEFAULT_SPEEDS, useGame, useWorld, haptic } from '../../store/game'
+import { fmtSpeed } from '../components/SpeedEditor'
 import type { Fixture, MatchEvent, MatchResult, Player, TeamMatchStats, TeamTactics, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, Ovr } from '../components/atoms'
@@ -13,6 +14,7 @@ import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
 import { Ball, BenchRowFM, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
+import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
 
 // ============================================================================ helpers
 const EVENT_ICON: Record<string, [string, string]> = {
@@ -81,7 +83,9 @@ export function LiveMatch() {
   const [tab, setTab] = useState<'feed' | 'lineups' | 'stats'>('feed')
   const [manage, setManage] = useState(false)
   const [manageOut, setManageOut] = useState<number>()
-  const [card, setCard] = useState<MatchEvent>()
+  const [moments, setMoments] = useState<Moment[]>([])
+  const moment = moments[0]
+  const momentId = useRef(0)
   const [pitchOpen, setPitchOpen] = useState(() => { try { return localStorage.getItem('opus:pitch') !== '0' } catch { return true } })
   const [reveal, setReveal] = useState<number>(-1)
   const timer = useRef<number>(undefined)
@@ -92,8 +96,9 @@ export function LiveMatch() {
   const f = live ? w.fixtures[live.fixtureId] : undefined
   const us: 0 | 1 = f ? (f.home === w.userClubId ? 0 : 1) : 0
 
-  const running = !!live?.running && !manage && !card
+  const running = !!live?.running && !manage && !moment
   const speed = live?.speed || 1
+  const speeds = useGame((s) => s.prefs.speeds) || DEFAULT_SPEEDS
 
   // main clock: 1 real second per match minute at 1×
   useEffect(() => {
@@ -103,22 +108,32 @@ export function LiveMatch() {
     return () => window.clearInterval(timer.current)
   }, [sim, running, speed, seekRef.current])
 
-  // goals (and red cards) stop the clock for a moment, FotMob-style
+  // goals, cards and penalties stop the clock for a moment, FotMob-style — one after another when they come together
+  const nextMoment = () => setMoments((q) => q.slice(1))
   useEffect(() => {
-    if (!card) return
-    const t = window.setTimeout(() => setCard(undefined), isGoal(card) ? 3200 : 1900)
+    if (!moment) return
+    const t = window.setTimeout(nextMoment, MOMENT_MS[moment.kind])
     return () => window.clearTimeout(t)
-  }, [card])
+  }, [moment?.id])
 
   const tick = () => {
     if (!sim || !live) return
     const before = sim.phase
     const evs = sim.step()
     if (!fastRef.current) {
-      const big = [...evs].reverse().find((e) => isGoal(e) || e.type === 'red' || e.type === 'secondYellow' || e.type === 'penMiss')
-      if (big) {
-        setCard(big)
-        haptic(isGoal(big) ? 'heavy' : 'medium')
+      const add: Moment[] = []
+      const mk = (kind: MomentKind, e: MatchEvent) => add.push({ kind, e, id: ++momentId.current })
+      for (const e of evs) {
+        if (e.type === 'penalty') mk('penalty', e)
+        else if (e.type === 'yellow') mk('yellow', e)
+        else if (e.type === 'red' || e.type === 'secondYellow') mk('red', e)
+        else if (e.type === 'penGoal') { mk('kick', e); mk('goal', e) }
+        else if (e.type === 'penMiss') mk('kick', e)
+        else if (isGoal(e)) mk('goal', e)
+      }
+      if (add.length) {
+        setMoments((q) => [...q, ...add])
+        haptic(add.some((m) => m.kind === 'goal') ? 'heavy' : 'medium')
         if (seekRef.current) seekRef.current = null
       }
     }
@@ -162,15 +177,15 @@ export function LiveMatch() {
   const togglePlay = () => {
     haptic()
     if (sim.finished) return
-    if (card) { setCard(undefined); return }
+    if (moment) { setMoments([]); return }
     if (sim.phase === 'HT' || sim.phase === 'ETHT' || sim.phase === 'PENS') { tick(); live.running = true; force(); return }
     setRunning(!live.running)
   }
   const setSpeed = (s: number) => { live.speed = s; force() }
-  const nextEvent = () => { haptic(); setCard(undefined); if (sim.phase === 'HT' || sim.phase === 'ETHT') tick(); seekRef.current = 'event'; live.running = true; force() }
+  const nextEvent = () => { haptic(); setMoments([]); if (sim.phase === 'HT' || sim.phase === 'ETHT') tick(); seekRef.current = 'event'; live.running = true; force() }
   const toHT = () => {
     haptic()
-    setCard(undefined)
+    setMoments([])
     fastRef.current = true
     let guard = 0
     const stopAt = sim.phase === '1H' || sim.phase === 'pre' ? 'HT' : null
@@ -186,7 +201,7 @@ export function LiveMatch() {
   }
   const simToEnd = () => {
     haptic('medium')
-    setCard(undefined)
+    setMoments([])
     sim.ctx.assistantSubs = true
     let guard = 0
     while (!sim.finished && guard++ < 400) {
@@ -229,7 +244,7 @@ export function LiveMatch() {
           <div className="sb-team"><Badge club={home} size={44} /><div className="sb-name">{home.short}</div></div>
           <div className="col center" style={{ minWidth: 118 }}>
             <div className="sb-score num"><span key={`h${scoreNow[0]}`} className="pop">{scoreNow[0]}</span><span className="sb-sep">–</span><span key={`a${scoreNow[1]}`} className="pop">{scoreNow[1]}</span></div>
-            <div className={`sb-clock ${live.running && !sim.finished && !card ? 'live' : ''}`}>{clock(sim)}</div>
+            <div className={`sb-clock ${live.running && !sim.finished && !moment ? 'live' : ''}`}>{clock(sim)}</div>
             {sim.pens && reveal >= 0 && <div className="tiny b" style={{ marginTop: 3 }}>Pens {penScore[0]}–{penScore[1]}</div>}
             {agg && <div className="tiny dim" style={{ marginTop: 2 }}>Agg {sim.score[0] + agg[0]}–{sim.score[1] + agg[1]}</div>}
           </div>
@@ -244,7 +259,7 @@ export function LiveMatch() {
       {pitchOpen && (
         <div className="lp-wrap">
           <LivePitch sim={sim} w={w} speed={speed} frameCount={sim.timeline.length} home={home} away={away} />
-          {card && <GoalCard e={card} w={w} sim={sim} onClose={() => setCard(undefined)} />}
+          {moment && <MomentView m={moment} w={w} sim={sim} onClose={nextMoment} />}
         </div>
       )}
       <div className="mom-wrap">
@@ -254,7 +269,7 @@ export function LiveMatch() {
       <Tabs items={[{ id: 'feed', label: 'Live' }, { id: 'lineups', label: 'Line-ups' }, { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} />
 
       <div className="match-body">
-        {!pitchOpen && card && <div style={{ position: 'relative', height: 150 }}><GoalCard e={card} w={w} sim={sim} onClose={() => setCard(undefined)} /></div>}
+        {!pitchOpen && moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 310 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}
         {brk && (
           <div className="card pad-card" style={{ margin: '12px 16px 0', textAlign: 'center' }}>
             <div className="kicker">{sim.phase === 'HT' ? 'Half-time' : 'Extra-time break'}</div>
@@ -285,10 +300,10 @@ export function LiveMatch() {
           <>
             <div className="row" style={{ gap: 8 }}>
               <button className="ctl-btn big" onClick={togglePlay} aria-label={live.running ? 'Pause' : 'Play'} disabled={sim.finished}>
-                <Icon name={live.running && !brk && !card ? 'pause' : 'play'} size={26} />
+                <Icon name={live.running && !brk && !moment ? 'pause' : 'play'} size={26} />
               </button>
               <div className="seg grow" style={{ height: 48 }}>
-                {[1, 2, 4].map((s) => <button key={s} className={speed === s ? 'on' : ''} style={{ height: 40 }} onClick={() => setSpeed(s)}>{s}×</button>)}
+                {speeds.map((s, i) => <button key={i} className={speed === s ? 'on' : ''} style={{ height: 40 }} onClick={() => setSpeed(s)}>{fmtSpeed(s)}</button>)}
               </div>
               <button className="ctl-btn manage" onClick={() => { haptic(); setManageOut(undefined); setManage(true) }} disabled={sim.finished}>
                 <Icon name="tactics" size={22} /><span>Manage</span>
@@ -356,6 +371,18 @@ function AssistantNotes({ sim, w, side, onManage }: { sim: MatchSim; w: World; s
   )
 }
 
+/** Routes a queued moment to its popup. */
+function MomentView({ m, w, sim, onClose }: { m: Moment; w: World; sim: MatchSim; onClose: () => void }) {
+  const side = (m.e.side ?? 0) as 0 | 1
+  const club = w.clubs[side === 0 ? sim.home.clubId : sim.away.clubId]
+  const other = w.clubs[side === 0 ? sim.away.clubId : sim.home.clubId]
+  if (m.kind === 'goal') return <GoalCard key={m.id} e={m.e} w={w} sim={sim} onClose={onClose} />
+  if (m.kind === 'penalty') return <PenaltyMoment key={m.id} m={m} w={w} victimClub={club} foulerClub={other} onClose={onClose} />
+  if (m.kind === 'kick') return <KickMoment key={m.id} m={m} w={w} takerClub={club} keeperClub={other} onClose={onClose} />
+  const reds = sim.events.filter((e) => e.side === side && (e.type === 'red' || e.type === 'secondYellow') && e.min + (e.add || 0) / 100 <= m.e.min + (m.e.add || 0) / 100).length
+  return <CardMoment key={m.id} m={m} w={w} club={club} reds={reds} onClose={onClose} />
+}
+
 /** FotMob-style goal card: the clock stops, scorer photo, assist, minute and the updated score. */
 function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchSim; onClose: () => void }) {
   const goal = isGoal(e)
@@ -387,7 +414,7 @@ function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchS
           )}
         </div>
       </div>
-      <span className="gc-timer" style={{ animationDuration: goal ? '3.2s' : '1.9s' }} />
+      <span className="gc-timer" style={{ animationDuration: `${MOMENT_MS.goal}ms` }} />
     </button>
   )
 }

@@ -550,3 +550,89 @@ select.input option { background: #151b27; }
 .asst-note svg:last-child { flex: none; color: var(--t3); }
 /* dark crests/logos stay legible on the dark UI: a hairline light outline, colours untouched */
 .logo-lift img, img.comp-logo.lift { filter: drop-shadow(0 0 0.7px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 2.5px rgba(255, 255, 255, 0.28)); }
+
+/* ---------------------------------------------------------------- match moments: cards, penalty award, penalty kick */
+.mm { position: absolute; left: 14px; right: 14px; top: 16px; z-index: 20; display: block; text-align: left; border-radius: 16px; overflow: hidden; background: #0e1116; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55); animation: gcIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+.mm > * { position: relative; }
+.mm-row { display: flex; align-items: center; gap: 14px; padding: 14px; }
+.mm-text { flex: 1; min-width: 0; }
+.mm-kicker { display: flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; color: rgba(255,255,255,.92); }
+.mm-min { margin-left: auto; font-size: 15px; padding: 2px 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.35); color: #fff; }
+.mm-name { font-weight: 800; font-size: 18px; color: #fff; margin-top: 4px; }
+.mm-big { font-family: var(--display); font-style: italic; font-size: 30px; letter-spacing: .02em; line-height: 1; margin-top: 6px; animation: gcWord .6s .15s ease both; }
+.mm-sub { font-size: 12.5px; color: rgba(255, 255, 255, 0.75); margin-top: 3px; }
+.mm-timer { position: absolute !important; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255, 255, 255, 0.85); transform-origin: left; animation: gcTimer linear both; }
+.mm .face { background: #e9edf1; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9); }
+.mm-face-wrap { position: relative; flex: none; margin-right: 10px; }
+/* cards: a hint of yellow / red, the card itself pops, sways and settles */
+.mm-card::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, color-mix(in srgb, var(--club) 45%, #0e1116) 0%, #0e1116 72%); }
+.mm-card.yellow::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 90% at 0% 50%, rgba(245, 211, 63, .2), transparent 60%); pointer-events: none; }
+.mm-card.red::after { content: ''; position: absolute; inset: 0; background: radial-gradient(130% 100% at 0% 50%, rgba(255, 77, 94, .32), transparent 62%); pointer-events: none; }
+.mm-card.red { box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 77, 94, .35); }
+.mm-cardchip { position: absolute; right: -10px; bottom: -6px; width: 22px; height: 30px; border-radius: 4px; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255,255,255,.35); transform-origin: 50% 90%; animation: mmCard 1.1s .15s cubic-bezier(.3, 1.4, .5, 1) both; }
+.mm-cardchip.y { background: linear-gradient(160deg, #ffe46b, #f2c21b); }
+.mm-cardchip.r { background: linear-gradient(160deg, #ff6b78, #d92638); width: 26px; height: 36px; }
+.mm-cardchip .y2 { position: absolute; left: -9px; top: 4px; width: 20px; height: 28px; border-radius: 4px; background: linear-gradient(160deg, #ffe46b, #f2c21b); transform: rotate(-16deg); z-index: -1; box-shadow: 0 2px 5px rgba(0,0,0,.45); }
+.mm-card.red .mm-name { font-size: 20px; }
+@keyframes mmCard { 0% { transform: translateY(18px) scale(.4) rotate(-38deg); opacity: 0 } 35% { transform: translateY(-6px) scale(1.12) rotate(14deg); opacity: 1 } 55% { transform: rotate(-7deg) } 72% { transform: rotate(4deg) } 86% { transform: rotate(-1.5deg) } 100% { transform: rotate(8deg) } }
+/* penalty award: both clubs' colours flowing, fouler and fouled grouped */
+.mm-pen { background: #0b0e13; }
+.mm-flow { position: absolute; inset: 0; overflow: hidden; }
+.mm-flow i { position: absolute; width: 70%; height: 170%; top: -35%; border-radius: 45%; filter: blur(26px); opacity: .55; animation: mmFlow 7s ease-in-out infinite alternate; }
+.mm-flow i:nth-child(1) { left: -20%; background: var(--c1); }
+.mm-flow i:nth-child(2) { right: -25%; background: var(--c2); animation-delay: -2.5s; animation-duration: 8s; }
+.mm-flow i:nth-child(3) { left: 30%; width: 40%; background: color-mix(in srgb, var(--c1) 50%, var(--c2)); opacity: .3; animation-delay: -4s; }
+@keyframes mmFlow { 0% { transform: translate(0, 0) rotate(0deg) scale(1) } 100% { transform: translate(8%, -6%) rotate(25deg) scale(1.15) } }
+.mm-pair { position: relative; width: 104px; height: 70px; flex: none; }
+.mm-f { position: absolute; top: 50%; transform: translateY(-50%); }
+.mm-f.back { left: 0; opacity: .92; animation: mmSlideL .5s .1s ease both; }
+.mm-f.front { left: 38px; animation: mmSlideR .5s .05s ease both; }
+@keyframes mmSlideL { from { transform: translate(14px, -50%); opacity: 0 } }
+@keyframes mmSlideR { from { transform: translate(-14px, -50%); opacity: 0 } }
+/* the kick, seen from behind the taker */
+.mm-kick { background: linear-gradient(160deg, color-mix(in srgb, var(--c1) 40%, #0b0e13), #0b0e13 55%, color-mix(in srgb, var(--c2) 30%, #0b0e13)); }
+.mk-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 8px; }
+.mk-pl { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font-weight: 800; font-size: 13.5px; color: #fff; }
+.mk-pl.r { justify-content: flex-end; }
+.mk-role { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+.mk-vs { font-family: var(--display); font-weight: 800; color: rgba(255,255,255,.5); }
+.mk-scene { position: relative; height: 196px; margin: 0 12px; border-radius: 12px; overflow: hidden; background: #10151c; }
+.mk-stand { position: absolute; left: 0; right: 0; top: 0; height: 70px; background: radial-gradient(circle at 20% 30%, rgba(255,255,255,.07) 1px, transparent 1.5px) 0 0 / 7px 6px, linear-gradient(180deg, color-mix(in srgb, var(--c2) 22%, #0c1016), #141a22); }
+.mk-grass { position: absolute; left: 0; right: 0; top: 56px; bottom: 0; background: repeating-linear-gradient(180deg, #2f8f47 0 18px, #2a8340 18px 36px); perspective: 200px; }
+.mk-box { position: absolute; left: 6%; right: 6%; top: 40px; height: 2px; background: rgba(255,255,255,.7); }
+.mk-spot { position: absolute; left: 50%; bottom: 26px; width: 6px; height: 4px; border-radius: 50%; background: #fff; transform: translateX(-50%); }
+.mk-goal { position: absolute; left: 13%; right: 13%; top: 14px; height: 84px; }
+.mk-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.res-goal .mk-net { transform-origin: 50% 0; animation: mkNet .6s 3.0s ease-out both; }
+@keyframes mkNet { 35% { transform: scale(1.04, 1.06) } }
+.mk-keeper { position: absolute; left: 50%; bottom: 0; width: 58px; height: 62px; transform: translateX(-50%); transform-origin: 50% 80%; animation: mkReady .7s ease-in-out 3 alternate; }
+.mk-body { position: absolute; left: 0; bottom: 0; width: 58px; height: 46px; overflow: visible; }
+.mk-head-face { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
+.mk-head-face .face { box-shadow: 0 0 0 1.5px var(--gk); }
+.mk-head-face i { display: block; width: 22px; height: 22px; border-radius: 50%; background: #d9b38c; }
+@keyframes mkReady { from { transform: translateX(-50%) } to { transform: translateX(calc(-50% + 4px)) translateY(-2px) } }
+.mk-keeper.dive-L { animation: mkReady .7s ease-in-out 3 alternate, mkDiveL .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
+.mk-keeper.dive-R { animation: mkReady .7s ease-in-out 3 alternate, mkDiveR .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
+.mk-keeper.dive-L.hi { animation: mkReady .7s ease-in-out 3 alternate, mkDiveLH .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
+.mk-keeper.dive-R.hi { animation: mkReady .7s ease-in-out 3 alternate, mkDiveRH .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
+.mk-keeper.dive-C { animation: mkReady .7s ease-in-out 3 alternate, mkStay .5s 2.6s ease forwards; }
+@keyframes mkDiveL { to { left: 22%; transform: translateX(-50%) translateY(-4px) rotate(-78deg) } }
+@keyframes mkDiveR { to { left: 78%; transform: translateX(-50%) translateY(-4px) rotate(78deg) } }
+@keyframes mkDiveLH { to { left: 24%; transform: translateX(-50%) translateY(-26px) rotate(-58deg) } }
+@keyframes mkDiveRH { to { left: 76%; transform: translateX(-50%) translateY(-26px) rotate(58deg) } }
+@keyframes mkStay { 45% { transform: translateX(-50%) translateY(-12px) scale(1.04) } to { transform: translateX(-50%) translateY(-3px) } }
+.mk-taker { position: absolute; left: 36%; bottom: -4px; transform: translate(-50%, 0) scale(1.25); animation: mkRun 1.2s 1.25s cubic-bezier(.4, 0, .6, 1) forwards; }
+.mk-taker .face { box-shadow: 0 0 0 2px var(--kit), 0 4px 10px rgba(0,0,0,.5); }
+@keyframes mkRun { 80% { left: 47%; bottom: 18px; transform: translate(-50%, 0) scale(1.1) } to { left: 45%; bottom: 14px; transform: translate(-50%, 0) scale(1.1) } }
+.mk-ball { position: absolute; left: 50%; top: 150%; transform: translate(-50%, -50%) scale(1.3); animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards; z-index: 2; }
+@keyframes mkShot { 0% { left: 50%; top: 150%; transform: translate(-50%, -50%) scale(1.3) } 100% { left: var(--tx); top: var(--ty); transform: translate(-50%, -50%) scale(.72) } }
+.res-post .mk-ball { animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards, mkRebound .5s 2.92s ease-out forwards; }
+@keyframes mkRebound { from { left: var(--tx); top: var(--ty) } to { left: 50%; top: 125%; transform: translate(-50%, -50%) scale(1) } }
+.res-saved .mk-ball { animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards, mkParry .5s 2.92s ease-out forwards; }
+@keyframes mkParry { from { left: var(--tx); top: var(--ty) } to { left: calc(var(--tx) + (50% - var(--tx)) * -0.35); top: 118%; transform: translate(-50%, -50%) scale(.95) } }
+.mk-out { position: absolute; left: -20%; right: -20%; top: 22%; text-align: center; font-family: var(--display); font-style: italic; font-weight: 800; font-size: 36px; letter-spacing: .03em; color: #fff; text-shadow: 0 3px 14px rgba(0,0,0,.7); opacity: 0; animation: mkOut .5s 3.25s cubic-bezier(.3, 1.5, .5, 1) forwards; z-index: 3; }
+.res-goal .mk-out { color: var(--acc); }
+.res-saved .mk-out, .res-miss .mk-out, .res-post .mk-out { color: #ff6b78; }
+@keyframes mkOut { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
+.mk-foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px 12px; color: rgba(255,255,255,.7); }
+@media (prefers-reduced-motion: reduce) { .mm, .mm-cardchip, .mm-flow i, .mk-keeper, .mk-taker, .mk-ball, .mk-out { animation: none !important; } .mk-out { opacity: 1; } .mk-ball { left: var(--tx); top: var(--ty); } }

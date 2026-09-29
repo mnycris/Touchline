@@ -37,7 +37,16 @@ export interface LiveMatch {
 }
 
 export interface StopPrefs { offers: boolean; injuries: boolean; scouting: boolean; conversations: boolean; news: boolean }
-export interface AppPrefs { haptics: boolean; matchSpeed: number; sound: boolean; reduceMotion: boolean; assistantSubs: boolean; stopOn: StopPrefs }
+export interface AppPrefs {
+  haptics: boolean
+  /** speed a live match starts at (one of `speeds`) */
+  matchSpeed: number
+  /** the three speed buttons in the match centre (0.2×–6×) */
+  speeds: [number, number, number]
+  sound: boolean; reduceMotion: boolean; assistantSubs: boolean; stopOn: StopPrefs
+}
+
+export const DEFAULT_SPEEDS: [number, number, number] = [0.5, 1, 2]
 
 interface GameState {
   raw?: RawDb
@@ -101,7 +110,7 @@ export const useGame = create<GameState>((set, get) => ({
   stacks: emptyStacks(),
   overlay: [],
   advancing: false,
-  prefs: { haptics: true, matchSpeed: 1, sound: false, reduceMotion: false, assistantSubs: false, stopOn: { offers: true, injuries: true, scouting: false, conversations: true, news: false } },
+  prefs: { haptics: true, matchSpeed: 1, speeds: DEFAULT_SPEEDS, sound: false, reduceMotion: false, assistantSubs: false, stopOn: { offers: true, injuries: true, scouting: false, conversations: true, news: false } },
   stopRequested: false,
   saves: [],
 
@@ -122,7 +131,13 @@ export const useGame = create<GameState>((set, get) => ({
   async refreshSaves() {
     try { set({ saves: await listSaves() }) } catch { set({ saves: [] }) }
     const p = await getKV<AppPrefs>('prefs').catch(() => undefined)
-    if (p) set({ prefs: { ...get().prefs, ...p, stopOn: { ...get().prefs.stopOn, ...(p.stopOn || {}) } } })
+    if (p) {
+      const prefs = { ...get().prefs, ...p, stopOn: { ...get().prefs.stopOn, ...(p.stopOn || {}) } }
+      // older installs had fixed 1×/2×/4× buttons
+      if (!Array.isArray(prefs.speeds) || prefs.speeds.length !== 3) prefs.speeds = DEFAULT_SPEEDS
+      if (!prefs.speeds.includes(prefs.matchSpeed)) prefs.matchSpeed = prefs.speeds[1]
+      set({ prefs })
+    }
   },
 
   async startCareer(opts) {
@@ -310,3 +325,6 @@ export function useWorld(): World {
   useGame((s) => s.v)
   return useGame.getState().world as World
 }
+
+// dev builds only: lets the QA scripts reach the store (stripped from production bundles)
+if (import.meta.env.DEV) (window as unknown as { __game: typeof useGame }).__game = useGame

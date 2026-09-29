@@ -9,6 +9,7 @@ import type { SaveMeta } from '../../services/saves'
 import { NewCareer } from './NewCareer'
 import { Wordmark } from '../components/brand'
 import { ImageCheck } from '../components/ImageCheck'
+import { SpeedEditor } from '../components/SpeedEditor'
 
 type View = 'home' | 'new' | 'load' | 'settings' | 'about'
 
@@ -141,13 +142,8 @@ export function AppSettings({ onBack }: { onBack: () => void }) {
     <Screen title="Settings" back onBack={onBack} noNav>
       <div className="pad stack">
         <div className="card">
-          <div className="card-h"><div className="label">Match</div></div>
-          <div className="li">
-            <div className="meta"><div className="t">Default match speed</div><div className="s">1× = one match minute per second</div></div>
-            <div className="seg" style={{ width: 150 }}>
-              {[1, 2, 4].map((v) => <button key={v} className={prefs.matchSpeed === v ? 'on' : ''} onClick={() => setPrefs({ matchSpeed: v })}>{v}×</button>)}
-            </div>
-          </div>
+          <div className="card-h"><div className="label">Match speed buttons</div></div>
+          <SpeedEditor />
           <Toggle label="Assistant manages substitutions" sub="Your assistant makes changes for injuries and fatigue during live matches" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
         </div>
         <div className="card">
