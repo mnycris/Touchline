@@ -17,7 +17,7 @@ import { fixturesByDate } from '../../engine/competitions/fixtures'
 import { starRating } from '../rawHelpers'
 import { tableAround } from '../selectors'
 import { FormStrip } from './MatchDay'
-import { TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
+import { Ball, Boot, TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
 import { sideInput } from '../../engine/world/matchRunner'
 
 // ============================================================================ season hub
@@ -328,6 +328,7 @@ function TeamOfTheWeek({ w, c }: { w: World; c: Competition }) {
             <button key={e.x.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
               <Face p={p} size={34} radius={17} club={w.clubs[e.clubId]} />
               <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight"><Badge club={w.clubs[e.clubId]} size={13} />{w.clubs[e.clubId]?.short} v {opp?.short} · {e.f.result!.score[0]}-{e.f.result!.score[1]}</div></div>
+              {(e.x.goals > 0 || e.x.assists > 0) && <span className="row tight" style={{ gap: 6 }}>{e.x.goals > 0 && <span className="ga">{e.x.goals > 1 && <b>{e.x.goals}</b>}<Ball size={12} /></span>}{e.x.assists > 0 && <span className="ga">{e.x.assists > 1 && <b>{e.x.assists}</b>}<Boot size={14} /></span>}</span>}
               <PosChip pos={e.x.pos} />
               <RatingPill v={e.x.rating} motm={e === best} size="sm" />
             </button>

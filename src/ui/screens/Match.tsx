@@ -12,8 +12,9 @@ import type { MatchSim } from '../../engine/match/engine'
 import { compLogoKey, outcomeFor, scoreLine } from '../selectors'
 import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
-import { Ball, BenchRowFM, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
+import { Ball, BenchRowFM, Boot, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
+import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
 
 // ============================================================================ helpers
@@ -84,6 +85,7 @@ export function LiveMatch() {
   const [manage, setManage] = useState(false)
   const [manageOut, setManageOut] = useState<number>()
   const [moments, setMoments] = useState<Moment[]>([])
+  const [panel, setPanel] = useState<{ side: 0 | 1; id: number }>()
   const moment = moments[0]
   const momentId = useRef(0)
   const [pitchOpen, setPitchOpen] = useState(() => { try { return localStorage.getItem('opus:pitch') !== '0' } catch { return true } })
@@ -227,11 +229,7 @@ export function LiveMatch() {
   const scoreNow = sim.score
   const goalsForGraph = sim.events.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))
 
-  const onLineupTap = (t: LineupTap) => {
-    haptic()
-    if (t.side === us && !sim.finished && !t.bench) { setManageOut(t.id); setManage(true); return }
-    go({ name: 'player', params: { id: t.id } })
-  }
+  const onLineupTap = (t: LineupTap) => { haptic(); setPanel({ side: t.side, id: t.id }) }
 
   return (
     <div className="match-screen" style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
@@ -287,12 +285,19 @@ export function LiveMatch() {
         {tab === 'lineups' && (
           <div className="pad" style={{ paddingTop: 12 }}>
             <MatchLineup w={w} home={sideFromSim(w, sim, 0)} away={sideFromSim(w, sim, 1)} onTap={onLineupTap} />
-            <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>Live ratings. Tap one of your players to substitute him.</div>
+            <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>Live ratings. Tap any player for match stats and heat map.</div>
           </div>
         )}
         {tab === 'stats' && <StatsPanel stats={stats} homeId={home.id} awayId={away.id} w={w} />}
       </div>
 
+      {panel && (
+        <PlayerMatchPanel w={w} st={sim.playerStats(panel.side, panel.id)} club={panel.side === 0 ? home : away} events={sim.events} live={!sim.finished}
+          onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }}
+          actions={panel.side === us && !sim.finished && sim.onPitchIds(us).includes(panel.id) ? (
+            <button className="btn primary grow" onClick={() => { haptic(); setPanel(undefined); setManageOut(panel.id); setManage(true) }}><Icon name="sub" size={16} /> Substitute</button>
+          ) : undefined} />
+      )}
       <div className="match-controls">
         {sim.finished && penDone ? (
           <button className="btn primary block" style={{ height: 54 }} onClick={complete}><Icon name="check" size={20} /> Full-time · Continue</button>
@@ -629,6 +634,17 @@ export function FixtureReport({ params }: { params: { id: string } }) {
   )
 }
 
+/** "2 [ball] 1 [boot] · 90'": goals and assists as icons, FotMob-style. */
+export function GoalsAssists({ st, mins = true }: { st: { goals: number; assists: number; mins: number }; mins?: boolean }) {
+  return (
+    <div className="ga-line tiny dim">
+      {st.goals > 0 && <span className="ga"><b>{st.goals}</b><Ball size={12} /></span>}
+      {st.assists > 0 && <span className="ga"><b>{st.assists}</b><Boot size={14} /></span>}
+      {mins && <span>{st.mins}'</span>}
+    </div>
+  )
+}
+
 function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
   const go = useGame((s) => s.go)
   const r = f.result!
@@ -641,6 +657,8 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
   const motmStat = r.players.find((x) => x.id === r.motm)
   const keyEv = r.events.filter((e) => ['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'sub', 'injury'].includes(e.type))
   const hs = hasLineups ? sideFromResult(w, f, 0) : undefined, as = hasLineups ? sideFromResult(w, f, 1) : undefined
+  const [panel, setPanel] = useState<LineupTap>()
+  const panelSt = panel ? r.players.find((x) => x.id === panel.id && x.side === panel.side) : undefined
   return (
     <div style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
       <div className="md-head">
@@ -663,7 +681,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
         <div className="pad" style={{ marginTop: 10 }}>
           <button className="card tap row" style={{ padding: 12, gap: 12, width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: motm.id } })}>
             <Face p={motm} size={48} radius={24} club={w.clubs[motm.clubId]} />
-            <div className="grow"><div className="kicker" style={{ color: '#2f80ed' }}>Player of the Match</div><div className="b" style={{ marginTop: 2 }}>{motm.name}</div><div className="tiny dim">{motmStat ? `${motmStat.goals ? `${motmStat.goals} goal${motmStat.goals > 1 ? 's' : ''} · ` : ''}${motmStat.assists ? `${motmStat.assists} assist${motmStat.assists > 1 ? 's' : ''} · ` : ''}${motmStat.mins}'` : ''}</div></div>
+            <div className="grow"><div className="kicker" style={{ color: '#2f80ed' }}>Player of the Match</div><div className="b" style={{ marginTop: 2 }}>{motm.name}</div>{motmStat && <GoalsAssists st={motmStat} />}</div>
             {motmStat && <RatingPill v={motmStat.rating} motm />}
           </button>
         </div>
@@ -685,7 +703,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
               const p2 = e.player2 ? w.players[e.player2] : undefined
               const left = e.side === 0
               const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : ''}`
-              const sub = e.type === 'sub' ? `Off: ${callName(p2?.name || '')}` : isGoal(e) && p2 && e.type !== 'owngoal' ? `Assist: ${callName(p2.name)}` : ''
+              const sub = e.type === 'sub' ? `Off: ${callName(p2?.name || '')}` : isGoal(e) && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : ''
               return (
                 <div key={i} className="ev-row" style={{ flexDirection: left ? 'row' : 'row-reverse', textAlign: left ? 'left' : 'right' }}>
                   <span className="ev-min">{minLabel(e)}</span>
@@ -703,10 +721,14 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
       )}
       {tab === 'lineups' && hs && as && (
         <div className="pad" style={{ marginTop: 10 }}>
-          <MatchLineup w={w} home={hs} away={as} onTap={(t) => go({ name: 'player', params: { id: t.id } })} />
+          <MatchLineup w={w} home={hs} away={as} onTap={(t) => { haptic(); setPanel(t) }} />
         </div>
       )}
       {tab === 'stats' && <StatsPanel stats={r.stats} homeId={home.id} awayId={away.id} w={w} />}
+      {panel && panelSt && (
+        <PlayerMatchPanel w={w} st={panelSt} club={panel.side === 0 ? home : away} events={r.events} motm={r.motm === panel.id}
+          onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }} />
+      )}
     </div>
   )
 }

@@ -45,6 +45,28 @@ export function Ball({ size = 12, style, className }: { size?: number; style?: R
   )
 }
 
+/** Assist marker: a low-cut football boot drawn in the same black-and-white language as the ball. */
+export function Boot({ size = 12, style, className }: { size?: number; style?: React.CSSProperties; className?: string }) {
+  const id = useId().replace(/:/g, '')
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
+      <defs><linearGradient id={`bt${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" /><stop offset="1" stopColor="#cfd5dc" /></linearGradient></defs>
+      <g transform="translate(0,-1.2)">
+        <path d="M2.8 8.3C4.6 9.3 6.8 9.5 8.6 8.9L10.1 8.4C11.5 9.7 13.7 10.7 16.6 11.5C19.6 12.3 21.6 13.3 21.8 15.1C21.9 15.9 21.4 16.3 20.6 16.3H3.4C2.6 16.3 2.1 15.7 2.2 14.9Z" fill={`url(#bt${id})`} stroke="#15181c" strokeWidth=".95" strokeLinejoin="round" />
+        <path d="M2.3 16.1h19.4c.1.8-.3 1.5-1.1 1.5H3.3c-.7 0-1.1-.6-1-1.5z" fill="#15181c" />
+        <path d="M4.3 17.4v1.5M7.3 17.4v1.5M15 17.4v1.5M18.6 17.4v1.5" stroke="#15181c" strokeWidth="1.6" strokeLinecap="round" />
+        <path d="M11.6 8.8l-.9 1.5M13.4 9.8l-.8 1.5M15.2 10.6l-.7 1.5" stroke="#15181c" strokeWidth=".9" strokeLinecap="round" />
+        <path d="M4.4 13.9c3.6.1 7.4-.6 10.3-2.1" stroke="#15181c" strokeWidth="1.15" strokeLinecap="round" fill="none" opacity=".8" />
+      </g>
+    </svg>
+  )
+}
+
+/** A missed penalty: the ball with a small red cross. */
+export function MissedPen({ size = 12 }: { size?: number }) {
+  return <span className="pen-miss" style={{ width: size, height: size }}><Ball size={size} /><i /></span>
+}
+
 // ---------------------------------------------------------------------------- data model
 export interface LPl {
   id: number
@@ -52,6 +74,7 @@ export interface LPl {
   goals?: number
   og?: number
   assists?: number
+  penMissed?: boolean
   yellow?: boolean
   red?: boolean
   subOn?: number
@@ -113,7 +136,7 @@ export function sideFromSim(w: World, sim: MatchSim, side: 0 | 1): LSide {
   const og = new Map<number, number>()
   for (const e of sim.events) if (e.type === 'owngoal' && e.player && e.side !== side) og.set(e.player, (og.get(e.player) || 0) + 1)
   const mk = (r: (typeof rs)[number]): LPl => ({
-    id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, og: og.get(r.id), yellow: r.yellow, red: r.red, subOn: r.subOn, subOff: r.red ? undefined : r.subOff,
+    id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, assists: r.assists, penMissed: r.penMissed, og: og.get(r.id), yellow: r.yellow, red: r.red, subOn: r.subOn, subOff: r.red ? undefined : r.subOff,
     captain: r.id === cap, injured: r.injured, energy: r.energy, pos: r.pos,
   })
   const xi: (LPl | undefined)[] = f.slots.map((_, i) => {
@@ -133,10 +156,11 @@ export function sideFromResult(w: World, fx: Fixture, side: 0 | 1): LSide | unde
   const stats = new Map(r.players.filter((x) => x.side === side).map((x) => [x.id, x]))
   const og = new Map<number, number>()
   for (const e of r.events) if (e.type === 'owngoal' && e.player && e.side !== side) og.set(e.player, (og.get(e.player) || 0) + 1)
+  const missed = new Set(r.events.filter((e) => e.type === 'penMiss' && e.side === side).map((e) => e.player))
   const mk = (id: number): LPl | undefined => {
     const s = stats.get(id)
     if (!s) return w.players[id] ? { id } : undefined
-    return { id, rating: s.rating, goals: s.goals, assists: s.assists, og: og.get(id), yellow: s.yellow, red: s.red, subOn: s.started ? undefined : s.subOn, subOff: s.red ? undefined : s.subOff, captain: r.captains?.[side] === id, motm: r.motm === id, injured: s.injured, pos: s.pos }
+    return { id, rating: s.rating, goals: s.goals, assists: s.assists, penMissed: missed.has(id) || undefined, og: og.get(id), yellow: s.yellow, red: s.red, subOn: s.started ? undefined : s.subOn, subOff: s.red ? undefined : s.subOff, captain: r.captains?.[side] === id, motm: r.motm === id, injured: s.injured, pos: s.pos }
   }
   const xi = r.lineups[side].map(mk)
   const bench = [...stats.values()].filter((s) => !s.started).sort((a, b) => (a.subOn ?? 0) - (b.subOn ?? 0)).map((s) => mk(s.id)!).filter(Boolean)
@@ -174,27 +198,29 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
   if (!p) return null
   const size = small ? 34 : 40
   const goals = s.goals || 0
+  const assists = s.assists || 0
   return (
     <button type="button" data-mine={mine ? '1' : undefined} className={`fl-pl ${sel ? 'sel' : ''} ${s.red ? 'sent' : ''}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={onTap} disabled={!onTap}>
       <div className="fl-ph" style={{ width: size, height: size }}>
         <Face p={p} size={size} radius={size / 2} club={club} />
         {s.rating != null && <span className="fl-rt"><RatingPill v={s.rating} motm={s.motm} size="sm" /></span>}
         {mode === 'sheet' && s.fit != null && <span className="fl-rt"><span className="fit-pill" style={{ background: s.fit >= p.ovr - 1 ? '#3cc26a' : s.fit >= p.ovr - 6 ? '#f29b1d' : '#e5484d' }}>{s.fit}</span></span>}
-        {(s.yellow || s.red) && <span className={`fl-card ${s.red ? 'r' : 'y'}`} />}
-        {s.captain && <span className="fl-cap">C</span>}
-        {(goals > 0 || !!s.og) && (
+        {(s.yellow || s.red) && <span className="fl-cards">{s.yellow && <i className="y" />}{s.red && <i className="r" />}</span>}
+        {(goals > 0 || !!s.og || s.penMissed) && (
           <span className="fl-goals">
-            {Array.from({ length: Math.min(goals, 3) }, (_, i) => <Ball key={i} size={12} />)}
+            {Array.from({ length: Math.min(goals, 3) }, (_, i) => <Ball key={i} size={13} />)}
             {goals > 3 && <b>×{goals}</b>}
             {!!s.og && <span className="og"><Ball size={12} /></span>}
+            {s.penMissed && <MissedPen size={12} />}
           </span>
         )}
+        {assists > 0 && <span className="fl-ast"><Boot size={19} />{assists > 1 && <b>×{assists}</b>}</span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
-        {s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
-        {!s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
+        {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
+        {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
-      <div className="fl-nm">{p.jersey ? <span className="fl-no">{p.jersey}</span> : null}<span className="ellipsis">{callName(p.name)}</span></div>
+      <div className="fl-nm">{p.jersey ? <span className="fl-no">{p.jersey}</span> : null}<span className="ellipsis">{callName(p.name)}</span>{s.captain && <span className="fl-cap">C</span>}</div>
       {(s.subOff != null || s.subOn != null) && <div className="fl-subm">{s.subOn != null && <span className="pos">{s.subOn}'</span>}{s.subOff != null && <span className="neg">{s.subOff}'</span>}</div>}
       {(mode === 'sheet' || energy) && s.energy != null && s.energy < (energy ? 101 : 85) && <div className="fl-energy"><i style={{ width: `${s.energy}%`, background: s.energy > 70 ? 'var(--pos)' : s.energy > 55 ? 'var(--warn)' : 'var(--neg)' }} /></div>}
     </button>
@@ -281,7 +307,9 @@ export function BenchRowFM({ w, s, club, onTap, sel, right }: { w: World; s: LPl
           {s.subOn != null && <><Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} />{s.subOn}'</>}
           {s.subOff != null && <><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{s.subOff}'</>}
           {s.subOn == null && s.subOff == null && <span>{s.pos || p.positions[0]}</span>}
-          {(s.goals || 0) > 0 && <Ball size={10} />}
+          {Array.from({ length: Math.min(s.goals || 0, 3) }, (_, i) => <Ball key={i} size={11} />)}
+          {Array.from({ length: Math.min(s.assists || 0, 3) }, (_, i) => <Boot key={i} size={13} />)}
+          {s.penMissed && <MissedPen size={11} />}
           {s.yellow && <span className="card-y" />}{s.red && <span className="card-r" />}
         </div>
       </div>

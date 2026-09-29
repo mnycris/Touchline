@@ -16,6 +16,7 @@ import { askingPrice, playerInterest, sellerStance, yearsLeft } from '../../engi
 import { recallLoan, releaseCost, releaseUserPlayer, setJersey, setLoanListed, setSquadRole, setTransferListed, setUntouchable } from '../../engine/world/userActions'
 import { rosterOf } from '../../engine/world/roster'
 import { RatingBadge } from './Match'
+import { Ball, Boot } from '../components/Lineup'
 
 type Tab = 'attributes' | 'playstyles' | 'stats' | 'career' | 'development'
 
@@ -377,8 +378,8 @@ function MatchLog({ w, p }: { w: World; p: Player }) {
                 <div className="t small ellipsis">{side === 0 ? 'vs' : '@'} {w.clubs[oppId]?.short}</div>
                 <div className="s row tight" style={{ gap: 6 }}>
                   <span>{st!.mins}'</span>
-                  {st!.goals > 0 && <span className="row tight" style={{ gap: 2 }}><Icon name="ball" size={12} />{st!.goals > 1 ? st!.goals : ''}</span>}
-                  {st!.assists > 0 && <span className="row tight" style={{ gap: 2 }}><Icon name="assist" size={12} />{st!.assists > 1 ? st!.assists : ''}</span>}
+                  {st!.goals > 0 && <span className="ga">{st!.goals > 1 && <b>{st!.goals}</b>}<Ball size={12} /></span>}
+                  {st!.assists > 0 && <span className="ga">{st!.assists > 1 && <b>{st!.assists}</b>}<Boot size={14} /></span>}
                   {st!.yellow && <span className="card-y" style={{ marginLeft: 0 }} />}{st!.red && <span className="card-r" style={{ marginLeft: 0 }} />}
                 </div>
               </div>

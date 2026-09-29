@@ -410,19 +410,26 @@ select.input option { background: #151b27; }
 .fl-pl.sel .fl-ph .face { box-shadow: 0 0 0 2.5px var(--acc), 0 2px 8px rgba(0, 0, 0, 0.45); }
 .fl-pl.sent .fl-ph { opacity: 0.55; }
 .fl-rt { position: absolute; top: -6px; right: -16px; }
-.fl-ph .fl-card { position: absolute; top: -3px; left: -6px; width: 9px; height: 12px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
-.fl-ph .fl-card.y { background: #f5d33f; }
-.fl-ph .fl-card.r { background: #ff4d5e; }
-.fl-cap { position: absolute; bottom: -2px; left: -6px; width: 15px; height: 15px; border-radius: 50%; background: #f4f6f8; color: #0b0d11; font-size: 9px; font-weight: 900; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.fl-cards { position: absolute; top: 50%; left: -9px; transform: translateY(-50%); display: flex; }
+.fl-cards i { width: 9px; height: 12px; border-radius: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.55); transform: rotate(-8deg); }
+.fl-cards i.y { background: #f5d33f; }
+.fl-cards i.r { background: #ff4d5e; }
+.fl-cards i + i { margin-left: -5px; transform: rotate(8deg); }
+.fl-cap { flex: none; width: 13px; height: 13px; border-radius: 50%; background: #f4f6f8; color: #0b0d11; font-size: 8.5px; font-weight: 900; display: grid; place-items: center; text-shadow: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.fl-ast { position: absolute; bottom: -3px; left: -14px; display: flex; align-items: center; z-index: 1; }
+.fl-ast svg { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.6)); }
+.fl-ast b, .fl-goals b { font-size: 10px; margin-left: 1px; text-shadow: 0 1px 2px #000; }
+.pen-miss { position: relative; display: inline-flex; }
+.pen-miss i { position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; border-radius: 50%; background: #e5484d; box-shadow: 0 0 0 1px #0b0d11; }
+.pen-miss i::before, .pen-miss i::after { content: ''; position: absolute; left: 1.5px; right: 1.5px; top: 3.4px; height: 1.2px; background: #fff; transform: rotate(45deg); }
+.pen-miss i::after { transform: rotate(-45deg); }
 .fl-goals { position: absolute; bottom: -4px; right: -10px; display: flex; gap: 0; align-items: center; }
 .fl-goals svg { margin-left: -4px; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.6)); }
-.fl-goals b { font-size: 10px; margin-left: 2px; text-shadow: 0 1px 2px #000; }
 .fl-goals .og svg { filter: drop-shadow(0 0 0 #ff4d5e) drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.6)); }
 .fl-goals .og { border-radius: 50%; box-shadow: 0 0 0 1.5px #ff4d5e; display: inline-flex; margin-left: 2px; }
-.fl-sub { position: absolute; bottom: -3px; left: -7px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+.fl-sub { position: absolute; top: -5px; left: -7px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; color: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 .fl-sub.in { background: #13a85a; }
 .fl-sub.out { background: #d8394a; }
-.fl-cap ~ .fl-sub { left: auto; right: -7px; bottom: auto; top: 22px; }
 .fl-status { position: absolute; top: -4px; left: -6px; width: 15px; height: 15px; border-radius: 50%; display: grid; place-items: center; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 .fl-nm { display: flex; align-items: center; gap: 3px; max-width: 76px; font-size: 11px; font-weight: 700; line-height: 1.1; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
 .fl-no { font-weight: 600; opacity: 0.7; font-size: 10px; }
@@ -636,3 +643,28 @@ select.input option { background: #151b27; }
 @keyframes mkOut { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
 .mk-foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px 12px; color: rgba(255,255,255,.7); }
 @media (prefers-reduced-motion: reduce) { .mm, .mm-cardchip, .mm-flow i, .mk-keeper, .mk-taker, .mk-ball, .mk-out { animation: none !important; } .mk-out { opacity: 1; } .mk-ball { left: var(--tx); top: var(--ty); } }
+
+/* ---------- player match panel (FotMob-style) ---------- */
+.pmp-hero { display: flex; align-items: center; gap: 12px; padding: 4px 2px 14px; }
+.pmp-hero .face { background: #e9edf1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--club) 70%, #fff); }
+.pmp-name { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.05; }
+.pmp-evs { display: flex; align-items: center; gap: 5px; margin-top: 6px; min-height: 16px; flex-wrap: wrap; }
+.pmp-chip { display: inline-flex; align-items: center; gap: 2px; font-size: 11px; font-weight: 800; padding: 1px 5px; border-radius: 6px; background: var(--s3); }
+.pmp-chip.pos { color: var(--pos); } .pmp-chip.neg { color: var(--neg); }
+.pmp-rt { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: none; }
+.pmp-rt .rt-pill { font-size: 17px; padding: 5px 10px; border-radius: 9px; }
+.pmp-heat { position: relative; border-radius: 12px; overflow: hidden; background: repeating-linear-gradient(90deg, #17402b 0 8.33%, #1a4630 8.33% 16.66%); }
+.pmp-heat-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pmp-heat-empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.6); }
+.pmp-dir { position: absolute; right: 8px; bottom: 6px; display: inline-flex; align-items: center; gap: 2px; color: rgba(255,255,255,.7); font-weight: 700; }
+.pmp-sec { margin-top: 14px; border-radius: 14px; background: var(--s2); padding: 4px 12px 6px; }
+.pmp-h { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); padding: 8px 0 4px; }
+.pmp-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 7px 0; font-size: 13.5px; border-top: 1px solid var(--line); }
+.pmp-row:first-of-type { border-top: 0; }
+.pmp-row > span:first-child { color: var(--t2); }
+.pmp-row > span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+.pmp-row > span.b { font-weight: 800; color: var(--t1); }
+.pmp-pct { color: var(--t3); font-weight: 500; }
+.ga-line { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.ga { display: inline-flex; align-items: center; gap: 3px; color: var(--t1); }
+.ga b { font-weight: 800; font-size: 12.5px; }
