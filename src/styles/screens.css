@@ -733,3 +733,13 @@ select.input option { background: #151b27; }
 .tb-sw.on i { transform: translateX(17px); }
 .tb-eff-row { display: flex; align-items: center; gap: 7px; font-size: 12.5px; padding: 4px 0; color: var(--t1); animation: fadeIn .3s ease both; }
 .tb-eff-row.neg svg { color: var(--neg); } .tb-eff-row.pos svg { color: var(--pos); } .tb-eff-row.neu svg { color: var(--t3); }
+/* live feed hierarchy */
+.feed-item.moment { background: linear-gradient(100deg, color-mix(in srgb, var(--mc) 16%, transparent), rgba(255,255,255,.03) 60%); border-color: color-mix(in srgb, var(--mc) 35%, transparent); }
+.feed-item.note { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--mc) 80%, transparent); }
+.feed-mt { font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+.feed-card { display: inline-block; width: 11px; height: 15px; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.5); transform: rotate(8deg); }
+.feed-card.y { background: #f5d33f; } .feed-card.r { background: #ff4d5e; }
+.feed-div { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 8px 4px 4px; }
+.feed-div-l { height: 1px; background: var(--line2); }
+.feed-div-t { font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--t1); }
+.feed-div-s { grid-column: 1 / -1; text-align: center; margin-top: 2px; }

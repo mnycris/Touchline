@@ -12,7 +12,7 @@ import type { MatchSim } from '../../engine/match/engine'
 import { compLogoKey, outcomeFor, scoreLine } from '../selectors'
 import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
-import { Ball, BenchRowFM, Boot, MatchLineup, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
+import { Ball, BenchRowFM, Boot, MatchLineup, MissedPen, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { TacticsBoard } from '../components/TacticsBoard'
@@ -520,22 +520,82 @@ function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchS
   )
 }
 
+/** Feed rows with hierarchy: goals, then big moments (penalty, red, VAR, missed pen), then notable events
+ *  (yellow, injury, sub, woodwork), then plain commentary; kick-off, half-time and full-time are dividers. */
+const MOMENT_TITLE: Record<string, [string, string]> = {
+  penalty: ['Penalty', 'var(--warn)'], red: ['Red card', '#ff4d5e'], secondYellow: ['Second yellow · Red card', '#ff4d5e'], penMiss: ['Penalty missed', '#ff4d5e'], var: ['VAR check', 'var(--info)'],
+}
+const NOTE_TITLE: Record<string, [string, string]> = {
+  yellow: ['Yellow card', '#f5d33f'], injury: ['Injury', '#ff4d5e'], sub: ['Substitution', 'var(--acc)'], woodwork: ['Off the woodwork', 'var(--warn)'],
+}
 export function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: number; away: number }) {
   const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
   const key = isGoal(e)
-  const big = key || e.type === 'red' || e.type === 'secondYellow' || e.type === 'ht' || e.type === 'ft'
   const club = e.side === 0 ? w.clubs[home] : e.side === 1 ? w.clubs[away] : undefined
   const p = e.player ? w.players[e.player] : undefined
-  return (
-    <div className={`feed-item ${key ? 'goal' : ''} ${big ? 'big' : ''} fade-up`} style={key && club ? { ['--gc' as any]: club.kit?.[0] } : undefined}>
-      <div className="feed-min">{e.type === 'kickoff' || e.type === 'ht' || e.type === 'ft' ? '' : minLabel(e)}</div>
-      <div className="feed-ic" style={{ color: col }}>{key ? <Ball size={18} /> : <Icon name={ic} size={16} />}</div>
-      <div className="grow" style={{ minWidth: 0 }}>
-        {key && <div className="row tight" style={{ marginBottom: 4 }}>{club && <Badge club={club} size={18} />}<span className="display" style={{ fontSize: 18 }}>{e.type === 'owngoal' ? 'Own goal' : 'Goal'}{e.score ? ` · ${e.score[0]}–${e.score[1]}` : ''}</span></div>}
-        <div className={key ? 'b' : 'small'} style={{ color: big ? 'var(--t1)' : 'var(--t2)' }}>{e.text}</div>
-        {key && p && <div className="tiny dim" style={{ marginTop: 3 }}>{e.player2 && w.players[e.player2] ? `Assist: ${w.players[e.player2].name}` : ''}{e.xg ? `${e.player2 ? ' · ' : ''}xG ${e.xg.toFixed(2)}` : ''}</div>}
+  const p2 = e.player2 ? w.players[e.player2] : undefined
+  if (e.type === 'kickoff' || e.type === 'ht' || e.type === 'ft' || e.type === 'et' || e.type === 'pens') {
+    const label = e.type === 'ht' ? 'Half-time' : e.type === 'ft' ? 'Full-time' : e.type === 'et' ? 'Extra time' : e.type === 'pens' ? 'Penalties' : e.min > 1 ? 'Second half' : 'Kick-off'
+    return (
+      <div className="feed-div fade-up">
+        <span className="feed-div-l" /><span className="feed-div-t">{label}{e.score && e.type !== 'kickoff' ? ` · ${e.score[0]}–${e.score[1]}` : ''}</span><span className="feed-div-l" />
+        {e.text && <div className="feed-div-s tiny dim">{e.text}</div>}
       </div>
-      {key && p && club && <Face p={p} size={38} radius={19} club={club} />}
+    )
+  }
+  if (key) {
+    return (
+      <div className="feed-item goal big fade-up" style={club ? { ['--gc' as any]: club.kit?.[0] } : undefined}>
+        <div className="feed-min">{minLabel(e)}</div>
+        <div className="feed-ic"><Ball size={18} /></div>
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="row tight" style={{ marginBottom: 4 }}>{club && <Badge club={club} size={18} />}<span className="display" style={{ fontSize: 18 }}>{e.type === 'owngoal' ? 'Own goal' : e.type === 'penGoal' ? 'Penalty goal' : 'Goal'}{e.score ? ` · ${e.score[0]}–${e.score[1]}` : ''}</span></div>
+          <div className="b" style={{ color: 'var(--t1)' }}>{e.text}</div>
+          {p && (p2 || e.xg) ? <div className="tiny dim row tight" style={{ marginTop: 3, gap: 4 }}>{p2 && e.type !== 'owngoal' && <><Boot size={13} /><span>{p2.name}</span></>}{e.xg ? <span>{p2 && e.type !== 'owngoal' ? ' · ' : ''}xG {e.xg.toFixed(2)}</span> : null}</div> : null}
+        </div>
+        {p && club && <Face p={p} size={38} radius={19} club={e.type === 'owngoal' ? w.clubs[p.clubId] : club} />}
+      </div>
+    )
+  }
+  const moment = MOMENT_TITLE[e.type]
+  if (moment) {
+    return (
+      <div className="feed-item big moment fade-up" style={{ ['--mc' as any]: moment[1] }}>
+        <div className="feed-min">{minLabel(e)}</div>
+        <div className="feed-ic">{e.type === 'red' || e.type === 'secondYellow' ? <span className="feed-card r" /> : e.type === 'penMiss' ? <MissedPen size={16} /> : <Icon name={ic} size={17} color={moment[1]} />}</div>
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="row tight" style={{ marginBottom: 3 }}>{club && <Badge club={club} size={15} />}<span className="feed-mt" style={{ color: moment[1] }}>{moment[0]}</span></div>
+          <div className="small" style={{ color: 'var(--t1)' }}>{e.text}</div>
+        </div>
+        {p && club && <Face p={p} size={32} radius={16} club={club} />}
+      </div>
+    )
+  }
+  const note = NOTE_TITLE[e.type]
+  if (note) {
+    return (
+      <div className="feed-item note fade-up" style={{ ['--mc' as any]: note[1] }}>
+        <div className="feed-min">{minLabel(e)}</div>
+        <div className="feed-ic">{e.type === 'yellow' ? <span className="feed-card y" /> : <Icon name={ic} size={16} color={col} />}</div>
+        <div className="grow" style={{ minWidth: 0 }}>
+          {e.type === 'sub' && p ? (
+            <div className="small">
+              <div className="row tight" style={{ gap: 5 }}><Icon name="arrowUp" size={12} color="var(--pos)" strokeWidth={3} /><b>{p.name}</b></div>
+              {p2 && <div className="row tight dim" style={{ gap: 5, marginTop: 2 }}><Icon name="arrowDown" size={12} color="var(--neg)" strokeWidth={3} /><span>{p2.name}</span></div>}
+            </div>
+          ) : (
+            <div className="small" style={{ color: 'var(--t1)' }}>{e.text}</div>
+          )}
+        </div>
+        {club && <Badge club={club} size={18} />}
+      </div>
+    )
+  }
+  return (
+    <div className="feed-item fade-up">
+      <div className="feed-min">{minLabel(e)}</div>
+      <div className="feed-ic" style={{ color: col }}><Icon name={ic} size={16} /></div>
+      <div className="grow small" style={{ minWidth: 0, color: 'var(--t2)' }}>{e.text}</div>
     </div>
   )
 }
