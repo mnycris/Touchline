@@ -41,6 +41,21 @@ export interface ConvContext {
   injuredRival?: Player
 }
 
+/** Club-level facts shared by every conversation check on a day (computed once). */
+export interface ClubDay { upcoming: Fixture[]; squad: Player[] }
+const dayCache = new WeakMap<World, { key: string; v: ClubDay }>()
+function clubDay(w: World, clubId: number): ClubDay {
+  const key = `${w.date}:${clubId}`
+  const c = dayCache.get(w)
+  if (c && c.key === key) return c.v
+  const upcoming: Fixture[] = []
+  for (const f of Object.values(w.fixtures)) if (!f.played && (f.home === clubId || f.away === clubId) && f.date >= w.date && diffDays(f.date, w.date) <= 14) upcoming.push(f)
+  upcoming.sort((a, b) => a.date.localeCompare(b.date))
+  const v = { upcoming, squad: rosterOf(w, clubId) }
+  dayCache.set(w, { key, v })
+  return v
+}
+
 export function convContext(w: World, p: Player): ConvContext {
   const mins = p.recentMins || []
   let benchRun = 0
@@ -50,10 +65,10 @@ export function convContext(w: World, p: Player): ConvContext {
   const earlier = mins.slice(0, Math.max(0, mins.length - 3))
   const goodThenDropped = mins.length >= 6 && earlier.length >= 3 && earlier.slice(-3).every((m) => m >= 60) && benchRun >= 2 && (avgForm ?? 6.5) >= 6.9
   const club = w.clubs[p.clubId]
-  const upcoming = Object.values(w.fixtures).filter((f) => !f.played && (f.home === p.clubId || f.away === p.clubId) && f.date >= w.date && diffDays(f.date, w.date) <= 14).sort((a, b) => a.date.localeCompare(b.date))
-  const nextCup = upcoming.find((f) => w.competitions[f.compId]?.format === 'cup')
+  const day = clubDay(w, p.clubId)
+  const nextCup = day.upcoming.find((f) => w.competitions[f.compId]?.format === 'cup')
   const group = POS_GROUP[p.positions[0]]
-  const injuredRival = rosterOf(w, p.clubId).filter((q) => q.id !== p.id && POS_GROUP[q.positions[0]] === group && q.injury && q.ovr >= p.ovr && diffDays(q.injury.until, w.date) >= 10).sort((a, b) => b.ovr - a.ovr)[0]
+  const injuredRival = day.squad.filter((q) => q.id !== p.id && POS_GROUP[q.positions[0]] === group && q.injury && q.ovr >= p.ovr && diffDays(q.injury.until, w.date) >= 10).sort((a, b) => b.ovr - a.ovr)[0]
   const suitor = (p.interestedClubs || []).map((id) => w.clubs[id]).filter((c) => c && c.id !== p.clubId && c.reputation >= (club?.reputation || 0) - 5).sort((a, b) => b.reputation - a.reputation)[0]?.id
   return {
     p, age: ageOn(p.dob, w.date), role: p.contract.role, expShare: ROLE_EXPECTED_SHARE[p.contract.role] || 0.4, share: minutesShare(w, p),
@@ -72,6 +87,11 @@ const vs = (w: World, f: Fixture, clubId: number) => w.clubs[f.home === clubId ?
 
 /** Decide whether this player wants a word today, and what about. */
 export function buildConversation(w: World, p: Player, rng: Rng): Draft | null {
+  // cheap gate first: most players have nothing to raise on most days
+  const yl0 = yearsLeft(w, p)
+  const young = ageOn(p.dob, w.date) <= 21 && p.pot - p.ovr >= 8
+  const worth = p.morale < 58 || (yl0 <= 1 && (p.contract.role === 'Crucial' || p.contract.role === 'Important')) || young || (p.interestedClubs?.length && p.morale < 75) || p.morale > 88 || (p.formRatings || []).length >= 4
+  if (!worth || rng.next() < 0.5) return null
   const c = convContext(w, p)
   if (c.activePromise) return null
   const R = <T,>(a: T[]) => rng.pick(a)
