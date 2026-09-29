@@ -502,8 +502,19 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
     if (ok) { haptic('medium'); useGame.getState().notify(`${callName(w.players[inId].name)} on for ${callName(w.players[out].name)}`, 'ok'); setOut(undefined) } else useGame.getState().notify('No substitutions or windows left', 'err')
     force()
   }
+  // a slot nobody on the pitch occupies (after a red card, or after moving someone out of it)
+  const vacantSlot = (slot?: number) => slot != null && !onIds.some((id) => sim.slotOf(side, id) === slot)
   const onPitchTap = (tp: LineupTap) => {
     haptic()
+    if (vacantSlot(tp.slot)) {
+      if (!out) { useGame.getState().notify('Tap a player first, then the empty position', 'info'); return }
+      if (sim.moveToSlot(side, out, tp.slot!)) {
+        useGame.getState().notify(`${callName(w.players[out].name)} moves to ${curForm.slots[tp.slot!]?.label || 'the gap'}`, 'ok')
+        setOut(undefined)
+        force()
+      }
+      return
+    }
     if (!tp.id || !onIds.includes(tp.id)) return
     if (!out) { setOut(tp.id); return }
     if (out === tp.id) { if (!waiting.includes(out)) setOut(undefined); return }
@@ -523,7 +534,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
         <div style={{ marginTop: 12 }}>
           {waiting.length > 0 && <div className="card pad-card small" style={{ background: 'rgba(255,77,94,.1)', marginBottom: 10 }}><b className="neg">Injury:</b> {waiting.map((id) => w.players[id]?.name).join(', ')} can't continue. Choose a replacement.</div>}
           <TeamLineup w={w} side={lineup} onTap={onPitchTap} sel={out} mode="live" energy />
-          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span></> : 'Tap a player on the pitch, then a substitute. Tap two players to swap their positions.'}</div>
+          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span>{lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? <span className="dim"> · or tap the empty position</span> : null}</> : lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? 'Tap a player, then a substitute, a team-mate to swap with, or the empty position to fill it.' : 'Tap a player on the pitch, then a substitute. Tap two players to swap their positions.'}</div>
           <div className="card list">
             {benchSorted.map((id) => {
               const p = w.players[id]
