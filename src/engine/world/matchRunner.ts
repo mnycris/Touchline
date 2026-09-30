@@ -58,10 +58,16 @@ export function matchContext(w: World, f: Fixture, commentary: boolean): MatchCo
   }
 }
 
-export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean): SideInput {
+export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean, scripted?: { formation: string; lineup: number[]; bench: number[] }): SideInput {
   const club = w.clubs[clubId]
   let sheet = user ? (club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]) : aiMatchSheet(w, club, comp)
   if (user) sheet = validateSheet(w, club, sheet, comp).sheet
+  // Edit Mode line-up for an AI side: the chosen XI in the chosen shape, roles and duties from the AI's own sheet logic
+  if (!user && scripted && scripted.lineup.length === 11 && scripted.lineup.every((id) => w.players[id]?.clubId === clubId)) {
+    sheet = { ...sheet, formation: scripted.formation || sheet.formation, lineup: [...scripted.lineup], bench: scripted.bench.filter((id) => w.players[id]?.clubId === clubId && !scripted.lineup.includes(id)).slice(0, 12) }
+    if (!sheet.lineup.includes(sheet.captain)) sheet.captain = sheet.lineup[0]
+    for (const k of ['penalties', 'freeKicks', 'cornersL', 'cornersR'] as const) if (!sheet.lineup.includes(sheet[k])) sheet[k] = [...sheet.lineup].sort((a, b) => (w.players[b]?.ovr || 0) - (w.players[a]?.ovr || 0))[0]
+  }
   const players: Record<number, Player> = {}
   for (const id of [...sheet.lineup, ...sheet.bench]) if (w.players[id]) players[id] = w.players[id]
   const mgr = w.managers[club.managerId]
@@ -69,12 +75,14 @@ export function sideInput(w: World, clubId: number, comp: Competition | undefine
 }
 
 /** `detail` keeps commentary, action log and heat maps (live, watched and user-relevant matches). */
-export function createSim(w: World, f: Fixture, userLive: boolean, detail = userLive || f.userInvolved === true): MatchSim {
+export function createSim(w: World, f: Fixture, userLive: boolean, detail = userLive || f.userInvolved === true || !!w.scripts?.[f.id]): MatchSim {
   const comp = w.competitions[f.compId]
   const ctx = matchContext(w, f, detail)
   ctx.assistantSubs = !!w.flags.assistantSubs
-  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId)
-  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId)
+  const script = w.scripts?.[f.id]
+  if (script) ctx.script = script
+  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId, script?.lineups?.['0'])
+  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId, script?.lineups?.['1'])
   return new MatchSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
 }
 
@@ -95,7 +103,7 @@ export function deepLeagueSet(w: World): Set<number> {
 
 /** Whether a fixture gets the full match engine (the user's games always do). */
 export function isDeepFixture(w: World, f: Fixture, set = deepLeagueSet(w)): boolean {
-  if (f.userInvolved) return true
+  if (f.userInvolved || w.scripts?.[f.id]) return true
   const comp = w.competitions[f.compId]
   if (comp?.format === 'league' && comp.leagueId != null) return set.has(comp.leagueId)
   const h = w.clubs[f.home], a = w.clubs[f.away]
@@ -121,9 +129,12 @@ const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 
 /** `full` keeps the complete result (commentary, extended stats, heat maps) — for matches the manager watched. */
 export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng: Rng, full = false): { injuries: { id: number; days: number; type: string }[]; bans: { id: number; games: number }[] } {
   const comp = w.competitions[f.compId]
-  const keepFull = f.userInvolved || full
+  const edited = !!w.scripts?.[f.id]
+  const keepFull = f.userInvolved || full || edited
   const inUserComp = comp?.clubs.includes(w.userClubId) || comp?.format === 'uefa'
   f.played = true
+  // a scripted match is marked as edited in its report; the script has done its job
+  if (edited) { f.edited = true; delete w.scripts![f.id] }
   // followed competitions and deep-simulated leagues keep line-ups, ratings and key events for their match reports
   f.result = keepFull ? result : compact(result, !!inUserComp || (result.detail === 'full' && isDeepFixture(w, f)))
   if (comp?.format === 'league' || (comp?.format === 'uefa' && !f.roundId)) applyResultToTable(comp, f)

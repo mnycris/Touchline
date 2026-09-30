@@ -15,6 +15,8 @@ export interface NewCareerOptions {
   settings: CareerSettings
   saveName?: string
   seed?: number
+  /** Edit Mode save: permanent, marked with a pencil */
+  editMode?: boolean
 }
 
 const h01 = (s: string) => (hashString(s) % 100000) / 100000
@@ -110,7 +112,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   const rng = new Rng(seed)
   const start = raw.startDate
   const w: World = {
-    meta: { version: 1, id: `career-${seed.toString(36)}`, created: new Date().toISOString(), seed, saveName: opts.saveName || '', playTimeMin: 0 },
+    meta: { version: 1, id: `career-${seed.toString(36)}`, created: new Date().toISOString(), seed, saveName: opts.saveName || '', playTimeMin: 0, ...(opts.editMode ? { editMode: true } : {}) },
     date: start, season: 2026, seasonStart: start, seasonEnd: '2027-06-30', rng: seed, settings: opts.settings,
     user: {
       firstName: opts.manager.firstName, lastName: opts.manager.lastName, nationality: opts.manager.nationality, dob: opts.manager.dob,

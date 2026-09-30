@@ -99,8 +99,8 @@ function Toast() {
   const toast = useGame((s) => s.toast)
   if (!toast) return null
   return (
-    <div className="toast" key={toast.id} style={{ borderColor: toast.kind === 'err' ? 'rgba(255,77,94,.5)' : toast.kind === 'ok' ? 'rgba(43,240,143,.4)' : undefined }}>
-      <Icon name={toast.kind === 'err' ? 'warning' : toast.kind === 'ok' ? 'check' : 'info'} size={18} color={toast.kind === 'err' ? 'var(--neg)' : toast.kind === 'ok' ? 'var(--acc)' : 'var(--info)'} />
+    <div className={`toast ${toast.kind === 'edit' ? 'edit' : ''}`} key={toast.id} style={{ borderColor: toast.kind === 'err' ? 'rgba(255,77,94,.5)' : toast.kind === 'ok' ? 'rgba(43,240,143,.4)' : toast.kind === 'edit' ? 'rgba(244,197,66,.55)' : undefined }}>
+      <Icon name={toast.kind === 'err' ? 'warning' : toast.kind === 'ok' ? 'check' : toast.kind === 'edit' ? 'edit' : 'info'} size={18} color={toast.kind === 'err' ? 'var(--neg)' : toast.kind === 'ok' ? 'var(--acc)' : toast.kind === 'edit' ? 'var(--gold)' : 'var(--info)'} />
       {toast.text}
     </div>
   )

@@ -16,6 +16,7 @@ import { Ball, BenchRowFM, Boot, MatchLineup, MissedPen, RatingPill, ratingColor
 import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { underWhite } from '../theme'
+import { ScriptEditor } from '../components/ScriptEditor'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
@@ -76,6 +77,7 @@ export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: nu
           <span className="grow ellipsis small b">{w.clubs[f.away]?.short}</span>
         </div>
         {watching && <Icon name="eye" size={14} color="var(--acc)" />}
+        {(w.scripts?.[f.id] || f.edited) && <Icon name="edit" size={13} color="var(--gold)" />}
       </button>
       {sheet && <FixtureSheet w={w} f={f} onClose={() => setSheet(false)} />}
     </>
@@ -93,6 +95,8 @@ function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => 
   const today = f.date === w.date
   const watching = w.flags.watch === f.id
   const canWatch = !f.userInvolved && !f.played && f.date >= w.date && !live
+  const [scripting, setScripting] = useState(false)
+  if (scripting) return <ScriptEditor w={w} f={f} onClose={() => { setScripting(false); onClose() }} />
   return (
     <Sheet open onClose={onClose}>
       <div className="row tight" style={{ justifyContent: 'center', gap: 6 }}>{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="tiny b upper dim">{comp?.short} · {f.roundName}</span></div>
@@ -112,6 +116,11 @@ function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => 
       )}
       {canWatch && <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>{today ? 'You watch as a spectator: no team controls. The other games kicking off at the same time run alongside it.' : `Continue will stop on ${fmtDate(f.date, 'long')} so you can watch it live.`}</div>}
       {f.userInvolved && <div className="tiny dim" style={{ textAlign: 'center', marginTop: 12 }}>Your own match. Play it from Match Day.</div>}
+      {w.meta.editMode && !f.played && (
+        <button className="btn block ed-open" style={{ marginTop: 12 }} onClick={() => { haptic('medium'); useGame.getState().notify('Edit match', 'edit'); setScripting(true) }}>
+          <Icon name="edit" size={17} /> {w.scripts?.[f.id] ? 'Edit match script' : 'Edit match'}
+        </button>
+      )}
       <div className="row" style={{ gap: 8, marginTop: 14 }}>
         <button className="btn grow" onClick={() => { onClose(); go({ name: 'club', params: { id: home.id } }) }}><Badge club={home} size={16} /> {home.short}</button>
         <button className="btn grow" onClick={() => { onClose(); go({ name: 'club', params: { id: away.id } }) }}><Badge club={away} size={16} /> {away.short}</button>
@@ -827,6 +836,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
           <div className="col center" style={{ minWidth: 100 }}>
             <div className="display num" style={{ fontSize: 46, lineHeight: 1 }}>{r.score[0]} – {r.score[1]}</div>
             <div className="tiny dim" style={{ marginTop: 4 }}>{r.pens ? `${r.pens[0]}–${r.pens[1]} on penalties` : r.et ? 'After extra time' : `Full-time · HT ${r.ht[0]}–${r.ht[1]}`}</div>
+            {f.edited && <div className="tiny row tight" style={{ marginTop: 4, color: 'var(--gold)', justifyContent: 'center' }}><Icon name="edit" size={11} /> Edited match</div>}
           </div>
           <button className="md-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><Badge club={away} size={58} /><b>{away.short}</b></button>
         </div>

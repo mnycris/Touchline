@@ -32,6 +32,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
   const [leagueId, setLeagueId] = useState<number>()
   const [clubId, setClubId] = useState<number>()
   const [saveName, setSaveName] = useState('')
+  const [editMode, setEditMode] = useState(false)
   const [settings, setSettings] = useState<CareerSettings>({ difficulty: 'Professional', transferDifficulty: 'Normal', injuries: 'Normal', growth: 'Normal', sacking: true, aiTransfers: true, startingBudget: 'Default' })
   const [starting, setStarting] = useState(false)
 
@@ -76,7 +77,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
       {step === 'league' && <LeagueStep raw={raw} onPick={(id) => { setLeagueId(id); setClubId(undefined); next() }} />}
       {step === 'club' && league && <ClubStep raw={raw} league={league} onPick={(id) => { setClubId(id); next() }} />}
       {step === 'inspect' && club && <InspectStep raw={raw} club={club} onNext={next} />}
-      {step === 'settings' && <SettingsStep settings={settings} setSettings={setSettings} onNext={next} leagues={raw.leagues} own={club?.leagueId} />}
+      {step === 'settings' && <SettingsStep settings={settings} setSettings={setSettings} onNext={next} leagues={raw.leagues} own={club?.leagueId} editMode={editMode} setEditMode={setEditMode} />}
       {step === 'confirm' && club && (
         <div className="pad stack fade-up">
           <div className="hero" style={{ padding: 18, background: `linear-gradient(135deg, ${clubAccent(club)}, #06080d 80%)` }}>
@@ -97,6 +98,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
             <Line k="Transfer budget" v={fmtMoney(rawBudget(raw, club) * (settings.startingBudget === 'High' ? 1.6 : settings.startingBudget === 'Low' ? 0.6 : 1))} />
             <Line k="Difficulty" v={settings.difficulty} />
             <Line k="Transfers" v={settings.transferDifficulty} />
+            {editMode && <Line k="Edit Mode" v={<span className="row tight" style={{ color: 'var(--gold)' }}><Icon name="edit" size={14} /> On · permanent</span> as any} />}
           </div>
           <div className="field">
             <label className="label">Save name</label>
@@ -107,7 +109,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
             setStarting(true)
             window.setTimeout(async () => {
               const born = `${2026 - age}-0${1 + (first.length % 9)}-1${last.length % 9}`
-              await startCareer({ clubId: club.id, manager: { firstName: first.trim(), lastName: last.trim(), nationality: nation, dob: born, avatar: DEFAULT_AVATAR, realManager: identity.real, avatarColor: identity.color, style: identity.style }, settings, saveName: saveName.trim() || `${club.short} Career` })
+              await startCareer({ clubId: club.id, manager: { firstName: first.trim(), lastName: last.trim(), nationality: nation, dob: born, avatar: DEFAULT_AVATAR, realManager: identity.real, avatarColor: identity.color, style: identity.style }, settings, saveName: saveName.trim() || `${club.short} Career`, editMode })
             }, 60)
           }}>
             <Icon name="whistle" size={22} /> Start Career
@@ -403,7 +405,7 @@ function Info({ icon, k, v }: { icon: string; k: string; v: any }) {
 }
 
 // ----------------------------------------------------------------- settings
-function SettingsStep({ settings, setSettings, onNext, leagues, own }: { settings: CareerSettings; setSettings: (s: CareerSettings) => void; onNext: () => void; leagues: PickLeague[]; own?: number }) {
+function SettingsStep({ settings, setSettings, onNext, leagues, own, editMode, setEditMode }: { settings: CareerSettings; setSettings: (s: CareerSettings) => void; onNext: () => void; leagues: PickLeague[]; own?: number; editMode: boolean; setEditMode: (v: boolean) => void }) {
   const set = (p: Partial<CareerSettings>) => setSettings({ ...settings, ...p })
   const diffs: CareerSettings['difficulty'][] = ['Beginner', 'Amateur', 'Semi-Pro', 'Professional', 'World Class', 'Legendary', 'Ultimate']
   return (
@@ -426,6 +428,9 @@ function SettingsStep({ settings, setSettings, onNext, leagues, own }: { setting
       <div className="card pad-card">
         <div className="label" style={{ marginBottom: 8 }}>Followed leagues</div>
         <DeepLeaguePicker leagues={leagues} own={own} value={settings.deepLeagues} onChange={(v) => set({ deepLeagues: v })} />
+      </div>
+      <div className={`card edit-opt ${editMode ? 'on' : ''}`}>
+        <Toggle label={<span className="row tight"><Icon name="edit" size={16} color="var(--gold)" /> Enable Edit Mode</span> as any} sub="Sandbox freedom: edit players, move them between clubs, script upcoming matches and override negotiations, all from the screens you already use. The save is permanently marked as edited." on={editMode} onChange={(v) => { haptic(); setEditMode(v) }} />
       </div>
       <button className="btn primary block" onClick={onNext}>Continue <Icon name="forward" size={18} /></button>
     </div>

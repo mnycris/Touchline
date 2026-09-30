@@ -61,6 +61,7 @@ export function HubActions() {
   const n = w ? unreadCount(w) : 0
   return (
     <div className="row tight">
+      {w?.meta.editMode && <span className="edit-flag" title="Edit Mode career" aria-label="Edit Mode career"><Icon name="edit" size={13} strokeWidth={2.2} /></span>}
       <button className="iconbtn" aria-label="Inbox" onClick={() => go({ name: 'inbox' })}>
         <Icon name="inbox" size={21} />
         {n > 0 && <span className="dot">{n > 99 ? '99+' : n}</span>}

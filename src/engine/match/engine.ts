@@ -12,7 +12,7 @@
 // Frames: every side works in its own "team frame" (x 0 → 100 toward the opponent goal, y 0 = its left touchline).
 // `this.b` is the ball in the frame of the side in possession. See pitch.ts.
 // ============================================================================
-import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, TeamMatchStats, TeamSheet, TeamTactics } from '../../domain/types'
+import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, TeamMatchStats, TeamSheet, TeamTactics, MatchScript, ScriptEvent } from '../../domain/types'
 import { A } from '../../domain/types'
 import { Rng, clamp } from '../../domain/rng'
 import { formationOf, POS_GROUP, type Formation } from '../../domain/constants'
@@ -93,6 +93,8 @@ export interface MatchContext {
   assistantSubs?: boolean
   aiBoost?: number // difficulty multiplier applied to the side the user is facing
   year?: number // calendar year of the match (ages)
+  /** Edit Mode: facts this match must contain; everything else is simulated normally */
+  script?: MatchScript
 }
 
 // ---------------------------------------------------------------- player model
@@ -351,6 +353,9 @@ export class MatchSim {
     for (const s of this.sides) {
       s.dayForm = clamp(this.rng.normal(0, 2), -4.5, 4.5)
       s.boost = us === 0 || us === 1 ? (s.idx === us ? 1 : ctx.aiBoost ?? 1) : 1
+      // Edit Mode balance: one side sharper, the other a little flat
+      const bias = ctx.script?.bias || 0
+      if (bias) s.boost *= s.idx === 0 ? 1 + 0.045 * bias : 1 - 0.04 * bias
       s.home = ctx.neutral ? 0 : s.idx === 0 ? 1.5 : -0.35
       this.initSide(s)
     }
@@ -366,7 +371,9 @@ export class MatchSim {
       keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, yellow: false, red: false, started: on, ...emptyExt(),
     }
     const sd = 1.6 + 2.6 * (1 - clamp(p.hidden.consistency, 1, 99) / 100)
-    const form = clamp(this.rng.normal(0, sd), -7, 7)
+    const told = this.ctx.script?.form?.[p.id]
+    // an Edit Mode performance level replaces the day's random form (a little spread keeps it human)
+    const form = told ? clamp(told * 3.6 + this.rng.normal(0, 0.8), -9, 9) : clamp(this.rng.normal(0, sd), -7, 7)
     const ps: Record<string, number> = {}
     for (const k of p.playstyles) if (PS_KEYS.includes(k)) ps[k] = 3
     for (const k of p.playstylesPlus) if (PS_KEYS.includes(k)) ps[k] = 6
@@ -487,6 +494,12 @@ export class MatchSim {
     const s = this.sides[side]
     const max = this.phase === 'ET1' || this.phase === 'ETHT' || this.phase === 'ET2' ? 6 : 5
     return s.subsUsed < max && (s.windowsUsed < (max === 6 ? 4 : 3) || this.phase === 'HT' || this.phase === 'ETHT' || this.phase === 'pre')
+  }
+
+  /** A player with a scripted moment still to come stays on (the AI won't take him off). */
+  private scriptHolds(id: number): boolean {
+    const ev = this.ctx.script?.events
+    return !!ev && ev.some((e) => !this.scriptDone.has(e.id) && (e.player === id || e.assist === id))
   }
 
   substitute(side: 0 | 1, outId: number, inId: number, reason: 'tactical' | 'injury' = 'tactical'): boolean {
@@ -620,7 +633,7 @@ export class MatchSim {
     if (this.minute < endMin) this.minute++
     else this.added++
     if (this.minute === endMin && this.added === 0) {
-      this.addedPlanned = this.plannedStoppage()
+      this.addedPlanned = Math.max(this.plannedStoppage(), this.scriptedAdded(endMin))
       if (this.ctx.commentary && this.addedPlanned > 0) this.push({ min: endMin, type: 'info', side: -1, text: line(this.crng, 'added', { x: this.addedPlanned }) })
     }
     const evStart = this.events.length
@@ -736,7 +749,7 @@ export class MatchSim {
     this.acts = []
     this.notable = null
     for (const s of this.sides) { s.minSec = 0; s.threat = 0 }
-    let t = this.debt
+    let t = this.debt + this.runScript()
     let guard = 0
     while (t < 60 && guard++ < 90) {
       this.sec = t
@@ -760,6 +773,161 @@ export class MatchSim {
     this.sides[side].possSec += dt
     this.sides[side].minSec += dt
     return dt
+  }
+
+  // =========================================================== edit mode scripts
+  private forceShot?: 'goal'
+  private forcePen?: { taker: number; res?: 'goal' | 'saved' | 'miss'; spot?: PenaltyKick['spot']; dive?: 'L' | 'R' | 'C' }
+  private scriptDone = new Set<string>()
+
+  /** The period a match minute belongs to. */
+  private periodOf(min: number): Phase { return min <= 45 ? '1H' : min <= 90 ? '2H' : min <= 105 ? 'ET1' : 'ET2' }
+
+  /** Stoppage time must be long enough for events scripted into it. */
+  private scriptedAdded(endMin: number): number {
+    const ev = this.ctx.script?.events || []
+    return ev.filter((e) => e.min === endMin && e.add).reduce((m, e) => Math.max(m, e.add || 0), 0)
+  }
+
+  /** Goals a side may still score naturally before reaching a scripted final score (undefined: no target). */
+  private goalRoom(side: 0 | 1): number | undefined {
+    const sc = this.ctx.script
+    if (!sc?.score) return undefined
+    const due = (sc.events || []).filter((e) => !this.scriptDone.has(e.id) && e.side === side && (e.kind === 'goal' || (e.kind === 'pen' && (e.pen ?? 'goal') === 'goal'))).length
+    return sc.score[side] - this.score[side] - due
+  }
+
+  private minutesLeft(): number {
+    const end = this.phase === '1H' || this.phase === '2H' ? 90 : 120
+    return Math.max(0, end - this.minute) + (this.phase === '1H' ? 0 : 1)
+  }
+
+  /** Scripted events due this minute, then any late goal still needed for a scripted score. Returns seconds used. */
+  private runScript(): number {
+    const sc = this.ctx.script
+    if (!sc) return 0
+    let used = 0
+    const rank = (e: ScriptEvent) => (e.kind === 'yellow' || e.kind === 'red' ? 0 : e.kind === 'pen' ? 1 : 2)
+    for (const e of [...(sc.events || [])].sort((a, b) => a.min - b.min || (a.add || 0) - (b.add || 0) || rank(a) - rank(b))) {
+      if (this.scriptDone.has(e.id) || this.periodOf(e.min) !== this.phase) continue
+      const endMin = this.phase === '1H' ? 45 : this.phase === '2H' ? 90 : this.phase === 'ET1' ? 105 : 120
+      const due = e.add ? this.minute === endMin && this.added >= e.add : this.minute >= e.min && (this.minute < endMin || this.added === 0 || e.min < endMin)
+      if (!due) continue
+      this.scriptDone.add(e.id)
+      used += e.kind === 'goal' ? this.scriptedGoal(e) : e.kind === 'pen' ? this.scriptedPen(e) : this.scriptedCard(e)
+      if (this.phase === 'FT') return used
+    }
+    // a scripted final score the natural game hasn't reached: late pressure turns into the goal it needs
+    if (sc.score && (this.phase === '2H' || this.phase === 'ET2')) {
+      const endMin = this.phase === '2H' ? 90 : 120
+      for (const side of [0, 1] as const) {
+        const room = this.goalRoom(side)
+        if (!room || room <= 0) continue
+        const left = Math.max(0, endMin - this.minute) + (this.added ? 0 : 2)
+        if (left > room * 3 + 1 && !(this.minute === endMin && this.added)) continue
+        if (this.rng.next() > (left <= room ? 1 : 0.45)) continue
+        const X = this.sides[side]
+        const scorer = this.rng.weighted(X.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'ST' ? 5 : l.g === 'W' || l.g === 'AM' ? 3 : l.g === 'CM' ? 1.4 : 0.5) * (1 + (this.fin(l) - this.ref) / 60))
+        const creators = X.on.filter((l) => l !== scorer && l.pos !== 'GK')
+        const assist = creators.length && this.rng.next() < 0.72 ? this.rng.weighted(creators, (l) => 1 + Math.max(0, this.thru(l) - this.ref) / 12) : undefined
+        if (scorer) used += this.scriptedGoal({ id: `late-${this.minute}-${side}`, kind: 'goal', side, player: scorer.p.id, assist: assist?.p.id, min: this.minute })
+      }
+    }
+    return used
+  }
+
+  /** A scripted player who isn't on yet comes off the bench (if a change is left). */
+  private bringOn(X: Side, id: number): LP | undefined {
+    const on = X.on.find((l) => l.p.id === id)
+    if (on) return on
+    const b = X.bench.find((l) => l.p.id === id && !l.red)
+    if (!b || !this.canSub(X.idx)) return undefined
+    const grp = RGROUP[b.p.positions[0]]
+    const out = [...X.on].filter((l) => l.pos !== 'GK').sort((a, c) => (a.g === grp ? 0 : 1) - (c.g === grp ? 0 : 1) || a.energy - c.energy)[0]
+    if (!out || !this.substitute(X.idx, out.p.id, id)) return undefined
+    return X.on.find((l) => l.p.id === id)
+  }
+
+  /** A goal built from a real move: the assist plays it in, the scorer finishes, every stat is counted as usual. */
+  private scriptedGoal(e: ScriptEvent): number {
+    const X = this.sides[e.side]
+    const c = this.bringOn(X, e.player) || this.rng.weighted(X.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'ST' ? 5 : l.g === 'W' || l.g === 'AM' ? 3 : 1))
+    if (!c) return 0
+    const a = e.assist ? this.bringOn(X, e.assist) : undefined
+    this.pending = null
+    this.ps = e.side
+    this.counter = false
+    const y = 34 + this.rng.next() * 32
+    const spot = { x: 86 + this.rng.next() * 6, y }
+    if (a && a !== c) {
+      const from = { x: 72 + this.rng.next() * 10, y: this.rng.next() < 0.5 ? 18 + this.rng.next() * 20 : 62 + this.rng.next() * 20 }
+      a.at = { ...from }
+      this.b = { ...from }
+      this.car = a
+      this.touch(a)
+      a.st.passes++
+      a.st.passesCompleted++
+      this.log('pass', e.side, a, from, spot, true, c)
+      this.n++
+      this.chain.pass = { from: a, kind: 'pass', n: this.n }
+    } else this.chain.pass = undefined
+    this.b = { ...spot }
+    c.at = { ...spot }
+    this.car = c
+    this.touch(c)
+    this.n++
+    this.forceShot = 'goal'
+    const dt = this.shoot(c, { pressure: 0.3 }, a ? 'pass' : 'solo')
+    this.forceShot = undefined
+    return dt + 10
+  }
+
+  /** A scripted penalty: a foul in the box on the attack, then the kick with the scripted taker and outcome. */
+  private scriptedPen(e: ScriptEvent): number {
+    const X = this.sides[e.side], Y = this.sides[1 - e.side]
+    const taker = this.bringOn(X, e.player) || this.setPieceTaker(X, 'penalty')
+    const def = this.rng.weighted(Y.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'CB' || l.g === 'FB' ? 3 : l.g === 'DM' ? 1.5 : 0.4))
+    if (!taker || !def) return 0
+    const victim = this.rng.next() < 0.5 ? taker : this.rng.weighted(X.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'ST' || l.g === 'W' || l.g === 'AM' ? 3 : 1))
+    this.pending = null
+    this.ps = e.side
+    this.b = { x: 90 + this.rng.next() * 4, y: 40 + this.rng.next() * 20 }
+    this.car = victim
+    victim.at = { ...this.b }
+    this.forcePen = { taker: taker.p.id, res: e.pen || 'goal', spot: e.spot, dive: e.dive }
+    let dt = this.foul(def, victim, 'tackle', this.b)
+    const r = this.pending as Restart | null
+    if (r && r.kind === 'pen') {
+      r.taker = taker
+      this.pending = null
+      dt += 25 + this.restart({ ...r, dead: 0 })
+    }
+    this.forcePen = undefined
+    return dt + 6
+  }
+
+  /** A scripted booking or sending-off, after a foul on the nearest opponent. */
+  private scriptedCard(e: ScriptEvent): number {
+    const F = this.sides[e.side], V = this.sides[1 - e.side]
+    const lp = F.on.find((l) => l.p.id === e.player)
+    if (!lp) return 0
+    const victim = this.nearestOutfield(V.on, flip(lp.at)).l || V.on[0]
+    F.stats.fouls++
+    lp.st.fouls++
+    this.rp(lp, RP.foul)
+    if (victim) { victim.st.foulsWon++; this.rp(victim, RP.foulWon) }
+    if (e.kind === 'red') this.sendOff(lp, false)
+    else if (lp.yellow) this.sendOff(lp, true)
+    else {
+      lp.yellow = true
+      lp.st.yellow = true
+      this.rp(lp, RP.yellow)
+      F.stats.yellows++
+      this.ev('yellow', F.idx, line(this.crng, 'yellow', { p: callName(lp.p.name) }), { player: lp.p.id, player2: victim?.p.id })
+    }
+    this.car = null
+    this.pending = { kind: 'fk', side: V.idx, at: { x: 35 + this.rng.next() * 30, y: 15 + this.rng.next() * 70 }, dead: 35 + this.rng.next() * 20, victim }
+    return 4
   }
 
   // =========================================================== positions
@@ -1783,7 +1951,8 @@ export class MatchSim {
     const intro = this.ctx.commentary ? this.intro(how, !!passer, !!ctx.header, v) : ''
     const blocker = this.nearestOutfield(Y.on, b).l
     const goalPt = { x: 100, y: 50 }
-    if (blocker && this.rng.next() < pBlock * clamp(1 + (this.e(blocker, A.defAwareness) - this.ref) / 80 + blocker.pb.block / 20, 0.6, 1.4)) {
+    const force = this.forceShot
+    if (!force && blocker && this.rng.next() < pBlock * clamp(1 + (this.e(blocker, A.defAwareness) - this.ref) / 80 + blocker.pb.block / 20, 0.6, 1.4)) {
       blocker.st.blocks++
       Y.stats.blocks++
       this.rp(blocker, RP.block)
@@ -1800,11 +1969,14 @@ export class MatchSim {
     const xgNb = clamp((xg / (1 - pBlock)) * (1 - 0.015 * crowd), 0.005, 0.96)
     const gq = gk ? this.gkStop(gk) : 20
     const Lg = logit(xgNb) + 0.013 * (sk - this.ref) - 0.02 * (gq - this.ref - 4)
-    const pGoal = sigmoid(Lg)
+    let pGoal = sigmoid(Lg)
+    // Edit Mode final score: no goals past the target, and more clinical finishing while a side is short of it
+    const room = force ? undefined : this.goalRoom(X.idx)
+    if (room !== undefined) pGoal = room <= 0 ? 0 : 1 - Math.pow(1 - pGoal, clamp(room / Math.max(0.25, this.minutesLeft() * 0.016), 1, 8))
     const pAvg = sigmoid(logit(xgNb) + 0.013 * (sk - this.ref))
     const pOn = clamp(0.26 + xgNb * 0.8 + 0.011 * (sk - this.ref), Math.max(0.16, pAvg + 0.02), 0.97)
     const xgot = clamp(pAvg / pOn, 0.02, 0.98)
-    const u = this.rng.next()
+    const u = force === 'goal' ? -1 : this.rng.next()
     if (u < pGoal) {
       X.stats.sot++
       c.st.sot++
@@ -1812,7 +1984,7 @@ export class MatchSim {
       X.stats.xgot += xgot
       if (gk) gk.st.xgotFaced += xgot
       this.rp(c, RP.sot)
-      if ((how === 'through' || how === 'counter') && this.rng.next() < 0.035) {
+      if (!force && (how === 'through' || how === 'counter') && this.rng.next() < 0.035) {
         this.log('shot', X.idx, c, b, goalPt, true)
         c.st.offsides++
         X.stats.offsides++
@@ -1955,6 +2127,8 @@ export class MatchSim {
   }
 
   private ownGoal(d: LP, X: Side, Y: Side): number {
+    const room = this.goalRoom(X.idx)
+    if (room !== undefined && room <= 0) { this.cornerFor(X.idx); return 2 }
     this.score[X.idx]++
     d.st.ownGoals++
     this.rp(d, RP.ownGoal)
@@ -2155,7 +2329,8 @@ export class MatchSim {
     }
     const sk = this.fk(k)
     const xgNb = xg / 0.74
-    const pGoal = sigmoid(logit(xgNb) + 0.03 * (sk - this.ref) - 0.022 * ((gk ? this.gkStop(gk) : 20) - this.ref - 4))
+    const fkRoom = this.goalRoom(X.idx)
+    const pGoal = fkRoom !== undefined && fkRoom <= 0 ? 0 : sigmoid(logit(xgNb) + 0.03 * (sk - this.ref) - 0.022 * ((gk ? this.gkStop(gk) : 20) - this.ref - 4))
     const pAvg = sigmoid(logit(xgNb) + 0.03 * (sk - this.ref))
     const pOn = clamp(0.36 + 0.012 * (sk - this.ref), pAvg + 0.02, 0.8)
     const xgot = clamp(pAvg / pOn, 0.02, 0.95)
@@ -2225,7 +2400,7 @@ export class MatchSim {
     } else if (!box && this.ctx.commentary && this.crng.next() < 0.14) {
       this.ev('foul', F.idx, line(this.crng, 'foul', { p: callName(def.p.name), q: callName(victim.p.name) }), { player: def.p.id, player2: victim.p.id })
     }
-    if (this.rng.next() < 0.011 * this.ctx.injuryRate * (0.6 + victim.p.hidden.injuryProne / 80) * (kind === 'aerial' ? 0.6 : 1)) this.injure(victim)
+    if (!this.forcePen && this.rng.next() < 0.011 * this.ctx.injuryRate * (0.6 + victim.p.hidden.injuryProne / 80) * (kind === 'aerial' ? 0.6 : 1)) this.injure(victim)
     this.car = null
     if (box) {
       victim.st.penWon++
@@ -2302,11 +2477,13 @@ export class MatchSim {
     const gq = gk ? this.gkStop(gk) * 0.6 + this.e(gk, A.gkPositioning) * 0.4 : 20
     const pressure = shootout ? (round >= 4 ? 0.06 : 0.03) : this.minute >= 80 && Math.abs(this.score[0] - this.score[1]) <= 1 ? 0.03 : 0
     const confident = clamp((this.e(taker, A.composure) - this.ref + 12) / 60, 0, 0.6)
-    const spot = this.rng.weighted<PenaltyKick['spot']>(['BL', 'BR', 'TL', 'TR', 'C'], (s) => (s === 'BL' || s === 'BR' ? 0.33 : s === 'C' ? 0.1 : 0.1 + confident * 0.15) * ((taker.p.foot === 'L') === (s === 'BR' || s === 'TR') ? 1.15 : 1))
+    const fp = this.forcePen && this.forcePen.taker === taker.p.id ? this.forcePen : undefined
+    if (fp) this.forcePen = undefined
+    const spot = fp?.spot ?? this.rng.weighted<PenaltyKick['spot']>(['BL', 'BR', 'TL', 'TR', 'C'], (s) => (s === 'BL' || s === 'BR' ? 0.33 : s === 'C' ? 0.1 : 0.1 + confident * 0.15) * ((taker.p.foot === 'L') === (s === 'BR' || s === 'TR') ? 1.15 : 1))
     const dirOf = (s: string): 'L' | 'R' | 'C' => (s === 'C' ? 'C' : s[1] === 'L' ? 'L' : 'R')
     const read = clamp(0.36 + (gq - this.ref + 2) / 300, 0.28, 0.5)
     const want = dirOf(spot)
-    const dive: 'L' | 'R' | 'C' = this.rng.next() < 0.1 ? 'C' : this.rng.next() < read + (want === 'C' ? 0 : 0.14) ? (want === 'C' ? (this.rng.next() < 0.5 ? 'L' : 'R') : want) : want === 'L' ? 'R' : want === 'R' ? 'L' : this.rng.next() < 0.5 ? 'L' : 'R'
+    let dive: 'L' | 'R' | 'C' = fp?.dive ?? (this.rng.next() < 0.1 ? 'C' : this.rng.next() < read + (want === 'C' ? 0 : 0.14) ? (want === 'C' ? (this.rng.next() < 0.5 ? 'L' : 'R') : want) : want === 'L' ? 'R' : want === 'R' ? 'L' : this.rng.next() < 0.5 ? 'L' : 'R')
     const high = spot === 'TL' || spot === 'TR'
     const missP = clamp(0.035 + (high ? 0.08 : spot === 'C' ? 0.01 : 0.025) - (pk - this.ref) * 0.0015 + pressure, 0.01, 0.2)
     let res: PenaltyKick['res']
@@ -2315,6 +2492,14 @@ export class MatchSim {
       const saveP = want === 'C' ? 0.85 : high ? 0.2 : clamp(0.55 + (gq - pk) * 0.012, 0.3, 0.8)
       res = this.rng.next() < saveP ? 'saved' : 'goal'
     } else res = 'goal'
+    // Edit Mode: a scripted outcome, and no natural penalty goal past a scripted final score
+    if (!shootout) {
+      const room = fp ? undefined : this.goalRoom(X.idx)
+      const want2 = fp?.res ?? (room !== undefined && room <= 0 && res === 'goal' ? 'saved' : undefined)
+      if (want2 === 'goal') { res = 'goal' }
+      else if (want2 === 'saved') { res = 'saved'; dive = want === 'C' ? 'C' : want }
+      else if (want2 === 'miss') { res = this.rng.next() < 0.35 ? 'post' : 'miss' }
+    }
     const pen: PenaltyKick = { taker: taker.p.id, keeper: gk?.p.id, spot, dive, res }
     if (shootout) return res === 'goal' ? 1 : 0
     const v = { p: callName(taker.p.name), gk: gk ? callName(gk.p.name) : 'the keeper', t: X.name }
@@ -2411,6 +2596,7 @@ export class MatchSim {
   }
 
   private injure(lp: LP) {
+    if (this.scriptHolds(lp.p.id)) return
     if (lp.injured || !lp.on) return
     const side = lp.side
     lp.injured = true
@@ -2498,13 +2684,13 @@ export class MatchSim {
       const poor = s.on.filter((l) => l.pos !== 'GK' && this.liveRating(l) < 6.0).sort((a, b) => this.liveRating(a) - this.liveRating(b))[0]
       if (poor && this.rng.next() < 0.3) {
         const inn = this.bestReplacement(s, poor.pos)
-        if (inn && this.canSub(s.idx) && inn.p.ovr >= poor.p.ovr - 8) this.substitute(s.idx, poor.p.id, inn.p.id)
+        if (inn && this.canSub(s.idx) && inn.p.ovr >= poor.p.ovr - 8 && !this.scriptHolds(poor.p.id)) this.substitute(s.idx, poor.p.id, inn.p.id)
       }
       // a player on a yellow who has been living dangerously comes off
       const risky = s.on.find((l) => l.yellow && l.st.fouls >= 2 && l.pos !== 'GK')
       if (risky && this.rng.next() < 0.5) {
         const inn = this.bestReplacement(s, risky.pos)
-        if (inn && this.canSub(s.idx)) this.substitute(s.idx, risky.p.id, inn.p.id)
+        if (inn && this.canSub(s.idx) && !this.scriptHolds(risky.p.id)) this.substitute(s.idx, risky.p.id, inn.p.id)
       }
     }
   }
@@ -2538,7 +2724,7 @@ export class MatchSim {
       if (!windows.includes(this.minute)) continue
       if (this.minute === 87 && !(effLead >= 1 || effLead <= -1) && this.rng.next() < 0.5) continue
       const live = (l: LP) => this.liveRating(l)
-      const cands = s.on.filter((l) => l.pos !== 'GK').map((l) => {
+      const cands = s.on.filter((l) => l.pos !== 'GK' && !this.scriptHolds(l.p.id)).map((l) => {
         let need = 0
         if (l.energy < 79) need += (79 - l.energy) / 9
         if (this.minute >= 75) need += 0.25
@@ -2565,7 +2751,7 @@ export class MatchSim {
   }
 
   private aiAttackingSub(s: Side) {
-    const out = s.on.filter((l) => (l.g === 'CB' || l.g === 'FB' || l.g === 'DM') && l.pos !== 'GK').sort((a, b) => this.liveRating(a) - this.liveRating(b))[0]
+    const out = s.on.filter((l) => (l.g === 'CB' || l.g === 'FB' || l.g === 'DM') && l.pos !== 'GK' && !this.scriptHolds(l.p.id)).sort((a, b) => this.liveRating(a) - this.liveRating(b))[0]
     const att = s.bench.filter((b) => POS_GROUP[b.p.positions[0]] === 'ATT' || POS_GROUP[b.p.positions[0]] === 'MID').sort((a, b) => b.p.ovr - a.p.ovr)[0]
     if (out && att && this.canSub(s.idx)) this.substitute(s.idx, out.p.id, att.p.id)
   }
@@ -2615,7 +2801,9 @@ export class MatchSim {
   private liveRating(l: LP, final = false): number {
     const reg = this.phase === 'ET1' || this.phase === 'ET2' || this.phase === 'ETHT' ? 120 : 90
     const gf = this.score[l.side], ga = this.score[1 - l.side]
-    return computeRating({ rp: l.rp, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 })
+    const r = computeRating({ rp: l.rp, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 })
+    const told = this.ctx.script?.form?.[l.p.id]
+    return told ? clamp(Math.round((r + told * 0.3 * clamp(this.minute / reg, 0.3, 1)) * 10) / 10, 3, 10) : r
   }
 
   private finalRatings() {

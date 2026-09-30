@@ -13,6 +13,7 @@ export interface SaveMeta {
   playTimeMin: number
   leagueName: string
   position?: number
+  editMode?: boolean
   size: number
   auto?: boolean
 }

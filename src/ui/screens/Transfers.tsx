@@ -1,4 +1,6 @@
 import { useRemember } from '../memory'
+import { EditToggle, useEditing } from '../components/Editors'
+import { editDealFlags, editNegotiation, editTalks } from '../../engine/world/edit'
 import { squadPlan } from '../../engine/world/squadPlan'
 import { callName } from '../../engine/match/commentary'
 import { useEffect, useMemo, useState } from 'react'
@@ -412,6 +414,7 @@ export function HireSheet({ open, onClose, youth }: { open: boolean; onClose: ()
 // ============================================================================ negotiation room
 export function Negotiation({ params }: { params: { playerId: number; offerId?: string; stage?: 'contract' } }) {
   const w = useWorld()
+  const [editing, toggleEdit] = useEditing('Negotiation')
   const mutate = useGame((s) => s.mutate)
   const close = useGame((s) => s.close)
   const notify = useGame((s) => s.notify)
@@ -507,8 +510,17 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
   }
   const agentAsk = talks?.status === 'open' ? talks.ask : undefined
   const mood = stage === 'contract' ? talks?.patience ?? 100 : offer?.patience ?? 100
+  // Edit Mode: bend the negotiation without leaving it
+  const forceFee = () => {
+    haptic('heavy')
+    let r: any
+    mutate((w) => { editDealFlags(w, p.id, { willing: true, accept: true }); r = submitBid(w, w.players[p.id], { type, fee: isLoan ? 0 : fee, sellOn, swapPlayerId: swap, loanWageSplit: isLoan ? split : undefined, optionFee: type !== 'loan' && isLoan ? option : undefined }, offerId); editDealFlags(w, p.id, { accept: false }) })
+    if (r?.offerId) setOfferId(r.offerId)
+    chat.send({ by: 'me', text: isLoan ? 'Loan proposal' : `We offer ${fmtMoney(fee)}` }, [{ by: 'them', who: seller?.short, text: r?.ok ? 'We accept. You may speak to the player.' : r?.text || 'No deal.', tone: r?.ok ? 'good' : 'bad' }], () => { if (r?.ok) setStage('contract') })
+  }
+  const forceTerms = () => { haptic('heavy'); mutate((w) => editTalks(w, p.id, { accept: c })); propose() }
   return (
-    <Screen title="Negotiation Room" sub={seller ? `${seller.name}` : 'Free agent'} back onBack={close} noNav>
+    <Screen title="Negotiation Room" sub={seller ? `${seller.name}` : 'Free agent'} back onBack={close} noNav right={<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit negotiation" />}>
       <div className="pad stack fade-up">
         <div className="nego-head">
           <div className="col center" style={{ gap: 6 }}><Badge club={club} size={40} /><span className="tiny b">{club.short}</span></div>
@@ -529,6 +541,30 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
           {stage === 'contract' && talks?.priority && <div className="tiny dim row tight" style={{ gap: 5, marginTop: 6 }}><Icon name="star" size={12} color="var(--gold)" />{PRIORITY_TEXT[talks.priority]}</div>}
         </div>
         {!stance.willing && !p.contract.releaseClause && stage === 'offer' && <div className="card pad-card small row tight" style={{ background: 'rgba(255,77,94,.08)' }}><Icon name="lock" size={16} color="var(--neg)" />{stance.reason}</div>}
+        {editing && stage !== 'done' && (
+          <div className="card ed-card fade-up">
+            <div className="ed-head"><span className="ed-badge"><Icon name="edit" size={13} strokeWidth={2.3} /> Editing</span><span className="grow" /><span className="small b">{stage === 'offer' ? `${seller?.short || 'Club'}'s position` : `${p.name.split(' ').slice(-1)[0]}'s demands`}</span></div>
+            <div className="ed-body stack" style={{ gap: 10 }}>
+              {stage === 'offer' && (
+                <>
+                  {!stance.willing && <button className="btn sm block" onClick={() => { haptic('medium'); mutate((w) => editDealFlags(w, p.id, { willing: true })); notify(`${seller?.short} will listen to offers`, 'edit') }}><Icon name="lock" size={15} /> Make them willing to sell</button>}
+                  {offer && offer.sellerFloor != null && (
+                    <div className="ed-line"><span className="small">Lowest fee they'd take</span><Stepper value={offer.sellerFloor} min={0} max={Math.max(offer.sellerFloor * 3, p.value * 3)} step={step(offer.sellerFloor)} onChange={(v) => mutate((w) => editNegotiation(w, offer.id, { floor: v }), { save: false })} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+                  )}
+                  {offer && <div className="ed-line"><span className="small">Their patience</span><button className="chip sm" onClick={() => { haptic(); mutate((w) => editNegotiation(w, offer.id, { patience: 100 })) }}>Restore to 100</button></div>}
+                  <button className="btn sm ed-apply block" disabled={chat.busy || (!isLoan && fee > club.finance.transferBudget)} onClick={forceFee}><Icon name="check" size={16} /> They accept {isLoan ? 'this loan' : fmtMoney(fee, { short: true })}</button>
+                </>
+              )}
+              {stage === 'contract' && talks && (
+                <>
+                  <div className="ed-line"><span className="small">Lowest wage he'd take</span><Stepper value={talks.floor} min={0} max={Math.max(talks.floor * 3, 50_000)} step={talks.floor >= 100_000 ? 5_000 : talks.floor >= 10_000 ? 1_000 : 250} onChange={(v) => mutate((w) => editTalks(w, p.id, { wageFloor: v }), { save: false })} fmt={(v) => `${fmtMoney(v, { short: true })}/wk`} /></div>
+                  <div className="ed-line"><span className="small">Agent's patience</span><button className="chip sm" onClick={() => { haptic(); mutate((w) => editTalks(w, p.id, { patience: 100 })) }}>Restore to 100</button></div>
+                  <button className="btn sm ed-apply block" disabled={chat.busy} onClick={forceTerms}><Icon name="check" size={16} /> He accepts the terms below</button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <ChatLog lines={chat.lines} typing={chat.typing} avatar={avatar} />
 
         {stage === 'offer' && (

@@ -27,6 +27,7 @@ import { FixtureRow, assignToFormation } from './Match'
 import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
 import { useRemember } from '../memory'
+import { ScriptEditor } from '../components/ScriptEditor'
 
 function poisson(l: number, k: number) { let p = Math.exp(-l); for (let i = 1; i <= k; i++) p *= l / i; return p }
 
@@ -59,6 +60,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const [tab, setTab] = useRemember<'preview' | 'lineups' | 'table' | 'bracket' | 'h2h'>('tab', 'preview')
   const [pick, setPick] = useState<LineupTap>()
   const [formOpen, setFormOpen] = useState(false)
+  const [scripting, setScripting] = useState(false)
   const todayFx = userFixtureOn(w, w.date)
   const f = params?.id ? w.fixtures[params.id] : todayFx
   const isToday = !!f && !!todayFx && f.id === todayFx.id
@@ -114,6 +116,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const colors = kitColors(home, away)
   return (
     <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={close} noNav style={kitVars(colors)}
+      right={w.meta.editMode ? <button className={`iconbtn edit-btn ${w.scripts?.[f.id] ? 'on' : ''}`} aria-label="Edit match" onClick={() => { haptic('medium'); useGame.getState().notify('Edit match', 'edit'); setScripting(true) }}><Icon name="edit" size={19} strokeWidth={2.1} /></button> : undefined}
       footer={isToday ? (
         <div className="md-footer">
           <button className="btn" onClick={() => start('sim')}><Icon name="skip" size={18} /> Quick sim</button>
@@ -222,6 +225,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       {view === 'h2h' && <H2H w={w} f={f} />}
 
       <PickSheet w={w} t={pick} sheet={valid} onClose={() => setPick(undefined)} edit={edit} comp={comp} />
+      {scripting && <ScriptEditor w={w} f={f} onClose={() => setScripting(false)} />}
       <Sheet open={formOpen} onClose={() => setFormOpen(false)} title="Formation">
         <div className="row wrap" style={{ gap: 7 }}>
           {FORMATIONS.map((fm) => (

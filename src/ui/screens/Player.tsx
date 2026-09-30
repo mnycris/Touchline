@@ -1,5 +1,6 @@
 import { useRemember } from '../memory'
 import { underWhite } from '../theme'
+import { EditToggle, PlayerEditor, useEditing } from '../components/Editors'
 import { useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, SquadRole, World } from '../../domain/types'
@@ -26,6 +27,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
   const w = useWorld()
   const p = w.players[params.id]
   const [tab, setTab] = useRemember<Tab>('tab', 'attributes')
+  const [editing, toggleEdit, setEditing] = useEditing('Player')
   if (!p) return <Screen title="Player" back><div className="pad muted">Player not found (retired or removed).</div></Screen>
   const mine = p.clubId === w.userClubId || p.loan?.fromClubId === w.userClubId
   const club = w.clubs[p.clubId]
@@ -35,7 +37,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
   const fs = faceStats(p)
   const age = ageOf(w, p)
   return (
-    <Screen title={p.name} sub={club ? club.name : 'Free agent'} back right={!mine ? <ShortlistBtn w={w} p={p} /> : undefined}>
+    <Screen title={p.name} sub={club ? club.name : 'Free agent'} back right={<div className="row tight">{!mine && <ShortlistBtn w={w} p={p} />}<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit player" /></div>}>
       <div className="pad">
         <div className="player-hero" style={{ ['--pc' as any]: underWhite(club?.theme) }}>
           <div className="player-hero-bg" />
@@ -59,6 +61,8 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
           </div>
         </div>
       </div>
+
+      {editing && <div className="pad" style={{ marginTop: 10 }}><PlayerEditor key={p.id} w={w} p={p} onClose={() => setEditing(false)} /></div>}
 
       <div className="pad" style={{ marginTop: 10 }}>
         <div className="grid3">

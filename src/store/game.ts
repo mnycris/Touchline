@@ -73,7 +73,7 @@ interface GameState {
   advancing: boolean
   advanceLabel?: string
   lastStop?: StopReason
-  toast?: { id: number; text: string; kind: 'ok' | 'err' | 'info' }
+  toast?: { id: number; text: string; kind: 'ok' | 'err' | 'info' | 'edit' }
   /** "Latest news" drop-in: a few important fresh stories */
   newsDrop?: { ids: string[]; nonce: number }
   prefs: AppPrefs
@@ -104,7 +104,7 @@ interface GameState {
   /** watch a fixture live: today it opens straight away; a future one stops the calendar on its day */
   watchFixture: (fixtureId: string) => void
   setLive: (l?: LiveMatch) => void
-  notify: (text: string, kind?: 'ok' | 'err' | 'info') => void
+  notify: (text: string, kind?: 'ok' | 'err' | 'info' | 'edit') => void
   /** show the latest-news drop-in if anything important happened since the last one */
   checkNews: () => void
   clearNewsDrop: () => void
@@ -200,7 +200,7 @@ export const useGame = create<GameState>((set, get) => ({
       await saveCareer(w, {
         id: get().saveId || w.meta.id, name: w.meta.saveName || `${club.name} Career`, managerName: `${w.user.firstName} ${w.user.lastName}`,
         clubId: club.id, clubName: club.name, date: w.date, season: w.season, playTimeMin: w.meta.playTimeMin,
-        leagueName: w.leagues[club.leagueId]?.short || club.country, position: comp ? positionOf(w, comp, club.id) : undefined, auto,
+        leagueName: w.leagues[club.leagueId]?.short || club.country, position: comp ? positionOf(w, comp, club.id) : undefined, auto, editMode: !!w.meta.editMode,
       })
       if (!auto) get().notify('Career saved', 'ok')
     } catch (e) {

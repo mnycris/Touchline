@@ -119,7 +119,7 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
             <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy} onClick={async () => { setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) { setBusy(undefined); useGame.getState().notify('Save could not be loaded', 'err') } }}>
               <Badge club={{ id: s.clubId, badge: true, sofifaTeamId: 0, name: s.clubName, abbr: s.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={46} />
               <div className="grow" style={{ minWidth: 0 }}>
-                <div className="t b ellipsis">{s.name}</div>
+                <div className="t b row tight" style={{ minWidth: 0 }}><span className="ellipsis">{s.name}</span>{s.editMode && <span className="edit-flag sm" title="Edit Mode career"><Icon name="edit" size={11} strokeWidth={2.2} /></span>}</div>
                 <div className="tiny muted" style={{ marginTop: 2 }}>{s.managerName} · {s.clubName}</div>
                 <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'long')} · {seasonLabel(s.season)}{s.position ? ` · ${ordinal(s.position)}` : ''}</div>
                 <div className="tiny dim" style={{ marginTop: 2 }}>Saved {new Date(s.updated).toLocaleString()} · {(s.size / 1e6).toFixed(1)} MB{s.auto ? ' · autosave' : ''}</div>

@@ -44,6 +44,7 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
 export function sellerStance(w: World, p: Player, buyerId: number): { willing: boolean; reason?: string } {
   const club = w.clubs[p.clubId]
   if (!club) return { willing: true }
+  if (w.meta.editMode && w.flags.editWilling?.[p.id]) return { willing: true }
   if (p.untouchable) return { willing: false, reason: `${club.short} consider ${p.name} untouchable.` }
   const blocked = buyerId === w.userClubId ? bidBlock(w, p.id) : undefined
   if (blocked) return { willing: false, reason: `${club.short} refuse to discuss ${p.name} again until ${fmtDate(blocked.until, 'dm')} after the last talks collapsed.` }

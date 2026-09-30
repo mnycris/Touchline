@@ -1,3 +1,4 @@
+import { editNegotiation } from './edit'
 // Operations the manager performs from the UI. Every function mutates the World
 // directly and returns a user-facing outcome; callers persist via the store.
 import type { ContractOffer, Player, SquadRole, TransferOffer, World } from '../../domain/types'
@@ -172,7 +173,9 @@ export function submitBid(w: World, p: Player, terms: BidTerms, existing?: strin
     o = makeOffer(w, { playerId: p.id, ...terms, patience: 100 })
   }
   const offer = o
-  const res = withRng(w, (rng) => evaluateOffer(w, offer, rng))
+  // Edit Mode override: the selling club agrees to this bid
+  const forced = w.meta.editMode && w.flags.editAccept?.[p.id]
+  const res = forced ? (editNegotiation(w, offer.id, { accept: true }), 'accept' as const) : withRng(w, (rng) => evaluateOffer(w, offer, rng))
   const last = offer.history[offer.history.length - 1]
   const t = w.transfers.targets[p.id]
   if (t) t.status = offer.status

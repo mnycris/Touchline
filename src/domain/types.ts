@@ -321,6 +321,30 @@ export interface MatchEvent {
   pen?: PenaltyKick
 }
 
+// ---------------------------------------------------------------- edit mode: scripted matches
+/** −2 … +2: much worse, worse, normal, better, much better. */
+export type ScriptLevel = -2 | -1 | 0 | 1 | 2
+export interface ScriptEvent {
+  id: string
+  kind: 'goal' | 'pen' | 'yellow' | 'red'
+  side: 0 | 1
+  player: number // scorer, penalty taker, or the player booked
+  assist?: number
+  min: number // match minute 1–120
+  add?: number // stoppage-time minute (45+add, 90+add)
+  pen?: 'goal' | 'saved' | 'miss'
+  spot?: 'BL' | 'BR' | 'TL' | 'TR' | 'C'
+  dive?: 'L' | 'R' | 'C'
+}
+/** Facts the editor guarantees; the match engine plays everything else out as normal around them. */
+export interface MatchScript {
+  bias?: ScriptLevel // + favours the home side
+  score?: [number, number] // final score (after extra time)
+  events?: ScriptEvent[]
+  form?: Record<number, ScriptLevel> // individual performances
+  lineups?: Partial<Record<'0' | '1', { formation: string; lineup: number[]; bench: number[] }>>
+}
+
 export interface PenaltyKick {
   taker: number
   keeper?: number
@@ -387,6 +411,8 @@ export interface Fixture {
   away: number
   leg?: 1 | 2
   tieId?: string
+  /** played from an Edit Mode script */
+  edited?: boolean
   neutral?: boolean
   venue?: string
   played: boolean
@@ -688,8 +714,10 @@ export interface CareerSettings {
 }
 
 export interface World {
-  meta: { version: number; id: string; created: string; seed: number; saveName: string; playTimeMin: number }
+  meta: { version: number; id: string; created: string; seed: number; saveName: string; playTimeMin: number; editMode?: boolean }
   date: ISODate
+  /** Edit Mode: scripts for upcoming fixtures, by fixture id */
+  scripts?: Record<string, MatchScript>
   season: number // season start year
   seasonStart: ISODate
   seasonEnd: ISODate

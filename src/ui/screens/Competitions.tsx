@@ -1,4 +1,5 @@
 import { useRemember } from '../memory'
+import { ClubMoneyEditor, EditToggle, useEditing } from '../components/Editors'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Competition, Fixture, Player, World } from '../../domain/types'
@@ -474,6 +475,7 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const [tab, setTab] = useRemember<'overview' | 'squad' | 'fixtures' | 'info'>('tab', 'overview')
+  const [editing, toggleEdit, setEditing] = useEditing('Club')
   const c = w.clubs[params.id]
   if (!c) return <Screen title="Club" back><Empty icon="stadium" title="Club not found" /></Screen>
   const squad = [...rosterOf(w, c.id)].sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)
@@ -485,7 +487,8 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   const trophies = new Map<string, number>()
   for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
   return (
-    <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back>
+    <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back right={<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit club" />}>
+      {editing && <div className="pad" style={{ marginBottom: 10 }}><ClubMoneyEditor club={c} onClose={() => setEditing(false)} /></div>}
       <div className="pad">
         <div className="hero" style={{ padding: 16, background: `linear-gradient(140deg, ${c.theme}, #06080d 85%)` }}>
           <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>
