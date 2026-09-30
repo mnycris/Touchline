@@ -1,6 +1,6 @@
 // News: the feed (top stories, your club, the wider football world, transfers, results, awards) and the article view.
 // Tapping a story opens the story — players, clubs and the match report are links inside it.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NewsItem, World } from '../../domain/types'
 import { useGame, useWorld, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
@@ -152,28 +152,40 @@ export function Article({ params }: { params: { id: string } }) {
 }
 
 /** "Latest news" drop-in: two or three important fresh stories, then it gets out of the way. */
+/** Fresh headlines as one compact notification, only on the Central screen itself (never over a report, a match or
+ *  another tab): if they arrive elsewhere they wait until the manager is back there. */
 export function NewsDrop() {
   const drop = useGame((s) => s.newsDrop)
   const clear = useGame((s) => s.clearNewsDrop)
   const go = useGame((s) => s.go)
   const w = useGame((s) => s.world)
-  // never over a live match: the stories wait for the final whistle
-  const live = useGame((s) => !!s.live)
-  if (!drop || !w || live) return null
+  const home = useGame((s) => !s.live && s.tab === 'central' && s.stacks.central.length === 0 && s.overlay.length === 0)
+  const [leaving, setLeaving] = useState(false)
+  const shown = useRef(0)
+  // once it has had its moment on screen, going elsewhere dismisses it
+  useEffect(() => {
+    if (!drop || !home) return
+    setLeaving(false)
+    shown.current = Date.now()
+    const t = window.setTimeout(() => setLeaving(true), 6200)
+    return () => { window.clearTimeout(t); if (Date.now() - shown.current > 2500) clear() }
+  }, [drop?.nonce, home])
+  if (!drop || !w || !home) return null
   const items = drop.ids.map((id) => w.news.find((n) => n.id === id)).filter(Boolean) as NewsItem[]
   if (!items.length) return null
+  const top = items[0]
+  const more = items.length - 1
+  const out = () => { haptic(); setLeaving(true) }
   return (
-    <div className="ndrop" key={drop.nonce} onAnimationEnd={(e) => { if (e.animationName === 'ndropOut') clear() }}>
-      <div className="ndrop-h">
-        <button className="row tight" onClick={() => { haptic(); clear(); go({ name: 'news' }) }}><span className="ndrop-dot" /><span className="ndrop-k">Latest news</span></button>
-        <button className="ndrop-x" onClick={() => { haptic(); clear() }} aria-label="Dismiss"><Icon name="close" size={14} strokeWidth={2.4} /></button>
-      </div>
-      {items.map((n) => (
-        <button key={n.id} className="ndrop-row" onClick={() => { haptic(); clear(); go({ name: 'article', params: { id: n.id } }) }}>
-          <NewsThumb w={w} n={n} size={30} />
-          <span className="ellipsis2 small b">{n.headline}</span>
-        </button>
-      ))}
+    <div className={`ndrop ${leaving ? 'out' : ''} ${more ? 'stacked' : ''}`} key={drop.nonce} onAnimationEnd={(e) => { if (e.animationName === 'ndropOut') clear() }}>
+      <button className="ndrop-main" onClick={() => { haptic(); clear(); go({ name: 'article', params: { id: top.id } }) }}>
+        <NewsThumb w={w} n={top} size={30} />
+        <span className="ndrop-txt"><span className="ndrop-k">{KIND_LABEL[top.kind] || 'News'}</span><span className="ellipsis small b">{top.headline}</span></span>
+      </button>
+      {more > 0 && <button className="ndrop-more" onClick={() => { haptic(); clear(); go({ name: 'news' }) }} aria-label={`${more} more stories`}>+{more}</button>}
+      <button className="ndrop-x" onClick={out} aria-label="Dismiss"><Icon name="close" size={12} strokeWidth={2.6} /></button>
+      <span className="ndrop-life" aria-hidden />
     </div>
   )
 }
+

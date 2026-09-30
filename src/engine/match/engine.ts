@@ -12,7 +12,7 @@
 // Frames: every side works in its own "team frame" (x 0 → 100 toward the opponent goal, y 0 = its left touchline).
 // `this.b` is the ball in the frame of the side in possession. See pitch.ts.
 // ============================================================================
-import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, TeamMatchStats, TeamSheet, TeamTactics, MatchScript, ScriptEvent } from '../../domain/types'
+import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, ReplayStep, ShotInfo, TeamMatchStats, TeamSheet, TeamTactics, MatchScript, ScriptEvent } from '../../domain/types'
 import { A } from '../../domain/types'
 import { Rng, clamp } from '../../domain/rng'
 import { formationOf, POS_GROUP, type Formation } from '../../domain/constants'
@@ -1941,7 +1941,22 @@ export class MatchSim {
       this.chain.err = undefined
     }
     let sk = ctx.header ? this.hfin(c) : ctx.volley ? this.vol(c) : inside ? this.fin(c) : this.lsh(c)
-    if (!ctx.header && this.rng.next() < 0.26) sk -= (5 - clamp(c.p.weakFoot, 1, 5)) * 2.8
+    const weak = !ctx.header && this.rng.next() < 0.26
+    if (weak) sk -= (5 - clamp(c.p.weakFoot, 1, 5)) * 2.8
+    // the shot as it will be drawn: which foot (or head), where it went (visual rng: the result is already decided)
+    const body: ShotInfo['body'] = ctx.header ? 'H' : (c.p.foot === 'L') !== weak ? 'L' : 'R'
+    const shotInfo = (res: ShotInfo['res'], xgotV?: number, by?: LP): ShotInfo => {
+      const vr = this.vrng
+      let gy: number, gz: number
+      if (res === 'goal') { const corner = vr.next() < 0.35 + (xgotV || 0) * 0.4; gy = (vr.next() < 0.5 ? -1 : 1) * (corner ? 0.62 + vr.next() * 0.33 : vr.next() * 0.7); gz = ctx.header ? 0.2 + vr.next() * 0.55 : vr.next() < 0.55 ? vr.next() * 0.35 : 0.35 + vr.next() * 0.6 }
+      else if (res === 'saved') { gy = (vr.next() - 0.5) * 1.3; gz = vr.next() * 0.8 }
+      else if (res === 'post') { const bar = vr.next() < 0.3; gy = bar ? (vr.next() - 0.5) * 1.6 : (vr.next() < 0.5 ? -1 : 1); gz = bar ? 1 : vr.next() * 0.9 }
+      else if (res === 'off') { const over = vr.next() < (inside ? 0.45 : 0.55); gy = over ? (vr.next() - 0.5) * 1.8 : (vr.next() < 0.5 ? -1 : 1) * (1.08 + vr.next() * 0.9); gz = over ? 1.05 + vr.next() * 0.5 : vr.next() * 0.7 }
+      else { gy = (vr.next() - 0.5) * 1.2; gz = vr.next() * 0.4 }
+      const gl = toAbs(X.idx, { x: 100, y: 50 + clamp(gy, -2.2, 2.2) * 5.4 })
+      const end: [number, number] = res === 'blocked' && by ? (() => { const a = toAbs(X.idx, by.at); return [r1(a.x), r1(a.y)] as [number, number] })() : [r1(gl.x), r1(gl.y)]
+      return { end, gy: Math.round(gy * 100) / 100, gz: Math.round(gz * 100) / 100, body, weak: weak || undefined, xgot: xgotV != null ? r2(xgotV) : undefined, res, gk: gk && res !== 'blocked' && res !== 'off' ? gk.p.id : undefined, by: by?.p.id }
+    }
     if (big) sk += (this.e(c, A.composure) - this.ref + 2) * 0.15
     if (ctx.oneOnOne) sk += c.pb.chip * 0.7
     const pr = ctx.pressure || 0
@@ -1959,7 +1974,7 @@ export class MatchSim {
       this.rp(c, RP.blocked)
       this.log('shot', X.idx, c, b, blocker.at, false)
       this.log('block', Y.idx, blocker, flip(blocker.at), flip(blocker.at), true)
-      this.ev('chance', X.idx, `${intro} ${line(this.crng, 'blocked', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), loc, how })
+      this.ev('chance', X.idx, `${intro} ${line(this.crng, 'blocked', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), loc, how, shot: this.detail ? shotInfo('blocked', undefined, blocker) : undefined })
       const u = this.rng.next()
       if (u < 0.42) this.cornerFor(X.idx)
       else this.loose({ x: b.x - 6 - this.rng.next() * 12, y: b.y + (this.rng.next() - 0.5) * 20 }, -0.15)
@@ -1994,7 +2009,7 @@ export class MatchSim {
         return 2
       }
       this.log('goal', X.idx, c, b, goalPt, true)
-      this.goal(c, passer, how, xg, xgot, intro, loc, errBy)
+      this.goal(c, passer, how, xg, xgot, intro, loc, errBy, this.detail ? shotInfo('goal', xgot) : undefined)
       return 2
     }
     if (u < pOn) {
@@ -2013,7 +2028,7 @@ export class MatchSim {
       this.log('shot', X.idx, c, b, { x: 99, y: 50 }, false)
       if (gk) this.log('save', Y.idx, gk, { x: 1.5, y: 50 }, { x: 1.5, y: 50 }, true)
       const key = xgot > 0.45 ? 'saveGreat' : xgot > 0.2 ? 'saveGood' : 'saveEasy'
-      this.ev('save', X.idx, `${intro} ${line(this.crng, key, v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), big, loc, how })
+      this.ev('save', X.idx, `${intro} ${line(this.crng, key, v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), big, loc, how, shot: this.detail ? shotInfo('saved', xgot) : undefined })
       X.threat += 0.15
       // held, or parried
       const hold = gk ? sigmoid(0.4 + 0.045 * (this.e(gk, A.gkHandling) - this.ref + 2) - xgot * 1.6 + gk.pb.deflect * 0.05) : 0.5
@@ -2050,7 +2065,7 @@ export class MatchSim {
     this.rp(c, big ? RP.offTargetBig : RP.offTarget)
     if (big) { c.st.bcm++; X.stats.bigChancesMissed++; this.rp(c, RP.bigChanceMissed) }
     this.log('shot', X.idx, c, b, { x: 100, y: wood ? 45 + this.vrng.next() * 10 : this.vrng.next() < 0.5 ? 38 : 62 }, false)
-    this.ev(wood ? 'woodwork' : 'miss', X.idx, `${intro} ${line(this.crng, wood ? 'woodwork' : big ? 'missBig' : 'miss', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), big, loc, how })
+    this.ev(wood ? 'woodwork' : 'miss', X.idx, `${intro} ${line(this.crng, wood ? 'woodwork' : big ? 'missBig' : 'miss', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), big, loc, how, shot: this.detail ? shotInfo(wood ? 'post' : 'off') : undefined })
     X.threat += wood ? 0.3 : 0.05
     if (wood && this.rng.next() < 0.4) this.loose({ x: 88 + this.rng.next() * 6, y: 35 + this.rng.next() * 30 }, 0)
     else this.pending = { kind: 'goalkick', side: Y.idx, at: { x: 5.5, y: 50 }, dead: 19 + this.rng.next() * 12 }
@@ -2075,7 +2090,21 @@ export class MatchSim {
     return line(this.crng, key, v)
   }
 
-  private goal(c: LP, passer: LP | undefined, how: string, xg: number, xgot: number, intro: string, loc: [number, number], errBy?: LP) {
+  /** The move behind a goal: the scoring side's last possession (and how they won it), from the action log. */
+  private goalChain(side: 0 | 1): ReplayStep[] | undefined {
+    if (!this.detail) return undefined
+    const recent: Act[] = []
+    for (const f of this.timeline.slice(-2)) if (f.acts) recent.push(...f.acts)
+    recent.push(...this.acts)
+    if (!recent.length) return undefined
+    // walk back to where this possession began
+    let i = recent.length - 1
+    while (i > 0 && recent[i - 1].s === side) i--
+    const start = Math.max(0, i - 1, recent.length - 14)
+    return recent.slice(start).map((a) => ({ k: a.k, s: a.s, p: a.p, q: a.q, x0: a.x0, y0: a.y0, x1: a.x1, y1: a.y1, ok: a.ok }))
+  }
+
+  private goal(c: LP, passer: LP | undefined, how: string, xg: number, xgot: number, intro: string, loc: [number, number], errBy?: LP, shot?: ShotInfo) {
     const X = this.sides[c.side], Y = this.sides[1 - c.side]
     const gk = Y.gk
     if (MatchSim.dbg) { dbg(`goal.${c.g}.${how}`); dbg(`goal.${c.g}`) }
@@ -2098,7 +2127,7 @@ export class MatchSim {
       const hat = c.st.goals === 3 ? line(this.crng, 'hattrick', v) : c.st.goals === 2 && this.crng.next() < 0.5 ? line(this.crng, 'brace', v) : ''
       text = [intro, line(this.crng, key, v), ctxLine, late, hat].filter(Boolean).join(' ')
     }
-    this.push({ min: this.minute, add: this.added || undefined, type: 'goal', side: X.idx, player: c.p.id, player2: passer?.p.id, xg: r2(xg), big: true, text, loc, how })
+    this.push({ min: this.minute, add: this.added || undefined, type: 'goal', side: X.idx, player: c.p.id, player2: passer?.p.id, xg: r2(xg), big: true, text, loc, how, shot, chain: this.goalChain(X.idx) })
     if (passer && this.ctx.commentary) this.push({ min: this.minute, add: this.added || undefined, type: 'info', side: X.idx, player: passer.p.id, text: line(this.crng, 'assist', { a: callName(passer.p.name) }) })
     this.afterGoal(Y.idx)
   }

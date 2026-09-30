@@ -346,6 +346,38 @@ export interface MatchEvent {
   how?: string
   /** penalty kick detail, decided by the simulation before it is shown */
   pen?: PenaltyKick
+  /** a shot as the simulation played it (shot map) */
+  shot?: ShotInfo
+  /** the move that led to a goal, action by action (goal replay), absolute pitch frame */
+  chain?: ReplayStep[]
+}
+
+export interface ShotInfo {
+  /** where the ball ended up: the goal line, a blocker, or wide/over (absolute pitch frame) */
+  end: [number, number]
+  /** placement in the goal mouth from the shooter's view: gy −1 left post … +1 right post (beyond = wide), gz 0 ground … 1 bar (above = over) */
+  gy: number
+  gz: number
+  /** left foot, right foot, header */
+  body: 'L' | 'R' | 'H'
+  /** on the weaker foot */
+  weak?: boolean
+  xgot?: number
+  res: 'goal' | 'saved' | 'blocked' | 'off' | 'post'
+  /** the keeper faced (saved / beaten) */
+  gk?: number
+  /** the blocker */
+  by?: number
+}
+
+export interface ReplayStep {
+  /** action: pass, long, through, cross, carry, drib, shot, goal, tackle, int, rec, corner, fk, throw, aerial, clear */
+  k: string
+  s: 0 | 1
+  p: number
+  q?: number
+  x0: number; y0: number; x1: number; y1: number
+  ok: boolean
 }
 
 // ---------------------------------------------------------------- edit mode: scripted matches

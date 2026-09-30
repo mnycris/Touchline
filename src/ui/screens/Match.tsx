@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { ShotMap } from '../components/ShotMap'
+import { GoalReplay } from '../components/GoalReplay'
 import { movedText } from '../moved'
 import { DEFAULT_SPEEDS, useGame, useWorld, haptic } from '../../store/game'
 import { fmtSpeed } from '../components/SpeedEditor'
@@ -826,81 +828,152 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
   const colors = kitColors(home, away)
   const motm = r.motm ? w.players[r.motm] : undefined
   const motmStat = r.players.find((x) => x.id === r.motm)
-  const keyEv = r.events.filter((e) => ['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'sub', 'injury'].includes(e.type))
   const hs = hasLineups ? sideFromResult(w, f, 0) : undefined, as = hasLineups ? sideFromResult(w, f, 1) : undefined
   const [panel, setPanel] = useState<LineupTap>()
+  const [replay, setReplay] = useState<MatchEvent>()
   const panelSt = panel ? r.players.find((x) => x.id === panel.id && x.side === panel.side) : undefined
+  const hasShots = r.events.some((e) => e.shot)
+  const motmSide = motmStat?.side
   return (
     <div style={kitVars(colors)}>
-      <div className="md-head">
+      <div className="md-head rp-head">
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span></div>
         <div className="md-teams">
           <button className="md-team" onClick={() => go({ name: 'club', params: { id: home.id } })}><Badge club={home} size={58} /><b>{home.short}</b></button>
           <div className="col center" style={{ minWidth: 100 }}>
-            <div className="display num" style={{ fontSize: 46, lineHeight: 1 }}>{r.score[0]} – {r.score[1]}</div>
-            <div className="tiny dim" style={{ marginTop: 4 }}>{r.pens ? `${r.pens[0]}–${r.pens[1]} on penalties` : r.et ? 'After extra time' : `Full-time · HT ${r.ht[0]}–${r.ht[1]}`}</div>
+            <div className="display num rp-score">{r.score[0]} – {r.score[1]}</div>
+            <div className="tiny dim" style={{ marginTop: 4 }}>{r.pens ? `${r.pens[0]}–${r.pens[1]} on penalties` : r.et ? 'After extra time' : 'Full-time'}</div>
             {f.edited && <div className="tiny row tight" style={{ marginTop: 4, color: 'var(--gold)', justifyContent: 'center' }}><Icon name="edit" size={11} /> Edited match</div>}
           </div>
           <button className="md-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><Badge club={away} size={58} /><b>{away.short}</b></button>
         </div>
-        <div className="row between tiny" style={{ alignItems: 'flex-start', opacity: 0.85, padding: '0 8px' }}>
-          <div style={{ maxWidth: '48%' }}>{goalScorers(w, r, 0).map((s) => <div key={s} className="row tight" style={{ gap: 4 }}><Ball size={10} />{s}</div>)}</div>
-          <div style={{ maxWidth: '48%', textAlign: 'right' }}>{goalScorers(w, r, 1).map((s) => <div key={s} className="row tight" style={{ gap: 4, justifyContent: 'flex-end' }}>{s}<Ball size={10} /></div>)}</div>
+        <div className="rp-scorers tiny">
+          <div>{goalScorers(w, r, 0).map((s) => <div key={s} className="row tight" style={{ gap: 4 }}><Ball size={10} />{s}</div>)}</div>
+          <div style={{ textAlign: 'right' }}>{goalScorers(w, r, 1).map((s) => <div key={s} className="row tight" style={{ gap: 4, justifyContent: 'flex-end' }}>{s}<Ball size={10} /></div>)}</div>
         </div>
-        <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>{f.venue || (f.neutral ? 'Neutral venue' : home.stadium)} · Att. {r.attendance.toLocaleString()} · {fmtDate(f.date, 'long')}</div>
+        <div className="tiny dim rp-venue"><Icon name="stadium" size={12} />{f.venue || (f.neutral ? 'Neutral venue' : home.stadium)} · {r.attendance.toLocaleString()} · {fmtDate(f.date, 'long')}</div>
       </div>
-      {motm && (
-        <div className="pad" style={{ marginTop: 10 }}>
-          <button className="card tap row" style={{ padding: 12, gap: 12, width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: motm.id } })}>
-            <Face p={motm} size={48} radius={24} club={w.clubs[motm.clubId]} />
-            <div className="grow"><div className="kicker" style={{ color: '#2f80ed' }}>Player of the Match</div><div className="b" style={{ marginTop: 2 }}>{motm.name}</div>{motmStat && <GoalsAssists st={motmStat} />}</div>
-            {motmStat && <RatingPill v={motmStat.rating} motm />}
-          </button>
-        </div>
-      )}
-      <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'summary', label: 'Summary' }, ...(hasLineups ? [{ id: 'lineups' as const, label: 'Line-ups' }] : []), { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} /></div>
+      <div style={{ marginTop: 2 }}><Tabs sticky items={[{ id: 'summary', label: 'Summary' }, ...(hasLineups ? [{ id: 'lineups' as const, label: 'Line-ups' }] : []), { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} /></div>
       {tab === 'summary' && (
-        <div className="pad stack" style={{ marginTop: 10 }}>
+        <div className="pad stack rp-tab" style={{ marginTop: 12 }}>
+          {motm && (
+            <button className="card tap rp-motm" style={{ ['--mc' as any]: motmSide === 1 ? 'var(--away-c)' : 'var(--home-c)' }} onClick={() => go({ name: 'player', params: { id: motm.id } })}>
+              <span className="rp-motm-glow" aria-hidden />
+              <Face p={motm} size={58} radius={29} club={w.clubs[motm.clubId]} />
+              <div className="grow" style={{ minWidth: 0, textAlign: 'left' }}>
+                <div className="kicker" style={{ color: '#5aa9ff' }}><Icon name="motm" size={12} /> Player of the Match</div>
+                <div className="b ellipsis" style={{ marginTop: 2, fontSize: 16 }}>{motm.name}</div>
+                {motmStat && <div className="rp-motm-stats tiny">
+                  {motmStat.goals > 0 && <span><Ball size={11} /> {motmStat.goals}</span>}
+                  {motmStat.assists > 0 && <span><Boots n={motmStat.assists} size={12} /></span>}
+                  {motmStat.shots > 0 && <span>{motmStat.shots} shots</span>}
+                  {motmStat.passes > 0 && <span>{Math.round((motmStat.passesCompleted / Math.max(1, motmStat.passes)) * 100)}% passing</span>}
+                  {motmStat.saves > 0 && <span>{motmStat.saves} saves</span>}
+                  {motmStat.tackles > 0 && <span>{motmStat.tackles} tackles</span>}
+                </div>}
+              </div>
+              {motmStat && <RatingPill v={motmStat.rating} motm />}
+            </button>
+          )}
+          <ReportTimeline w={w} r={r} onGoal={(e) => { haptic('medium'); setReplay(e) }} />
           {r.mom && r.mom.length > 10 && (
             <div className="card pad-card">
               <div className="label" style={{ marginBottom: 8 }}>Momentum</div>
               <MomentumGraph data={r.mom} goals={r.events.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))} colors={colors} et={!!r.et} />
             </div>
           )}
-          <div className="card list">
-            {keyEv.length === 0 && <div className="li muted small">No key events.</div>}
-            {keyEv.map((e, i) => {
-              const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
-              const p = e.player ? w.players[e.player] : undefined
-              const p2 = e.player2 ? w.players[e.player2] : undefined
-              const left = e.side === 0
-              const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : ''}`
-              const sub = e.type === 'sub' ? `Off: ${callName(p2?.name || '')}` : isGoal(e) && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : ''
-              return (
-                <div key={i} className="ev-row" style={{ flexDirection: left ? 'row' : 'row-reverse', textAlign: left ? 'left' : 'right' }}>
-                  <span className="ev-min">{minLabel(e)}</span>
-                  <span className="ev-ic">{isGoal(e) ? <Ball size={16} /> : <Icon name={ic} size={16} color={col} />}</span>
-                  <div className="grow" style={{ minWidth: 0 }}>
-                    <div className="small b ellipsis">{main}</div>
-                    {sub && <div className="tiny dim ellipsis">{sub}</div>}
-                  </div>
-                  {isGoal(e) && e.score && <span className="ev-score">{e.score[0]}–{e.score[1]}</span>}
-                </div>
-              )
-            })}
-          </div>
+          <TopStats r={r} home={home.id} away={away.id} w={w} onAll={() => setTab('stats')} />
         </div>
       )}
       {tab === 'lineups' && hs && as && (
-        <div className="pad" style={{ marginTop: 10 }}>
+        <div className="pad rp-tab" style={{ marginTop: 10 }}>
           <MatchLineup w={w} home={hs} away={as} onTap={(t) => { haptic(); setPanel(t) }} />
         </div>
       )}
-      {tab === 'stats' && <StatsPanel stats={r.stats} homeId={home.id} awayId={away.id} w={w} />}
+      {tab === 'stats' && (
+        <div className="rp-tab">
+          {hasShots && <div className="pad" style={{ marginTop: 12 }}><ShotMap w={w} events={r.events} home={f.home} away={f.away} colors={colors} /></div>}
+          <StatsPanel stats={r.stats} homeId={home.id} awayId={away.id} w={w} />
+        </div>
+      )}
       {panel && panelSt && (
         <PlayerMatchPanel w={w} st={panelSt} club={panel.side === 0 ? home : away} events={r.events} motm={r.motm === panel.id}
           onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }} />
       )}
+      {replay && <GoalReplay w={w} e={replay} colors={colors} home={f.home} away={f.away} onClose={() => setReplay(undefined)} />}
     </div>
+  )
+}
+
+/** FotMob-style timeline down the middle: home on the left, away on the right, half-time and full-time marked.
+ *  A goal with its move recorded plays the replay. */
+function ReportTimeline({ w, r, onGoal }: { w: World; r: MatchResult; onGoal: (e: MatchEvent) => void }) {
+  const key = r.events.filter((e) => ['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'sub', 'injury'].includes(e.type))
+  if (!key.length) return <div className="card pad-card small muted">No key events.</div>
+  const rows: ({ kind: 'ev'; e: MatchEvent } | { kind: 'div'; label: string; score?: [number, number] })[] = []
+  let htDone = false, etDone = false
+  for (const e of key) {
+    if (!htDone && e.min > 45) { rows.push({ kind: 'div', label: 'HT', score: r.ht }); htDone = true }
+    if (!etDone && e.min > 90 && r.et) { rows.push({ kind: 'div', label: '90′', score: r.et }); etDone = true }
+    rows.push({ kind: 'ev', e })
+  }
+  if (!htDone) rows.push({ kind: 'div', label: 'HT', score: r.ht })
+  rows.push({ kind: 'div', label: r.pens ? 'Pens' : 'FT', score: r.pens || r.score })
+  return (
+    <div className="card rp-tl">
+      {rows.map((row, i) => {
+        if (row.kind === 'div') return <div key={i} className="rp-div"><span>{row.label}{row.score ? ` ${row.score[0]}–${row.score[1]}` : ''}</span></div>
+        const e = row.e
+        const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
+        const p = e.player ? w.players[e.player] : undefined
+        const p2 = e.player2 ? w.players[e.player2] : undefined
+        const left = e.side === 0
+        const goal = isGoal(e)
+        const canReplay = goal && !!e.chain?.length
+        const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : e.type === 'penMiss' ? ' (pen missed)' : ''}`
+        const sub = e.type === 'sub' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{callName(p2?.name || '')}</span>
+          : goal && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : e.type === 'injury' ? 'Injured' : ''
+        const content = (
+          <div className="rp-side">
+            <span className="rp-ic">{goal ? <Ball size={17} /> : <Icon name={ic} size={16} color={col} />}{canReplay && <span className="rp-play" aria-hidden><Icon name="play" size={8} strokeWidth={3} /></span>}</span>
+            <div className="rp-txt">
+              <div className={`small b rp-line ${goal ? 'rp-scorer' : ''}`}>{e.type === 'sub' ? <Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} /> : null}<span className="ellipsis">{main}</span>{goal && e.score && <span className="rp-sc">{e.score[0]}–{e.score[1]}</span>}</div>
+              {sub && <div className="tiny dim ellipsis rp-sub">{sub}</div>}
+            </div>
+          </div>
+        )
+        const body = left
+          ? <>{content}<span className="rp-min">{minLabel(e)}</span><span /></>
+          : <><span /><span className="rp-min">{minLabel(e)}</span>{content}</>
+        return canReplay
+          ? <button key={i} className={`rp-row ${left ? 'home' : 'away'} goal tap`} onClick={() => onGoal(e)} aria-label={`Replay ${main}'s goal`}>{body}</button>
+          : <div key={i} className={`rp-row ${left ? 'home' : 'away'} ${goal ? 'goal' : ''}`}>{body}</div>
+      })}
+      {key.some((e) => isGoal(e) && e.chain?.length) && <div className="rp-hint tiny dim"><Icon name="play" size={11} /> Tap a goal to see how it happened</div>}
+    </div>
+  )
+}
+
+/** The three numbers that tell the story (FotMob's "Top stats"). */
+function TopStats({ r, home, away, w, onAll }: { r: MatchResult; home: number; away: number; w: World; onAll: () => void }) {
+  const [a, b] = r.stats
+  const rows: [string, string, string, number, number][] = [
+    ['Expected goals (xG)', a.xg.toFixed(2), b.xg.toFixed(2), a.xg, b.xg],
+    ['Total shots', String(a.shots), String(b.shots), a.shots, b.shots],
+    ['Shots on target', String(a.sot), String(b.sot), a.sot, b.sot],
+    ['Big chances', String(a.bigChances), String(b.bigChances), a.bigChances, b.bigChances],
+  ]
+  return (
+    <button className="card tap rp-top" onClick={() => { haptic(); onAll() }}>
+      <div className="card-h"><span className="label">Top stats</span><span className="tiny dim row tight">All stats <Icon name="forward" size={12} /></span></div>
+      <div className="rp-poss"><Badge club={w.clubs[home]} size={18} /><div className="poss-bar grow"><i style={{ flex: a.possession, background: 'var(--home-c)' }}><b>{a.possession}%</b></i><i style={{ flex: b.possession, background: 'var(--away-c)' }}><b>{b.possession}%</b></i></div><Badge club={w.clubs[away]} size={18} /></div>
+      {rows.map(([k, x, y, xv, yv]) => (
+        <div key={k} className="cmp-row">
+          <span className={`cmp-v ${xv > yv ? 'on h' : ''}`}>{x}</span>
+          <span className="small muted">{k}</span>
+          <span className={`cmp-v ${yv > xv ? 'on a' : ''}`}>{y}</span>
+        </div>
+      ))}
+    </button>
   )
 }
