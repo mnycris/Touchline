@@ -1,4 +1,5 @@
 import type { AvatarConfig, CareerSettings, Club, LeagueDef, Manager, Player, Position, Scout, SquadRole, World, YouthScout } from '../domain/types'
+import { SAVE_SCHEMA } from '../engine/world/migrate'
 import { Rng, clamp, hashString } from '../domain/rng'
 import { rawPosRating } from '../domain/ratings'
 import { clubBudget, dynamicValue, roundValue } from '../domain/finance'
@@ -112,7 +113,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   const rng = new Rng(seed)
   const start = raw.startDate
   const w: World = {
-    meta: { version: 1, id: `career-${seed.toString(36)}`, created: new Date().toISOString(), seed, saveName: opts.saveName || '', playTimeMin: 0, ...(opts.editMode ? { editMode: true } : {}) },
+    meta: { version: SAVE_SCHEMA, id: `career-${seed.toString(36)}`, created: new Date().toISOString(), seed, saveName: opts.saveName || '', playTimeMin: 0, ...(opts.editMode ? { editMode: true } : {}) },
     date: start, season: 2026, seasonStart: start, seasonEnd: '2027-06-30', rng: seed, settings: opts.settings,
     user: {
       firstName: opts.manager.firstName, lastName: opts.manager.lastName, nationality: opts.manager.nationality, dob: opts.manager.dob,
@@ -120,6 +121,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
       realManager: opts.manager.realManager, avatarColor: opts.manager.avatarColor, style: opts.manager.style,
     },
     userClubId: opts.clubId,
+    market: { stories: [], seq: 1 },
     nations: Object.fromEntries(raw.nations.map((n) => [n.name, n])),
     leagues: {}, clubs: {}, players: {}, managers: {}, competitions: {}, fixtures: {}, windows: [], intlBreaks: [],
     transfers: { offers: {}, history: [], shortlist: [], targets: {}, knowledge: {} },

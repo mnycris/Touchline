@@ -745,6 +745,8 @@ export interface World {
   date: ISODate
   /** Edit Mode: scripts for upcoming fixtures, by fixture id */
   scripts?: Record<string, MatchScript>
+  /** the transfer centre's live stories (rumours, talks, negotiations, done and failed deals) */
+  market?: { stories: TransferStory[]; seq: number }
   /** international football: national team ids by nation, and each side's called-up squad */
   intl?: { nt: Record<string, number>; squads: Record<number, number[]>; calledOn?: Record<number, string> }
   season: number // season start year
@@ -788,6 +790,53 @@ export interface World {
   pendingMatchId?: string // user fixture awaiting play
   lastUserResult?: string // fixture id
   flags: Record<string, any>
+}
+
+// ---------------------------------------------------------------- transfer centre
+export type StoryStage = 'rumour' | 'talks' | 'negotiating' | 'close' | 'done' | 'failed'
+export interface TransferStory {
+  id: number
+  playerId: number
+  /** selling club (0 = free agent) */
+  from: number
+  to: number
+  stage: StoryStage
+  kind: 'transfer' | 'loan' | 'free'
+  /** reported (rumour) or agreed (done) fee */
+  fee?: number
+  wage?: number
+  years?: number
+  /** the outlet that reported it, and how reliable it tends to be (1-5) */
+  source?: string
+  reliability?: number
+  started: ISODate
+  updated: ISODate
+  /** a failed deal or a rumour that went nowhere leaves the feed after this */
+  expires?: ISODate
+  /** why the player wants it / why it collapsed */
+  reason?: string
+  log: { date: ISODate; stage: StoryStage; note: string }[]
+  /** made or changed in Edit Mode */
+  edited?: boolean
+  /** a done deal's undo record (what the transfer changed) */
+  undo?: TransferUndo
+  /** a real negotiation the AI is running (drives the stage) */
+  ai?: { interest: number; nextStep: ISODate; round: number }
+}
+export interface TransferUndo {
+  fee: number
+  fromClub: number
+  toClub: number
+  contract: Player['contract']
+  wage: number
+  jersey?: number
+  loan?: Player['loan']
+  historyIndex?: string
+  newsIds: number[]
+  inboxIds: number[]
+  squadRole?: string
+  joinedDate?: ISODate
+  transferListed?: boolean
 }
 
 export interface LeagueDef {

@@ -1,4 +1,5 @@
 import { useRemember } from '../memory'
+import { CheckpointsCard } from '../components/Checkpoints'
 import { DeepLeaguePicker } from '../components/DeepLeaguePicker'
 import { useMemo, useState } from 'react'
 import { Fx } from '../components/Fx'
@@ -489,10 +490,12 @@ export function CareerSettingsScreen() {
             <button className="btn club grow" onClick={() => save(false)}><Icon name="save" size={16} /> Save now</button>
             <button className="btn grow" onClick={() => useGame.getState().saveAs(`${name.trim() || w.meta.saveName} (${w.date.slice(0, 4)}/${String(Number(w.date.slice(2, 4)) + 1).padStart(2, '0')})`)}><Icon name="plus" size={16} /> New slot</button>
           </div>
-          <div className="row" style={{ padding: '0 14px 14px' }}>
-            <button className="btn block" onClick={() => setQuit(true)}><Icon name="back" size={16} /> Main menu</button>
+          <div className="row" style={{ padding: '0 14px 14px', gap: 8 }}>
+            <button className="btn grow" onClick={() => { haptic(); useGame.getState().exportSave(useGame.getState().saveId || w.meta.id) }}><Icon name="upload" size={16} /> Export</button>
+            <button className="btn grow" onClick={() => setQuit(true)}><Icon name="back" size={16} /> Main menu</button>
           </div>
         </div>
+        <CheckpointsCard w={w} careerId={useGame.getState().saveId || w.meta.id} />
         <div className="card">
           <div className="card-h"><span className="label">Advance stops on</span></div>
           <Toggle label="Transfer messages" sub="Bids, counter-offers and completed deals" on={so.offers} onChange={(v) => setPrefs({ stopOn: { ...so, offers: v } })} />

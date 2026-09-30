@@ -159,14 +159,27 @@ export function Slider({ label, value, onChange, min = 0, max = 100, step = 1, l
 export function Sheet({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: ReactNode; title?: ReactNode }) {
   const [host, setHost] = useState<HTMLElement | null>(null)
   useEffect(() => { setHost(document.getElementById('sheet-host')) }, [])
-  if (!open || !host) return null
+  // stays mounted for its exit so it slides away instead of vanishing (showing what it last showed)
+  const [shown, setShown] = useState(open)
+  const [leaving, setLeaving] = useState(false)
+  const last = useRef<{ children: ReactNode; title?: ReactNode }>({ children, title })
+  if (open) last.current = { children, title }
+  useEffect(() => {
+    if (open) { setShown(true); setLeaving(false); return }
+    if (!shown) return
+    setLeaving(true)
+    const t = window.setTimeout(() => { setShown(false); setLeaving(false) }, 230)
+    return () => window.clearTimeout(t)
+  }, [open])
+  if ((!open && !shown) || !host) return null
+  const view = open ? { children, title } : last.current
   return createPortal(
     <>
-      <div className="sheet-backdrop fade-in" onClick={onClose} />
-      <div className="sheet sheet-in" role="dialog">
+      <div className={`sheet-backdrop ${leaving ? 'fade-out' : 'fade-in'}`} onClick={leaving ? undefined : onClose} />
+      <div className={`sheet ${leaving ? 'sheet-out' : 'sheet-in'}`} role="dialog">
         <div className="grab" />
-        {title && <div className="row between" style={{ marginBottom: 10 }}><div className="h3">{title}</div><button className="iconbtn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close"><Icon name="close" size={18} /></button></div>}
-        {children}
+        {view.title && <div className="row between" style={{ marginBottom: 10 }}><div className="h3">{view.title}</div><button className="iconbtn" style={{ width: 34, height: 34 }} onClick={onClose} aria-label="Close"><Icon name="close" size={18} /></button></div>}
+        {view.children}
       </div>
     </>,
     host,

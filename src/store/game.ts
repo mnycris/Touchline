@@ -6,30 +6,39 @@ import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, simulateD
 import { createSim, simulateFixture } from '../engine/world/matchRunner'
 import { createOthers, type OtherLive } from '../engine/world/liveDay'
 import { fmtDate } from '../domain/dates'
-import { loadCareer as loadSave, saveCareer, listSaves, deleteSave, getKV, setKV, type SaveMeta } from '../services/saves'
+import { loadCareer as loadSave, saveCareer, listSaves, deleteSave, getKV, setKV, type SaveMeta, type CheckpointMeta, saveBytes, saveCheckpoint, loadCheckpoint, deleteCheckpoint as removeCheckpoint, exportCareer, readCareerFile } from '../services/saves'
 import { positionOf } from '../engine/competitions/tables'
 import type { MatchSim } from '../engine/match/engine'
 import { touchRoster } from '../engine/world/roster'
-import { dynamicValue } from '../domain/finance'
 import { clearMemory } from '../ui/memory'
-import { migrateIntl } from '../engine/world/international'
+import { SAVE_SCHEMA, migrateSave } from '../engine/world/migrate'
+import { sendInbox } from '../engine/world/messages'
+import { APP_VERSION } from '../ui/components/brand'
 
 export type Tab = 'central' | 'squad' | 'transfers' | 'academy' | 'season'
 export interface Route { name: string; params?: any }
 
-/** Bring saves from earlier versions up to date. */
-function migrateWorld(w: World) {
-  if (!w.flags.valueCalibV1) {
-    // anchor player values to the valuation they had before formula updates took over
-    for (const p of Object.values(w.players)) {
-      if (p.regen || p.valueCalib) continue
-      const raw = dynamicValue(p, w.date, 1)
-      if (raw > 0 && p.value > 0) p.valueCalib = Math.max(0.35, Math.min(2.5, p.value / raw))
-    }
-    w.flags.valueCalibV1 = true
+/** Bring a save from an earlier version up to date; tells the manager what changed (a backup checkpoint was kept). */
+function migrateWorld(w: World, backedUp: boolean) {
+  const rep = migrateSave(w)
+  if (!rep.applied.length) return rep
+  sendInbox(w, {
+    from: 'Touchline', fromRole: 'Game update', category: 'Board', subject: `Your career has been updated to v${APP_VERSION}`,
+    body: `This career was saved with an earlier version, so it has been brought up to date. Everything carries over: squad, finances, fixtures, statistics and your history. New in this save: ${rep.applied.join('; ')}.${backedUp ? ` A checkpoint of the save exactly as it was is kept under Settings → Checkpoints.` : ''}`,
+    actions: [{ label: 'Checkpoints', action: 'openSettings', primary: true }],
+  })
+  return rep
+}
+
+const saveMetaOf = (w: World, id: string, auto: boolean): Omit<SaveMeta, 'size' | 'updated'> => {
+  const club = w.clubs[w.userClubId]
+  const comp = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))
+  return {
+    id, name: w.meta.saveName || `${club?.name} Career`, managerName: `${w.user.firstName} ${w.user.lastName}`,
+    clubId: club?.id || 0, clubName: club?.name || 'Unemployed', date: w.date, season: w.season, playTimeMin: w.meta.playTimeMin,
+    leagueName: w.leagues[club?.leagueId]?.short || club?.country || '', position: comp && club ? positionOf(w, comp, club.id) : undefined, auto, editMode: !!w.meta.editMode,
+    schema: w.meta.version, appVersion: APP_VERSION,
   }
-  // international football: national teams and the rest of this season's windows
-  migrateIntl(w)
 }
 
 export interface LiveMatch {
@@ -86,6 +95,14 @@ interface GameState {
   startCareer: (opts: NewCareerOptions) => Promise<void>
   loadCareer: (id: string) => Promise<boolean>
   deleteCareer: (id: string) => Promise<void>
+  /** a named snapshot of the current career */
+  createCheckpoint: (name: string) => Promise<CheckpointMeta | undefined>
+  /** go back to a checkpoint (the state being left is kept as an automatic checkpoint first) */
+  restoreCheckpoint: (cp: CheckpointMeta) => Promise<boolean>
+  deleteCheckpoint: (cp: CheckpointMeta) => Promise<void>
+  /** a career as a file, to move it to another device or address */
+  exportSave: (id: string) => Promise<void>
+  importSave: (file: File) => Promise<boolean>
   exitToMenu: () => void
   save: (auto?: boolean) => Promise<void>
   saveAs: (name: string) => Promise<void>
@@ -174,14 +191,105 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   async loadCareer(id) {
-    const w = await loadSave(id)
-    if (!w) return false
-    migrateWorld(w)
+    let w: World | undefined
+    try { w = await loadSave(id) } catch { w = undefined }
+    if (!w) { get().notify('This save could not be read', 'err'); return false }
+    const schema = w.meta?.version || 1
+    if (schema > SAVE_SCHEMA) { get().notify('Saved by a newer version of Touchline: update the app to load it', 'err'); return false }
+    // an older save: keep it exactly as it was before converting it
+    let backedUp = false
+    if (schema < SAVE_SCHEMA) {
+      const bytes = await saveBytes(id).catch(() => undefined)
+      if (bytes) {
+        await saveCheckpoint(bytes, { careerId: id, name: `Before the v${APP_VERSION} update`, date: w.date, season: w.season, clubName: w.clubs[w.userClubId]?.name || '', auto: 'update', schema }).catch(() => undefined)
+        backedUp = true
+      }
+    }
+    const rep = migrateWorld(w, backedUp)
     touchRoster(w)
     clearMemory()
     set({ world: w, saveId: id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined })
     await setKV('lastSave', id)
+    if (rep.applied.length) { get().notify(`Career updated to v${APP_VERSION}`, 'ok'); await get().save(true) }
     return true
+  },
+
+  async createCheckpoint(name) {
+    const w = get().world
+    const id = get().saveId || w?.meta.id
+    if (!w || !id) return undefined
+    try {
+      await get().save(true)
+      const m = saveMetaOf(w, id, false)
+      const cp = await saveCheckpoint(w, { careerId: id, name: name.trim() || fmtDate(w.date, 'long'), date: w.date, season: w.season, clubName: m.clubName, position: m.position, leagueName: m.leagueName, schema: w.meta.version })
+      get().notify('Checkpoint created', 'ok')
+      return cp
+    } catch {
+      get().notify('Checkpoint failed: storage unavailable or full', 'err')
+      return undefined
+    }
+  },
+
+  async restoreCheckpoint(cp) {
+    const cur = get().world
+    const loaded = cur && (get().saveId || cur.meta.id) === cp.careerId
+    // the state we leave is kept, so going back is never a one-way door
+    try {
+      if (loaded) await saveCheckpoint(cur!, { careerId: cp.careerId, name: `Before restoring “${cp.name}”`, date: cur!.date, season: cur!.season, clubName: cur!.clubs[cur!.userClubId]?.name || '', auto: 'restore', schema: cur!.meta.version })
+      else { const b = await saveBytes(cp.careerId); if (b) await saveCheckpoint(b, { careerId: cp.careerId, name: `Before restoring “${cp.name}”`, date: cp.date, season: cp.season, clubName: cp.clubName, auto: 'restore' }) }
+    } catch { /* keep going: the restore itself matters more */ }
+    const w = await loadCheckpoint(cp.id).catch(() => undefined)
+    if (!w) { get().notify('Checkpoint could not be read', 'err'); return false }
+    if ((w.meta?.version || 1) > SAVE_SCHEMA) { get().notify('Checkpoint made by a newer version of Touchline', 'err'); return false }
+    migrateSave(w)
+    w.meta.id = cp.careerId
+    touchRoster(w)
+    clearMemory()
+    set({ world: w, saveId: cp.careerId, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined, newsDrop: undefined })
+    await get().save(true)
+    await setKV('lastSave', cp.careerId)
+    get().notify(`Back to “${cp.name}”`, 'ok')
+    return true
+  },
+
+  async deleteCheckpoint(cp) {
+    await removeCheckpoint(cp.careerId, cp.id)
+  },
+
+  async exportSave(id) {
+    if (get().world && (get().saveId || get().world!.meta.id) === id) await get().save(true)
+    const out = await exportCareer(id)
+    if (!out) { get().notify('Nothing to export', 'err'); return }
+    const file = new File([out.blob], out.filename, { type: 'application/octet-stream' })
+    // phones hand the file to the share sheet (Files, AirDrop...); desktops download it
+    try {
+      if ((navigator as any).canShare?.({ files: [file] })) { await (navigator as any).share({ files: [file], title: out.filename }); return }
+    } catch (e: any) { if (e?.name === 'AbortError') return }
+    const url = URL.createObjectURL(out.blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = out.filename
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 4000)
+    get().notify('Career exported', 'ok')
+  },
+
+  async importSave(file) {
+    try {
+      const { world: w } = await readCareerFile(file)
+      if (!w?.meta || !w.players || !w.clubs) throw new Error('not a career')
+      if ((w.meta.version || 1) > SAVE_SCHEMA) { get().notify('Saved by a newer version of Touchline: update the app to import it', 'err'); return false }
+      // never overwrite a career that is already on this device
+      const exists = get().saves.some((m) => m.id === w.meta.id)
+      if (exists || !w.meta.id) { w.meta.id = `career-${Date.now().toString(36)}`; w.meta.saveName = `${w.meta.saveName || `${w.clubs[w.userClubId]?.name} Career`} (imported)` }
+      migrateWorld(w, false)
+      await saveCareer(w, saveMetaOf(w, w.meta.id, false))
+      await get().refreshSaves()
+      get().notify('Career imported', 'ok')
+      return true
+    } catch {
+      get().notify('That file isn’t a Touchline career', 'err')
+      return false
+    }
   },
 
   async deleteCareer(id) {
@@ -197,14 +305,8 @@ export const useGame = create<GameState>((set, get) => ({
   async save(auto = true) {
     const w = get().world
     if (!w) return
-    const club = w.clubs[w.userClubId]
-    const comp = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))
     try {
-      await saveCareer(w, {
-        id: get().saveId || w.meta.id, name: w.meta.saveName || `${club.name} Career`, managerName: `${w.user.firstName} ${w.user.lastName}`,
-        clubId: club.id, clubName: club.name, date: w.date, season: w.season, playTimeMin: w.meta.playTimeMin,
-        leagueName: w.leagues[club.leagueId]?.short || club.country, position: comp ? positionOf(w, comp, club.id) : undefined, auto, editMode: !!w.meta.editMode,
-      })
+      await saveCareer(w, saveMetaOf(w, get().saveId || w.meta.id, auto))
       if (!auto) get().notify('Career saved', 'ok')
     } catch (e) {
       get().notify('Save failed — storage unavailable', 'err')

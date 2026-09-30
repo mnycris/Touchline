@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
@@ -7,7 +7,9 @@ import { Confirm, Screen, Toggle } from '../components/layout'
 import { fmtDate, seasonLabel } from '../../domain/dates'
 import type { SaveMeta } from '../../services/saves'
 import { NewCareer } from './NewCareer'
-import { Wordmark } from '../components/brand'
+import { APP_VERSION, Wordmark } from '../components/brand'
+import { CheckpointList } from '../components/Checkpoints'
+import { SAVE_SCHEMA } from '../../engine/world/migrate'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
 
@@ -71,7 +73,7 @@ function Home({ onView }: { onView: (v: View) => void }) {
         <div style={{ marginTop: 'auto' }}><CrestMarquee /></div>
         <div className="stack stagger" style={{ marginTop: 22, paddingBottom: 'calc(var(--sab) + 24px)' }}>
           {last && (
-            <button className="card tap continue-card" disabled={busy} onClick={async () => { haptic('medium'); setBusy(true); const ok = await loadCareer(last.id); if (!ok) { setBusy(false); useGame.getState().notify('Save could not be loaded', 'err') } }}>
+            <button className="card tap continue-card" disabled={busy} onClick={async () => { haptic('medium'); setBusy(true); const ok = await loadCareer(last.id); if (!ok) setBusy(false) }}>
               <div className="row" style={{ padding: 14, gap: 14 }}>
                 <Badge club={{ id: last.clubId, badge: true, sofifaTeamId: 0, name: last.clubName, abbr: last.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={50} />
                 <div className="grow" style={{ textAlign: 'left' }}>
@@ -108,30 +110,46 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
   const saves = useGame((s) => s.saves)
   const loadCareer = useGame((s) => s.loadCareer)
   const deleteCareer = useGame((s) => s.deleteCareer)
+  const importSave = useGame((s) => s.importSave)
+  const exportSave = useGame((s) => s.exportSave)
   const [del, setDel] = useState<SaveMeta>()
   const [busy, setBusy] = useState<string>()
+  const [open, setOpen] = useState<string>()
+  // stays rendered after the first open so collapsing animates
+  const [seen, setSeen] = useState<string[]>([])
+  const file = useRef<HTMLInputElement>(null)
   return (
-    <Screen title="Load Career" back onBack={onBack} noNav>
-      {!saves.length && <Empty icon="save" title="No saved careers" text="Start a new career — progress is saved automatically after every match and when you advance." />}
+    <Screen title="Load Career" back onBack={onBack} noNav right={<button className="btn xs" onClick={() => { haptic(); file.current?.click() }}><Icon name="download" size={14} /> Import</button>}>
+      <input ref={file} type="file" accept=".touchline,application/octet-stream,application/json" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setBusy('import'); await importSave(f); setBusy(undefined) } }} />
+      {!saves.length && <Empty icon="save" title="No saved careers" text="Start a new career — progress is saved automatically after every match and when you advance. A career exported from another device can be brought in with Import." />}
       <div className="pad stack stagger">
-        {saves.map((s) => (
-          <div key={s.id} className="card">
-            <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy} onClick={async () => { setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) { setBusy(undefined); useGame.getState().notify('Save could not be loaded', 'err') } }}>
-              <Badge club={{ id: s.clubId, badge: true, sofifaTeamId: 0, name: s.clubName, abbr: s.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={46} />
-              <div className="grow" style={{ minWidth: 0 }}>
-                <div className="t b row tight" style={{ minWidth: 0 }}><span className="ellipsis">{s.name}</span>{s.editMode && <span className="edit-flag sm" title="Edit Mode career"><Icon name="edit" size={11} strokeWidth={2.2} /></span>}</div>
-                <div className="tiny muted" style={{ marginTop: 2 }}>{s.managerName} · {s.clubName}</div>
-                <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'long')} · {seasonLabel(s.season)}{s.position ? ` · ${ordinal(s.position)}` : ''}</div>
-                <div className="tiny dim" style={{ marginTop: 2 }}>Saved {new Date(s.updated).toLocaleString()} · {(s.size / 1e6).toFixed(1)} MB{s.auto ? ' · autosave' : ''}</div>
+        {saves.map((s) => {
+          const older = (s.schema || 1) < SAVE_SCHEMA, newer = (s.schema || 1) > SAVE_SCHEMA
+          return (
+            <div key={s.id} className="card">
+              <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy || newer} onClick={async () => { setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) setBusy(undefined) }}>
+                <Badge club={{ id: s.clubId, badge: true, sofifaTeamId: 0, name: s.clubName, abbr: s.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={46} />
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="t b row tight" style={{ minWidth: 0 }}><span className="ellipsis">{s.name}</span>{s.editMode && <span className="edit-flag sm" title="Edit Mode career"><Icon name="edit" size={11} strokeWidth={2.2} /></span>}</div>
+                  <div className="tiny muted" style={{ marginTop: 2 }}>{s.managerName} · {s.clubName}</div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'long')} · {seasonLabel(s.season)}{s.position ? ` · ${ordinal(s.position)}` : ''}</div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>Saved {new Date(s.updated).toLocaleString()} · {(s.size / 1e6).toFixed(1)} MB{s.auto ? ' · autosave' : ''}</div>
+                  {(older || newer) && <span className={`save-ver ${newer ? 'newer' : ''}`}><Icon name={newer ? 'lock' : 'refresh'} size={11} />{newer ? 'Made with a newer version' : `${s.appVersion ? `v${s.appVersion}` : 'Earlier version'} · updates to v${APP_VERSION} on load`}</span>}
+                </div>
+                {busy === s.id ? <div className="spinner" /> : <Icon name="forward" size={20} color="var(--t3)" />}
+              </button>
+              <div className="row save-actions">
+                <button className={`btn xs ${open === s.id ? 'on' : ''}`} onClick={() => { haptic(); setOpen(open === s.id ? undefined : s.id); if (!seen.includes(s.id)) setSeen([...seen, s.id]) }}><Icon name="flag" size={14} /> Checkpoints<Icon name="down" size={13} style={{ transform: open === s.id ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} /></button>
+                <span className="grow" />
+                <button className="btn xs" onClick={() => { haptic(); exportSave(s.id) }}><Icon name="upload" size={14} /> Export</button>
+                <button className="btn xs danger" onClick={() => setDel(s)}><Icon name="trash" size={14} /></button>
               </div>
-              {busy === s.id ? <div className="spinner" /> : <Icon name="forward" size={20} color="var(--t3)" />}
-            </button>
-            <div className="row" style={{ borderTop: '1px solid var(--line)', padding: '8px 12px', justifyContent: 'flex-end' }}>
-              <button className="btn xs danger" onClick={() => setDel(s)}><Icon name="trash" size={14} /> Delete</button>
+              <div className={`save-cps ${open === s.id ? 'open' : ''}`}><div>{seen.includes(s.id) && <CheckpointList careerId={s.id} />}</div></div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
+      {busy === 'import' && <div className="pad"><div className="card pad-card row tight small"><div className="spinner" /> Importing…</div></div>}
       <Confirm open={!!del} title="Delete career?" danger confirm="Delete" text={del ? `“${del.name}” will be permanently deleted from this device.` : ''} onConfirm={() => del && deleteCareer(del.id)} onClose={() => setDel(undefined)} />
     </Screen>
   )

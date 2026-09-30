@@ -105,6 +105,9 @@ const I: Record<string, IconDef> = {
   cone: { d: ['M12 3.5 7 18.5h10Z', 'M4.5 20.5h15', 'M9.2 12h5.6'], fill: ['M12 3.5 9.2 12h5.6Z'] },
   history: { d: ['M4.5 12a7.5 7.5 0 1 0 2.2-5.3', 'M4.5 4.5v4h4', 'M12 8v4l3 2'] },
   deadline: { circles: [[12, 13, 7.5]], d: ['M12 9v4.2l2.6 1.6', 'M9.5 3h5', 'M18.5 6.5 20 5'] },
+  undo: { d: ['M9 14.5 4.5 10 9 5.5', 'M4.8 10h9.7a5 5 0 0 1 0 10H11'] },
+  download: { d: ['M12 4.5v10.5', 'M7.5 10.5 12 15l4.5-4.5', 'M5 19.5h14'] },
+  upload: { d: ['M12 19.5V9', 'M7.5 13.5 12 9l4.5 4.5', 'M5 4.5h14'] },
 }
 
 export type IconName = keyof typeof I

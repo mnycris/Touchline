@@ -11,6 +11,10 @@
 @keyframes slideUp { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheetIn { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-out { animation: sheetOut 0.23s cubic-bezier(0.4, 0, 1, 1) both; }
+.fade-out { animation: fadeOut 0.22s ease both; }
+@keyframes sheetOut { from { transform: none; } to { transform: translateY(104%); } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -1093,3 +1097,20 @@ select.input option { background: #151b27; }
 .boots svg { flex: none; }
 .boots svg ~ svg { margin-right: var(--bo, -6px); }
 .boots-more { font-size: 10px; font-weight: 800; margin-left: 2px; }
+
+/* ---------- checkpoints & save versions ---------- */
+.cp-list { border-top: 1px solid var(--line); }
+.cp-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px 10px 14px; border-bottom: 1px solid var(--line); animation: fadeUp .28s cubic-bezier(.2, .8, .2, 1) both; }
+.cp-row:last-child { border-bottom: 0; }
+.cp-ic { flex: none; width: 34px; height: 34px; border-radius: 11px; display: grid; place-items: center; background: rgba(var(--club-rgb), .22); color: var(--club2); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08); }
+.cp-ic.auto { background: var(--s3); color: var(--t2); }
+.cp-del { width: 32px; height: 32px; color: var(--t3); }
+.cp-empty { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 18px 14px; border-top: 1px solid var(--line); }
+.cp-store { margin-top: 12px; }
+.save-ver { display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 700; background: rgba(var(--tw-rgb), .14); color: var(--tw); }
+.save-ver.newer { background: rgba(255, 77, 94, .14); color: var(--neg); }
+.save-actions { border-top: 1px solid var(--line); padding: 8px 12px; gap: 6px; }
+.save-actions .btn.on { background: var(--s3); }
+.save-cps { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s cubic-bezier(.2, .8, .2, 1); }
+.save-cps.open { grid-template-rows: 1fr; }
+.save-cps > div { overflow: hidden; }
