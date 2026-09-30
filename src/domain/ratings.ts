@@ -71,6 +71,10 @@ export function faceStats(p: Player): { key: string; value: number }[] {
 export const group = (p: Player): PosGroup => POS_GROUP[p.positions[0]]
 export const age = (p: Player, on: string) => ageOn(p.dob, on)
 
+/** The morale face: smile when happy, flat when content, frown when unhappy. */
+export const moraleIcon = (m: number) => (m >= 68 ? 'morale' : m >= 45 ? 'moraleMid' : 'moraleLow')
+export const moraleColor = (m: number) => (m >= 68 ? 'var(--pos)' : m >= 45 ? '#c9d36a' : m >= 25 ? 'var(--warn)' : 'var(--neg)')
+
 export function moraleLevel(m: number): MoraleLevel {
   if (m >= 85) return 'Very Happy'
   if (m >= 68) return 'Happy'

@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { Icon } from '../icons/Icon'
 import { managerWikiQuery, wikiPhoto } from '../../services/assets'
+import eaAssets from '../../data/eaAssets.json'
 
+const PS_SAMPLE = Object.values((eaAssets as { playstyles: Record<string, string> }).playstyles)[0]
 const PROBES: { label: string; url?: string; wiki?: boolean }[] = [
-  { label: 'EA SPORTS FC headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC25/full/player-portraits/p239085.png?width=64' },
+  { label: 'EA SPORTS FC 27 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC27/full/player-portraits/p239085.png?width=64' },
   { label: 'EA SPORTS FC 26 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC26/full/player-portraits/p239085.png?width=64' },
-  { label: 'SoFIFA headshots', url: 'https://cdn.sofifa.net/players/239/085/26_120.png' },
-  { label: 'FUTWIZ headshots', url: 'https://cdn.futwiz.com/assets/img/fc25/faces/239085.png' },
-  { label: 'FUTBIN headshots', url: 'https://cdn.futbin.com/content/fifa25/img/players/239085.png' },
+  { label: 'EA SPORTS FC 25 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC25/full/player-portraits/p239085.png?width=64' },
+  { label: 'SoFIFA headshots (FC 26)', url: 'https://cdn.sofifa.net/players/239/085/26_120.png' },
+  { label: 'FUTBIN headshots (FC 26)', url: 'https://cdn.futbin.com/content/fifa26/img/players/239085.png' },
+  { label: 'FUTWIZ headshots (FC 26)', url: 'https://cdn.futwiz.com/assets/img/fc26/faces/239085.png' },
+  { label: 'FUTBIN headshots (FC 25)', url: 'https://cdn.futbin.com/content/fifa25/img/players/239085.png' },
   { label: 'Club crests (football-logos.cc)', url: 'https://assets.football-logos.cc/logos/england/512x512/arsenal.02d595b0.png' },
-  { label: 'EA PlayStyle icons', url: 'https://drop-assets.ea.com/images/3ohVoKWSsvT44qgjabWqfV/e536ef26ad854c3c4cbf63ed7954b9cd/Power_Shot.png' },
+  // the same icon file the player pages use, so this row matches what you see there
+  { label: 'EA PlayStyle icons', url: PS_SAMPLE },
   { label: 'Manager photos (Wikipedia)', wiki: true },
 ]
 

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
 import darkLogos from '../../data/darkLogos.json'
-import { badgeUrls, compLogoUrls, faceUrls, flagUrl, isFailed, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
+import { badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
 import { Silhouette } from './Silhouette'
 import { Icon } from '../icons/Icon'
 import { ovrColor } from '../../domain/ratings'
@@ -10,13 +10,15 @@ import { hashString } from '../../domain/rng'
 
 /** <img> that walks a list of sources and finally renders a fallback node. Remote images never send a Referer. */
 export function ImgChain({ srcs, alt, style, className, fallback }: { srcs: string[]; alt: string; style?: CSSProperties; className?: string; fallback: ReactNode }) {
-  const list = useMemo(() => srcs.filter((s) => !isFailed(s)), [srcs.join('|')])
+  const list = useMemo(() => { const l = srcs.filter((s) => !isFailed(s)); const k = l.findIndex(isLoaded); return k > 0 ? [l[k], ...l.filter((_, j) => j !== k)] : l }, [srcs.join('|')])
   const [i, setI] = useState(0)
-  useEffect(() => setI(0), [list.join('|')])
+  const first = useRef(true)
+  useEffect(() => { if (first.current) { first.current = false; return } setI(0) }, [list.join('|')])
   if (i >= list.length) return <>{fallback}</>
+  const known = isLoaded(list[i])
   return (
-    <img src={list[i]} alt={alt} style={style} className={className} loading="lazy" decoding="async" draggable={false} referrerPolicy="no-referrer"
-      onError={() => { markFailed(list[i]); setI(i + 1) }} />
+    <img src={list[i]} alt={alt} style={style} className={className} loading={known ? 'eager' : 'lazy'} decoding={known ? 'sync' : 'async'} draggable={false} referrerPolicy="no-referrer"
+      onLoad={() => markLoaded(list[i])} onError={() => { markFailed(list[i]); setI(i + 1) }} />
   )
 }
 
@@ -38,10 +40,20 @@ export function Face({ p, size = 48, radius = 12, club, ring }: { p: FaceLike; s
   const seed = (p as Player).faceSeed ?? hashString(String(p.id))
   const kit = club?.kit?.[0] || '#2a3346'
   const trim = club?.kit?.[1] || '#ffffff'
-  const srcs = useMemo(() => faceUrls(p as Player).filter((u) => !isFailed(u)), [p.id])
+  // a headshot that already loaded this session goes first and appears instantly: no silhouette, no fade
+  const known = knownFace(p.id)
+  const srcs = useMemo(() => { const base = faceUrls(p as Player).filter((u) => !isFailed(u)); return known ? [known, ...base.filter((u) => u !== known)] : base }, [p.id, known])
   const [i, setI] = useState(0)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => { setI(0); setLoaded(false) }, [p.id])
+  const [loaded, setLoaded] = useState(() => !!known && isLoaded(known))
+  const instant = useRef(!!known && isLoaded(known))
+  const lastId = useRef(p.id)
+  useEffect(() => {
+    if (lastId.current === p.id) return
+    lastId.current = p.id
+    const k = knownFace(p.id)
+    instant.current = !!k && isLoaded(k)
+    setI(0); setLoaded(instant.current)
+  }, [p.id])
   const pl = p as Player
   const notable = !!pl.fullName && !!pl.dob && !pl.regen && ((pl.intlRep || 0) >= 2 || (pl.ovr || 0) >= 74)
   const wiki = useWiki(notable ? playerWikiQuery(pl) : undefined, notable && i >= srcs.length)
@@ -50,10 +62,10 @@ export function Face({ p, size = 48, radius = 12, club, ring }: { p: FaceLike; s
     <div className="face" style={{ width: size, height: size, borderRadius: radius, boxShadow: ring ? `0 0 0 2px ${ring}` : undefined }}>
       {!loaded && <Silhouette size={size} kit={kit} trim={trim} number={pl.jersey} seed={seed} />}
       {src && (
-        <img key={src} src={src} alt={pl.name || ''} loading="lazy" decoding="async" draggable={false} referrerPolicy="no-referrer"
+        <img key={src} src={src} alt={pl.name || ''} loading={instant.current ? 'eager' : 'lazy'} decoding={instant.current ? 'sync' : 'async'} draggable={false} referrerPolicy="no-referrer"
           className={src === wiki ? 'wiki' : undefined}
-          style={{ position: loaded ? 'static' : 'absolute', inset: 0, opacity: loaded ? 1 : 0, transition: 'opacity .3s' }}
-          onLoad={() => { setLoaded(true); markLoaded(src) }} onError={() => { markFailed(src); setLoaded(false); if (i < srcs.length) setI(i + 1) }} />
+          style={{ position: loaded ? 'static' : 'absolute', inset: 0, opacity: loaded ? 1 : 0, transition: instant.current ? 'none' : 'opacity .3s' }}
+          onLoad={() => { setLoaded(true); markLoaded(src, src === wiki ? undefined : p.id) }} onError={() => { markFailed(src); setLoaded(false); instant.current = false; if (i < srcs.length) setI(i + 1) }} />
       )}
     </div>
   )
@@ -117,7 +129,10 @@ export function Flag({ w, nation, code, size = 18 }: { w?: World; nation?: strin
 
 /** Competition logo in its official colours; designed emblem when no licensed art exists. */
 export function CompLogo({ k, size = 32, name, color }: { k: string; size?: number; name?: string; color?: string; mono?: boolean }) {
-  const srcs = compLogoUrls(k)
+  const direct = compLogoUrls(k)
+  const wq = direct.length ? undefined : compWikiQuery(k)
+  const wiki = useWiki(wq, !!wq)
+  const srcs = direct.length ? direct : wiki ? [wiki] : []
   if (srcs.length) {
     return <ImgChain srcs={srcs} alt={name || k} className={`comp-logo ${DARK_COMPS.has(k.replace(/-\d+$/, '')) ? 'lift' : ''}`} style={{ height: size, maxWidth: size * 1.6, objectFit: 'contain', display: 'block' }} fallback={<CompEmblem k={k} size={size} name={name} color={color} />} />
   }

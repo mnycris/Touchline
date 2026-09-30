@@ -24,13 +24,18 @@ export function faceUrls(p: Pick<Player, 'id' | 'regen'>): string[] {
   // several independent mirrors of the same EA SPORTS FC face scans: whichever this device/network can reach wins,
   // ordered by what has worked on this device before (sources that never load get dropped)
   return rankSources([
+    `${EA}/FC27/full/player-portraits/p${p.id}.png?width=256`,
     `${EA}/FC26/full/player-portraits/p${p.id}.png?width=256`,
-    `${EA}/FC25/full/player-portraits/p${p.id}.png?width=256`,
+    `https://cdn.sofifa.net/players/${a}/${b}/27_120.png`,
     `https://cdn.sofifa.net/players/${a}/${b}/26_120.png`,
+    `https://cdn.futbin.com/content/fifa27/img/players/${p.id}.png`,
+    `https://cdn.futwiz.com/assets/img/fc27/faces/${p.id}.png`,
+    `https://cdn.futbin.com/content/fifa26/img/players/${p.id}.png`,
+    `https://cdn.futwiz.com/assets/img/fc26/faces/${p.id}.png`,
+    `${EA}/FC25/full/player-portraits/p${p.id}.png?width=256`,
     `https://cdn.sofifa.net/players/${a}/${b}/25_120.png`,
     `https://cdn.futwiz.com/assets/img/fc25/faces/${p.id}.png`,
     `https://cdn.futbin.com/content/fifa25/img/players/${p.id}.png`,
-    `https://cdn.sofifa.net/players/${a}/${b}/27_120.png`,
   ])
 }
 
@@ -78,8 +83,30 @@ export function playStyleIcon(name: string, plus: boolean): string | undefined {
 /** Remember which remote images failed so we don't retry them every render. */
 const failed = new Set<string>()
 export function markFailed(url: string) { failed.add(url); bump(sourceOf(url), 'fail') }
-export function markLoaded(url: string) { bump(sourceOf(url), 'ok') }
 export function isFailed(url: string) { return failed.has(url) }
+
+// ---------------------------------------------------------------- session image memory
+// Once an image has loaded this session it is shown instantly on every later mount (no silhouette, no fade), and a
+// reference to the decoded image is held so the browser keeps it in memory while it is in use around the app.
+const loaded = new Set<string>()
+const held = new Map<string, HTMLImageElement>()
+const HOLD = 700
+const faceOf = new Map<number, string>()
+export function markLoaded(url: string, playerId?: number) {
+  if (!loaded.has(url)) bump(sourceOf(url), 'ok')
+  loaded.add(url)
+  if (playerId != null) faceOf.set(playerId, url)
+  if (!held.has(url) && typeof Image !== 'undefined') {
+    const im = new Image()
+    im.referrerPolicy = 'no-referrer'
+    im.src = url
+    held.set(url, im)
+    if (held.size > HOLD) held.delete(held.keys().next().value as string)
+  } else if (held.has(url)) { const im = held.get(url)!; held.delete(url); held.set(url, im) }
+}
+export function isLoaded(url: string) { return loaded.has(url) }
+/** The headshot that already worked for this player this session. */
+export function knownFace(playerId: number) { return faceOf.get(playerId) }
 
 // per-device reliability of each image source
 const SRC_KEY = 'opus:imgsrc:v1'
@@ -91,6 +118,10 @@ function sourceOf(url: string) {
   if (m) return `ea-${m[1]}`
   const s = url.match(/sofifa\.net\/players\/\d+\/\d+\/(\d+)_/)
   if (s) return `sofifa-${s[1]}`
+  const fb = url.match(/futbin\.com\/content\/fifa(\d+)\//)
+  if (fb) return `futbin-${fb[1]}`
+  const fw = url.match(/futwiz\.com\/assets\/img\/fc(\d+)\//)
+  if (fw) return `futwiz-${fw[1]}`
   try { return new URL(url, location.href).host } catch { return url }
 }
 function bump(key: string, k: 'ok' | 'fail') {
@@ -100,7 +131,7 @@ function bump(key: string, k: 'ok' | 'fail') {
   srcTimer = window.setTimeout(() => { try { localStorage.setItem(SRC_KEY, JSON.stringify(srcStats)) } catch { /* quota */ } }, 1500)
 }
 function rankSources(urls: string[]): string[] {
-  const score = (u: string) => { const e = srcStats[sourceOf(u)]; return e ? (e.ok + 0.5) / (e.ok + e.fail + 1) : 0.5 }
+  const score = (u: string) => { const e = srcStats[sourceOf(u)]; return e ? (e.ok + 0.5) / (e.ok + e.fail + 1) : 0.6 }
   return urls
     .filter((u) => { const e = srcStats[sourceOf(u)]; return !e || e.ok > 0 || e.fail < 12 })
     .map((u, i) => ({ u, i, s: score(u) }))
@@ -119,7 +150,7 @@ function persist() {
   saveTimer = window.setTimeout(() => { try { localStorage.setItem(WIKI_KEY, JSON.stringify(wikiCache)) } catch { /* quota */ } }, 800)
 }
 
-export interface WikiQuery { key: string; titles: string[]; verify: (description: string, extract: string) => boolean }
+export interface WikiQuery { key: string; titles: string[]; verify: (description: string, extract: string) => boolean; asIs?: boolean }
 
 /** Resolve a verified Wikipedia lead image (thumbnail) for a person. Cached per device; null when none verifies. */
 export function wikiPhoto(q: WikiQuery): Promise<string | null> {
@@ -135,7 +166,8 @@ export function wikiPhoto(q: WikiQuery): Promise<string | null> {
         if (j.type === 'disambiguation') continue
         const img: string | undefined = j.thumbnail?.source
         if (img && q.verify(String(j.description || ''), String(j.extract || ''))) {
-          wikiCache[q.key] = img.replace(/\/(\d+)px-/, '/320px-')
+          // photos are asked for at 320px; logos keep the size Wikipedia serves (small originals can't be upscaled)
+          wikiCache[q.key] = q.asIs ? img : img.replace(/\/(\d+)px-/, '/320px-')
           persist()
           return wikiCache[q.key]
         }
@@ -147,6 +179,17 @@ export function wikiPhoto(q: WikiQuery): Promise<string | null> {
   })()
   inflight.set(q.key, run)
   return run
+}
+
+/** Competitions with no bundled or CDN logo: the logo from the competition's Wikipedia article, resolved on device. */
+const COMP_WIKI: Record<string, string> = {
+  CDR: 'Copa del Rey', SUPERCOPA: 'Supercopa de España', TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield',
+  SUPERTACA: 'Supertaça Cândido de Oliveira', CI: 'Coppa Italia', TACA: 'Taça de Portugal', SCOTCUP: 'Scottish Cup',
+}
+export function compWikiQuery(key: string): WikiQuery | undefined {
+  const t = COMP_WIKI[key.replace(/-\d+$/, '')]
+  if (!t) return undefined
+  return { key: `c:${t}`, titles: [t], asIs: true, verify: (d, e) => /football|soccer|cup|super ?cup|competition|tournament/i.test(`${d} ${e.slice(0, 200)}`) }
 }
 
 export function managerWikiQuery(name: string): WikiQuery {

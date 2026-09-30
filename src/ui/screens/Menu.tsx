@@ -47,6 +47,8 @@ function Home({ onView }: { onView: (v: View) => void }) {
   return (
     <div className="screen no-nav no-top menu-screen">
       <div className="menu-bg" aria-hidden>
+        {/* slow, heavy colour drifting through the top of the screen: ambient, never busy */}
+        <div className="menu-fluid"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
         <Fx kind="floodlights" />
         
         <svg className="menu-pitch" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice">
@@ -61,7 +63,7 @@ function Home({ onView }: { onView: (v: View) => void }) {
       </div>
       <div className="menu-inner">
         <div className="fade-up" style={{ marginTop: 'calc(var(--sat) + 9vh)' }}>
-          <Wordmark size={1} />
+          <Wordmark size={1} version />
           <div className="kicker" style={{ marginTop: 14 }}>Manager Career · {seasonLabel(2026)}</div>
           <div className="muted small" style={{ marginTop: 6, maxWidth: 300 }}>EA SPORTS FC 27 ratings · Real 2026/27 leagues, fixtures and European competitions</div>
         </div>

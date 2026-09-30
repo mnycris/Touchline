@@ -15,12 +15,16 @@ export function Emblem({ size = 44 }: { size?: number }) {
   )
 }
 
-export function Wordmark({ size = 1 }: { size?: number }) {
+/** The game's version: the number before the dot moves with major updates, the one after with fixes. */
+export const APP_VERSION = '4.3'
+
+export function Wordmark({ size = 1, version }: { size?: number; version?: boolean }) {
   return (
     <div className="row" style={{ gap: 12 * size }}>
       <Emblem size={58 * size} />
-      <div>
+      <div className="wm-wrap">
         <div className="wordmark" style={{ fontSize: 46 * size }}>TOUCH<span>LINE</span></div>
+        {version && <span className="wm-ver">v{APP_VERSION}</span>}
       </div>
     </div>
   )

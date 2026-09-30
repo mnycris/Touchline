@@ -10,7 +10,7 @@ import { POS_GROUP, POS_ORDER } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
 import { ageOf, avgRating, playerStatus, totals, userClub } from '../selectors'
-import { formLabel, moraleLevel } from '../../domain/ratings'
+import { formLabel, moraleLevel, moraleColor, moraleIcon } from '../../domain/ratings'
 import { wageBill, loanedOut } from '../../engine/world/userActions'
 import { yearsLeft } from '../../engine/world/transfers'
 import { fmtDate } from '../../domain/dates'
@@ -27,7 +27,7 @@ const COLS: Partial<Record<View, Col[]>> = {
   status: [
     { k: 'energy', label: 'Enrg', w: 42, cell: (_w, p) => pct(p.fitness) },
     { k: 'sharp', label: 'Shrp', w: 42, cell: (_w, p) => pct(p.sharpness) },
-    { k: 'morale', label: 'Mor', w: 42, cell: (_w, p) => pct(p.morale) },
+    { k: 'morale', label: 'Mor', w: 42, cell: (_w, p) => <span className="sq-mood" style={{ color: moraleColor(p.morale) }}><Icon name={moraleIcon(p.morale)} size={15} /><b className="num">{Math.round(p.morale)}</b></span> },
   ],
   stats: [
     { k: 'apps', label: 'Apps', w: 32, cell: (_w, p) => <span className="num">{totals(p).apps}</span> },

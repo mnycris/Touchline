@@ -8,7 +8,7 @@ import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, Flag, ImgChain, Ovr, PosChip, Radar, Ring, Sparkline, StatRow, Stars } from '../components/atoms'
 import { Confirm, Screen, Sheet, Tabs } from '../components/layout'
 import { ATTR_GROUPS, ATTR_LABEL, DEV_PLANS, GK_GROUPS, PLAYSTYLE_INFO, POS_GROUP, POS_NAME, POSITIONS, ROLE_GROUP, ROLES, SQUAD_ROLES, TRAINING_PLANS } from '../../domain/constants'
-import { faceStats, formLabel, formValue, moraleLevel, posRating, roleFit } from '../../domain/ratings'
+import { faceStats, formLabel, formValue, moraleLevel, posRating, roleFit, moraleColor, moraleIcon } from '../../domain/ratings'
 import { fmtMoney } from '../../domain/finance'
 import { diffDays, fmtDate, seasonLabel } from '../../domain/dates'
 import { ageOf, avgRating, compLogoKey, playerStatus, totals } from '../selectors'
@@ -75,7 +75,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
         <div className="card pad-card row between" style={{ gap: 8 }}>
           <div className="col center" style={{ gap: 4 }}><Ring v={p.fitness} size={50} /><span className="tiny dim">Energy</span></div>
           <div className="col center" style={{ gap: 4 }}><Ring v={p.sharpness} size={50} color="var(--info)" /><span className="tiny dim">Sharpness</span></div>
-          <div className="col center" style={{ gap: 4 }}><Ring v={p.morale} size={50} color={p.morale >= 68 ? 'var(--pos)' : p.morale >= 45 ? '#9be15d' : p.morale >= 25 ? 'var(--warn)' : 'var(--neg)'} label={<Icon name={p.morale >= 45 ? 'morale' : 'moraleLow'} size={18} />} /><span className="tiny dim">{moraleLevel(p.morale)}</span></div>
+          <div className="col center" style={{ gap: 4 }}><Ring v={p.morale} size={50} color={moraleColor(p.morale)} label={<Icon name={moraleIcon(p.morale)} size={18} />} /><span className="tiny dim">{moraleLevel(p.morale)}</span></div>
           <div className="col center" style={{ gap: 4 }}><Sparkline values={p.formRatings.length ? p.formRatings : [6.5, 6.5]} w={70} h={36} /><span className="tiny dim">Form: {formLabel(p)}</span></div>
         </div>
         {st.key !== 'ok' && <div className="card pad-card row tight small" style={{ marginTop: 8, borderColor: st.color }}><Icon name={st.icon} size={16} color={st.color} /><span style={{ color: st.color }} className="b">{st.label}</span></div>}
