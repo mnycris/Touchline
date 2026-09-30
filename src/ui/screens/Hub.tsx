@@ -328,7 +328,7 @@ function CalendarStrip({ w }: { w: World }) {
             <div className="tiny dim b">{WD[weekday(d)]}</div>
             <div className="display" style={{ fontSize: 18 }}>{Number(d.slice(8, 10))}</div>
             <div className="cal-mark">
-              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--acc)" /> : <span className="cal-dot" />}
+              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--tw)" /> : <span className="cal-dot" />}
             </div>
           </div>
         )

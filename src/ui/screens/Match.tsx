@@ -12,7 +12,7 @@ import type { MatchSim } from '../../engine/match/engine'
 import { compLogoKey, outcomeFor, scoreLine } from '../selectors'
 import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
-import { Ball, BenchRowFM, Boot, MatchLineup, MissedPen, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
+import { Ball, BenchRowFM, Boot, Boots, MatchLineup, MissedPen, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { underWhite } from '../theme'
@@ -807,7 +807,7 @@ export function GoalsAssists({ st, mins = true }: { st: { goals: number; assists
   return (
     <div className="ga-line tiny dim">
       {st.goals > 0 && <span className="ga"><b>{st.goals}</b><Ball size={12} /></span>}
-      {st.assists > 0 && <span className="ga"><b>{st.assists}</b><Boot size={14} /></span>}
+      {st.assists > 0 && <span className="ga"><Boots n={st.assists} size={14} /></span>}
       {mins && <span>{st.mins}'</span>}
     </div>
   )

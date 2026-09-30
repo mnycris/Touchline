@@ -19,7 +19,7 @@ import { fixturesByDate } from '../../engine/competitions/fixtures'
 import { starRating } from '../rawHelpers'
 import { tableAround } from '../selectors'
 import { FormStrip } from './MatchDay'
-import { Ball, Boot, TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
+import { Ball, Boot, Boots, TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
 import { sideInput } from '../../engine/world/matchRunner'
 import { intlStage, nationalSquad, seasonReviewDate, userNations } from '../../engine/world/international'
 
@@ -60,7 +60,7 @@ function SeasonOverview({ w }: { w: World }) {
   const next = all.find((f) => !f.played)
   const upcoming: { d: string; icon: string; text: string; color: string }[] = []
   for (const x of w.windows) {
-    if (x.open > w.date) upcoming.push({ d: x.open, icon: 'transfers', text: `${x.name} window opens`, color: 'var(--acc)' })
+    if (x.open > w.date) upcoming.push({ d: x.open, icon: 'transfers', text: `${x.name} window opens`, color: 'var(--tw)' })
     else if (x.close >= w.date) upcoming.push({ d: x.close, icon: 'deadline', text: `${x.name} deadline day`, color: 'var(--neg)' })
   }
   for (const b of w.intlBreaks) if (b.start > w.date) upcoming.push({ d: b.start, icon: 'globe', text: 'International break', color: 'var(--info)' })
@@ -530,7 +530,7 @@ function TeamOfTheWeek({ w, c }: { w: World; c: Competition }) {
             <button key={e.x.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
               <Face p={p} size={34} radius={17} club={w.clubs[e.clubId]} />
               <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight"><Badge club={w.clubs[e.clubId]} size={13} />{w.clubs[e.clubId]?.short} v {opp?.short} · {e.f.result!.score[0]}-{e.f.result!.score[1]}</div></div>
-              {(e.x.goals > 0 || e.x.assists > 0) && <span className="row tight" style={{ gap: 6 }}>{e.x.goals > 0 && <span className="ga">{e.x.goals > 1 && <b>{e.x.goals}</b>}<Ball size={12} /></span>}{e.x.assists > 0 && <span className="ga">{e.x.assists > 1 && <b>{e.x.assists}</b>}<Boot size={14} /></span>}</span>}
+              {(e.x.goals > 0 || e.x.assists > 0) && <span className="row tight" style={{ gap: 6 }}>{e.x.goals > 0 && <span className="ga">{e.x.goals > 1 && <b>{e.x.goals}</b>}<Ball size={12} /></span>}{e.x.assists > 0 && <span className="ga"><Boots n={e.x.assists} size={14} /></span>}</span>}
               <PosChip pos={e.x.pos} />
               <RatingPill v={e.x.rating} motm={e === best} size="sm" />
             </button>
@@ -779,7 +779,7 @@ export function CalendarScreen() {
     const f = fx.find((x) => x.date === d)
     if (f) out.push({ icon: 'ball', text: `${w.clubs[f.home].short} v ${w.clubs[f.away].short} · ${w.competitions[f.compId]?.short}`, f })
     for (const win of w.windows) {
-      if (win.open === d) out.push({ icon: 'transfers', text: `${win.name} transfer window opens`, color: 'var(--acc)' })
+      if (win.open === d) out.push({ icon: 'transfers', text: `${win.name} transfer window opens`, color: 'var(--tw)' })
       if (win.close === d) out.push({ icon: 'deadline', text: `${win.name} deadline day`, color: 'var(--neg)' })
     }
     for (const b of w.intlBreaks) if (b.start === d) out.push({ icon: 'globe', text: 'International break begins', color: 'var(--info)' })

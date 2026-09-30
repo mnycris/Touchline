@@ -31,7 +31,8 @@ export function Ball({ size = 12, style, className }: { size?: number; style?: R
   )
 }
 
-// the boot in profile, toe to the right: upper (heel tab, collar, laced instep, long toe), sole plate and studs
+// the boot in profile (drawn toe-right, shown mirrored so the toe points left like FotMob's): upper (heel tab, collar,
+// laced instep, long toe), sole plate and studs
 const BOOT_UPPER = 'M3.5 5.6c1.2 0 2.1.7 2.4 1.8.8.8 2.2 1.1 3.6.7l1.1-.4c2.4 1.6 5.6 2.8 8.6 3.5 2.2.5 3.5 1.7 3.5 3.3 0 .9-.5 1.6-1.4 1.6H3.3c-.9 0-1.5-.7-1.5-1.6V7.2c0-.9.8-1.6 1.7-1.6Z'
 const BOOT_PLATE = 'M1.9 15.8h20.4c-.1 1-.9 1.7-1.9 1.7H3.6c-.9 0-1.6-.7-1.7-1.7Z'
 const BOOT_STUDS = ['M3.6 17.3h2.2l-.3 2.1H3.9Z', 'M7.2 17.3h2l-.3 1.9H7.5Z', 'M13.3 17.3h2l-.3 1.9h-1.4Z', 'M17.2 17.3h2.2l-.3 2.1h-1.6Z']
@@ -43,7 +44,7 @@ export function Boot({ size = 12, style, className }: { size?: number; style?: R
   const shape = <><path d={BOOT_UPPER} /><path d={BOOT_PLATE} />{BOOT_STUDS.map((d) => <path key={d} d={d} />)}</>
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
-      <g transform="rotate(12 12 12) translate(0 .2)">
+      <g transform="translate(24 0) scale(-1 1) rotate(14 12 12) translate(0 .2)">
         <g fill="#15181c" stroke="#15181c" strokeWidth={small ? 2.6 : 2.1} strokeLinejoin="round">{shape}</g>
         <g fill="#f6f7f9">{shape}</g>
         <path d="M1.9 15.75h20.4" stroke="#15181c" strokeWidth={small ? 1.2 : 0.95} />
@@ -51,6 +52,19 @@ export function Boot({ size = 12, style, className }: { size?: number; style?: R
         {!small && <path d="M11.9 8.6l-.8 1.2M14 9.7l-.7 1.2M16.1 10.6l-.6 1.1" stroke="#15181c" strokeWidth=".85" strokeLinecap="round" />}
       </g>
     </svg>
+  )
+}
+
+/** Several assists: that many boots overlapping, the first one in front (FotMob style), never "boot ×2". */
+export function Boots({ n, size = 12, max = 4 }: { n: number; size?: number; max?: number }) {
+  if (n <= 0) return null
+  const k = Math.min(n, max)
+  return (
+    <span className="boots" style={{ ['--bo' as any]: `${-Math.round(size * 0.42)}px` }} aria-label={`${n} assist${n > 1 ? 's' : ''}`}>
+      {/* laid out right to left so the first boot is drawn last, on top */}
+      {n > max && <b className="boots-more">+{n - max}</b>}
+      {Array.from({ length: k }, (_, i) => <Boot key={i} size={size} />)}
+    </span>
   )
 }
 

@@ -8,10 +8,10 @@ await p.evaluate(async () => {
   const m = await import('/src/ui/components/Glyphs.tsx')
   const R0 = await import('/node_modules/.vite/deps/react.js'); const R = R0.default || R0
   const D0 = await import('/node_modules/.vite/deps/react-dom_client.js'); const D = D0.default || D0
-  document.body.innerHTML = '<div id="t" style="display:flex;flex-direction:column;gap:0;color:#fff;font:600 12px sans-serif"></div>'
+  document.body.innerHTML = '<style>' + [...document.querySelectorAll('style')].map((x) => x.textContent).join('') + '</style><div id="t" style="display:flex;flex-direction:column;gap:0;color:#fff;font:600 12px sans-serif"></div>'
   const h = R.createElement
   const row = (bg, fg) => h('div', { style: { background: bg, color: fg, padding: '10px 14px', display: 'flex', gap: '12px', alignItems: 'center' } },
-    h('span', null, 'Rice'), h(m.Ball, { size: 11 }), h(m.Ball, { size: 15 }), h(m.Boot, { size: 13 }), h(m.Boot, { size: 15 }), h(m.Boot, { size: 17 }), h(m.Boot, { size: 19 }), h(m.Boot, { size: 24 }), h(m.Boot, { size: 64 }))
+    h('span', null, 'Rice'), h(m.Ball, { size: 11 }), h(m.Ball, { size: 15 }), h(m.Boot, { size: 13 }), h(m.Boot, { size: 15 }), h(m.Boot, { size: 17 }), h(m.Boot, { size: 19 }), h(m.Boot, { size: 24 }), h(m.Boot, { size: 64 }), h(m.Boots, { n: 2, size: 15 }), h(m.Boots, { n: 3, size: 15 }), h(m.Boots, { n: 2, size: 12 }))
   D.createRoot(document.getElementById('t')).render(h('div', null, row('#16191f', '#fff'), row('#252930', '#fff'), row('#e9edf1', '#111')))
 })
 await p.waitForTimeout(500)

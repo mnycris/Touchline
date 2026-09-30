@@ -8,7 +8,7 @@ import { Badge, Face, Flag } from './atoms'
 import { POS_NAME } from '../../domain/constants'
 import { ageOf } from '../selectors'
 import { Sheet } from './layout'
-import { Ball, Boot, MissedPen, RatingPill } from './Lineup'
+import { Ball, Boots, MissedPen, RatingPill } from './Lineup'
 import { Icon } from '../icons/Icon'
 import { PitchSurface } from './PitchSurface'
 
@@ -187,7 +187,7 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
           {(st.goals > 0 || st.assists > 0 || missed > 0 || yellow || red || st.subOn != null || st.subOff != null || st.injured) && (
             <div className="pmp-evs">
               {Array.from({ length: st.goals }, (_, i) => <Ball key={`g${i}`} size={15} />)}
-              {Array.from({ length: st.assists }, (_, i) => <Boot key={`a${i}`} size={17} />)}
+              <Boots n={st.assists} size={16} />
               {Array.from({ length: missed }, (_, i) => <MissedPen key={`m${i}`} size={14} />)}
               {yellow && <span className="card-y" />}{red && <span className="card-r" />}
               {st.subOn != null && !st.started && <span className="pmp-chip pos"><Icon name="arrowUp" size={10} strokeWidth={3} />{st.subOn}'</span>}

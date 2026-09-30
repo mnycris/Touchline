@@ -19,9 +19,9 @@ export function RatingPill({ v, motm, size = 'md' }: { v: number; motm?: boolean
   return <span className={`rt-pill ${size}`} style={{ background: motm ? '#2f80ed' : ratingColor(v) }}>{motm && <Icon name="star" size={size === 'sm' ? 8 : 10} strokeWidth={2.6} />}{v.toFixed(1)}</span>
 }
 
-export { Ball, Boot, MissedPen } from './Glyphs'
+export { Ball, Boot, Boots, MissedPen } from './Glyphs'
 import { PitchSurface } from './PitchSurface'
-import { Ball, Boot, MissedPen } from './Glyphs'
+import { Ball, Boots, MissedPen } from './Glyphs'
 
 // ---------------------------------------------------------------------------- data model
 export interface LPl {
@@ -170,7 +170,7 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
             {s.penMissed && <MissedPen size={12} />}
           </span>
         )}
-        {assists > 0 && <span className="fl-ast"><Boot size={19} />{assists > 1 && <b>×{assists}</b>}</span>}
+        {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
@@ -247,7 +247,7 @@ export function BenchRowFM({ w, s, club, onTap, sel, right }: { w: World; s: LPl
           {s.subOff != null && <><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{s.subOff}'</>}
           {s.subOn == null && s.subOff == null && <span>{s.pos || p.positions[0]}</span>}
           {Array.from({ length: Math.min(s.goals || 0, 3) }, (_, i) => <Ball key={i} size={11} />)}
-          {Array.from({ length: Math.min(s.assists || 0, 3) }, (_, i) => <Boot key={i} size={13} />)}
+          <Boots n={s.assists || 0} size={12} />
           {s.penMissed && <MissedPen size={11} />}
           {s.yellow && <span className="card-y" />}{s.red && <span className="card-r" />}
         </div>

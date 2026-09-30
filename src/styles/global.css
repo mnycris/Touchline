@@ -25,6 +25,9 @@
   --neg: #ff4d5e;
   --warn: #ffb020;
   --info: #3ea6ff;
+  /* transfer windows */
+  --tw: #ffd43b;
+  --tw-rgb: 255, 212, 59;
   --pitch: #252930;
   --pitch-line: rgba(255, 255, 255, 0.15);
   --pitch-mark: rgba(255, 255, 255, 0.42);

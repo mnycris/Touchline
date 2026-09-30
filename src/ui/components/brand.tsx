@@ -16,7 +16,7 @@ export function Emblem({ size = 44 }: { size?: number }) {
 }
 
 /** The game's version: the number before the dot moves with major updates, the one after with fixes. */
-export const APP_VERSION = '4.3'
+export const APP_VERSION = '4.1'
 
 export function Wordmark({ size = 1, version }: { size?: number; version?: boolean }) {
   return (
