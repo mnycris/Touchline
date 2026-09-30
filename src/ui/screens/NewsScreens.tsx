@@ -10,9 +10,9 @@ import { fmtDate } from '../../domain/dates'
 import { articleFor } from '../../engine/world/articles'
 import { Ball } from '../components/Glyphs'
 import { useRemember } from '../memory'
+import { StoryCard, STORY, storyType, dayLabel } from '../components/NewsCards'
 import { underWhite } from '../theme'
 
-const KIND_LABEL: Record<string, string> = { transfer: 'Transfer', rumour: 'Rumour', result: 'Result', injury: 'Injury', manager: 'Manager', record: 'Record', milestone: 'Milestone', youth: 'Youth', contract: 'Contract', title: 'Title', relegation: 'Relegation', award: 'Awards', board: 'Board', preview: 'Preview' }
 const FILTERS = ['Top', 'My Club', 'World', 'Transfers', 'Results', 'Awards'] as const
 type Filter = (typeof FILTERS)[number]
 
@@ -33,46 +33,26 @@ function matches(w: World, n: NewsItem, f: Filter) {
 export function News() {
   const w = useWorld()
   const [f, setF] = useRemember<Filter>('f', 'Top')
-  const list = useMemo(() => w.news.filter((n) => matches(w, n, f)), [w.news.length, w.news[0]?.id, f])
+  const list = useMemo(() => w.news.filter((n) => matches(w, n, f)).slice(0, 120), [w.news.length, w.news[0]?.id, f])
+  // stories grouped by day, newest first; the first story of the feed leads
+  const days = useMemo(() => {
+    const out: { d: string; items: NewsItem[] }[] = []
+    for (const n of list) { const last = out[out.length - 1]; if (last && last.d === n.date) last.items.push(n); else out.push({ d: n.date, items: [n] }) }
+    return out
+  }, [list])
   return (
     <Screen title="News" back>
       <Chips items={FILTERS.map((c) => ({ id: c, label: c }))} value={f} onChange={(v) => setF(v as Filter)} />
       {!list.length && <Empty icon="news" title="No stories yet" text={f === 'World' ? 'Stories from the leagues you follow appear here as the season unfolds.' : undefined} />}
-      <div className="pad stack" style={{ marginTop: 10 }}>
-        {list.slice(0, 120).map((n, i) => <NewsCard key={n.id} w={w} n={n} lead={i === 0} />)}
+      <div className="ns-feed" key={f}>
+        {days.map((g, gi) => (
+          <section key={g.d} className="ns-day">
+            <div className="ns-day-h"><span>{dayLabel(w, g.d)}</span><i /></div>
+            {g.items.map((n, i) => <StoryCard key={n.id} w={w} n={n} lead={gi === 0 && i === 0} />)}
+          </section>
+        ))}
       </div>
     </Screen>
-  )
-}
-
-function NewsThumb({ w, n, size }: { w: World; n: NewsItem; size: number }) {
-  const p = n.playerIds[0] ? w.players[n.playerIds[0]] : undefined
-  const c = n.clubIds[0] ? w.clubs[n.clubIds[0]] : n.quote ? w.clubs[n.quote.clubId] : undefined
-  const comp = n.compId ? w.competitions[n.compId] : undefined
-  if (n.kind === 'result' && n.clubIds.length >= 2) {
-    return <div className="nw-pair" style={{ width: size, height: size }}><Badge club={w.clubs[n.clubIds[0]]} size={size * 0.56} /><Badge club={w.clubs[n.clubIds[1]]} size={size * 0.56} /></div>
-  }
-  if (p) return <Face p={p} size={size} radius={12} club={w.clubs[p.clubId]} />
-  if (c) return <div className="msg-av" style={{ width: size, height: size }}><Badge club={c} size={size * 0.76} /></div>
-  if (comp) return <div className="msg-av" style={{ width: size, height: size }}><CompLogo k={comp.logoKey || comp.key} size={size * 0.62} /></div>
-  return <div className="msg-av" style={{ width: size, height: size }}><Icon name="news" size={size * 0.45} /></div>
-}
-
-export function NewsCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolean }) {
-  const go = useGame((s) => s.go)
-  const comp = n.compId ? w.competitions[n.compId] : undefined
-  const club = n.clubIds[0] ? w.clubs[n.clubIds[0]] : undefined
-  return (
-    <button className={`card tap news-item ${lead ? 'lead' : ''}`} style={lead && club ? { ['--nc' as any]: underWhite(club.kit?.[0]) } : undefined} onClick={() => { haptic(); go({ name: 'article', params: { id: n.id } }) }}>
-      <div className="row" style={{ gap: 12, padding: 12, alignItems: 'flex-start' }}>
-        <NewsThumb w={w} n={n} size={lead ? 64 : 48} />
-        <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
-          <div className="row tight"><span className={`news-kind k-${n.kind}`}>{KIND_LABEL[n.kind] || n.kind}</span>{comp && <span className="tiny dim">{comp.short}</span>}<span className="tiny dim">· {fmtDate(n.date, 'dm')}</span></div>
-          <div className={lead ? 'h3' : 'b'} style={{ marginTop: 5, fontSize: lead ? 21 : 15, lineHeight: 1.12 }}>{n.headline}</div>
-          <div className="small muted nw-body" style={{ marginTop: 5 }}>{n.body}</div>
-        </div>
-      </div>
-    </button>
   )
 }
 
@@ -89,7 +69,7 @@ export function Article({ params }: { params: { id: string } }) {
   const related = [...new Set(n.playerIds)].map((id) => w.players[id]).filter(Boolean)
   const relClubs = [...new Set([...n.clubIds, ...(n.quote ? [n.quote.clubId] : [])])].map((id) => w.clubs[id]).filter(Boolean)
   return (
-    <Screen title={KIND_LABEL[n.kind] || 'News'} back>
+    <Screen title={STORY[storyType(n)].label} back>
       <div className="art fade-up">
         <div className="art-hero" style={{ ['--hc' as any]: heroClub ? underWhite(heroClub.kit?.[0]) : '#1fd67a', ['--hc2' as any]: heroClub?.kit?.[1] || '#0b0e13' }}>
           <div className="art-hero-bg" />
@@ -98,7 +78,7 @@ export function Article({ params }: { params: { id: string } }) {
               : heroClub ? <Badge club={heroClub} size={96} /> : n.compId ? <CompLogo k={w.competitions[n.compId]?.logoKey || w.competitions[n.compId]?.key || ''} size={80} /> : <Icon name="news" size={60} />}
         </div>
         <div className="pad">
-          <div className="art-kicker"><span className={`news-kind k-${n.kind}`}>{a.kicker}</span><span className="tiny dim">{fmtDate(n.date, 'long')}</span></div>
+          <div className="art-kicker" style={{ ['--tc' as any]: STORY[storyType(n)].tone }}><span className="ns-type"><Icon name={STORY[storyType(n)].icon} size={12} />{a.kicker}</span><span className="tiny dim">{fmtDate(n.date, 'long')}</span></div>
           <h1 className="art-h">{a.headline}</h1>
           <p className="art-lede">{a.lede}</p>
           {a.paras.map((p, i) => <p key={i} className="art-p">{p}</p>)}
@@ -151,7 +131,20 @@ export function Article({ params }: { params: { id: string } }) {
   )
 }
 
-/** "Latest news" drop-in: two or three important fresh stories, then it gets out of the way. */
+/** Small picture for a headline: the two crests of a result, the player, the club or the competition. */
+function NewsThumb({ w, n, size }: { w: World; n: NewsItem; size: number }) {
+  const p = n.playerIds[0] ? w.players[n.playerIds[0]] : undefined
+  const c = n.clubIds[0] ? w.clubs[n.clubIds[0]] : n.quote ? w.clubs[n.quote.clubId] : undefined
+  const comp = n.compId ? w.competitions[n.compId] : undefined
+  if (n.kind === 'result' && n.clubIds.length >= 2) {
+    return <div className="nw-pair" style={{ width: size, height: size }}><Badge club={w.clubs[n.clubIds[0]]} size={size * 0.56} /><Badge club={w.clubs[n.clubIds[1]]} size={size * 0.56} /></div>
+  }
+  if (p) return <Face p={p} size={size} radius={10} club={w.clubs[p.clubId]} />
+  if (c) return <div className="msg-av" style={{ width: size, height: size }}><Badge club={c} size={size * 0.76} /></div>
+  if (comp) return <div className="msg-av" style={{ width: size, height: size }}><CompLogo k={comp.logoKey || comp.key} size={size * 0.62} /></div>
+  return <div className="msg-av" style={{ width: size, height: size }}><Icon name="news" size={size * 0.45} /></div>
+}
+
 /** Fresh headlines as one compact notification, only on the Central screen itself (never over a report, a match or
  *  another tab): if they arrive elsewhere they wait until the manager is back there. */
 export function NewsDrop() {
@@ -180,7 +173,7 @@ export function NewsDrop() {
     <div className={`ndrop ${leaving ? 'out' : ''} ${more ? 'stacked' : ''}`} key={drop.nonce} onAnimationEnd={(e) => { if (e.animationName === 'ndropOut') clear() }}>
       <button className="ndrop-main" onClick={() => { haptic(); clear(); go({ name: 'article', params: { id: top.id } }) }}>
         <NewsThumb w={w} n={top} size={30} />
-        <span className="ndrop-txt"><span className="ndrop-k">{KIND_LABEL[top.kind] || 'News'}</span><span className="ellipsis small b">{top.headline}</span></span>
+        <span className="ndrop-txt"><span className="ndrop-k" style={{ color: STORY[storyType(top)].tone }}>{STORY[storyType(top)].label}</span><span className="ellipsis small b">{top.headline}</span></span>
       </button>
       {more > 0 && <button className="ndrop-more" onClick={() => { haptic(); clear(); go({ name: 'news' }) }} aria-label={`${more} more stories`}>+{more}</button>}
       <button className="ndrop-x" onClick={out} aria-label="Dismiss"><Icon name="close" size={12} strokeWidth={2.6} /></button>

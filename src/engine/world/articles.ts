@@ -216,8 +216,10 @@ function quoteArticle(w: World, n: NewsItem, a: Article, pick: ReturnType<typeof
   a.hero = { kind: 'club', id: q.clubId }
   a.lede = sentences(n.body)[0] || n.body
   a.paras.push(`"${q.text}"`)
+  // the body often carries the quote itself: don't print it twice
+  const core = q.text.replace(/["“”]/g, '').trim().slice(0, 40)
   const rest = sentences(n.body).slice(1).join(' ')
-  if (rest) a.paras.push(rest)
+  if (rest && !rest.replace(/["“”]/g, '').includes(core)) a.paras.push(rest)
   a.paras.push(`${pick(['The comments are likely to come up again', 'Those words will not have gone unnoticed', 'Expect the subject to be raised again'])} when the sides next meet.`)
   const f = n.fixtureId ? w.fixtures[n.fixtureId] : undefined
   if (f?.result) { a.fixtureId = f.id; a.facts = [['Result', `${w.clubs[f.home]?.short} ${f.result.score[0]}–${f.result.score[1]} ${w.clubs[f.away]?.short}`], ['Speaker', q.by]] }
