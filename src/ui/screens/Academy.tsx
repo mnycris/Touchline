@@ -1,5 +1,5 @@
 import { useRemember } from '../memory'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Prospect, World } from '../../domain/types'
@@ -8,7 +8,8 @@ import { Avatar, Empty, Face, Flag, Ovr, PosChip, Stars, StatRow } from '../comp
 import { Confirm, HubActions, Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { Silhouette } from '../components/Silhouette'
 import { fmtMoney } from '../../domain/finance'
-import { fmtDate } from '../../domain/dates'
+import { ageOn, fmtDate } from '../../domain/dates'
+import { daysToNext, firstTeamBar, graduatesInSquad, paceOf, readiness } from '../../engine/world/academy'
 import { academyOf } from '../../engine/world/roster'
 import { PLAYER_TYPES, promoteYouth, sendYouthScout, signProspect, fireScout } from '../../engine/world/scouting'
 import { ATTR_GROUPS, ATTR_LABEL } from '../../domain/constants'
@@ -45,33 +46,85 @@ export function Academy() {
   )
 }
 
+const READY_TONE = { Ready: 'var(--pos)', Close: 'var(--warn)', Developing: 'var(--t3)' } as const
+const PACE_TONE = { pos: 'var(--pos)', neu: 'var(--t2)', neg: 'var(--t3)' } as const
+const PACE_SHORT: Record<string, string> = { 'Fast developer': 'Fast riser', 'Steady progress': 'Steady', 'Slow burner': 'Slow burner' }
+
 function AcademySquad({ w }: { w: World }) {
   const mutate = useGame((s) => s.mutate)
   const go = useGame((s) => s.go)
   const notify = useGame((s) => s.notify)
   const [rel, setRel] = useState<number>()
   const club = userClub(w)
-  const squad = [...academyOf(w, club.id)].sort((a, b) => b.pot - a.pot)
-  if (!squad.length) return <Empty icon="youth" title="Academy is empty" text="Send youth scouts on missions and sign the best prospects they find." />
+  const bar = useMemo(() => firstTeamBar(w), [w.date, w.userClubId])
+  const rank = { Ready: 0, Close: 1, Developing: 2 }
+  const squad = [...academyOf(w, club.id)].sort((a, b) => rank[readiness(a, bar)] - rank[readiness(b, bar)] || b.pot - a.pot)
+  const grads = graduatesInSquad(w)
+  // players 19 or older on 1 July move up to the senior squad at the end of the season
+  const cutoff = `${w.date.slice(5) >= '07-01' ? w.season + 1 : w.season}-07-01`
+  const agesOut = (dob: string) => ageOn(dob, cutoff) >= 19
+  if (!squad.length && !grads.length) return <Empty icon="youth" title="Academy is empty" text="Send youth scouts on missions and sign the best prospects they find." />
+  const nReady = squad.filter((p) => readiness(p, bar) === 'Ready').length
+  const nClose = squad.filter((p) => readiness(p, bar) === 'Close').length
   return (
     <div className="pad" style={{ marginTop: 12 }}>
-      <div className="card list">
-        {squad.map((p) => (
-          <div key={p.id} className="li">
-            <button className="row grow" style={{ gap: 12, textAlign: 'left', minWidth: 0 }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
-              <Face p={p} size={42} radius={10} club={club} />
-              <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight"><Flag w={w} nation={p.nation} size={10} />{ageOf(w, p)} yrs · POT {p.pot}</div></div>
-              <PosChip pos={p.positions[0]} />
-              <Ovr v={p.ovr} size="sm" />
-            </button>
-            <div className="col" style={{ gap: 4 }}>
-              <button className="btn xs club" onClick={() => { haptic('medium'); mutate((w) => promoteYouth(w, p.id), { roster: true }); notify(`${p.name} promoted to the first team`, 'ok') }}>Promote</button>
-              <button className="btn xs" onClick={() => setRel(p.id)}>Release</button>
-            </div>
-          </div>
-        ))}
+      <div className="ac-sum">
+        <div><span className="display">{bar}</span><span className="tiny dim">First-team bar</span></div>
+        <div><span className="display" style={{ color: 'var(--pos)' }}>{nReady}</span><span className="tiny dim">Ready now</span></div>
+        <div><span className="display" style={{ color: 'var(--warn)' }}>{nClose}</span><span className="tiny dim">Close</span></div>
+        <div><span className="display">{grads.length}</span><span className="tiny dim">Graduates in squad</span></div>
       </div>
-      <div className="tiny dim" style={{ marginTop: 8 }}>Academy players develop every day. Promote them when they're ready — ideally by 18 or 19 — or they'll lose motivation.</div>
+      <div className="tiny dim" style={{ margin: '8px 2px 12px' }}>The bar is the level of real cover in your current XI. Ready players can help the first team now; close ones are within five points.</div>
+      {squad.length > 0 && (
+        <div className="card list">
+          {squad.map((p) => {
+            const r = readiness(p, bar)
+            const pace = paceOf(p)
+            const next = daysToNext(p)
+            const out = agesOut(p.dob)
+            const fill = Math.max(4, Math.min(100, ((p.ovr - (bar - 20)) / 20) * 100))
+            return (
+              <div key={p.id} className="li ac-row">
+                <button className="row ac-top" onClick={() => go({ name: 'player', params: { id: p.id } })}>
+                  <Face p={p} size={42} radius={10} club={club} />
+                  <div className="meta">
+                    <div className="row tight" style={{ minWidth: 0 }}><span className="t small ellipsis">{p.name}</span><span className="pill ac-ready" style={{ color: READY_TONE[r], background: `color-mix(in srgb, ${READY_TONE[r]} 16%, transparent)` }}>{r}</span></div>
+                    <div className="s row tight"><Flag w={w} nation={p.nation} size={10} /><span className="ellipsis">{ageOf(w, p)} yrs · POT {p.pot}{out && <span className="ac-out"> · senior squad 1 Jul</span>}</span></div>
+                    <div className="ac-bar" aria-label={`OVR ${p.ovr} against a first-team bar of ${bar}`}><i style={{ width: `${fill}%`, background: READY_TONE[r] }} /></div>
+                  </div>
+                  <PosChip pos={p.positions[0]} />
+                  <Ovr v={p.ovr} size="sm" />
+                </button>
+                <div className="ac-foot">
+                  <span className="tiny ellipsis" style={{ minWidth: 0 }}><span style={{ color: PACE_TONE[pace.tone] }}>{PACE_SHORT[pace.label] || pace.label}</span><span className="dim">{next != null ? ` · +1 in ~${next}d` : ' · at his ceiling'}</span></span>
+                  <span className="grow" />
+                  <button className="btn xs ac-rel" onClick={() => setRel(p.id)} aria-label={`Release ${p.name}`}><Icon name="close" size={13} strokeWidth={2.4} /></button>
+                  <button className={`btn xs ${r === 'Ready' ? 'primary' : 'club'}`} onClick={() => { haptic('medium'); mutate((w) => promoteYouth(w, p.id), { roster: true }); notify(`${p.name} promoted to the first team`, 'ok') }}>Promote</button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <div className="tiny dim" style={{ marginTop: 8 }}>Academy players develop every day. Anyone who is 19 on 1 July moves up to the senior squad automatically at the end of the season, so decide on them before then.</div>
+      {grads.length > 0 && (
+        <>
+          <div className="label" style={{ margin: '18px 2px 8px' }}>Graduates in the first team</div>
+          <div className="card list">
+            {grads.map((p) => {
+              const st = Object.values(p.season).reduce((a, x) => ({ apps: a.apps + x.apps, goals: a.goals + x.goals }), { apps: 0, goals: 0 })
+              return (
+                <button key={p.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
+                  <Face p={p} size={36} radius={9} club={club} />
+                  <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s">{p.gradDate ? `Promoted ${fmtDate(p.gradDate, 'dm')} ${p.gradDate.slice(0, 4)}` : 'Academy graduate'} · {st.apps} apps{st.goals ? ` · ${st.goals} goals` : ''} this season</div></div>
+                  <PosChip pos={p.positions[0]} />
+                  <Ovr v={p.ovr} size="sm" />
+                </button>
+              )
+            })}
+          </div>
+        </>
+      )}
       <Confirm open={!!rel} title="Release academy player?" danger confirm="Release" text={rel ? `${w.players[rel]?.name} will leave the club.` : ''} onConfirm={() => { mutate((w) => { const p = w.players[rel!]; if (p) { p.academy = false; releaseUserPlayer(w, p) } }, { roster: true }) }} onClose={() => setRel(undefined)} />
     </div>
   )

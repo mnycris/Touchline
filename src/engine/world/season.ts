@@ -211,6 +211,8 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
   for (const p of rosterAcademy(w)) {
     if (ageOn(p.dob, `${season + 1}-07-01`) >= 19) {
       p.academy = false
+      p.academyGrad = p.clubId
+      p.gradDate = w.date
       p.contract = { ...p.contract, role: 'Prospect', until: season + 4, wage: 1500, signedOn: w.date }
       sendInbox(w, { from: staffNames(w).youth, fromRole: 'Head of Youth Development', category: 'Youth', subject: `${p.name} promoted`, body: `${p.name} has aged out of the academy and has been promoted to the senior squad.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id })
     }

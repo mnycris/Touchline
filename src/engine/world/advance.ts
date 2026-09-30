@@ -18,6 +18,7 @@ import { monthlyAwards } from './awards'
 import { isDeepFixture } from './matchRunner'
 import { dailyWorldNews, matchWorldNews } from './worldNews'
 import { afterUserMatchMedia } from './media'
+import { academyMilestones, monthlyAcademyReport } from './academy'
 import { aiManagerReview, userJobSecurity } from './managers'
 import { advancePlayoff, createPlayoffs, leagueFinished, seasonRollover } from './season'
 import { postNews, sendInbox, staffNames } from './messages'
@@ -87,6 +88,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
   // user-facing messages
   if (f.userInvolved) {
     afterUserMatchMedia(w, f, result)
+    academyMilestones(w, f, result)
     const staff = staffNames(w)
     for (const inj of res.injuries) {
       const p = w.players[inj.id]
@@ -251,6 +253,7 @@ function endOfDay(w: World, rng: Rng) {
   }
   if (dom === 1) {
     monthlyAwards(w)
+    monthlyAcademyReport(w)
     monthlyFinances(w)
     contractWatch(w, rng)
   }

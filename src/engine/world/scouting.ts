@@ -283,6 +283,8 @@ export function promoteYouth(w: World, playerId: number) {
   p.jersey = n
   const f = (w.flags.youthPromoted ||= {})
   f[w.season] = (f[w.season] || 0) + 1
+  p.academyGrad = p.clubId
+  p.gradDate = w.date
   touchRoster(w)
 }
 

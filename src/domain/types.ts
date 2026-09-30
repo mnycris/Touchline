@@ -136,6 +136,9 @@ export interface Player {
   interestedClubs?: number[]
   recentMins?: number[] // minutes in the club's last matches (6; 12 for the user's squad)
   lastStart?: ISODate
+  /** club whose academy produced him, and when he was promoted */
+  academyGrad?: number
+  gradDate?: ISODate
 }
 
 // ---------------------------------------------------------------- tactics
