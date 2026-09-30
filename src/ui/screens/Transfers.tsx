@@ -10,12 +10,12 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CountUp, Empty, Face, Flag, Ovr, PosChip, Stars } from '../components/atoms'
-import { Chips, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
+import { Chips, Confirm, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { addDays, diffDays, fmtDate } from '../../domain/dates'
 import { POS_GROUP, SQUAD_ROLES } from '../../domain/constants'
 import { allPlayers, rosterOf } from '../../engine/world/roster'
-import { knowledge, matchesPosition, potRange, scoutNetwork } from '../../engine/world/scouting'
+import { fireScout, hireScout, knowledge, matchesPosition, potRange, replaceScout, reportDays, scoutNetwork, SCOUT_SLOTS, YOUTH_SCOUT_SLOTS } from '../../engine/world/scouting'
 import { askingPrice, contractDemand, playerInterest, roleForBuyer, sellerStance, yearsLeft } from '../../engine/world/transfers'
 import { acceptCounter, delegateTransfer, proposeContract, renewalDemand, renewContract, startContractTalks, submitBid, wageRoom, windowLabel } from '../../engine/world/userActions'
 import { agentStyleLabel, getTalks, PRIORITY_TEXT } from '../../engine/world/negotiation'
@@ -343,6 +343,8 @@ export function Scouting() {
   const notify = useGame((s) => s.notify)
   const [assign, setAssign] = useState<number>()
   const [hire, setHire] = useState(false)
+  const [replacing, setReplacing] = useState<number>()
+  const [releasing, setReleasing] = useState<number>()
   const [cfg, setCfg] = useState({ region: 'Anywhere', position: 'Any', ageMax: 23, focus: 'High Potential', months: 2 })
   return (
     <Screen title="Scouting Network" sub="Global Transfer Network" back>
@@ -351,7 +353,7 @@ export function Scouting() {
           <Fx kind="radar" />
           <div className="content"><div className="kicker">Global Transfer Network</div><div className="h2" style={{ marginTop: 6 }}>{w.scouts.length} scout{w.scouts.length === 1 ? '' : 's'} active</div><div className="small muted" style={{ marginTop: 4, maxWidth: 230 }}>{w.scouts.filter((s) => s.assignment).length} on assignment · {Object.keys(w.transfers.knowledge).length} players known</div></div>
         </div>
-        <div className="card pad-card small muted">Assign scouts to search a region for a type of player. Reports reveal attributes, PlayStyles and a narrowed potential range. Knowledge grows faster with experienced scouts; judgement improves how accurately they spot potential.</div>
+        <div className="card pad-card small muted">Assign scouts to search a region for a type of player, or to watch one player. Reports reveal attributes, PlayStyles and his true potential. Experience sets how fast a scout works, judgement how sharp his reads are, and he's quicker in the country he knows. The best-known players need little scouting; unknown teenagers abroad need a lot.</div>
         {w.scouts.map((s) => {
           const a = s.assignment
           const found = a?.foundIds.map((id) => w.players[id]).filter(Boolean) || []
@@ -366,6 +368,12 @@ export function Scouting() {
                 </div>
                 <button className="btn xs club" onClick={() => setAssign(s.id)}>{a ? 'Reassign' : 'Assign'}</button>
               </div>
+              <div className="sct-meta">
+                <span className="tiny dim"><Icon name="clock" size={12} /> Full report in ~{reportDays(s)} days</span>
+                <span className="grow" />
+                <button className="btn xs" onClick={() => { haptic(); setReplacing(s.id) }}><Icon name="swap" size={13} /> Replace</button>
+                <button className="btn xs" onClick={() => { haptic(); setReleasing(s.id) }}>Release</button>
+              </div>
               {a && (
                 <div style={{ padding: '0 12px 12px' }}>
                   <div className="row between tiny"><span className="muted">{a.kind === 'player' ? `Scouting ${w.players[a.playerId!]?.name}` : `${a.region} · ${a.position} · U${a.ageMax} · ${a.focus}`}</span><span className="b">{Math.round(a.progress)}%</span></div>
@@ -376,7 +384,7 @@ export function Scouting() {
             </div>
           )
         })}
-        {w.scouts.length < 3 && <button className="btn block" onClick={() => setHire(true)}><Icon name="plus" size={18} /> Hire scout ({w.scouts.length}/3)</button>}
+        {w.scouts.length < SCOUT_SLOTS ? <button className="btn block" onClick={() => setHire(true)}><Icon name="plus" size={18} /> Hire scout ({w.scouts.length}/{SCOUT_SLOTS})</button> : <div className="tiny dim" style={{ textAlign: 'center' }}>All {SCOUT_SLOTS} places taken: replace a scout to bring someone new in.</div>}
       </div>
       <Sheet open={assign !== undefined} onClose={() => setAssign(undefined)} title="Scouting instructions">
         <div className="stack" style={{ gap: 12 }}>
@@ -388,23 +396,38 @@ export function Scouting() {
           <button className="btn primary block" onClick={() => { mutate((w) => scoutNetwork(w, assign!, cfg.region, cfg.position, cfg.ageMax, cfg.focus, cfg.months)); notify('Scout dispatched', 'ok'); setAssign(undefined) }}>Send scout</button>
         </div>
       </Sheet>
-      <HireSheet open={hire} onClose={() => setHire(false)} youth={false} />
+      <HireSheet open={hire || replacing != null} onClose={() => { setHire(false); setReplacing(undefined) }} youth={false} replacing={replacing} />
+      <Confirm open={releasing != null} title={`Release ${w.scouts.find((x) => x.id === releasing)?.name || 'scout'}?`} text={`His contract is paid off with four weeks' wages (${fmtMoney((w.scouts.find((x) => x.id === releasing)?.wage || 0) * 4)}); what he has found stays known.`} confirm="Release" danger onConfirm={() => { mutate((w) => fireScout(w, releasing!, false)); notify('Scout released', 'ok'); setReleasing(undefined) }} onClose={() => setReleasing(undefined)} />
     </Screen>
   )
 }
 
-export function HireSheet({ open, onClose, youth }: { open: boolean; onClose: () => void; youth: boolean }) {
+export function HireSheet({ open, onClose, youth, replacing }: { open: boolean; onClose: () => void; youth: boolean; replacing?: number }) {
   const w = useWorld()
   const mutate = useGame((s) => s.mutate)
-  const pool = youth ? w.youthScoutPool : w.scoutPool
+  const notify = useGame((s) => s.notify)
+  const pool = [...(youth ? w.youthScoutPool : w.scoutPool)].sort((a, b) => b.experience + b.judgement - (a.experience + a.judgement) || a.wage - b.wage)
+  const slots = youth ? YOUTH_SCOUT_SLOTS : SCOUT_SLOTS
+  const list = youth ? w.youthScouts : w.scouts
+  const old = replacing != null ? list.find((x) => x.id === replacing) : undefined
   return (
-    <Sheet open={open} onClose={onClose} title={youth ? 'Hire youth scout' : 'Hire scout'}>
+    <Sheet open={open} onClose={onClose} title={old ? `Replace ${old.name}` : youth ? 'Hire youth scout' : 'Hire scout'}>
+      <div className="tiny dim" style={{ marginBottom: 10 }}>{old ? `He leaves with four weeks' wages; the new scout starts free of assignments.` : `${list.length}/${slots} places used. New candidates come onto the market every month.`}</div>
       <div className="card list">
-        {pool.slice(0, 12).map((s) => (
+        {pool.slice(0, 14).map((s) => (
           <div key={s.id} className="li">
             <Avatar name={s.name} size={40} radius={10} />
-            <div className="meta"><div className="t small">{s.name}</div><div className="s row tight"><Flag w={w} nation={s.nationality} size={10} />{s.nationality} · {fmtMoney(s.wage)}/wk</div><div className="row tight tiny" style={{ marginTop: 3 }}><span className="dim">EXP</span><Stars n={s.experience} size={10} /><span className="dim">JDG</span><Stars n={s.judgement} size={10} /></div></div>
-            <button className="btn xs club" onClick={() => { mutate((w) => { const pl = youth ? w.youthScoutPool : w.scoutPool; const list = youth ? w.youthScouts : w.scouts; const i = pl.findIndex((x) => x.id === s.id); if (i >= 0 && list.length < 3) (list as any[]).push(pl.splice(i, 1)[0]) }); onClose() }}>Hire</button>
+            <div className="meta">
+              <div className="t small">{s.name}</div>
+              <div className="s row tight"><Flag w={w} nation={s.nationality} size={10} />{s.nationality} · {fmtMoney(s.wage)}/wk{!youth && <> · ~{reportDays(s)} days a report</>}</div>
+              <div className="row tight tiny" style={{ marginTop: 3 }}><span className="dim">EXP</span><Stars n={s.experience} size={10} /><span className="dim">JDG</span><Stars n={s.judgement} size={10} /></div>
+            </div>
+            <button className="btn xs club" disabled={!old && list.length >= slots} onClick={() => {
+              haptic('medium')
+              mutate((w) => { if (old) replaceScout(w, old.id, s.id, youth); else hireScout(w, s.id, youth) })
+              notify(old ? `${s.name} replaces ${old.name}` : `${s.name} hired`, 'ok')
+              onClose()
+            }}>{old ? 'Bring in' : 'Hire'}</button>
           </div>
         ))}
       </div>

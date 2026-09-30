@@ -5,29 +5,54 @@ import { addDays, ageOn, iso, toDate } from '../../domain/dates'
 import { POS_GROUP, RATING_WEIGHTS, POS_WEIGHT_KEY } from '../../domain/constants'
 import { rawPosRating } from '../../domain/ratings'
 import { formulaValue } from '../../domain/finance'
-import { pickName, displayName } from '../../domain/names'
+import { pickName, displayName, staffName } from '../../domain/names'
 import { sendInbox, staffNames } from './messages'
 import { academyOf, touchRoster } from './roster'
 
+export const SCOUT_SLOTS = 5
+export const YOUTH_SCOUT_SLOTS = 3
+
+/** Days a scout needs for a full report on a player the club knows little about (from ~30% known). */
+export function reportDays(s: Pick<Scout, 'experience' | 'judgement'>) {
+  return Math.max(3, Math.ceil(70 / ((4 + s.experience * 2.2) * (1 + s.judgement * 0.05))))
+}
+
 // ---------------------------------------------------------------- knowledge
+/** What the football world already knows about a player without sending anyone: the stars are no mystery, an
+ *  established international in a big league is well documented, an unknown teenager abroad is a blank. */
+export function publicKnowledge(w: World, p: Player): number {
+  const club = w.clubs[p.clubId]
+  const user = w.clubs[w.userClubId]
+  const age = ageOn(p.dob, w.date)
+  let f = p.ovr >= 86 ? 72 : p.ovr >= 82 ? 54 : p.ovr >= 78 ? 38 : p.ovr >= 74 ? 24 : 10
+  f += (p.intlRep || 1) * 6
+  f += (w.leagues[club?.leagueId]?.prestige || 3) * 2.5
+  if (age <= 20) f *= 0.5
+  else if (age <= 22) f *= 0.78
+  if (user && p.nation === user.country) f += 8
+  // familiar ground: his league, or the manager's own country
+  if (club && user && club.leagueId === user.leagueId) f = Math.max(f + 12, 40)
+  else if (club && user && club.country === user.country) f = Math.max(f + 6, 25)
+  return clamp(Math.round(f), 0, 95)
+}
+
 export function knowledge(w: World, p: Player): number {
   if (p.clubId === w.userClubId) return 100
-  const k = w.transfers.knowledge[p.id]
-  if (k !== undefined) return k
-  const user = w.clubs[w.userClubId]
-  const club = w.clubs[p.clubId]
-  if (club && user && club.leagueId === user.leagueId) return 30
-  if (club && user && club.country === user.country) return 15
-  return 0
+  return Math.max(w.transfers.knowledge[p.id] ?? 0, publicKnowledge(w, p))
 }
 
 export function potRange(w: World, p: Player): [number, number] {
   const k = knowledge(w, p)
   if (k >= 90) return [p.pot, p.pot]
-  const width = Math.round((1 - k / 100) * 12) + 1
-  const off = (hashString(`${p.id}:${w.season}`) % (width + 1)) - Math.floor(width / 2)
-  const lo = clamp(Math.max(p.ovr, p.pot - width + off), p.ovr, 99)
-  const hi = clamp(Math.max(lo, p.pot + Math.floor(width / 2) + off), lo, 99)
+  // how much is still unknown, and how much room there is left to grow at his age
+  const age = ageOn(p.dob, w.date)
+  const ageF = age >= 28 ? 0.3 : age >= 25 ? 0.55 : age >= 22 ? 0.85 : 1.15
+  const width = Math.max(1, Math.round((1 - k / 100) * 11 * ageF)) + 1
+  // the band sits around the truth, shifted a little (stable for the season) so it never gives the answer away
+  const half = width / 2
+  const off = ((hashString(`${p.id}:${w.season}`) % 1000) / 1000 - 0.5) * half
+  const lo = clamp(Math.round(p.pot - half + off), p.ovr, 99)
+  const hi = clamp(Math.round(p.pot + half + off), Math.max(lo, p.pot), 99)
   return [lo, hi]
 }
 
@@ -56,14 +81,16 @@ export function scoutNetwork(w: World, scoutId: number, region: string, position
 }
 
 export function dailyScouting(w: World, rng: Rng) {
+  if (w.date.endsWith('-01')) refreshScoutPool(w, rng)
   for (const s of w.scouts) {
     const a = s.assignment
     if (!a) continue
     if (a.kind === 'player' && a.playerId) {
       const p = w.players[a.playerId]
       if (!p) { s.assignment = undefined; continue }
-      const same = w.clubs[p.clubId]?.country === s.nationality ? 1.6 : 1
-      const gain = (3 + s.experience * 1.6) * same
+      // experience sets the pace, knowing the country helps, judgement sharpens what's seen
+      const same = w.clubs[p.clubId]?.country === s.nationality || p.nation === s.nationality ? 1.5 : 1
+      const gain = (4 + s.experience * 2.2) * same * (1 + s.judgement * 0.05)
       const k = clamp(knowledge(w, p) + gain, 0, 100)
       w.transfers.knowledge[p.id] = k
       a.progress = k
@@ -76,10 +103,10 @@ export function dailyScouting(w: World, rng: Rng) {
     } else if (a.kind === 'network') {
       const elapsed = Math.round((toDate(w.date).getTime() - toDate(a.started).getTime()) / 86400000)
       a.progress = clamp(Math.round((elapsed / a.duration) * 100), 0, 100)
-      if (elapsed > 0 && elapsed % 7 === 0) {
+      if (elapsed > 0 && elapsed % 4 === 0) {
         const found = networkFind(w, s, rng)
         for (const p of found) {
-          w.transfers.knowledge[p.id] = clamp(knowledge(w, p) + 25 + s.experience * 8, 0, 100)
+          w.transfers.knowledge[p.id] = clamp(knowledge(w, p) + 30 + s.experience * 10, 0, 100)
           if (!a.foundIds.includes(p.id)) a.foundIds.push(p.id)
         }
         if (found.length) {
@@ -291,22 +318,50 @@ export function promoteYouth(w: World, playerId: number) {
 export function hireScout(w: World, id: number, youth: boolean) {
   if (youth) {
     const i = w.youthScoutPool.findIndex((s) => s.id === id)
-    if (i < 0 || w.youthScouts.length >= 3) return false
+    if (i < 0 || w.youthScouts.length >= YOUTH_SCOUT_SLOTS) return false
     w.youthScouts.push(w.youthScoutPool.splice(i, 1)[0])
   } else {
     const i = w.scoutPool.findIndex((s) => s.id === id)
-    if (i < 0 || w.scouts.length >= 3) return false
+    if (i < 0 || w.scouts.length >= SCOUT_SLOTS) return false
     w.scouts.push(w.scoutPool.splice(i, 1)[0])
   }
   return true
 }
 
+/** Letting a scout go costs four weeks' wages; he goes back on the market. */
 export function fireScout(w: World, id: number, youth: boolean) {
-  if (youth) {
-    const i = w.youthScouts.findIndex((s) => s.id === id)
-    if (i >= 0) w.youthScoutPool.push(w.youthScouts.splice(i, 1)[0])
-  } else {
-    const i = w.scouts.findIndex((s) => s.id === id)
-    if (i >= 0) w.scoutPool.push(w.scouts.splice(i, 1)[0])
+  const list = youth ? w.youthScouts : w.scouts
+  const i = list.findIndex((s) => s.id === id)
+  if (i < 0) return
+  const s = list.splice(i, 1)[0]
+  const pay = s.wage * 4
+  const club = w.clubs[w.userClubId]
+  if (club && pay) { club.finance.balance -= pay; club.finance.ledger.push({ date: w.date, label: `Released scout ${s.name}`, amount: -pay, kind: 'wages' }) }
+  if ('assignment' in s) s.assignment = undefined
+  ;(youth ? w.youthScoutPool : w.scoutPool).push(s as any)
+}
+
+/** Replace one scout with a candidate in one move (the new man starts without an assignment). */
+export function replaceScout(w: World, oldId: number, newId: number, youth: boolean) {
+  const pool = youth ? w.youthScoutPool : w.scoutPool
+  if (!pool.some((s) => s.id === newId)) return false
+  fireScout(w, oldId, youth)
+  return hireScout(w, newId, youth)
+}
+
+/** The scouting market moves: now and then new candidates appear and some go elsewhere. */
+export function refreshScoutPool(w: World, rng: Rng) {
+  const nats = ['England', 'Spain', 'Germany', 'Italy', 'France', 'Brazil', 'Argentina', 'Portugal', 'Netherlands', 'Belgium', 'Norway', 'Denmark', 'Croatia', 'Uruguay', 'Colombia', 'Japan', 'United States', 'Nigeria', 'Senegal', "Côte d'Ivoire", 'Ghana', 'Morocco', 'Serbia', 'Poland', 'Sweden', 'Austria', 'Switzerland', 'Scotland', 'Türkiye', 'Mexico']
+  const star = () => clamp(Math.round(rng.normal(2.8, 1.05)), 1, 5)
+  const mk = (): Scout => {
+    const nat = rng.pick(nats)
+    const exp = star(), jud = star()
+    return { id: w.nextIds.misc++, name: staffName(rng, w.namePools, nat), nationality: nat, experience: exp, judgement: jud, wage: Math.round((600 + (exp + jud) * 900 + rng.int(0, 600)) / 50) * 50, faceSeed: rng.int(1, 1e9) }
+  }
+  for (const pool of [w.scoutPool, w.youthScoutPool] as Scout[][]) {
+    if (pool.length > 8 && rng.next() < 0.6) pool.splice(rng.int(0, pool.length - 1), 1)
+    const add = rng.next() < 0.7 ? 2 : 1
+    for (let k = 0; k < add; k++) pool.push(mk())
+    while (pool.length > 14) pool.shift()
   }
 }
