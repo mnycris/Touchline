@@ -12,6 +12,7 @@ import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { Ball, MatchLineup, sideFromSim } from '../components/Lineup'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { compLogoKey } from '../selectors'
+import { PitchSurface } from '../components/PitchSurface'
 import { callName } from '../../engine/match/commentary'
 import { clock, FeedItem, isGoal, StatsPanel } from './Match'
 
@@ -35,39 +36,39 @@ export function MiniPitch({ sim, colors }: { sim: MatchSim; colors: [string, str
   const lg = [...sim.events].reverse().find(isGoal)
   const flash = !!lg && !sim.finished && lg.min === sim.minute
   return (
-    <svg viewBox="0 0 100 40" className={`mini-pitch ${flash ? 'goal' : ''}`} preserveAspectRatio="none" aria-hidden>
-      <rect x="0" y="0" width="100" height="40" rx="3" fill="#1a4630" />
-      <g fill="none" stroke="rgba(255,255,255,.35)" strokeWidth=".6">
-        <rect x=".5" y=".5" width="99" height="39" rx="2.5" /><path d="M50 0v40" /><circle cx="50" cy="20" r="6" />
-        <path d="M0 11h9v18H0M100 11h-9v18h9" />
-      </g>
-      {b && <circle cx={b.x} cy={b.y * 0.4} r="2.6" fill={colors[b.side]} stroke="#fff" strokeWidth=".9" className="mini-ball" />}
-    </svg>
+    <PitchSurface className={`mini-pitch ${flash ? 'goal' : ''}`} pad={4} thin
+      field={b && <span className="mini-ball" style={{ left: `${Math.max(4, Math.min(96, b.x))}%`, top: `${Math.max(6, Math.min(94, b.y))}%`, background: colors[b.side] }} />} />
   )
 }
 
-function OtherCard({ w, o, onOpen, onPin, pinned }: { w: World; o: OtherLive; onOpen: () => void; onPin: () => void; pinned: boolean }) {
+const reds = (sim: MatchSim, side: 0 | 1) => sim.events.filter((e) => e.side === side && (e.type === 'red' || e.type === 'secondYellow')).length
+
+function OtherRow({ w, o, onOpen, onPin, pinned }: { w: World; o: OtherLive; onOpen: () => void; onPin: () => void; pinned: boolean }) {
   const f = w.fixtures[o.fixtureId]
   const [h, a] = clubsOf(w, o.sim)
   const colors = kitColors(h, a)
   const s = o.sim.score
-  const sc = [scorerLine(w, o.sim, 0), scorerLine(w, o.sim, 1)]
+  const sc = [scorerLine(w, o.sim, 0), scorerLine(w, o.sim, 1)].filter(Boolean)
   const live = !o.sim.finished && o.sim.phase !== 'pre'
+  const lead = s[0] === s[1] ? -1 : s[0] > s[1] ? 0 : 1
+  const team = (c: Club, side: 0 | 1) => (
+    <span className={`om-t ${o.sim.finished && lead === 1 - side ? 'lost' : ''}`}>
+      <Badge club={c} size={18} /><span className="ellipsis">{c?.short}</span>
+      {Array.from({ length: reds(o.sim, side) }, (_, i) => <i key={i} className="om-red" />)}
+      <b className="num">{o.sim.phase === 'pre' ? '' : s[side]}</b>
+    </span>
+  )
   return (
-    <div className="om-card">
+    <div className="om-item">
       <button className="om-main" onClick={onOpen}>
-        <div className="om-row">
-          <span className="om-team"><Badge club={h} size={24} /><span className="ellipsis">{h?.short}</span></span>
-          <span className="om-score num">{s[0]}<i>–</i>{s[1]}</span>
-          <span className="om-team r"><span className="ellipsis">{a?.short}</span><Badge club={a} size={24} /></span>
-        </div>
-        <div className="om-meta">
-          <span className={`om-clock ${live ? 'live' : ''}`}>{o.sim.phase === 'pre' ? f?.time : clock(o.sim)}</span>
-          {(sc[0] || sc[1]) && <span className="om-sc ellipsis"><Ball size={10} /> {[sc[0], sc[1]].filter(Boolean).join('  |  ')}</span>}
-        </div>
+        <span className={`om-clock ${live ? 'live' : ''}`}>{o.sim.phase === 'pre' ? f?.time : clock(o.sim)}</span>
+        <span className="om-teams">
+          {team(h, 0)}{team(a, 1)}
+          {sc.length > 0 && <span className="om-sc"><Ball size={9} /><span className="ellipsis">{sc.join(' · ')}</span></span>}
+        </span>
         <MiniPitch sim={o.sim} colors={colors} />
       </button>
-      <button className={`om-pin ${pinned ? 'on' : ''}`} onClick={onPin} aria-label={pinned ? 'Unpin' : 'Pin as mini player'}><Icon name="pip" size={16} /></button>
+      <button className={`om-pin ${pinned ? 'on' : ''}`} onClick={onPin} aria-label={pinned ? 'Unpin' : 'Pin as mini player'}><Icon name="pip" size={15} /></button>
     </div>
   )
 }
@@ -87,15 +88,13 @@ export function MatchesTab({ w, others, compId, pip, onOpen, onPin }: { w: World
       {order.map((c) => {
         const comp = w.competitions[c]
         return (
-          <div key={c} style={{ marginBottom: 12 }}>
-            <div className="om-h">{comp && <CompLogo k={compLogoKey(comp)} size={16} name={comp.name} />}<span>{comp?.name}</span><span className="dim">· {w.fixtures[groups.get(c)![0].fixtureId]?.roundName}</span></div>
-            <div className="om-grid">
-              {groups.get(c)!.map((o) => <OtherCard key={o.fixtureId} w={w} o={o} pinned={pip === o.fixtureId} onOpen={() => { haptic(); onOpen(o.fixtureId) }} onPin={() => { haptic(); onPin(pip === o.fixtureId ? undefined : o.fixtureId) }} />)}
-            </div>
+          <div key={c} className="om-group">
+            <div className="om-h">{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="ellipsis">{comp?.name}</span><span className="dim ellipsis">{w.fixtures[groups.get(c)![0].fixtureId]?.roundName}</span></div>
+            {groups.get(c)!.map((o) => <OtherRow key={o.fixtureId} w={w} o={o} pinned={pip === o.fixtureId} onOpen={() => { haptic(); onOpen(o.fixtureId) }} onPin={() => { haptic(); onPin(pip === o.fixtureId ? undefined : o.fixtureId) }} />)}
           </div>
         )
       })}
-      <div className="tiny dim" style={{ textAlign: 'center' }}>Tap a match to watch it. Your match pauses while you look.</div>
+      <div className="tiny dim" style={{ textAlign: 'center', marginTop: 4 }}>Tap a match to watch it · <Icon name="pip" size={11} /> keeps it in a mini player. Your match pauses while you look.</div>
     </div>
   )
 }
@@ -110,13 +109,12 @@ export function PipCard({ w, o, onOpen, onClose }: { w: World; o: OtherLive; onO
   return (
     <div className="pip">
       <button className="pip-main" onClick={onOpen}>
-        <div className="pip-row">
-          <Badge club={h} size={18} /><span className="pip-n">{h?.short}</span>
-          <span className="pip-s num" key={`${s[0]}-${s[1]}`}>{s[0]}–{s[1]}</span>
-          <span className="pip-n r">{a?.short}</span><Badge club={a} size={18} />
-        </div>
-        <div className="pip-meta"><span className={`om-clock ${live ? 'live' : ''}`}>{clock(o.sim)}</span>{lastGoal?.player && <span className="ellipsis"><Ball size={9} /> {callName(w.players[lastGoal.player]?.name || '')} {lastGoal.min}'</span>}</div>
         <MiniPitch sim={o.sim} colors={colors} />
+        <span className="pip-info">
+          <span className="pip-t"><Badge club={h} size={15} /><span className="pip-n">{h?.short}</span><b className="num" key={`h${s[0]}`}>{s[0]}</b></span>
+          <span className="pip-t"><Badge club={a} size={15} /><span className="pip-n">{a?.short}</span><b className="num" key={`a${s[1]}`}>{s[1]}</b></span>
+          <span className="pip-meta"><span className={`om-clock ${live ? 'live' : ''}`}>{clock(o.sim)}</span>{lastGoal?.player && <span className="ellipsis"><Ball size={9} /> {callName(w.players[lastGoal.player]?.name || '')} {lastGoal.min}'</span>}</span>
+        </span>
       </button>
       <button className="pip-x" onClick={onClose} aria-label="Close mini player"><Icon name="close" size={12} strokeWidth={2.6} /></button>
     </div>

@@ -20,6 +20,7 @@ export function RatingPill({ v, motm, size = 'md' }: { v: number; motm?: boolean
 }
 
 export { Ball, Boot, MissedPen } from './Glyphs'
+import { PitchSurface } from './PitchSurface'
 import { Ball, Boot, MissedPen } from './Glyphs'
 
 // ---------------------------------------------------------------------------- data model
@@ -182,21 +183,6 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
   )
 }
 
-function PitchMarkings({ half }: { half?: boolean }) {
-  return (
-    <svg className="fl-lines" viewBox="0 0 100 150" preserveAspectRatio="none">
-      <g fill="none" stroke="rgba(255,255,255,.16)" strokeWidth=".35">
-        <rect x="2" y="1.5" width="96" height="147" rx=".8" />
-        {!half && <line x1="2" y1="75" x2="98" y2="75" />}
-        {!half && <circle cx="50" cy="75" r="11" />}
-        <rect x="22" y="1.5" width="56" height="21" /><rect x="37" y="1.5" width="26" height="7.5" />
-        <rect x="22" y="127.5" width="56" height="21" /><rect x="37" y="141" width="26" height="7.5" />
-        <path d="M40.5 22.5a11 11 0 0 0 19 0M40.5 127.5a11 11 0 0 1 19 0" />
-      </g>
-    </svg>
-  )
-}
-
 function TeamBar({ s, right, onClick }: { s: LSide; right?: ReactNode; onClick?: () => void }) {
   return (
     <div className="fl-bar" onClick={onClick}>
@@ -221,11 +207,10 @@ export function MatchLineup({ w, home, away, onTap, sel, mode = 'live', benchTit
   return (
     <div className="fl-wrap">
       <TeamBar s={home} />
-      <div className="fl-pitch two">
-        <PitchMarkings />
+      <PitchSurface vertical aspect={0.54} pad={2.5} className="fl-pitch two">
         {home.xi.map((s, i) => s && <PlNode key={`h${s.id}`} w={w} s={s} club={home.club} mode={mode} small={small(home.formation)} left={clampX(100 - home.formation.slots[i].x)} top={rowsH[i]} sel={sel === s.id} onTap={onTap ? () => onTap({ side: 0, id: s.id, slot: i }) : undefined} />)}
         {away.xi.map((s, i) => s && <PlNode key={`a${s.id}`} w={w} s={s} club={away.club} mode={mode} small={small(away.formation)} left={clampX(away.formation.slots[i].x)} top={rowsA[i]} sel={sel === s.id} onTap={onTap ? () => onTap({ side: 1, id: s.id, slot: i }) : undefined} />)}
-      </div>
+      </PitchSurface>
       <TeamBar s={away} />
       <BenchColumns w={w} home={home} away={away} title={benchTitle} onTap={onTap} sel={sel} />
     </div>
@@ -238,11 +223,10 @@ export function TeamLineup({ w, side, onTap, sel, mode = 'sheet', energy, childr
   return (
     <div className="fl-wrap">
       <TeamBar s={side} />
-      <div className="fl-pitch one">
-        <PitchMarkings />
+      <PitchSurface vertical aspect={0.8} pad={2.5} chevron className="fl-pitch one">
         {side.xi.map((s, i) => s && <PlNode key={s.id} w={w} s={s} club={side.club} mode={mode} energy={energy} left={clampX(side.formation.slots[i].x)} top={tops[i]} sel={sel === s.id} onTap={onTap ? () => onTap({ side: 0, id: s.id, slot: i }) : undefined} />)}
         {side.xi.map((s, i) => !s && <div key={`e${i}`} className="fl-empty" style={{ left: `${clampX(side.formation.slots[i].x)}%`, top: `${tops[i]}%` }} onClick={onTap ? () => onTap({ side: 0, id: 0, slot: i }) : undefined}><Icon name="plus" size={16} /><span>{side.formation.slots[i].label}</span></div>)}
-      </div>
+      </PitchSurface>
       {children}
     </div>
   )

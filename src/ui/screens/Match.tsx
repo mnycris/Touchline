@@ -383,7 +383,7 @@ export function LiveMatch() {
         <PlayerMatchPanel w={w} st={sim.playerStats(panel.side, panel.id)} club={panel.side === 0 ? home : away} events={sim.events} live={!sim.finished}
           onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }}
           actions={!spectator && panel.side === us && !sim.finished && sim.onPitchIds(us).includes(panel.id) ? (
-            <button className="btn primary grow" onClick={() => { haptic(); setPanel(undefined); setManageOut(panel.id); setManage(true) }}><Icon name="sub" size={16} /> Substitute</button>
+            <button className="pmp-pill primary" onClick={() => { haptic(); setPanel(undefined); setManageOut(panel.id); setManage(true) }}><Icon name="sub" size={15} /> Substitute</button>
           ) : undefined} />
       )}
       <div className="match-controls">

@@ -1,51 +1,90 @@
 // FotMob-style match performance panel: tap a player in a line-up during (or after) a match to see his rating,
 // heat map and the stats the engine recorded for him, grouped and ordered by what matters for his position.
-import type { ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import type { Club, MatchEvent, MatchPlayerStats, World } from '../../domain/types'
 import { RGROUP, type RG } from '../../engine/match/rating'
 import { decodeHeat, HEAT_H, HEAT_W } from '../../engine/match/pitch'
-import { Badge, Face } from './atoms'
+import { Badge, Face, Flag } from './atoms'
+import { POS_NAME } from '../../domain/constants'
+import { ageOf } from '../selectors'
 import { Sheet } from './layout'
 import { Ball, Boot, MissedPen, RatingPill } from './Lineup'
 import { Icon } from '../icons/Icon'
+import { PitchSurface } from './PitchSurface'
 
 type Row = [label: string, value: ReactNode, strong?: boolean]
+
+/** Position names that fit a third of the panel. */
+const POS_SHORT: Record<string, string> = {
+  GK: 'Goalkeeper', CB: 'Centre-back', RB: 'Right-back', LB: 'Left-back', RWB: 'Wing-back', LWB: 'Wing-back', CDM: 'Defensive mid',
+  CM: 'Midfielder', RM: 'Right mid', LM: 'Left mid', CAM: 'Attacking mid', RW: 'Right winger', LW: 'Left winger', CF: 'Forward', ST: 'Striker',
+}
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0)
 const frac = (a = 0, b = 0) => (b ? <>{a}/{b} <span className="pmp-pct">({pct(a, b)}%)</span></> : '0')
 const n = (v?: number) => v || 0
 const x2 = (v?: number) => (v || 0).toFixed(2)
 
-/** Heat map: 12×8 touch grid, attacking left to right, blurred into a smooth field. */
-export function HeatMap({ heat, height = 150 }: { heat?: string; height?: number }) {
-  const cells = decodeHeat(heat)
-  const cw = 105 / HEAT_W, ch = 68 / HEAT_H
+/** Heat map: the 12×8 touch grid (attacking left to right) smoothed into a continuous field and coloured
+ *  green → yellow → orange → red, drawn on the charcoal pitch. */
+export function HeatMap({ heat }: { heat?: string }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const cells = useMemo(() => decodeHeat(heat), [heat])
+  useEffect(() => {
+    const cv = ref.current
+    if (!cv || !cells.length) return
+    const ctx = cv.getContext('2d')
+    if (!ctx) return
+    const W = cv.width, H = cv.height
+    // separable gaussian: each cell centre spreads over ~one and a half cells
+    const sx = W / HEAT_W * 0.62, sy = H / HEAT_H * 0.66
+    const gx = new Float32Array(W * HEAT_W), gy = new Float32Array(H * HEAT_H)
+    for (let x = 0; x < W; x++) for (let i = 0; i < HEAT_W; i++) { const d = x + 0.5 - (i + 0.5) * (W / HEAT_W); gx[x * HEAT_W + i] = Math.exp(-(d * d) / (2 * sx * sx)) }
+    for (let y = 0; y < H; y++) for (let j = 0; j < HEAT_H; j++) { const d = y + 0.5 - (j + 0.5) * (H / HEAT_H); gy[y * HEAT_H + j] = Math.exp(-(d * d) / (2 * sy * sy)) }
+    const field = new Float32Array(W * H)
+    // rows of the grid folded with the x kernel first
+    const rowX = new Float32Array(HEAT_H * W)
+    for (let j = 0; j < HEAT_H; j++) for (let x = 0; x < W; x++) {
+      let v = 0
+      for (let i = 0; i < HEAT_W; i++) v += cells[j * HEAT_W + i] * gx[x * HEAT_W + i]
+      rowX[j * W + x] = v
+    }
+    let max = 0
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      let v = 0
+      for (let j = 0; j < HEAT_H; j++) v += rowX[j * W + x] * gy[y * HEAT_H + j]
+      field[y * W + x] = v
+      if (v > max) max = v
+    }
+    const img = ctx.createImageData(W, H)
+    for (let k = 0; k < field.length; k++) {
+      const c = HEAT_LUT[Math.min(255, Math.round((field[k] / (max || 1)) * 255))]
+      img.data[k * 4] = c[0]; img.data[k * 4 + 1] = c[1]; img.data[k * 4 + 2] = c[2]; img.data[k * 4 + 3] = c[3]
+    }
+    ctx.putImageData(img, 0, 0)
+  }, [cells])
   return (
-    <div className="pmp-heat" style={{ height }}>
-      <svg viewBox="0 0 105 68" preserveAspectRatio="none" className="pmp-heat-svg">
-        <defs>
-          <filter id="pmpblur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="3.6" /></filter>
-          <clipPath id="pmpclip"><rect x="0" y="0" width="105" height="68" /></clipPath>
-        </defs>
-        <g clipPath="url(#pmpclip)"><g filter="url(#pmpblur)">
-          {cells.map((v, i) => {
-            if (v < 0.04) return null
-            const cx = (i % HEAT_W) * cw + cw / 2, cy = Math.floor(i / HEAT_W) * ch + ch / 2
-            const hue = 130 - Math.min(1, v) * 130
-            return <ellipse key={i} cx={cx} cy={cy} rx={cw * 0.95} ry={ch * 0.95} fill={`hsl(${hue} 85% 52%)`} opacity={Math.min(0.95, 0.2 + v * 0.85)} />
-          })}
-        </g></g>
-        <g fill="none" stroke="rgba(255,255,255,.45)" strokeWidth=".45">
-          <rect x=".3" y=".3" width="104.4" height="67.4" />
-          <path d="M52.5 0v68" /><circle cx="52.5" cy="34" r="9.15" />
-          <path d="M0 13.84h16.5v40.32H0M105 13.84H88.5v40.32H105M0 24.84h5.5v18.32H0M105 24.84h-5.5v18.32H105" />
-        </g>
-      </svg>
+    <PitchSurface className="pmp-heat" chevron
+      under={cells.length ? <canvas ref={ref} width={168} height={109} className="pmp-heat-cv" /> : undefined}>
       {!cells.length && <div className="pmp-heat-empty tiny">No touches recorded</div>}
-      <span className="pmp-dir tiny">Attacking <Icon name="forward" size={11} strokeWidth={2.4} /></span>
-    </div>
+    </PitchSurface>
   )
 }
+
+/** Colour ramp for the heat field: transparent at the fringe, then green, yellow, orange and a red core. */
+const HEAT_STOPS: [number, number, number, number, number][] = [
+  [0, 43, 196, 110, 0], [0.1, 43, 196, 110, 0], [0.2, 52, 199, 104, 0.5], [0.4, 150, 214, 62, 0.72],
+  [0.58, 247, 214, 64, 0.84], [0.76, 255, 146, 56, 0.9], [1, 238, 58, 50, 0.95],
+]
+const HEAT_LUT: [number, number, number, number][] = Array.from({ length: 256 }, (_, i) => {
+  const t = i / 255
+  let k = 0
+  while (k < HEAT_STOPS.length - 2 && t > HEAT_STOPS[k + 1][0]) k++
+  const [a, b] = [HEAT_STOPS[k], HEAT_STOPS[k + 1]]
+  const f = b[0] === a[0] ? 0 : Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0])))
+  const m = (x: number, y: number) => x + (y - x) * f
+  return [Math.round(m(a[1], b[1])), Math.round(m(a[2], b[2])), Math.round(m(a[3], b[3])), Math.round(m(a[4], b[4]) * 255)]
+})
 
 function Section({ title, rows }: { title: string; rows: Row[] }) {
   const shown = rows.filter(Boolean)
@@ -138,12 +177,14 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
     <Sheet open onClose={onClose}>
       <div className="pmp" style={{ ['--club' as any]: club?.kit?.[0] || '#1fd67a' }}>
         <div className="pmp-hero">
-          <Face p={p} size={64} radius={32} club={club} />
-          <div className="grow" style={{ minWidth: 0 }}>
-            <div className="pmp-name ellipsis">{p.name}</div>
-            <div className="row tight tiny" style={{ gap: 6, marginTop: 3, color: 'var(--t2)' }}>
-              <Badge club={club} size={15} /><span>{club?.short}</span><span className="dim">·</span><span className="b">{role}</span>{p.jersey ? <><span className="dim">·</span><span>#{p.jersey}</span></> : null}
-            </div>
+          <div className="pmp-ph">
+            <Face p={p} size={84} radius={42} club={club} />
+            {played && <span className="pmp-rt"><RatingPill v={st.rating} motm={motm} /></span>}
+            <span className="pmp-flag"><Flag w={w} nation={p.nation} size={13} /></span>
+          </div>
+          <div className="pmp-name">{p.name}</div>
+          <div className="pmp-sub tiny">{!played ? 'Unused substitute' : motm ? 'Player of the match' : live ? 'Live rating' : 'Match rating'}</div>
+          {(st.goals > 0 || st.assists > 0 || missed > 0 || yellow || red || st.subOn != null || st.subOff != null || st.injured) && (
             <div className="pmp-evs">
               {Array.from({ length: st.goals }, (_, i) => <Ball key={`g${i}`} size={15} />)}
               {Array.from({ length: st.assists }, (_, i) => <Boot key={`a${i}`} size={17} />)}
@@ -153,16 +194,20 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
               {st.subOff != null && <span className="pmp-chip neg"><Icon name="arrowDown" size={10} strokeWidth={3} />{st.subOff}'</span>}
               {st.injured && <span className="pmp-chip neg"><Icon name="injury" size={10} />Injured</span>}
             </div>
-          </div>
-          <div className="pmp-rt">
-            {played ? <RatingPill v={st.rating} motm={motm} /> : <span className="tiny dim">Unused</span>}
-            <span className="tiny dim">{motm ? 'Player of the match' : live ? 'Live rating' : 'Rating'}</span>
+          )}
+          <div className="pmp-meta">
+            <div><b>{POS_SHORT[role] || POS_NAME[role as keyof typeof POS_NAME] || role}</b><span>Position</span></div>
+            <div><b className="row tight" style={{ justifyContent: 'center' }}><Badge club={club} size={16} /><span className="ellipsis">{club?.short}</span></b><span>Team</span></div>
+            <div><b>{ageOf(w, p)}{p.jersey ? <span className="dim"> · #{p.jersey}</span> : null}</b><span>Age · Shirt</span></div>
           </div>
         </div>
 
         {played && ext && (
           <>
-            <HeatMap heat={st.heat} />
+            <div className="pmp-sec pmp-heat-sec">
+              <div className="pmp-hh"><span>Heatmap</span><span className="pmp-hh-n">Touches <b>{n(st.touches)}</b></span></div>
+              <HeatMap heat={st.heat} />
+            </div>
             <Section title="Top stats" rows={top} />
             {order.map(([t, rows]) => <Section key={t} title={t} rows={rows.filter((r) => !topLabels.has(r[0]))} />)}
           </>
@@ -175,9 +220,10 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
         )}
         {!played && <div className="muted small" style={{ padding: '18px 4px' }}>{p.name} hasn't played in this match.</div>}
 
-        <div className="row" style={{ gap: 8, marginTop: 14 }}>
-          <button className="btn grow" onClick={onProfile}><Icon name="manager" size={16} /> Profile</button>
+        <div className="pmp-dock">
+          <button className="pmp-pill" onClick={onProfile}><Icon name="manager" size={15} /> Profile</button>
           {actions}
+          <button className="pmp-pill x" onClick={onClose} aria-label="Close"><Icon name="close" size={16} strokeWidth={2.4} /></button>
         </div>
       </div>
     </Sheet>

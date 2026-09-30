@@ -9,6 +9,7 @@ import { formationOf } from '../../domain/constants'
 import type { Act, MatchSim, MinuteFrame } from '../../engine/match/engine'
 import { playerSpot, type Pt } from '../../engine/match/pitch'
 import { Ball } from './Lineup'
+import { PitchSurface } from './PitchSurface'
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const hash = (a: number, b: number) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295 }
@@ -191,22 +192,7 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
 
   const move = `${Math.round(dur)}ms`
   return (
-    <div className="lp">
-      <svg className="lp-lines" viewBox="0 0 105 68" preserveAspectRatio="none" aria-hidden>
-        <g fill="none" stroke="rgba(255,255,255,.3)" strokeWidth=".3">
-          <rect x="0.4" y="0.4" width="104.2" height="67.2" />
-          <line x1="52.5" y1="0.4" x2="52.5" y2="67.6" />
-          <circle cx="52.5" cy="34" r="9.15" />
-          <rect x="0.4" y="13.84" width="16.5" height="40.32" /><rect x="88.1" y="13.84" width="16.5" height="40.32" />
-          <rect x="0.4" y="24.84" width="5.5" height="18.32" /><rect x="99.1" y="24.84" width="5.5" height="18.32" />
-          <path d="M16.9 26.7a9.15 9.15 0 0 1 0 14.6M88.1 26.7a9.15 9.15 0 0 0 0 14.6" />
-          <path d="M.4 1.4a1 1 0 0 0 1-1M103.6.4a1 1 0 0 0 1 1M.4 66.6a1 1 0 0 1 1 1M103.6 67.6a1 1 0 0 1 1-1" />
-        </g>
-        <g fill="rgba(255,255,255,.35)"><circle cx="52.5" cy="34" r=".35" /><circle cx="11" cy="34" r=".3" /><circle cx="94" cy="34" r=".3" /></g>
-        <g stroke="rgba(255,255,255,.55)" strokeWidth=".35" fill="rgba(255,255,255,.06)">
-          <rect x="-1.6" y="30.34" width="2" height="7.32" /><rect x="104.6" y="30.34" width="2" height="7.32" />
-        </g>
-      </svg>
+    <PitchSurface className="lp" pad={2.4} goals field={<>
       {net && <span className={`lp-net ${net.side === 0 ? 'r' : 'l'}`} key={net.id} />}
       {placed.map(({ d, x, y }) => {
         const kit = d.gk ? (d.side === 0 ? '#f5d90a' : '#b16cf0') : d.side === 0 ? hc : ac
@@ -222,7 +208,7 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
         <Ball size={11} />
       </span>
       {tag && <span key={tag.id} className={`lp-tag k-${tag.k}`} style={{ left: `${clamp(tag.x, 12, 88)}%`, top: `${clamp(tag.y - 12, 8, 90)}%` }}>{tag.text}</span>}
-    </div>
+    </>} />
   )
 })
 

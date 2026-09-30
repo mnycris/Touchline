@@ -31,18 +31,24 @@ export function Ball({ size = 12, style, className }: { size?: number; style?: R
   )
 }
 
-/** Assist marker: a low-cut football boot drawn in the same black-and-white language as the ball. */
+// the boot in profile, toe to the right: upper (heel tab, collar, laced instep, long toe), sole plate and studs
+const BOOT_UPPER = 'M3.5 5.6c1.2 0 2.1.7 2.4 1.8.8.8 2.2 1.1 3.6.7l1.1-.4c2.4 1.6 5.6 2.8 8.6 3.5 2.2.5 3.5 1.7 3.5 3.3 0 .9-.5 1.6-1.4 1.6H3.3c-.9 0-1.5-.7-1.5-1.6V7.2c0-.9.8-1.6 1.7-1.6Z'
+const BOOT_PLATE = 'M1.9 15.8h20.4c-.1 1-.9 1.7-1.9 1.7H3.6c-.9 0-1.6-.7-1.7-1.7Z'
+const BOOT_STUDS = ['M3.6 17.3h2.2l-.3 2.1H3.9Z', 'M7.2 17.3h2l-.3 1.9H7.5Z', 'M13.3 17.3h2l-.3 1.9h-1.4Z', 'M17.2 17.3h2.2l-.3 2.1h-1.6Z']
+
+/** Assist marker: a football boot in profile, white with a dark keyline so it reads on a dark pitch and on a light
+ *  face alike, studs and all, with one accent stripe. */
 export function Boot({ size = 12, style, className }: { size?: number; style?: React.CSSProperties; className?: string }) {
-  const id = useId().replace(/:/g, '')
+  const small = size <= 14
+  const shape = <><path d={BOOT_UPPER} /><path d={BOOT_PLATE} />{BOOT_STUDS.map((d) => <path key={d} d={d} />)}</>
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
-      <defs><linearGradient id={`bt${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" /><stop offset="1" stopColor="#cfd5dc" /></linearGradient></defs>
-      <g transform="translate(0,-1.2)">
-        <path d="M2.8 8.3C4.6 9.3 6.8 9.5 8.6 8.9L10.1 8.4C11.5 9.7 13.7 10.7 16.6 11.5C19.6 12.3 21.6 13.3 21.8 15.1C21.9 15.9 21.4 16.3 20.6 16.3H3.4C2.6 16.3 2.1 15.7 2.2 14.9Z" fill={`url(#bt${id})`} stroke="#15181c" strokeWidth=".95" strokeLinejoin="round" />
-        <path d="M2.3 16.1h19.4c.1.8-.3 1.5-1.1 1.5H3.3c-.7 0-1.1-.6-1-1.5z" fill="#15181c" />
-        <path d="M4.3 17.4v1.5M7.3 17.4v1.5M15 17.4v1.5M18.6 17.4v1.5" stroke="#15181c" strokeWidth="1.6" strokeLinecap="round" />
-        <path d="M11.6 8.8l-.9 1.5M13.4 9.8l-.8 1.5M15.2 10.6l-.7 1.5" stroke="#15181c" strokeWidth=".9" strokeLinecap="round" />
-        <path d="M4.4 13.9c3.6.1 7.4-.6 10.3-2.1" stroke="#15181c" strokeWidth="1.15" strokeLinecap="round" fill="none" opacity=".8" />
+      <g transform="rotate(12 12 12) translate(0 .2)">
+        <g fill="#15181c" stroke="#15181c" strokeWidth={small ? 2.6 : 2.1} strokeLinejoin="round">{shape}</g>
+        <g fill="#f6f7f9">{shape}</g>
+        <path d="M1.9 15.75h20.4" stroke="#15181c" strokeWidth={small ? 1.2 : 0.95} />
+        <path d="M4.4 12.4c3.3 0 6.6-.9 9.4-2.6" stroke="var(--acc, #1fd67a)" strokeWidth={small ? 2.2 : 1.8} strokeLinecap="round" fill="none" />
+        {!small && <path d="M11.9 8.6l-.8 1.2M14 9.7l-.7 1.2M16.1 10.6l-.6 1.1" stroke="#15181c" strokeWidth=".85" strokeLinecap="round" />}
       </g>
     </svg>
   )

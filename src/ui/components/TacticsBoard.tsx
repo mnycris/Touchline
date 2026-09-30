@@ -7,6 +7,7 @@ import { MENTALITIES } from '../../domain/constants'
 import { haptic } from '../../store/game'
 import { Seg, Slider } from './layout'
 import { Icon } from '../icons/Icon'
+import { HalfMarkings } from './PitchSurface'
 
 type Change = (p: Partial<TeamTactics>) => void
 
@@ -73,10 +74,10 @@ function DefDiagram({ t }: { t: TeamTactics }) {
   const press = 64 - (t.pressing / 100) * 62
   return (
     <svg viewBox="0 0 100 70" className="tb-diag" aria-hidden>
-      <rect x="0" y="0" width="100" height="70" rx="4" fill="#1a4630" />
-      <g fill="none" stroke="rgba(255,255,255,.3)" strokeWidth=".6"><path d="M0 .3h100" /><path d="M22 70V56h56v14M38 70v-5h24v5" /><path d="M40 .3a10 10 0 0 0 20 0" /></g>
-      <rect x="0" y="0" width="100" height={Math.max(0, press)} fill="rgba(255,120,90,.18)" />
-      <path d={`M0 ${press}h100`} stroke="rgba(255,140,110,.7)" strokeDasharray="2 2" strokeWidth=".7" />
+      <rect x="0" y="0" width="100" height="70" rx="6" fill="var(--pitch)" />
+      <HalfMarkings w={100} h={70} goal="bottom" />
+      <rect x="3" y="3" width="94" height={Math.max(0, press - 3)} fill="rgba(255,120,90,.16)" />
+      <path d={`M3 ${press}h94`} stroke="rgba(255,140,110,.75)" strokeDasharray="2 2" strokeWidth=".7" />
       <text x="3" y={Math.max(6, press - 2)} fontSize="5" fill="rgba(255,190,170,.9)">press trigger</text>
       <path d={`M6 ${line}h88`} stroke={t.offsideTrap ? '#ffd23f' : '#fff'} strokeWidth="1.4" strokeLinecap="round" />
       {[14, 38, 62, 86].map((x) => <circle key={x} cx={x} cy={line} r="2.6" fill="var(--club, #3ea6ff)" stroke="#fff" strokeWidth=".7" />)}
@@ -92,8 +93,8 @@ function AttDiagram({ t }: { t: TeamTactics }) {
   const direct = t.buildUp === 'Long Ball' || t.buildUp === 'Counter' || t.chanceCreation === 'Direct Passing'
   return (
     <svg viewBox="0 0 100 70" className="tb-diag" aria-hidden>
-      <rect x="0" y="0" width="100" height="70" rx="4" fill="#1a4630" />
-      <g fill="none" stroke="rgba(255,255,255,.3)" strokeWidth=".6"><path d="M0 69.7h100" /><path d="M22 0v14h56V0M38 0v5h24V0" /><path d="M40 69.7a10 10 0 0 1 20 0" /></g>
+      <rect x="0" y="0" width="100" height="70" rx="6" fill="var(--pitch)" />
+      <HalfMarkings w={100} h={70} goal="top" />
       <path d={`M${50 - lane} 8V64M${50 + lane} 8V64`} stroke="rgba(120,200,255,.5)" strokeDasharray="3 2" strokeWidth=".8" />
       <defs><marker id="tbarr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0 0L6 3L0 6z" fill="#fff" /></marker></defs>
       {direct

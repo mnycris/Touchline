@@ -156,7 +156,9 @@ export function NewsDrop() {
   const clear = useGame((s) => s.clearNewsDrop)
   const go = useGame((s) => s.go)
   const w = useGame((s) => s.world)
-  if (!drop || !w) return null
+  // never over a live match: the stories wait for the final whistle
+  const live = useGame((s) => !!s.live)
+  if (!drop || !w || live) return null
   const items = drop.ids.map((id) => w.news.find((n) => n.id === id)).filter(Boolean) as NewsItem[]
   if (!items.length) return null
   return (
