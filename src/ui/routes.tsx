@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { TransferStoryScreen } from './screens/TransferCentre'
+import { OpponentReport } from './screens/OpponentReport'
 import type { Tab } from '../store/game'
 import { Hub } from './screens/Hub'
 import { Inbox, Message, ConversationScreen, PressConference, SellNegotiation } from './screens/Comms'
@@ -57,4 +58,5 @@ export const ROUTES: Record<string, ComponentType<any>> = {
   seasonReview: SeasonReview,
   settings: CareerSettingsScreen,
   story: TransferStoryScreen,
+  opponent: OpponentReport,
 }

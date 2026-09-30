@@ -1539,3 +1539,50 @@ select.input option { background: #151b27; }
 .ed-pri { flex: none; padding: 2px 6px; border-radius: 5px; font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; background: var(--s3); color: var(--t2); }
 .ed-pri.p-Critical { background: rgba(255, 77, 94, .16); color: #ff8a95; }
 .ed-pri.p-VeryHigh { background: rgba(255, 176, 32, .14); color: var(--warn); }
+
+/* prediction: expected goals and the why */
+.pred-xg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.pred-xg > span { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--s2); }
+.pred-xg b { font-family: var(--display); font-size: 17px; }
+.pred-why { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+.pred-r { display: flex; align-items: center; gap: 8px; }
+.pred-r i { flex: none; width: 4px; height: 14px; border-radius: 2px; }
+/* opponent scouting report */
+.card.or-head { display: flex; align-items: center; gap: 14px; padding: 16px; text-align: left; background: linear-gradient(135deg, color-mix(in srgb, var(--oc) 26%, var(--s1)), var(--s1) 70%); }
+.or-rec { margin-top: 6px; font-size: 13px; }
+.or-form { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.or-fx { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 2px 6px; border-radius: 10px; background: var(--s2); }
+.or-res { font-family: var(--display); font-weight: 800; font-size: 13px; padding: 1px 6px; border-radius: 5px; }
+.or-fx.W .or-res { background: rgba(46, 229, 138, .2); color: var(--pos); }
+.or-fx.D .or-res { background: rgba(255, 255, 255, .1); color: var(--t1); }
+.or-fx.L .or-res { background: rgba(255, 77, 94, .2); color: #ff8a95; }
+.or-ha { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.or-ha > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--s2); }
+.or-trait { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+.or-trait svg { flex: none; margin-top: 2px; }
+.or-trait.good svg { color: var(--pos); }
+.or-trait.bad svg { color: #ff8a95; }
+.or-shapes { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 14px; }
+.or-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.or-bar { display: flex; flex-direction: column; gap: 4px; }
+.or-track { position: relative; height: 6px; border-radius: 3px; background: var(--s3); }
+.or-track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--acc); transition: width .5s cubic-bezier(.2, .8, .3, 1); }
+.or-track b { position: absolute; top: -3px; width: 2px; height: 12px; border-radius: 1px; background: #fff; opacity: .7; }
+.or-split { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--s3); }
+.or-split i { display: block; }
+.or-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.or-legend > span { display: inline-flex; align-items: center; gap: 5px; }
+.or-legend i { width: 8px; height: 8px; border-radius: 2px; }
+.or-flanks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.or-flank { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 12px; background: var(--s2); }
+.or-flank.hot { box-shadow: inset 0 0 0 1.5px #ff8a3d; background: rgba(255, 138, 61, .08); }
+.or-flank b { font-family: var(--display); font-size: 18px; }
+.or-people { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.or-p { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px; border-radius: 12px; background: var(--s2); min-width: 0; }
+.or-p .ellipsis { max-width: 100%; }
+.or-line { display: flex; align-items: center; gap: 10px; }
+.or-usual { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.or-u { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; padding: 6px 2px; border-radius: 10px; background: var(--s2); }
+.or-u .ellipsis { max-width: 100%; }
+.or-pf { position: relative; display: block; }
+.or-pf i { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 1px 6px; border-radius: 5px; background: #ff4d5e; color: #fff; font-style: normal; font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; }

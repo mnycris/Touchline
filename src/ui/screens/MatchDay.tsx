@@ -29,19 +29,7 @@ import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
 import { useRemember } from '../memory'
 import { ScriptEditor } from '../components/ScriptEditor'
-
-function poisson(l: number, k: number) { let p = Math.exp(-l); for (let i = 1; i <= k; i++) p *= l / i; return p }
-
-/** Outcome probabilities from both XIs' quality and home advantage (independent Poisson goals). */
-export function winProbability(w: World, f: Fixture, hl: number[], al: number[]): [number, number, number] {
-  const avg = (ids: number[]) => { const v = ids.map((id) => w.players[id]?.ovr || 60); return v.reduce((a, b) => a + b, 0) / (v.length || 1) }
-  const diff = avg(hl) - avg(al) + (f.neutral ? 0 : 2.2)
-  const lh = 1.38 * Math.exp(diff / 13), la = 1.12 * Math.exp(-diff / 13)
-  let h = 0, d = 0, a = 0
-  for (let i = 0; i <= 10; i++) for (let j = 0; j <= 10; j++) { const p = poisson(lh, i) * poisson(la, j); if (i > j) h += p; else if (i === j) d += p; else a += p }
-  const t = h + d + a
-  return [h / t, d / t, a / t]
-}
+import { predictFixture } from '../../engine/match/predict'
 
 function seasonLine(p: Player) {
   const s = Object.values(p.season).reduce((a, x) => ({ apps: a.apps + x.apps, g: a.g + x.goals, as: a.as + x.assists, r: a.r + x.ratingSum, n: a.n + x.rated, cs: a.cs + x.cleanSheets }), { apps: 0, g: 0, as: 0, r: 0, n: 0, cs: 0 })
@@ -79,7 +67,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const ourSide = sideFromSheet(w, club.id, valid, comp, 'Your XI')
   const oppSide = sideFromSheet(w, oppId, oppSheet, comp, 'Predicted')
   const homeSide = us === 0 ? ourSide : oppSide, awaySide = us === 0 ? oppSide : ourSide
-  const [ph, pd, pa] = winProbability(w, f, homeSide.xi.map((x) => x?.id || 0), awaySide.xi.map((x) => x?.id || 0))
+  const pred = predictFixture(w, f)
+  const [ph, pd, pa] = [pred.pHome, pred.pDraw, pred.pAway]
   // the competition this match belongs to decides the table: the league, the league phase, or the knockout draw
   const knockout = !!f.tieId
   const ctxTable = comp?.table && !knockout && comp.table.some((r) => r.clubId === f.home) ? comp : undefined
@@ -146,7 +135,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       <div className="md-actions">
         <button className="md-act" onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={20} /><span>Team sheet</span></button>
         <button className="md-act" onClick={() => open({ name: 'press', params: { kind: 'pre', fixtureId: f.id } })} disabled={pressDone || !isToday}><Icon name="chat" size={20} /><span>{pressDone ? 'Press done' : isToday ? 'Press' : 'Match day'}</span></button>
-        <button className="md-act" onClick={() => go({ name: 'club', params: { id: oppId } })}><Icon name="scout" size={20} /><span>Opponent</span></button>
+        <button className="md-act" onClick={() => go({ name: 'opponent', params: { id: oppId, fixtureId: f.id } })}><Icon name="scout" size={20} /><span>Opponent</span></button>
       </div>
 
       {issues.length > 0 && (
@@ -173,6 +162,13 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
               <span><b className="num">{Math.round(ph * 100)}%</b> <span className="dim">{home.short}</span></span>
               <span><b className="num">{Math.round(pd * 100)}%</b> <span className="dim">Draw</span></span>
               <span><span className="dim">{away.short}</span> <b className="num">{Math.round(pa * 100)}%</b></span>
+            </div>
+            <div className="pred-xg">
+              <span><span className="tiny dim">Expected goals</span><b className="num">{pred.home.xg.toFixed(1)} – {pred.away.xg.toFixed(1)}</b></span>
+              <span><span className="tiny dim">Most likely</span><b className="num">{pred.likely[0]}–{pred.likely[1]}</b></span>
+            </div>
+            <div className="pred-why">
+              {pred.reasons.slice(0, 4).map((x) => <div key={x.text} className="pred-r"><i style={{ background: x.side === 0 ? 'var(--home-c, #3ea6ff)' : x.side === 1 ? 'var(--away-c, #ff8a3d)' : 'var(--s4)' }} /><span className="small">{x.text}</span></div>)}
             </div>
           </div>
 
