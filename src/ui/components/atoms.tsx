@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
 import darkLogos from '../../data/darkLogos.json'
-import { badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
+import { badgeHiRes, badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
 import { Silhouette } from './Silhouette'
 import { Icon } from '../icons/Icon'
 import { ovrColor } from '../../domain/ratings'
@@ -42,7 +42,7 @@ export function Face({ p, size = 48, radius = 12, club, ring }: { p: FaceLike; s
   const trim = club?.kit?.[1] || '#ffffff'
   // a headshot that already loaded this session goes first and appears instantly: no silhouette, no fade
   const known = knownFace(p.id)
-  const srcs = useMemo(() => { const base = faceUrls(p as Player).filter((u) => !isFailed(u)); return known ? [known, ...base.filter((u) => u !== known)] : base }, [p.id, known])
+  const srcs = useMemo(() => { const base = faceUrls(p as Player, size).filter((u) => !isFailed(u)); return known ? [known, ...base.filter((u) => u !== known)] : base }, [p.id, known, size > 86])
   const [i, setI] = useState(0)
   const [loaded, setLoaded] = useState(() => !!known && isLoaded(known))
   const instant = useRef(!!known && isLoaded(known))
@@ -67,7 +67,21 @@ export function Face({ p, size = 48, radius = 12, club, ring }: { p: FaceLike; s
           style={{ position: loaded ? 'static' : 'absolute', inset: 0, opacity: loaded ? 1 : 0, transition: instant.current ? 'none' : 'opacity .3s' }}
           onLoad={() => { setLoaded(true); markLoaded(src, src === wiki ? undefined : p.id) }} onError={() => { markFailed(src); setLoaded(false); instant.current = false; if (i < srcs.length) setI(i + 1) }} />
       )}
+      {/* shown big, a face that came from a smaller copy sharpens in place once the full-size one arrives */}
+      {loaded && src && src !== wiki && size > 86 && <Sharpen url={faceUrls(p as Player, size)[0]} current={src} onLoad={(u) => markLoaded(u, p.id)} />}
     </div>
+  )
+}
+
+/** A sharper copy of what is on screen, faded in over it when (and only if) it loads. */
+function Sharpen({ url, current, onLoad, className, style }: { url?: string; current?: string; onLoad?: (u: string) => void; className?: string; style?: CSSProperties }) {
+  const [on, setOn] = useState(() => !!url && isLoaded(url))
+  const [dead, setDead] = useState(false)
+  if (!url || url === current || dead || isFailed(url)) return null
+  return (
+    <img src={url} alt="" aria-hidden draggable={false} referrerPolicy="no-referrer" decoding="async" className={className}
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: on ? 1 : 0, transition: 'opacity .35s ease', ...style }}
+      onLoad={() => { setOn(true); markLoaded(url); onLoad?.(url) }} onError={() => { markFailed(url); setDead(true) }} />
   )
 }
 
@@ -123,8 +137,9 @@ export function Badge({ club, size = 32, style }: { club?: Club; size?: number; 
     )
   }
   return (
-    <div className={DARK_CLUBS.has(club.id) ? 'logo-lift' : undefined} style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', ...style }}>
+    <div className={DARK_CLUBS.has(club.id) ? 'logo-lift' : undefined} style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', position: 'relative', ...style }}>
       <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: size, height: size }} fallback={<Crest club={club} size={size} />} />
+      <Sharpen url={badgeHiRes(club, size)} className="badge-img" style={{ objectFit: 'contain', filter: 'none' }} />
     </div>
   )
 }

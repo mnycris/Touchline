@@ -12,33 +12,45 @@ const EA_PS = (eaAssets as { teams: Record<string, string>; playstyles: Record<s
 
 const ccUrl = (v: string) => { const [country, file] = v.split('/'); return `${CC}/${country}/512x512/${file}.png` }
 
+/** Device pixels needed to show an image `css` pixels wide sharply on this screen. */
+export function devicePx(css: number) {
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 2 : 2
+  return Math.round(css * Math.min(3, Math.max(1, dpr)))
+}
+
 /**
- * Official EA SPORTS FC headshots, newest first: EA's ratings portrait CDN, then the SoFIFA mirror.
- * All remote images are requested with `referrerPolicy="no-referrer"` (see ImgChain) so hotlink rules keyed on
- * the Referer header don't reject them.
+ * Official EA SPORTS FC headshots, sharpest and newest first:
+ *   1. EA's own ratings portrait CDN (the cleanest cut-outs, resized on request: 512px for big displays)
+ *   2. the SoFIFA mirror of the same scans (240px for retina, 120px otherwise)
+ *   3. FUTBIN and FUTWIZ mirrors, then last year's scans for players EA hasn't re-photographed.
+ * The order stays quality-first on every device; a source is only pushed back when it keeps failing here (see
+ * rankSources). All remote images are requested with `referrerPolicy="no-referrer"` (see ImgChain) so hotlink
+ * rules keyed on the Referer header don't reject them.
  */
-export function faceUrls(p: Pick<Player, 'id' | 'regen'>): string[] {
+export function faceUrls(p: Pick<Player, 'id' | 'regen'>, css = 48): string[] {
   if (p.regen || p.id >= 9_000_000) return []
   const s = String(p.id).padStart(6, '0')
   const a = s.slice(0, s.length - 3), b = s.slice(-3)
-  // several independent mirrors of the same EA SPORTS FC face scans: whichever this device/network can reach wins,
-  // ordered by what has worked on this device before (sources that never load get dropped)
+  const px = devicePx(css)
+  const ea = (v: string) => (px > 260 ? [512, 256] : [256]).map((wd) => `${EA}/${v}/full/player-portraits/p${p.id}.png?width=${wd}`)
+  const sofifa = (y: number) => (px > 130 ? [240, 120] : [120]).map((wd) => `https://cdn.sofifa.net/players/${a}/${b}/${y}_${wd}.png`)
   return rankSources([
-    `${EA}/FC27/full/player-portraits/p${p.id}.png?width=256`,
-    `${EA}/FC26/full/player-portraits/p${p.id}.png?width=256`,
-    `https://cdn.sofifa.net/players/${a}/${b}/27_120.png`,
-    `https://cdn.sofifa.net/players/${a}/${b}/26_120.png`,
+    ...ea('FC27'), ...ea('FC26'),
+    ...sofifa(27), ...sofifa(26),
     `https://cdn.futbin.com/content/fifa27/img/players/${p.id}.png`,
     `https://cdn.futwiz.com/assets/img/fc27/faces/${p.id}.png`,
     `https://cdn.futbin.com/content/fifa26/img/players/${p.id}.png`,
     `https://cdn.futwiz.com/assets/img/fc26/faces/${p.id}.png`,
-    `${EA}/FC25/full/player-portraits/p${p.id}.png?width=256`,
-    `https://cdn.sofifa.net/players/${a}/${b}/25_120.png`,
+    ...ea('FC25'), ...sofifa(25),
     `https://cdn.futwiz.com/assets/img/fc25/faces/${p.id}.png`,
     `https://cdn.futbin.com/content/fifa25/img/players/${p.id}.png`,
   ])
 }
 
+/**
+ * Club crests: the bundled 160px art first (precached, instant, works offline), then football-logos.cc's 512px
+ * transparent PNGs, EA's crest art and SoFIFA's 120px copy. Big displays upgrade to the 512px art (badgeHiRes).
+ */
 export function badgeUrls(c: Pick<Club, 'id' | 'badge' | 'sofifaTeamId'>): string[] {
   const out: string[] = []
   if (c.badge) out.push(`${BASE}assets/badges/${c.id}.webp`)
@@ -47,6 +59,11 @@ export function badgeUrls(c: Pick<Club, 'id' | 'badge' | 'sofifaTeamId'>): strin
   if (c.sofifaTeamId && EA_TEAMS[String(c.sofifaTeamId)]) out.push(EA_TEAMS[String(c.sofifaTeamId)])
   if (c.sofifaTeamId) out.push(`https://cdn.sofifa.net/teams/${c.sofifaTeamId}/120.png`)
   return out
+}
+/** The sharper crest to fade in over the bundled one when it is shown bigger than the bundled art can carry. */
+export function badgeHiRes(c: Pick<Club, 'id' | 'badge'>, css: number): string | undefined {
+  const cc = CREST_CC.clubs[String(c.id)]
+  return c.badge && cc && devicePx(css) > 170 ? ccUrl(cc) : undefined
 }
 
 export function flagUrl(w: World | undefined, nation: string, fallbackCode?: string): string | undefined {
@@ -114,10 +131,10 @@ let srcStats: Record<string, { ok: number; fail: number }> = {}
 try { srcStats = JSON.parse(localStorage.getItem(SRC_KEY) || '{}') } catch { srcStats = {} }
 let srcTimer: number | undefined
 function sourceOf(url: string) {
-  const m = url.match(/pulse\.ea\.com\/(FC\d+)/)
-  if (m) return `ea-${m[1]}`
-  const s = url.match(/sofifa\.net\/players\/\d+\/\d+\/(\d+)_/)
-  if (s) return `sofifa-${s[1]}`
+  const m = url.match(/pulse\.ea\.com\/(FC\d+).*width=(\d+)/)
+  if (m) return `ea-${m[1]}-${m[2]}`
+  const s = url.match(/sofifa\.net\/players\/\d+\/\d+\/(\d+)_(\d+)/)
+  if (s) return `sofifa-${s[1]}-${s[2]}`
   const fb = url.match(/futbin\.com\/content\/fifa(\d+)\//)
   if (fb) return `futbin-${fb[1]}`
   const fw = url.match(/futwiz\.com\/assets\/img\/fc(\d+)\//)
@@ -130,17 +147,20 @@ function bump(key: string, k: 'ok' | 'fail') {
   window.clearTimeout(srcTimer)
   srcTimer = window.setTimeout(() => { try { localStorage.setItem(SRC_KEY, JSON.stringify(srcStats)) } catch { /* quota */ } }, 1500)
 }
+/**
+ * Keep the quality order. A source that has never loaded on this device after a dozen tries is unreachable here
+ * (blocked network, dead mirror) and is dropped; one that almost never works goes to the back. A source missing
+ * some players is normal and keeps its place: ranking by success rate alone let 120px mirrors jump ahead of
+ * sharper sources that simply lack a few faces.
+ */
 function rankSources(urls: string[]): string[] {
-  const score = (u: string) => { const e = srcStats[sourceOf(u)]; return e ? (e.ok + 0.5) / (e.ok + e.fail + 1) : 0.6 }
-  return urls
-    .filter((u) => { const e = srcStats[sourceOf(u)]; return !e || e.ok > 0 || e.fail < 12 })
-    .map((u, i) => ({ u, i, s: score(u) }))
-    .sort((a, b) => b.s - a.s || a.i - b.i)
-    .map((x) => x.u)
+  const poor = (u: string) => { const e = srcStats[sourceOf(u)]; return !!e && e.ok + e.fail >= 30 && e.ok / (e.ok + e.fail) < 0.1 }
+  const live = urls.filter((u) => { const e = srcStats[sourceOf(u)]; return !e || e.ok > 0 || e.fail < 12 })
+  return [...live.filter((u) => !poor(u)), ...live.filter(poor)]
 }
 
 // ---------------------------------------------------------------- Wikipedia photos (managers, fallback players)
-const WIKI_KEY = 'opus:wiki:v1'
+const WIKI_KEY = 'opus:wiki:v2' // v2: 400px renditions
 let wikiCache: Record<string, string | null> = {}
 try { wikiCache = JSON.parse(localStorage.getItem(WIKI_KEY) || '{}') } catch { wikiCache = {} }
 const inflight = new Map<string, Promise<string | null>>()
@@ -148,6 +168,14 @@ let saveTimer: number | undefined
 function persist() {
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(() => { try { localStorage.setItem(WIKI_KEY, JSON.stringify(wikiCache)) } catch { /* quota */ } }, 800)
+}
+
+/** A 400px rendition of a Wikipedia lead image: vector art at any size, a raster thumbnail only when the original
+ *  is bigger (Wikipedia refuses to upscale), otherwise the original file itself. */
+function sharpWiki(thumb: string, orig?: { source?: string; width?: number }) {
+  if (/\.svg\//i.test(thumb)) return thumb.replace(/\/(\d+)px-/, '/400px-')
+  if (orig?.width && orig.width > 400) return thumb.replace(/\/(\d+)px-/, '/400px-')
+  return orig?.source || thumb
 }
 
 export interface WikiQuery { key: string; titles: string[]; verify: (description: string, extract: string) => boolean; asIs?: boolean }
@@ -166,8 +194,7 @@ export function wikiPhoto(q: WikiQuery): Promise<string | null> {
         if (j.type === 'disambiguation') continue
         const img: string | undefined = j.thumbnail?.source
         if (img && q.verify(String(j.description || ''), String(j.extract || ''))) {
-          // photos are asked for at 320px; logos keep the size Wikipedia serves (small originals can't be upscaled)
-          wikiCache[q.key] = q.asIs ? img : img.replace(/\/(\d+)px-/, '/320px-')
+          wikiCache[q.key] = sharpWiki(img, j.originalimage)
           persist()
           return wikiCache[q.key]
         }
@@ -181,7 +208,8 @@ export function wikiPhoto(q: WikiQuery): Promise<string | null> {
   return run
 }
 
-/** Competitions with no bundled or CDN logo: the logo from the competition's Wikipedia article, resolved on device. */
+/** Competitions with no bundled or CDN logo: the logo from the competition's Wikipedia article, resolved on device
+ *  (the last resort: everything with licensed art uses it first). */
 const COMP_WIKI: Record<string, string> = {
   CDR: 'Copa del Rey', SUPERCOPA: 'Supercopa de España', TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield',
   SUPERTACA: 'Supertaça Cândido de Oliveira', CI: 'Coppa Italia', TACA: 'Taça de Portugal', SCOTCUP: 'Scottish Cup',

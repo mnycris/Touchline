@@ -6,9 +6,11 @@ import eaAssets from '../../data/eaAssets.json'
 const PS_SAMPLE = Object.values((eaAssets as { playstyles: Record<string, string> }).playstyles)[0]
 const PROBES: { label: string; url?: string; wiki?: boolean }[] = [
   { label: 'EA SPORTS FC 27 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC27/full/player-portraits/p239085.png?width=64' },
+  { label: 'EA SPORTS FC 27 headshots, full size', url: 'https://ratings-images-prod.pulse.ea.com/FC27/full/player-portraits/p239085.png?width=512' },
   { label: 'EA SPORTS FC 26 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC26/full/player-portraits/p239085.png?width=64' },
   { label: 'EA SPORTS FC 25 headshots', url: 'https://ratings-images-prod.pulse.ea.com/FC25/full/player-portraits/p239085.png?width=64' },
   { label: 'SoFIFA headshots (FC 26)', url: 'https://cdn.sofifa.net/players/239/085/26_120.png' },
+  { label: 'SoFIFA headshots, retina (FC 26)', url: 'https://cdn.sofifa.net/players/239/085/26_240.png' },
   { label: 'FUTBIN headshots (FC 26)', url: 'https://cdn.futbin.com/content/fifa26/img/players/239085.png' },
   { label: 'FUTWIZ headshots (FC 26)', url: 'https://cdn.futwiz.com/assets/img/fc26/faces/239085.png' },
   { label: 'FUTBIN headshots (FC 25)', url: 'https://cdn.futbin.com/content/fifa25/img/players/239085.png' },
