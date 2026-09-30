@@ -664,46 +664,15 @@ select.input option { background: #151b27; }
 .mk-pl.r { justify-content: flex-end; }
 .mk-role { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.55); }
 .mk-vs { font-family: var(--display); font-weight: 800; color: rgba(255,255,255,.5); }
-.mk-scene { position: relative; height: 196px; margin: 0 12px; border-radius: 12px; overflow: hidden; background: #10151c; }
-.mk-stand { position: absolute; left: 0; right: 0; top: 0; height: 70px; background: radial-gradient(circle at 20% 30%, rgba(255,255,255,.07) 1px, transparent 1.5px) 0 0 / 7px 6px, linear-gradient(180deg, color-mix(in srgb, var(--c2) 22%, #0c1016), #141a22); }
-.mk-grass { position: absolute; left: 0; right: 0; top: 56px; bottom: 0; background: linear-gradient(180deg, rgba(0,0,0,.18), transparent 40%), var(--pitch); perspective: 200px; }
-.mk-box { position: absolute; left: 6%; right: 6%; top: 40px; height: 1.5px; background: rgba(255,255,255,.28); }
-.mk-spot { position: absolute; left: 50%; bottom: 26px; width: 6px; height: 4px; border-radius: 50%; background: rgba(255,255,255,.55); transform: translateX(-50%); }
-.mk-goal { position: absolute; left: 13%; right: 13%; top: 14px; height: 84px; }
-.mk-frame { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.res-goal .mk-net { transform-origin: 50% 0; animation: mkNet .6s 3.0s ease-out both; }
-@keyframes mkNet { 35% { transform: scale(1.04, 1.06) } }
-.mk-keeper { position: absolute; left: 50%; bottom: 0; width: 58px; height: 62px; transform: translateX(-50%); transform-origin: 50% 80%; animation: mkReady .7s ease-in-out 3 alternate; }
-.mk-body { position: absolute; left: 0; bottom: 0; width: 58px; height: 46px; overflow: visible; }
-.mk-head-face { position: absolute; left: 50%; top: 0; transform: translateX(-50%); }
-.mk-head-face .face { box-shadow: 0 0 0 1.5px var(--gk); }
-.mk-head-face i { display: block; width: 22px; height: 22px; border-radius: 50%; background: #d9b38c; }
-@keyframes mkReady { from { transform: translateX(-50%) } to { transform: translateX(calc(-50% + 4px)) translateY(-2px) } }
-.mk-keeper.dive-L { animation: mkReady .7s ease-in-out 3 alternate, mkDiveL .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
-.mk-keeper.dive-R { animation: mkReady .7s ease-in-out 3 alternate, mkDiveR .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
-.mk-keeper.dive-L.hi { animation: mkReady .7s ease-in-out 3 alternate, mkDiveLH .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
-.mk-keeper.dive-R.hi { animation: mkReady .7s ease-in-out 3 alternate, mkDiveRH .5s 2.55s cubic-bezier(.25, .8, .35, 1) forwards; }
-.mk-keeper.dive-C { animation: mkReady .7s ease-in-out 3 alternate, mkStay .5s 2.6s ease forwards; }
-@keyframes mkDiveL { to { left: 22%; transform: translateX(-50%) translateY(-4px) rotate(-78deg) } }
-@keyframes mkDiveR { to { left: 78%; transform: translateX(-50%) translateY(-4px) rotate(78deg) } }
-@keyframes mkDiveLH { to { left: 24%; transform: translateX(-50%) translateY(-26px) rotate(-58deg) } }
-@keyframes mkDiveRH { to { left: 76%; transform: translateX(-50%) translateY(-26px) rotate(58deg) } }
-@keyframes mkStay { 45% { transform: translateX(-50%) translateY(-12px) scale(1.04) } to { transform: translateX(-50%) translateY(-3px) } }
-.mk-taker { position: absolute; left: 36%; bottom: -4px; transform: translate(-50%, 0) scale(1.25); animation: mkRun 1.2s 1.25s cubic-bezier(.4, 0, .6, 1) forwards; }
-.mk-taker .face { box-shadow: 0 0 0 2px var(--kit), 0 4px 10px rgba(0,0,0,.5); }
-@keyframes mkRun { 80% { left: 47%; bottom: 18px; transform: translate(-50%, 0) scale(1.1) } to { left: 45%; bottom: 14px; transform: translate(-50%, 0) scale(1.1) } }
-.mk-ball { position: absolute; left: 50%; top: 150%; transform: translate(-50%, -50%) scale(1.3); animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards; z-index: 2; }
-@keyframes mkShot { 0% { left: 50%; top: 150%; transform: translate(-50%, -50%) scale(1.3) } 100% { left: var(--tx); top: var(--ty); transform: translate(-50%, -50%) scale(.72) } }
-.res-post .mk-ball { animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards, mkRebound .5s 2.92s ease-out forwards; }
-@keyframes mkRebound { from { left: var(--tx); top: var(--ty) } to { left: 50%; top: 125%; transform: translate(-50%, -50%) scale(1) } }
-.res-saved .mk-ball { animation: mkShot .42s 2.5s cubic-bezier(.2, .7, .3, 1) forwards, mkParry .5s 2.92s ease-out forwards; }
-@keyframes mkParry { from { left: var(--tx); top: var(--ty) } to { left: calc(var(--tx) + (50% - var(--tx)) * -0.35); top: 118%; transform: translate(-50%, -50%) scale(.95) } }
-.mk-out { position: absolute; left: -20%; right: -20%; top: 22%; text-align: center; font-family: var(--display); font-style: italic; font-weight: 800; font-size: 36px; letter-spacing: .03em; color: #fff; text-shadow: 0 3px 14px rgba(0,0,0,.7); opacity: 0; animation: mkOut .5s 3.25s cubic-bezier(.3, 1.5, .5, 1) forwards; z-index: 3; }
-.res-goal .mk-out { color: var(--acc); }
-.res-saved .mk-out, .res-miss .mk-out, .res-post .mk-out { color: #ff6b78; }
-@keyframes mkOut { from { opacity: 0; transform: scale(.6) } to { opacity: 1; transform: scale(1) } }
+.pk-scene { position: relative; margin: 0 12px; border-radius: 12px; overflow: hidden; background: #0a0d12; aspect-ratio: 4 / 3; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
+.pk-svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.pk-out { position: absolute; left: 0; right: 0; top: 14%; text-align: center; font-family: var(--display); font-style: italic; font-weight: 800; font-size: 38px; letter-spacing: .03em; color: #fff; text-shadow: 0 3px 16px rgba(0,0,0,.75), 0 0 1px rgba(0,0,0,.6); opacity: 0; transform: translateY(6px) scale(.7); pointer-events: none; }
+.pk-scene.result .pk-out { animation: pkOut .55s cubic-bezier(.25, 1.5, .5, 1) forwards; }
+.res-goal .pk-out { color: var(--acc); text-shadow: 0 3px 16px rgba(0,0,0,.75), 0 0 22px color-mix(in srgb, var(--acc) 45%, transparent); }
+.res-saved .pk-out, .res-miss .pk-out, .res-post .pk-out { color: #ff6b78; }
+@keyframes pkOut { from { opacity: 0; transform: translateY(8px) scale(.7) } to { opacity: 1; transform: none } }
 .mk-foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px 12px; color: rgba(255,255,255,.7); }
-@media (prefers-reduced-motion: reduce) { .mm, .mm-cardchip, .mm-flow i, .mk-keeper, .mk-taker, .mk-ball, .mk-out { animation: none !important; } .mk-out { opacity: 1; } .mk-ball { left: var(--tx); top: var(--ty); } }
+@media (prefers-reduced-motion: reduce) { .mm, .mm-cardchip, .mm-flow i, .pk-out { animation: none !important; } .pk-scene.result .pk-out { opacity: 1; transform: none; } }
 
 /* ---------- player match panel (FotMob-style) ---------- */
 .pmp-hero { display: flex; flex-direction: column; align-items: center; padding: 6px 0 2px; text-align: center; }

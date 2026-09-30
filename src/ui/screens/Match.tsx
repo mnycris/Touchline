@@ -369,7 +369,7 @@ export function LiveMatch() {
       <Tabs items={[{ id: 'feed', label: 'Live' }, { id: 'lineups', label: 'Line-ups' }, { id: 'stats', label: 'Stats' }, ...(others.length ? [{ id: 'matches' as const, label: `Matches (${others.length})` }] : [])]} value={tab} onChange={setTab} />
 
       <div className="match-body">
-        {!pitchOpen && moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 310 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}
+        {!pitchOpen && moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}
         {brk && !spectator && (
           <div className="card pad-card" style={{ margin: '12px 16px 0', textAlign: 'center' }}>
             <div className="kicker">{sim.phase === 'HT' ? 'Half-time' : 'Extra-time break'}</div>
