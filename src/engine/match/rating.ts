@@ -1,6 +1,8 @@
 // Event-driven player ratings (FotMob-like). Every on-ball and defensive action adds rating points valued by the
 // position group the player occupied when he performed it, so moving a player mid-match only changes how his *later*
 // actions are valued; nothing he already did is re-scored and the number never jumps.
+// Each minute also measures him against his position's par (what an average player there earns per 90), so a busy
+// role like the number 10 doesn't inflate just by touching the ball more: the rating is what he did beyond the norm.
 import type { Position } from '../../domain/types'
 
 export type RG = 'GK' | 'CB' | 'FB' | 'DM' | 'CM' | 'AM' | 'W' | 'ST'
@@ -22,7 +24,7 @@ export const RP = {
   progPass: 0.012,
   keyPass: 0.075, bigChanceCreated: 0.15, xaMul: 0.35, assist: 0.5,
   crossOk: 0.035, crossFail: -0.003, longOk: 0.02, longFail: -0.004, throughOk: 0.04,
-  sot: 0.06, offTarget: -0.012, offTargetBig: -0.05, blocked: -0.006, bigChanceMissed: -0.3,
+  sot: 0.06, offTarget: -0.012, offTargetBig: -0.05, blocked: -0.006, bigChanceMissed: -0.2,
   goal: 0.95, goalXgMul: 0.28,
   dribbleOk: 0.05, dribbleFail: -0.022, dispossessed: -0.028, carryProg: 0.008, offside: -0.02,
   foulWon: 0.028, penWon: 0.3, boxTouch: 0.006,
@@ -32,15 +34,26 @@ export const RP = {
   snuffed: 0.009,
   errorShot: -0.35, errorGoal: -0.85, penConceded: -0.45, ownGoal: -0.7, foul: -0.02,
   yellow: -0.2, secondYellow: -0.9, red: -1.35,
-  save: 0.11, saveXgot: 0.95, concededGk: -0.16, concededGkXgot: -0.32, claim: 0.05, punch: 0.028, sweep: 0.04, penSave: 0.7,
+  save: 0.07, saveXgot: 0.55, concededGk: -0.12, concededGkXgot: -0.24, claim: 0.05, punch: 0.028, sweep: 0.04, penSave: 0.7,
   gkDistOk: 0.003, gkDistFail: -0.01,
   concededDef: -0.06, concededDm: -0.03,
 }
+
+/**
+ * Positional par: the rating points an average player earns per 90 minutes in each group, from his actions alone
+ * (calibrated with scripts/qa/rating-par.ts). A player is rated on what he does beyond it.
+ */
+export const PAR: Record<RG, number> = { GK: 0.46, CB: 0.54, FB: 0.56, DM: 0.72, CM: 0.96, AM: 1.29, W: 0.98, ST: 0.84 }
+/** How strongly actions move the rating in each group (defenders' work is quieter but decides games). */
+export const GAIN: Record<RG, number> = { GK: 1, CB: 1.15, FB: 1.15, DM: 1.1, CM: 1, AM: 1, W: 1, ST: 1 }
+/** What an average full match is worth above the 6.0 starting point, before the result and a clean sheet. */
+export const LIFT = 0.8
 
 /** Clean-sheet value (full 90) by group; applied progressively with minutes played. */
 export const CLEAN_SHEET: Record<RG, number> = { GK: 0.45, CB: 0.36, FB: 0.3, DM: 0.12, CM: 0.04, AM: 0, W: 0, ST: 0 }
 
 export interface RateInput {
+  /** rating points from his actions, net of his positional par so far */
   rp: number
   mins: number
   /** minutes spent in each rating group */
@@ -61,7 +74,8 @@ export interface RateInput {
  * a goal is worth ≈ +1, and the scale compresses above 7.4 so 9+ stays special.
  */
 export function computeRating(x: RateInput): number {
-  let r = 6.0 + x.rp
+  // the lift comes early: a sub who plays his part in a cameo reads around 6.4, not 6.1
+  let r = 6.0 + x.rp + LIFT * Math.min(1, x.mins / 90) ** 0.7
   const share = (g: RG) => (x.mins ? (x.gm[g] || 0) / x.mins : 0)
   // clean sheet builds up with the minutes he keeps it; nothing if his team conceded while he was on
   if (x.ga === 0 && x.mins > 0) {
@@ -74,7 +88,8 @@ export function computeRating(x: RateInput): number {
   const presence = Math.min(1, x.mins / 90)
   if (x.final) r += (x.res > 0 ? 0.16 : x.res < 0 ? -0.1 : 0.02) * presence
   else r += (x.gd > 0 ? 0.08 : x.gd < 0 ? -0.05 : 0) * presence * x.prog
+  // the scale stretches thin at both ends: 9+ takes something special, and a bad day rarely reads below 5
   if (r > 7.4) r = 7.4 + (r - 7.4) * 0.72
-  if (r < 5.8) r = 5.8 - (5.8 - r) * 0.85
+  if (r < 6.3) r = 6.3 - (6.3 - r) * 0.72
   return Math.round(Math.max(3, Math.min(10, r)) * 10) / 10
 }

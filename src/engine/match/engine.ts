@@ -19,7 +19,7 @@ import { formationOf, POS_GROUP, type Formation } from '../../domain/constants'
 import { posRating } from '../../domain/ratings'
 import { BODY_PARTS, callName, line } from './commentary'
 import { type Pt, type RoleShift, type ShapeInput, type ShotContext, roleShift, baseXg, chanceXg, encodeHeat, flip, heatIndex, HEAT_H, HEAT_W, inBox, logit, metres, playerSpot, sigmoid, toAbs } from './pitch'
-import { computeRating, GOAL_W, RGROUP, RP, type RG } from './rating'
+import { computeRating, GAIN, GOAL_W, PAR, RGROUP, RP, type RG } from './rating'
 
 export type Phase = 'pre' | '1H' | 'HT' | '2H' | 'ET1' | 'ETHT' | 'ET2' | 'PENS' | 'FT'
 
@@ -135,6 +135,8 @@ interface LP {
   /** flat bonus in attribute points (form + team day + home) */
   fb: number
   rp: number
+  /** positional par accumulated with his minutes (see rating.ts PAR) */
+  pd: number
   ga: number
   gd: number
   gm: Partial<Record<RG, number>>
@@ -379,7 +381,7 @@ export class MatchSim {
     for (const k of p.playstylesPlus) if (PS_KEYS.includes(k)) ps[k] = 6
     const lp: LP = {
       p, side, slot, pos, g: RGROUP[pos], role, focus, energy: clamp(p.fitness, 20, 100), on, yellow: false, red: false, injured: false,
-      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
+      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, pd: 0, ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
     }
     this.placed(lp)
     return lp
@@ -1090,7 +1092,7 @@ export class MatchSim {
   }
 
   // =========================================================== bookkeeping helpers
-  private rp(l: LP, v: number) { l.rp += v }
+  private rp(l: LP, v: number) { l.rp += v * GAIN[l.g] }
   private touch(l: LP, w = 1) {
     l.st.touches++
     const S = this.sides[l.side]
@@ -2674,6 +2676,7 @@ export class MatchSim {
       for (const lp of s.on) {
         lp.st.mins++
         lp.gm[lp.g] = (lp.gm[lp.g] || 0) + 1
+        lp.pd += (GAIN[lp.g] * PAR[lp.g]) / 90
         const stam = lp.p.attrs[A.stamina]
         const age = ageAt(lp.p, this.ctx.year ?? 2026)
         const ageF = age >= 33 ? 1.15 : age >= 31 ? 1.08 : age <= 20 ? 0.96 : 1
@@ -2830,7 +2833,7 @@ export class MatchSim {
   private liveRating(l: LP, final = false): number {
     const reg = this.phase === 'ET1' || this.phase === 'ET2' || this.phase === 'ETHT' ? 120 : 90
     const gf = this.score[l.side], ga = this.score[1 - l.side]
-    const r = computeRating({ rp: l.rp, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 })
+    const r = computeRating({ rp: l.rp - l.pd, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 })
     const told = this.ctx.script?.form?.[l.p.id]
     return told ? clamp(Math.round((r + told * 0.3 * clamp(this.minute / reg, 0.3, 1)) * 10) / 10, 3, 10) : r
   }

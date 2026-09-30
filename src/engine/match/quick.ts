@@ -235,7 +235,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
     for (const q of mine) {
       q.st.mins = q.mins
       const g = q.g
-      let r = 6.58 + rng.normal(0, 0.44) + (str[i] - str[1 - i]) * 0.012 + (g === 'GK' ? 0.18 : g === 'CB' ? 0.1 : 0)
+      let r = 6.58 + rng.normal(0, 0.44) + (str[i] - str[1 - i]) * 0.012 + (g === 'GK' ? 0.18 : g === 'CB' ? 0.16 : g === 'FB' ? 0.2 : g === 'AM' || g === 'ST' ? -0.1 : 0)
       r += q.st.goals * (0.95 * GOAL_W[g] + 0.05) + q.st.assists * 0.5 + q.st.keyPasses * 0.06 + (q.st.shots - q.st.goals) * 0.01
       r += (q.st.tackles + q.st.interceptions) * 0.06
       if (conceded === 0) r += CLEAN_SHEET[g] * Math.min(1, q.mins / 90) * (q.mins >= 60 ? 1 : 0.4)
@@ -247,7 +247,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       if ((q.st.ownGoals || 0) > 0) r -= 0.7
       r = 6.2 + (r - 6.2) * clamp(q.mins / 75, 0.35, 1)
       if (r > 7.4) r = 7.4 + (r - 7.4) * 0.72
-      if (r < 5.8) r = 5.8 - (5.8 - r) * 0.85
+      if (r < 6.3) r = 6.3 - (6.3 - r) * 0.72
       q.st.rating = Math.round(clamp(r, 3, 10) * 10) / 10
       // energy after the game (the world uses it as post-match fitness)
       const stam = q.p.attrs[A.stamina]
