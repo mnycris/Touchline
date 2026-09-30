@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { InboxMessage, NewsItem, World } from '../../domain/types'
@@ -147,6 +147,9 @@ export function ConversationScreen({ params }: { params: { id: string; msgId?: s
 }
 
 // ---------------------------------------------------------------- press conference
+/** A reporter coming back on your last answer (not counted as a new question). */
+const isFollow = (q: PressQuestion) => q.topic.endsWith('-follow')
+
 export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fixtureId: string } }) {
   const w = useWorld()
   const mutate = useGame((s) => s.mutate)
@@ -158,12 +161,14 @@ export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fi
   const [summary, setSummary] = useState<string[]>()
   const chat = useTypingChat([])
   const [asked, setAsked] = useState(-1)
+  const askedRef = useRef(-1) // strict mode runs the effect twice: ask each question once
   const q = qs[i]
   const f = w.fixtures[params.fixtureId]
   const opp = f ? w.clubs[f.home === w.userClubId ? f.away : f.home] : undefined
   // each question is "typed" by the reporter before it can be answered
   useEffect(() => {
-    if (!q || summary || asked === i) return
+    if (!q || summary || askedRef.current === i) return
+    askedRef.current = i
     setAsked(i)
     chat.send(null, [{ by: 'them', who: `${q.reporter} · ${q.outlet}`, text: q.text }])
   }, [i, q?.id, summary])
@@ -185,7 +190,7 @@ export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fi
           <UserAvatar w={w} size={78} radius={39} />
           <div className="press-mics"><Icon name="chat" size={20} /></div>
         </div>
-        {!summary && q && <div className="row between"><span className="label">Question {i + 1} of {qs.length}</span>{q.playerId && w.players[q.playerId] ? <span className="row tight tiny b"><Face p={w.players[q.playerId]} size={22} radius={11} club={w.clubs[w.players[q.playerId].clubId]} />{w.players[q.playerId].name}</span> : <span className="tiny dim">{q.outlet}</span>}</div>}
+        {!summary && q && <div className="row between"><span className="label">{isFollow(q) ? 'Follow-up' : `Question ${qs.slice(0, i + 1).filter((x) => !isFollow(x)).length} of ${qs.filter((x) => !isFollow(x)).length}`}</span>{q.playerId && w.players[q.playerId] ? <span className="row tight tiny b"><Face p={w.players[q.playerId]} size={22} radius={11} club={w.clubs[w.players[q.playerId].clubId]} />{w.players[q.playerId].name}</span> : <span className="tiny dim">{q.outlet}</span>}</div>}
         <ChatLog lines={chat.lines} typing={chat.typing} avatar={(who) => <Avatar name={(who || 'Press').split(' · ')[0]} size={30} />} />
         {!summary && q && !chat.busy && asked === i && (
           <div className="stack" style={{ gap: 8 }}>

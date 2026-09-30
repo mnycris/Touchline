@@ -4,7 +4,7 @@ import { EditToggle, useEditing } from '../components/Editors'
 import { editDealFlags, editNegotiation, editTalks } from '../../engine/world/edit'
 import { squadPlan } from '../../engine/world/squadPlan'
 import { callName } from '../../engine/match/commentary'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
@@ -485,7 +485,8 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
     if (t.round === 0 && !chat.lines.some((l) => l.who === 'Agent')) chat.send(null, t.log.map((l) => ({ by: 'them' as const, who: 'Agent', text: l.text })))
     setC((cur) => cur && { ...cur, role: t.expectedRole, years: t.ask.years })
   }
-  useEffect(() => { if (stage === 'contract') openTalks() }, [stage])
+  const talked = useRef(false) // strict mode runs effects twice: open the talks once
+  useEffect(() => { if (stage === 'contract' && !talked.current) { talked.current = true; openTalks() } }, [stage])
   if (!p || !c) return <Screen title="Negotiation" back onBack={close} noNav><Empty icon="handshake" title="Player unavailable" /></Screen>
   const stance = p.clubId ? sellerStance(w, p, club.id) : { willing: true }
   const interest = playerInterest(w, p, club.id)
@@ -675,8 +676,10 @@ export function Renewal({ params }: { params: { id: number } }) {
   const initial = useMemo<ChatLine[]>(() => { const t = p ? getTalks(w, 'renew', p.id) : undefined; return t && t.status === 'open' ? t.log.map((l) => ({ by: l.by === 'me' ? 'me' as const : 'them' as const, who: 'Agent', text: l.text, tone: l.tone })) : [] }, [])
   const chat = useTypingChat(initial)
   const [done, setDone] = useState(false)
+  const started = useRef(false) // strict mode runs effects twice: open the talks once
   useEffect(() => {
-    if (!p) return
+    if (!p || started.current) return
+    started.current = true
     let r: ReturnType<typeof startContractTalks> = {}
     mutate((w) => { r = startContractTalks(w, w.players[p.id], 'renew') })
     if (r.blocked) { chat.send(null, [{ by: 'them', who: 'Agent', text: r.blocked, tone: 'bad' }]); setDone(true); return }

@@ -50,7 +50,7 @@ export function matchContext(w: World, f: Fixture, commentary: boolean): MatchCo
     extraTime: !!comp?.rules.extraTime || comp?.format === 'uefa' || (comp?.format === 'cup' && final),
     penaltiesOnly: comp?.format === 'supercup',
     importance: (f.importance || 1) + (final ? 2 : 0) + (f.derby ? 1 : 0),
-    strictness: 0.85 + (hashString(f.id + 'ref') % 100) / 250,
+    strictness: refereeStrictness(f),
     injuryRate: w.settings.injuries === 'Low' ? 0.55 : w.settings.injuries === 'High' ? 1.5 : 1,
     commentary,
     userSide: f.home === w.userClubId ? 0 : f.away === w.userClubId ? 1 : -1,
@@ -132,8 +132,11 @@ export function simulateFixture(w: World, f: Fixture, deep = isDeepFixture(w, f)
   return sim.runToEnd()
 }
 
-const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 4], uefa: [3, 5, 7], supercup: [99], playoff: [99], intl: [2, 4] }
+export const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 4], uefa: [3, 5, 7], supercup: [99], playoff: [99], intl: [2, 4] }
 const banScope = (comp?: Competition) => comp?.format === 'uefa' ? 'continental' : comp?.format === 'league' ? 'league' : comp?.format === 'intl' ? 'intl' : 'cup'
+
+/** How card-happy the fixture's referee is (0.85 lenient .. 1.25 strict), fixed per fixture. */
+export const refereeStrictness = (f: Fixture) => 0.85 + (hashString(f.id + 'ref') % 100) / 250
 
 /** Apply a finished result to the authoritative world state. */
 /** `full` keeps the complete result (commentary, extended stats, heat maps) — for matches the manager watched. */

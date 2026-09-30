@@ -10,7 +10,13 @@ export function useTypingChat(initial: ChatLine[]) {
   const [typing, setTyping] = useState<string | null>(null)
   const [pending, setPending] = useState(0)
   const timers = useRef<number[]>([])
-  useEffect(() => () => timers.current.forEach((t) => window.clearTimeout(t)), [])
+  // clear pending replies only on a real unmount: React's strict-mode remount runs this cleanup too, and cancelling
+  // there would leave a message "typing" forever with its answers never shown
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => { alive.current = false; const t = timers.current; window.setTimeout(() => { if (!alive.current) t.forEach((x) => window.clearTimeout(x)) }, 0) }
+  }, [])
   const busy = typing !== null || pending > 0
   const send = (mine: ChatLine | null, replies: ChatLine[], done?: () => void) => {
     if (mine) setLines((l) => [...l, mine])
