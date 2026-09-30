@@ -15,6 +15,8 @@ import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
 import { ordinal } from './Menu'
 import { Bracket } from '../components/KnockoutBracket'
+import { rankingTable } from '../../engine/world/fifaRanking'
+import { MoveArrow } from './FifaRanking'
 import { fixturesByDate } from '../../engine/competitions/fixtures'
 import { starRating } from '../rawHelpers'
 import { tableAround } from '../selectors'
@@ -584,6 +586,7 @@ function NationProfile({ w, c }: { w: World; c: Club }) {
   const nextComp = next ? w.competitions[next.compId] : comps[0]
   const sheet = squad.length >= 11 ? sideInput(w, c.id, nextComp, false).sheet : undefined
   const mine = squad.filter((p) => p.clubId === w.userClubId)
+  const rank = rankingTable(w).find((r) => r.id === c.id)
   const trophies = new Map<string, number>()
   for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
   const groups = new Map<string, Player[]>()
@@ -605,6 +608,18 @@ function NationProfile({ w, c }: { w: World; c: Club }) {
           </div>
         </div>
       </div>
+      {rank && (
+        <div className="pad" style={{ marginTop: 10 }}>
+          <button className="card tap fr-card" onClick={() => go({ name: 'fifa', params: { id: c.id } })}>
+            <div className="fr-big"><span className="tiny dim">World ranking</span><b className="display">{rank.rank}</b></div>
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="row tight"><MoveArrow move={rank.move} size={13} /><span className="small b">{rank.move > 0 ? `Up ${rank.move}` : rank.move < 0 ? `Down ${-rank.move}` : 'No change'}</span><span className="tiny dim">since the last ranking</span></div>
+              <div className="tiny dim" style={{ marginTop: 4 }}>{rank.pts.toFixed(2)} points{rank.live ? ` · ${rank.live > 0 ? '+' : ''}${rank.live.toFixed(1)} from matches since` : ''}</div>
+            </div>
+            <span className="tiny b" style={{ color: 'var(--acc)' }}>Full table</span>
+          </button>
+        </div>
+      )}
       <div className="pad grid3" style={{ marginTop: 10 }}>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Strength</div><div className="b small" style={{ marginTop: 3 }}>{c.squadAvg.toFixed(1)} <span className="tiny dim">best 23</span></div></div>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Home ground</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium}</div></div>

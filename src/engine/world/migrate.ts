@@ -5,6 +5,7 @@ import type { World } from '../../domain/types'
 import { dynamicValue } from '../../domain/finance'
 import { addDays } from '../../domain/dates'
 import { migrateIntl } from './international'
+import { ensureRanking } from './fifaRanking'
 import { emptyLine } from './matchRunner'
 import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
 import { takeNewFixtures } from '../competitions/fixtures'
@@ -82,6 +83,7 @@ export function repairWorld(w: World): number {
   }
   fix(!!w.records, () => { w.records = {} })
   fix(!!w.market, () => { w.market = { stories: [], seq: 1 } })
+  fix(!w.intl || !!w.intl.fifa, () => ensureRanking(w))
   fix(!!w.user.history, () => { w.user.history = [] })
   fix(!!w.user.trophies, () => { w.user.trophies = [] })
   fix(!!w.user.awards, () => { w.user.awards = [] })

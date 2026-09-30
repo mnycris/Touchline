@@ -794,7 +794,11 @@ export interface World {
   /** the transfer centre's live stories (rumours, talks, negotiations, done and failed deals) */
   market?: { stories: TransferStory[]; seq: number }
   /** international football: national team ids by nation, and each side's called-up squad */
-  intl?: { nt: Record<string, number>; squads: Record<number, number[]>; calledOn?: Record<number, string> }
+  intl?: {
+    nt: Record<string, number>; squads: Record<number, number[]>; calledOn?: Record<number, string>
+    /** FIFA-style world ranking: live points, the published table and the one before it */
+    fifa?: { pts: Record<number, number>; pub: { rank: Record<number, number>; pts: Record<number, number> }; prev: { rank: Record<number, number>; pts: Record<number, number> }; date: ISODate; dirty?: boolean; published?: number }
+  }
   season: number // season start year
   seasonStart: ISODate
   seasonEnd: ISODate

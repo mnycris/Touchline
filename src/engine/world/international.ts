@@ -9,6 +9,7 @@
 //   2029/30  World Cup qualifiers in every confederation (autumn + March) → World Cup 2030 (June)
 // Summer tournaments are played in June so they finish before the new club season.
 import type { Club, Competition, Fixture, IntlMeta, ISODate, MatchResult, Player, Position, World } from '../../domain/types'
+import { ensureRanking, maybePublish, rankingAfterMatch } from './fifaRanking'
 import { Rng, clamp } from '../../domain/rng'
 import { addDays, ageOn, fmtDate, weekday } from '../../domain/dates'
 import { seasonDates } from '../competitions/calendar'
@@ -168,9 +169,11 @@ function addGroups(w: World, comp: Competition, groups: number[][], dates: ISODa
 }
 
 /** Split sides into groups of about `size`, seeded in pots so each group gets one strong side, one weaker... */
-function seedGroups(list: Club[], nGroups: number, rng: Rng): number[][] {
+function seedGroups(list: Club[], nGroups: number, rng: Rng, w?: World): number[][] {
   const groups: number[][] = Array.from({ length: nGroups }, () => [])
-  const sorted = [...list].sort((a, b) => b.squadAvg - a.squadAvg)
+  // pots by the world ranking, as FIFA and the confederations draw them (strength before a ranking exists)
+  const pts = w?.intl?.fifa?.pts
+  const sorted = [...list].sort((a, b) => (pts ? (pts[b.id] ?? 0) - (pts[a.id] ?? 0) : b.squadAvg - a.squadAvg))
   for (let i = 0; i < sorted.length; i += nGroups) {
     const pot = sorted.slice(i, i + nGroups)
     rng.shuffle(pot)
@@ -212,28 +215,28 @@ export function setupIntlSeason(w: World, season: number, rng: Rng) {
     // Nations League: League A (16) and B (16) in groups of 4, League C the rest; the four League A group winners meet in the Finals
     const unl = makeComp(w, { key: 'UNL', name: 'UEFA Nations League', short: 'Nations League', confed: 'UEFA', kind: 'tournament', tier: 2, hosts: undefined }, season, { advance: { top: 1, thirds: 0, groupsPrefix: 'League A' }, koDates: [`${y}-06-09`, `${y}-06-13`] })
     const A = UEFA.slice(0, 16), B = UEFA.slice(16, 32), C = UEFA.slice(32)
-    addGroups(w, unl, seedGroups(A, 4, rng), wd.autumn, rng, ['League A · Group 1', 'League A · Group 2', 'League A · Group 3', 'League A · Group 4'])
-    addGroups(w, unl, seedGroups(B, 4, rng), wd.autumn, rng, ['League B · Group 1', 'League B · Group 2', 'League B · Group 3', 'League B · Group 4'])
+    addGroups(w, unl, seedGroups(A, 4, rng, w), wd.autumn, rng, ['League A · Group 1', 'League A · Group 2', 'League A · Group 3', 'League A · Group 4'])
+    addGroups(w, unl, seedGroups(B, 4, rng, w), wd.autumn, rng, ['League B · Group 1', 'League B · Group 2', 'League B · Group 3', 'League B · Group 4'])
     if (C.length >= 3) addGroups(w, unl, [C.map((c) => c.id)], wd.autumn, rng, ['League C'])
     unl.intl!.hosts = undefined
     if (y % 4 === 3) {
       // Asian Cup, January (Saudi Arabia 2027): the best eight AFC sides
       const asian = makeComp(w, { key: 'ASIAN', name: 'AFC Asian Cup', short: 'Asian Cup', confed: 'AFC', kind: 'tournament', squadSize: 26, hosts: HOSTS.ASIAN, tier: 2 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-01-24`, `${y}-01-28`] })
-      addGroups(w, asian, seedGroups(teams(w, 'AFC').slice(0, 8), 2, rng), [`${y}-01-10`, `${y}-01-14`, `${y}-01-18`], rng)
+      addGroups(w, asian, seedGroups(teams(w, 'AFC').slice(0, 8), 2, rng, w), [`${y}-01-10`, `${y}-01-14`, `${y}-01-18`], rng)
     }
     if (y % 2 === 1) {
       const afcon = makeComp(w, { key: 'AFCON', name: 'Africa Cup of Nations', short: 'AFCON', confed: 'CAF', kind: 'tournament', squadSize: 26, hosts: HOSTS.AFCON, tier: 2 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-20`, `${y}-06-24`, `${y}-06-29`] })
-      addGroups(w, afcon, seedGroups(teams(w, 'CAF').slice(0, 16), 4, rng), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
+      addGroups(w, afcon, seedGroups(teams(w, 'CAF').slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
       const gold = makeComp(w, { key: 'GOLD', name: 'CONCACAF Gold Cup', short: 'Gold Cup', confed: 'CONCACAF', kind: 'tournament', squadSize: 26, hosts: HOSTS.GOLD, tier: 3 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-22`, `${y}-06-27`] })
       const cc = [...teams(w, 'CONCACAF'), ...teams(w, 'AFC').filter((c) => !['Japan', 'Korea Republic'].includes(c.nation!)).slice(0, 1)].slice(0, 8)
-      addGroups(w, gold, seedGroups(cc, 2, rng), [`${y}-06-10`, `${y}-06-14`, `${y}-06-18`], rng)
+      addGroups(w, gold, seedGroups(cc, 2, rng, w), [`${y}-06-10`, `${y}-06-14`, `${y}-06-18`], rng)
     }
   }
   if (cyc === 1) {
     const q = makeComp(w, { key: 'EUROQ', name: 'European Qualifiers', short: 'Euro Qualifiers', logoKey: 'EURO', confed: 'UEFA', kind: 'groups', tier: 2 }, season, { feeds: 'EURO', qualify: { top: 2, extra: 8 } })
-    addGroups(w, q, seedGroups(UEFA, 8, rng), [...wd.autumn, ...wd.march], rng)
+    addGroups(w, q, seedGroups(UEFA, 8, rng, w), [...wd.autumn, ...wd.march], rng)
     const ca = makeComp(w, { key: 'CA', name: 'Copa América', short: 'Copa América', confed: 'CONMEBOL', kind: 'tournament', squadSize: 26, hosts: HOSTS.CA, tier: 1 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-20`, `${y}-06-24`, `${y}-06-28`] })
-    addGroups(w, ca, seedGroups([...teams(w, 'CONMEBOL'), ...teams(w, 'CONCACAF').slice(0, 6)].slice(0, 16), 4, rng), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
+    addGroups(w, ca, seedGroups([...teams(w, 'CONMEBOL'), ...teams(w, 'CONCACAF').slice(0, 6)].slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
   }
   if (cyc === 3) {
     // World Cup qualifying in every confederation; the World Cup itself is drawn when they end
@@ -245,7 +248,7 @@ export function setupIntlSeason(w: World, season: number, rng: Rng) {
       const list = teams(w, conf, { competitive: true })
       if (list.length < 4) continue
       const q = makeComp(w, { key: `WCQ${conf}`, name: `World Cup Qualifiers · ${conf}`, short: `WC Qualifiers (${conf})`, logoKey: 'WC', confed: conf, kind: 'groups', tier: 2 }, season, { feeds: 'WC', qualify: { top: s.top, extra: s.extra } })
-      addGroups(w, q, seedGroups(list, Math.min(s.groups, Math.floor(list.length / 3)), rng), [...wd.autumn, ...wd.march], rng)
+      addGroups(w, q, seedGroups(list, Math.min(s.groups, Math.floor(list.length / 3)), rng, w), [...wd.autumn, ...wd.march], rng)
     }
   }
   scheduleFriendlies(w, season, [...wd.autumn, ...wd.march], rng)
@@ -398,7 +401,7 @@ function qualifiersDone(w: World, feeds: string, season: number, rng: Rng) {
   const koTeams = nGroups * 2 + thirds
   const koDates = feeds === 'WC' ? [`${y}-06-15`, `${y}-06-19`, `${y}-06-23`, `${y}-06-26`, `${y}-06-30`] : [`${y}-06-17`, `${y}-06-21`, `${y}-06-25`, `${y}-06-29`]
   const comp = makeComp(w, def, season, { advance: { top: 2, thirds }, koDates: koDates.slice(-Math.log2(koTeams)) })
-  addGroups(w, comp, seedGroups(field, nGroups, rng), feeds === 'WC' ? [`${y}-06-03`, `${y}-06-07`, `${y}-06-11`] : [`${y}-06-05`, `${y}-06-09`, `${y}-06-13`], rng)
+  addGroups(w, comp, seedGroups(field, nGroups, rng, w), feeds === 'WC' ? [`${y}-06-03`, `${y}-06-07`, `${y}-06-11`] : [`${y}-06-05`, `${y}-06-09`, `${y}-06-13`], rng)
   postNews(w, { headline: `${def.name} ${y}: the ${field.length} finalists are known`, body: `${field.slice(0, 8).map((c) => c.short).join(', ')} and the rest head to ${feeds === 'WC' ? 'Spain, Portugal and Morocco' : 'the United Kingdom and Ireland'} in June.`, kind: 'preview', playerIds: [], clubIds: [], compId: comp.id, importance: 4, userRelated: false })
 }
 
@@ -421,6 +424,8 @@ export function planJuneFriendlies(w: World, rng: Rng) {
 /** Daily: call squads up a few days before a nation's next match, and send players back after its last. */
 export function intlDaily(w: World) {
   if (!w.intl) return
+  ensureRanking(w)
+  maybePublish(w)
   const d = w.date
   if (d === `${w.season + 1}-05-20`) planJuneFriendlies(w, new Rng((w.meta.seed ^ w.season) >>> 0))
   const next = new Map<number, Fixture>()
@@ -480,6 +485,7 @@ function releaseSquad(w: World, ntIdNum: number, ids: number[]): string[] {
 
 /** After an international match: caps and goals for the players, headlines for the big ones. */
 export function intlAfterMatch(w: World, f: Fixture, r: MatchResult, injuries: { id: number; days: number; type: string }[] = []) {
+  rankingAfterMatch(w, f, r)
   // an injury on international duty is the club's problem too
   const staff = staffNames(w)
   for (const inj of injuries) {

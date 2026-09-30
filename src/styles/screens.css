@@ -1586,3 +1586,16 @@ select.input option { background: #151b27; }
 .or-u .ellipsis { max-width: 100%; }
 .or-pf { position: relative; display: block; }
 .or-pf i { position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%); padding: 1px 6px; border-radius: 5px; background: #ff4d5e; color: #fff; font-style: normal; font-weight: 800; font-size: 9.5px; text-transform: uppercase; letter-spacing: .05em; }
+
+/* world ranking */
+.mv { display: inline-grid; place-items: center; flex: none; min-width: 14px; }
+.mv.up { color: var(--pos); } .mv.down { color: #ff6b78; }
+.mv.flat i { width: 8px; height: 2px; border-radius: 1px; background: var(--t3); }
+.fr-row { display: grid; grid-template-columns: 30px 18px minmax(0, 1fr) 72px 52px; align-items: center; gap: 8px; width: 100%; padding: 10px 14px; text-align: left; border-top: 1px solid var(--line); animation: fadeUp .3s var(--d, 0ms) ease both; }
+.fr-row.fr-h { border-top: 0; padding-top: 12px; padding-bottom: 6px; animation: none; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.fr-row.mine { background: rgba(var(--acc-rgb), .08); box-shadow: inset 3px 0 0 var(--acc); }
+.fr-rank { font-family: var(--display); font-size: 15px; }
+.num.pos { color: var(--pos); } .num.neg { color: #ff8a95; }
+.card.fr-card { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; }
+.fr-big { display: flex; flex-direction: column; align-items: center; min-width: 58px; }
+.fr-big b { font-size: 34px; line-height: 1; }
