@@ -17,6 +17,8 @@ import type { Fixture, World } from '../../domain/types'
 import { Fx } from '../components/Fx'
 import { kitColors } from '../components/LivePitch'
 import { underWhite } from '../theme'
+import { FixtureRow } from './Match'
+import { intlStage, userOnDuty } from '../../engine/world/international'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
@@ -61,6 +63,7 @@ export function Hub() {
         {w.flags.celebrate && w.flags.celebrate.date >= addDays(w.date, -60) && <Celebration w={w} />}
         {next ? <NextMatchCard w={w} f={next} today={!!today} /> : <SeasonDoneCard w={w} />}
         <CalendarStrip w={w} />
+        <IntlDutyCard w={w} />
 
         {pendingConv.length > 0 && (
           <button className="card tap alert-card" onClick={() => { const m = w.inbox.find((x) => x.actions.some((a) => a.action === 'openConversation' && a.payload === pendingConv[0].id)); m ? go({ name: 'message', params: { id: m.id } }) : go({ name: 'conversation', params: { id: pendingConv[0].id } }) }}>
@@ -240,13 +243,71 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
 }
 
 function SeasonDoneCard({ w }: { w: World }) {
+  const go = useGame((s) => s.go)
+  // the summer's tournaments carry on after the club season
+  const summer = Object.values(w.competitions).filter((c) => c.season === w.season && c.intl?.kind === 'tournament' && c.status !== 'finished' && c.fixtures.some((id) => w.fixtures[id] && !w.fixtures[id].played))
   return (
     <div className="hero" style={{ padding: 18 }}>
       <div style={{ position: 'relative', zIndex: 1 }}>
         <div className="kicker" style={{ color: '#fff' }}>Off-season</div>
-        <div className="h2" style={{ marginTop: 6 }}>No fixtures scheduled</div>
-        <div className="small" style={{ opacity: 0.8, marginTop: 6 }}>Continue to the end of the season. The {seasonLabel(w.season + 1)} campaign starts after the summer.</div>
+        <div className="h2" style={{ marginTop: 6 }}>{summer.length ? 'Tournament summer' : 'No fixtures scheduled'}</div>
+        <div className="small" style={{ opacity: 0.8, marginTop: 6 }}>{summer.length ? `Your season is over; the ${summer.length > 1 ? `${summer.slice(0, -1).map((c) => c.short).join(', ')} and ${summer[summer.length - 1].short}` : summer[0].short} ${summer.length > 1 ? 'are' : 'is'} on. The season review follows the last final.` : `Continue to the end of the season. The ${seasonLabel(w.season + 1)} campaign starts after the summer.`}</div>
+        {summer.length > 0 && (
+          <div className="stack" style={{ gap: 6, marginTop: 12 }}>
+            {summer.map((c) => (
+              <button key={c.id} className="summer-comp" onClick={() => go({ name: 'comp', params: { id: c.id } })}>
+                <CompLogo k={compLogoKey(c)} size={26} name={c.name} />
+                <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}><div className="b small ellipsis">{c.name}</div><div className="tiny" style={{ opacity: 0.75 }}>{intlStage(w, c)}</div></div>
+                <Icon name="forward" size={16} />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+    </div>
+  )
+}
+
+/** The manager's players away with their countries: where they are and the next game (watchable from the row). */
+function IntlDutyCard({ w }: { w: World }) {
+  const go = useGame((s) => s.go)
+  const duty = userOnDuty(w)
+  if (!duty.length) return null
+  const club = w.clubs[w.userClubId]
+  const total = duty.reduce((a, d) => a + d.players.length, 0)
+  // two of his nations meeting each other share one fixture row
+  const groups: { f?: Fixture; sides: typeof duty }[] = []
+  for (const d of duty) {
+    const f = d.next || d.last
+    const g = f && groups.find((x) => x.f?.id === f.id)
+    if (g) g.sides.push(d); else groups.push({ f, sides: [d] })
+  }
+  const shown = groups.slice(0, 4)
+  const more = duty.length - shown.reduce((a, g) => a + g.sides.length, 0)
+  return (
+    <div className="card intl-card">
+      <div className="card-h">
+        <div className="row tight"><Icon name="globe" size={16} color="var(--info)" /><span className="label">International duty</span></div>
+        <span className="tiny dim">{total} player{total > 1 ? 's' : ''} away</span>
+      </div>
+      <div className="list">
+        {shown.map((g) => (
+          <div key={g.sides[0].nt.id} className="intl-row">
+            {g.sides.map((d) => (
+              <button key={d.nt.id} className="intl-who" onClick={() => { haptic(); go({ name: 'club', params: { id: d.nt.id } }) }}>
+                <Badge club={d.nt} size={30} />
+                <div className="grow" style={{ minWidth: 0, textAlign: 'left' }}>
+                  <div className="b small">{d.nt.short}</div>
+                  <div className="tiny dim ellipsis">{d.players.map((p) => p.name.split(' ').slice(-1)[0]).join(', ')}</div>
+                </div>
+                <div className="intl-faces">{d.players.slice(0, 3).map((p) => <Face key={p.id} p={p} size={28} radius={14} club={club} />)}{d.players.length > 3 && <span className="tiny b">+{d.players.length - 3}</span>}</div>
+              </button>
+            ))}
+            {g.f && <FixtureRow w={w} f={g.f} />}
+          </div>
+        ))}
+      </div>
+      {more > 0 && <button className="card-more tiny b" onClick={() => go({ name: 'squadStatus' })}>{more} more national team{more > 1 ? 's' : ''} · Squad Status</button>}
     </div>
   )
 }

@@ -32,7 +32,7 @@ export interface Injury {
 
 export interface Suspension {
   matches: number
-  scope: 'league' | 'cup' | 'continental' | 'all'
+  scope: 'league' | 'cup' | 'continental' | 'intl' | 'all'
   compId?: string
   reason: string
 }
@@ -130,6 +130,11 @@ export interface Player {
   career: CareerEntry[]
   nationalCaps?: number
   intlDuty?: boolean
+  intlGoals?: number
+  /** this season's matches for his country, by competition id (kept apart from club stats) */
+  intlSeason?: Record<string, StatLine>
+  /** international record by season: [season, caps, goals] */
+  intlCareer?: [number, number, number][]
   retiringAtSeasonEnd?: boolean
   happinessFactors?: Record<string, number>
   lastMatchDate?: ISODate
@@ -229,6 +234,11 @@ export interface Club {
   trophies: { compKey: string; season: number }[]
   lastSeasonPos?: number
   recent?: ('W' | 'D' | 'L')[]
+  /** national team (a nation's side, not a club) */
+  national?: boolean
+  nation?: string
+  flag?: string
+  confed?: string
 }
 
 export interface Manager {
@@ -249,7 +259,7 @@ export interface Manager {
 }
 
 // ---------------------------------------------------------------- competitions
-export type CompFormat = 'league' | 'cup' | 'uefa' | 'supercup' | 'playoff'
+export type CompFormat = 'league' | 'cup' | 'uefa' | 'supercup' | 'playoff' | 'intl'
 export interface StandingRow {
   clubId: number; p: number; w: number; d: number; l: number; gf: number; ga: number; pts: number
   form: ('W' | 'D' | 'L')[]; ded?: number; group?: string
@@ -297,6 +307,23 @@ export interface Competition {
   logoKey?: string
   holderId?: number
   stats?: { topScorers?: [number, number][]; topAssists?: [number, number][]; cleanSheets?: [number, number][] }
+  intl?: IntlMeta
+}
+
+/** International competitions: groups (Nations League, qualifiers), tournaments (groups then knockouts), friendlies. */
+export interface IntlMeta {
+  confed: string
+  kind: 'groups' | 'tournament' | 'friendly'
+  stage: 'groups' | 'ko' | 'done'
+  /** from each group into the knockouts: the top n, plus the best third-placed sides; `groupsPrefix` limits it to some groups */
+  advance?: { top: number; thirds: number; groupsPrefix?: string }
+  koDates?: ISODate[]
+  hosts?: string[]
+  squadSize: number
+  /** a qualifying competition feeding a tournament created when it ends */
+  feeds?: string
+  /** how many a qualifying group sends on (per group top n, plus best runners-up/thirds) */
+  qualify?: { top: number; extra: number }
 }
 
 export interface MatchEvent {
@@ -718,6 +745,8 @@ export interface World {
   date: ISODate
   /** Edit Mode: scripts for upcoming fixtures, by fixture id */
   scripts?: Record<string, MatchScript>
+  /** international football: national team ids by nation, and each side's called-up squad */
+  intl?: { nt: Record<string, number>; squads: Record<number, number[]>; calledOn?: Record<number, string> }
   season: number // season start year
   seasonStart: ISODate
   seasonEnd: ISODate

@@ -5,6 +5,7 @@ import { createLeagueCompetition } from './leagues'
 import { CUP_DEFS, createCup, createSuperCup, drawCupRound, reservedWeekends } from './cups'
 import { createUefaCompetition } from './uefa'
 import { sortTable } from './tables'
+import { setupIntlSeason } from '../world/international'
 
 export interface SeasonSeed {
   realFixtures?: Record<string, [string, string, number, number, number][]>
@@ -59,7 +60,11 @@ export function setupSeason(w: World, season: number, seed: SeasonSeed, rng: Rng
     drawCupRound(w, comp, 0, rng, idx)
   }
 
-  for (const f of Object.values(w.fixtures)) f.userInvolved = f.home === w.userClubId || f.away === w.userClubId
+  // ---- international football: national teams, their competitions and friendlies
+  setupIntlSeason(w, season, rng)
+
+  // the user's fixtures (played ones from former clubs stay in the career record)
+  for (const f of Object.values(w.fixtures)) f.userInvolved = f.home === w.userClubId || f.away === w.userClubId || (f.played && !!f.userInvolved)
 }
 
 function lastTable(w: World, key: string, season: number) {

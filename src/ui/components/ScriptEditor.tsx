@@ -8,7 +8,7 @@ import { useGame, haptic } from '../../store/game'
 import { setScript } from '../../engine/world/edit'
 import { sideInput } from '../../engine/world/matchRunner'
 import { validateSheet } from '../../engine/match/selection'
-import { rosterOf } from '../../engine/world/roster'
+import { squadOf } from '../../engine/match/selection'
 import { callName } from '../../engine/match/commentary'
 import { Icon } from '../icons/Icon'
 import { Badge, Face } from './atoms'
@@ -285,7 +285,8 @@ function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone }
 
 /** Choose an AI side's XI and bench for the match, in any formation. */
 function LineupPicker({ w, clubId, start, onSave, onReset }: { w: World; clubId: number; start: Squad; onSave: (l: { formation: string; lineup: number[]; bench: number[] }) => void; onReset: () => void }) {
-  const squad = rosterOf(w, clubId).filter((p) => !p.injury).sort((a, b) => (a.positions[0] === 'GK' ? -1 : 0) - (b.positions[0] === 'GK' ? -1 : 0) || b.ovr - a.ovr)
+  // (a national side picks from its called-up squad)
+  const squad = squadOf(w, clubId).filter((p) => !p.injury).sort((a, b) => (a.positions[0] === 'GK' ? -1 : 0) - (b.positions[0] === 'GK' ? -1 : 0) || b.ovr - a.ovr)
   const [formation, setFormation] = useState(start.formation)
   const [xi, setXi] = useState<number[]>(start.xi.map((p) => p.id))
   const [bench, setBench] = useState<number[]>(start.bench.map((p) => p.id))

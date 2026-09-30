@@ -220,6 +220,10 @@ img { user-select: none; -webkit-user-drag: none; }
 .face img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
 .badge-img { object-fit: contain; display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.55)); }
 .flag { display: inline-block; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); flex: none; }
+/* national teams: a round flag with a hairline ring (drawn over the image) */
+.nt-badge { position: relative; flex: none; border-radius: 50%; overflow: hidden; background: #1b2029; }
+.nt-badge img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.nt-badge::after { content: ''; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18), inset 0 -6px 10px rgba(0, 0, 0, 0.12); pointer-events: none; }
 .bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 .bar > i { display: block; height: 100%; border-radius: 3px; transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .status-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }

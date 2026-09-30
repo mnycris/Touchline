@@ -81,7 +81,8 @@ export type PlayerStatus = { key: 'injured' | 'suspended' | 'intl' | 'tired' | '
 export function playerStatus(w: World, p: Player, comp?: Competition): PlayerStatus {
   if (p.injury) return { key: 'injured', label: `${p.injury.type} · until ${p.injury.until.slice(8, 10)}/${p.injury.until.slice(5, 7)}`, color: 'var(--neg)', icon: 'injury' }
   if (comp ? isSuspendedFor(p, comp) : p.suspensions.length) return { key: 'suspended', label: `Suspended (${p.suspensions.reduce((a, s) => a + s.matches, 0)} match${p.suspensions.reduce((a, s) => a + s.matches, 0) > 1 ? 'es' : ''})`, color: 'var(--neg)', icon: 'suspension' }
-  if (p.intlDuty) return { key: 'intl', label: 'International duty', color: 'var(--info)', icon: 'globe' }
+  // away with his country (not a problem in his country's own games)
+  if (p.intlDuty && comp?.format !== 'intl') return { key: 'intl', label: 'International duty', color: 'var(--info)', icon: 'globe' }
   if (p.fitness < 60) return { key: 'tired', label: `Low energy (${Math.round(p.fitness)}%)`, color: 'var(--warn)', icon: 'fitness' }
   if (p.morale < 30) return { key: 'unhappy', label: 'Unhappy', color: 'var(--warn)', icon: 'moraleLow' }
   if (p.transferListed) return { key: 'listed', label: 'Transfer listed', color: 'var(--t2)', icon: 'tag' }

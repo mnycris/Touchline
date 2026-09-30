@@ -196,6 +196,13 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     p.fitness = clamp(88 + rng.int(0, 12), 0, 100)
     p.sharpness = clamp(45 + rng.int(0, 20), 0, 100)
     p.intlDuty = false
+    // his season for his country goes into his international record
+    if (p.intlSeason) {
+      const lines = Object.values(p.intlSeason)
+      const caps = lines.reduce((a, s) => a + s.apps, 0), goals = lines.reduce((a, s) => a + s.goals, 0)
+      if (caps) (p.intlCareer ||= []).push([season, caps, goals])
+      p.intlSeason = undefined
+    }
     seasonAging(w, p, rng)
     p.value = dynamicValue(p, w.date, p.valueCalib ?? 1)
   }
@@ -219,6 +226,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
   }
   // ---- budgets for the new season
   for (const club of Object.values(w.clubs)) {
+    if (club.national) continue
     const squad = rosterOf(w, club.id)
     const value = squad.reduce((a, p) => a + p.value, 0)
     const lg = w.leagues[club.leagueId]
@@ -338,7 +346,7 @@ function moveClub(w: World, clubId: number, from: number, to: number) {
 
 function regenIntake(w: World, rng: Rng) {
   for (const club of Object.values(w.clubs)) {
-    if (club.id === w.userClubId) continue
+    if (club.id === w.userClubId || club.national) continue
     const squad = rosterOf(w, club.id)
     const n = squad.length < 24 ? 3 : squad.length < 28 ? 2 : 1
     const nat = w.nations[club.country] ? club.country : rng.pick(['England', 'Spain', 'France', 'Germany', 'Brazil'])

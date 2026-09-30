@@ -8,6 +8,7 @@ import { aiMatchSheet, validateSheet } from '../match/selection'
 import { aggregateBefore } from '../competitions/cups'
 import { applyResultToTable } from '../competitions/tables'
 import { rosterOf } from './roster'
+import { nationalSquad } from './international'
 
 export function emptyLine(): StatLine {
   return { apps: 0, starts: 0, subs: 0, mins: 0, goals: 0, assists: 0, cleanSheets: 0, yellows: 0, reds: 0, ratingSum: 0, rated: 0, motm: 0, shots: 0, sot: 0, xg: 0, saves: 0, conceded: 0, tackles: 0, keyPasses: 0, passes: 0, passesCompleted: 0 }
@@ -63,8 +64,11 @@ export function sideInput(w: World, clubId: number, comp: Competition | undefine
   let sheet = user ? (club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]) : aiMatchSheet(w, club, comp)
   if (user) sheet = validateSheet(w, club, sheet, comp).sheet
   // Edit Mode line-up for an AI side: the chosen XI in the chosen shape, roles and duties from the AI's own sheet logic
-  if (!user && scripted && scripted.lineup.length === 11 && scripted.lineup.every((id) => w.players[id]?.clubId === clubId)) {
-    sheet = { ...sheet, formation: scripted.formation || sheet.formation, lineup: [...scripted.lineup], bench: scripted.bench.filter((id) => w.players[id]?.clubId === clubId && !scripted.lineup.includes(id)).slice(0, 12) }
+  // (a national side picks from its called-up squad)
+  const national = club.national ? new Set(nationalSquad(w, clubId).map((p) => p.id)) : undefined
+  const inSide = (id: number) => national ? national.has(id) : w.players[id]?.clubId === clubId
+  if (!user && scripted && scripted.lineup.length === 11 && scripted.lineup.every(inSide)) {
+    sheet = { ...sheet, formation: scripted.formation || sheet.formation, lineup: [...scripted.lineup], bench: scripted.bench.filter((id) => inSide(id) && !scripted.lineup.includes(id)).slice(0, 12) }
     if (!sheet.lineup.includes(sheet.captain)) sheet.captain = sheet.lineup[0]
     for (const k of ['penalties', 'freeKicks', 'cornersL', 'cornersR'] as const) if (!sheet.lineup.includes(sheet[k])) sheet[k] = [...sheet.lineup].sort((a, b) => (w.players[b]?.ovr || 0) - (w.players[a]?.ovr || 0))[0]
   }
@@ -107,6 +111,11 @@ export function isDeepFixture(w: World, f: Fixture, set = deepLeagueSet(w)): boo
   const comp = w.competitions[f.compId]
   if (comp?.format === 'league' && comp.leagueId != null) return set.has(comp.leagueId)
   const h = w.clubs[f.home], a = w.clubs[f.away]
+  // internationals: the big tournaments, the strong nations, and any game the manager's own players are in
+  if (comp?.format === 'intl') {
+    if (comp.tier <= 1 || Math.max(h?.squadAvg || 0, a?.squadAvg || 0) >= 78) return true
+    return [f.home, f.away].some((id) => (w.intl?.squads[id] || []).some((pid) => w.players[pid]?.clubId === w.userClubId))
+  }
   return (!!h && set.has(h.leagueId)) || (!!a && set.has(a.leagueId))
 }
 
@@ -123,7 +132,8 @@ export function simulateFixture(w: World, f: Fixture, deep = isDeepFixture(w, f)
   return sim.runToEnd()
 }
 
-const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 4], uefa: [3, 5, 7], supercup: [99], playoff: [99] }
+const YELLOW_LIMITS: Record<string, number[]> = { league: [5, 10, 15], cup: [2, 4], uefa: [3, 5, 7], supercup: [99], playoff: [99], intl: [2, 4] }
+const banScope = (comp?: Competition) => comp?.format === 'uefa' ? 'continental' : comp?.format === 'league' ? 'league' : comp?.format === 'intl' ? 'intl' : 'cup'
 
 /** Apply a finished result to the authoritative world state. */
 /** `full` keeps the complete result (commentary, extended stats, heat maps) — for matches the manager watched. */
@@ -137,10 +147,11 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   if (edited) { f.edited = true; delete w.scripts![f.id] }
   // followed competitions and deep-simulated leagues keep line-ups, ratings and key events for their match reports
   f.result = keepFull ? result : compact(result, !!inUserComp || (result.detail === 'full' && isDeepFixture(w, f)))
-  if (comp?.format === 'league' || (comp?.format === 'uefa' && !f.roundId)) applyResultToTable(comp, f)
+  if (comp?.format === 'league' || ((comp?.format === 'uefa' || comp?.format === 'intl') && !f.roundId && comp.table)) applyResultToTable(comp, f)
   const injuries: { id: number; days: number; type: string }[] = []
   const bans: { id: number; games: number }[] = []
   const compKey = comp?.id || f.compId
+  const intl = comp?.format === 'intl'
   const [hs, as] = result.score
   // serve existing bans for this competition before new ones are issued
   for (const clubId of [f.home, f.away]) serveBans(w, clubId, comp)
@@ -148,7 +159,8 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   for (const st of result.players) {
     const p = w.players[st.id]
     if (!p) continue
-    const line = (p.season[compKey] ||= emptyLine())
+    // a player's matches for his country are kept apart from his club season
+    const line = ((intl ? (p.intlSeason ||= {}) : p.season)[compKey] ||= emptyLine())
     const played = st.mins > 0
     if (played) {
       line.apps++
@@ -186,10 +198,10 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
       const fmt = comp?.format || 'league'
       const key = comp?.key || f.compId
       p.yellowAccum[key] = (p.yellowAccum[key] || 0) + 1
-      const limits = YELLOW_LIMITS[fmt] || [5]
+      const limits = comp?.intl?.kind === 'friendly' ? [] : YELLOW_LIMITS[fmt] || [5]
       if (limits.includes(p.yellowAccum[key])) {
         const games = fmt === 'league' && p.yellowAccum[key] >= 10 ? 2 : 1
-        p.suspensions.push({ matches: games, scope: fmt === 'league' ? 'league' : fmt === 'uefa' ? 'continental' : 'cup', compId: key, reason: `${p.yellowAccum[key]} yellow cards` })
+        p.suspensions.push({ matches: games, scope: banScope(comp), compId: key, reason: `${p.yellowAccum[key]} yellow cards` })
         bans.push({ id: p.id, games })
       }
     }
@@ -197,10 +209,8 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
       line.reds++
       const second = result.events.some((e) => e.type === 'secondYellow' && e.player === p.id)
       const games = second ? 1 : rng.chance(0.25) ? 1 : 3
-      const scope = comp?.format === 'uefa' ? 'continental' : 'league'
-      p.suspensions.push({ matches: games, scope: comp?.format === 'uefa' ? 'continental' : comp?.format === 'league' ? 'league' : 'cup', compId: comp?.key, reason: second ? 'Sent off (two yellows)' : 'Straight red card' })
+      p.suspensions.push({ matches: games, scope: banScope(comp), compId: comp?.key, reason: second ? 'Sent off (two yellows)' : 'Straight red card' })
       bans.push({ id: p.id, games })
-      void scope
     }
     if (st.injured && !p.injury) {
       const inj = rollInjury(w, p, rng, f.date)
@@ -239,7 +249,7 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   }
   // --- gate receipts
   const home = w.clubs[f.home]
-  if (home && !f.neutral) {
+  if (home && !f.neutral && !home.national) {
     const lg = w.leagues[home.leagueId]
     const ticket = 12 + (lg?.wealth || 3) * 6.5 + home.prestige.domestic * 1.5
     const gate = Math.round(result.attendance * ticket * (comp?.format === 'uefa' ? 1.6 : 1))
@@ -279,8 +289,11 @@ export function rollInjury(w: World, p: Player, rng: Rng, date: string) {
 
 function serveBans(w: World, clubId: number, comp: Competition | undefined) {
   if (!comp) return
-  const scope = comp.format === 'league' ? 'league' : comp.format === 'uefa' ? 'continental' : 'cup'
-  for (const p of rosterOf(w, clubId)) {
+  const scope = banScope(comp)
+  const club = w.clubs[clubId]
+  // a national side's bans are served by its nation's players, called up or not
+  const players = club?.national ? Object.values(w.players).filter((p) => p.nation === club.nation && p.suspensions.length) : rosterOf(w, clubId)
+  for (const p of players) {
     if (!p.suspensions.length) continue
     for (const s of p.suspensions) {
       if (s.scope === 'all' || (s.scope === scope && (!s.compId || s.compId === comp.key || s.compId === comp.id))) {

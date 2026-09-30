@@ -20,6 +20,7 @@ import { recallLoan, releaseCost, releaseUserPlayer, setJersey, setLoanListed, s
 import { rosterOf } from '../../engine/world/roster'
 import { RatingBadge } from './Match'
 import { Ball, Boot } from '../components/Lineup'
+import { dutyTeam } from '../../engine/world/international'
 
 type Tab = 'attributes' | 'playstyles' | 'stats' | 'career' | 'development'
 
@@ -347,6 +348,7 @@ function StatsTab({ w, p }: { w: World; p: Player }) {
           </table>
         </div>
       )}
+      <IntlCard w={w} p={p} />
       <MatchLog w={w} p={p} />
       {p.formRatings.length > 0 && (
         <div className="card pad-card">
@@ -402,6 +404,42 @@ function MatchLog({ w, p }: { w: World; p: Player }) {
   )
 }
 
+/** His international football: caps, goals in this save, this season's games for his country by competition. */
+function IntlCard({ w, p }: { w: World; p: Player }) {
+  const go = useGame((s) => s.go)
+  const nt = w.clubs[w.intl?.nt[p.nation] || 0]
+  const lines = Object.entries(p.intlSeason || {}).filter(([, s]) => s.apps > 0)
+  const season = lines.reduce((a, [, s]) => ({ apps: a.apps + s.apps, g: a.g + s.goals, as: a.as + s.assists, r: a.r + s.ratingSum, n: a.n + s.rated }), { apps: 0, g: 0, as: 0, r: 0, n: 0 })
+  const past = (p.intlCareer || []).reduce((a, c) => ({ caps: a.caps + c[1], g: a.g + c[2] }), { caps: 0, g: 0 })
+  const away = dutyTeam(w, p)
+  if (!nt || (!p.nationalCaps && !season.apps && !away)) return null
+  return (
+    <div className="card">
+      <button className="card-h tap" style={{ width: '100%' }} onClick={() => go({ name: 'club', params: { id: nt.id } })}>
+        <div className="row tight"><Badge club={nt} size={22} /><span className="label">{nt.name}</span></div>
+        {away ? <span className="pill" style={{ background: 'rgba(62,166,255,.16)', color: 'var(--info)' }}>In camp</span> : <Icon name="forward" size={16} color="var(--t3)" />}
+      </button>
+      <div className="stat-grid" style={{ padding: '0 14px 14px' }}>
+        <KV k="Caps" v={`${p.nationalCaps || 0}`} />
+        <KV k="Goals" v={`${past.g + season.g}`} sub="in this save" />
+        <KV k={seasonLabel(w.season)} v={`${season.apps}`} sub={`${season.g} G · ${season.as} A`} />
+        <KV k="Avg rating" v={season.n ? (season.r / season.n).toFixed(2) : '–'} />
+      </div>
+      {lines.length > 0 && (
+        <table className="tbl">
+          <thead><tr><th className="l" style={{ paddingLeft: 12 }}>Competition</th><th>Apps</th><th>G</th><th>A</th><th>Avg</th></tr></thead>
+          <tbody>
+            {lines.map(([k, s]) => {
+              const comp = w.competitions[k]
+              return <tr key={k} onClick={() => comp && go({ name: 'comp', params: { id: k } })}><td className="l" style={{ paddingLeft: 12 }}><div className="row tight">{comp && <CompLogo k={compLogoKey(comp)} size={16} name={comp.name} />}<span className="ellipsis" style={{ maxWidth: 140 }}>{comp?.short || k}</span></div></td><td>{s.apps}</td><td>{s.goals}</td><td>{s.assists}</td><td>{s.rated ? (s.ratingSum / s.rated).toFixed(1) : '–'}</td></tr>
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 function KV({ k, v, sub }: { k: string; v: string; sub?: string }) {
   return <div><div className="tiny dim">{k}</div><div className="display" style={{ fontSize: 24 }}>{v}</div>{sub && <div className="tiny dim">{sub}</div>}</div>
 }
@@ -441,7 +479,7 @@ function CareerTab({ w, p }: { w: World; p: Player }) {
       <div className="card pad-card small">
         <div className="row between"><span className="muted">Full name</span><b>{p.fullName}</b></div>
         <div className="row between" style={{ marginTop: 6 }}><span className="muted">Nationality</span><b className="row tight"><Flag w={w} nation={p.nation} size={12} />{p.nation}</b></div>
-        {p.nationalCaps ? <div className="row between" style={{ marginTop: 6 }}><span className="muted">International caps (career mode)</span><b>{p.nationalCaps}</b></div> : null}
+        {p.nationalCaps ? <div className="row between" style={{ marginTop: 6 }}><span className="muted">International caps</span><b>{p.nationalCaps}{p.intlCareer?.length ? <span className="tiny dim"> · {p.intlCareer.reduce((a, c) => a + c[2], 0)} goals in this save</span> : null}</b></div> : null}
         <div className="row between" style={{ marginTop: 6 }}><span className="muted">International reputation</span><Stars n={p.intlRep} size={11} /></div>
         <div className="row between" style={{ marginTop: 6 }}><span className="muted">Body type</span><b>{p.bodyType}</b></div>
         <div className="row between" style={{ marginTop: 6 }}><span className="muted">Joined</span><b>{p.joinedDate ? fmtDate(p.joinedDate, 'long') : '—'}</b></div>

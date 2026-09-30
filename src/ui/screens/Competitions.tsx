@@ -2,7 +2,7 @@ import { useRemember } from '../memory'
 import { ClubMoneyEditor, EditToggle, useEditing } from '../components/Editors'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
-import type { Competition, Fixture, Player, World } from '../../domain/types'
+import type { Club, Competition, Fixture, Player, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, Ovr, PosChip, Stars } from '../components/atoms'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
@@ -21,6 +21,7 @@ import { tableAround } from '../selectors'
 import { FormStrip } from './MatchDay'
 import { Ball, Boot, TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
 import { sideInput } from '../../engine/world/matchRunner'
+import { intlStage, nationalSquad, seasonReviewDate, userNations } from '../../engine/world/international'
 
 // ============================================================================ season hub
 export function SeasonHub() {
@@ -63,7 +64,7 @@ function SeasonOverview({ w }: { w: World }) {
     else if (x.close >= w.date) upcoming.push({ d: x.close, icon: 'deadline', text: `${x.name} deadline day`, color: 'var(--neg)' })
   }
   for (const b of w.intlBreaks) if (b.start > w.date) upcoming.push({ d: b.start, icon: 'globe', text: 'International break', color: 'var(--info)' })
-  upcoming.push({ d: `${w.season + 1}-06-01`, icon: 'season', text: 'Season review', color: 'var(--gold)' })
+  upcoming.push({ d: seasonReviewDate(w), icon: 'season', text: 'Season review', color: 'var(--gold)' })
   const soon = upcoming.filter((u) => u.d >= w.date).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 2)
   const res = all.filter((f) => f.played && f.result).map((f) => outcomeFor(f, me))
   const pct = lgFx.length ? done / lgFx.length : 0
@@ -236,18 +237,20 @@ function WorldLeagues({ w }: { w: World }) {
   const comps = Object.values(w.competitions).filter((c) => c.season === w.season)
   const byCountry = new Map<string, Competition[]>()
   for (const c of comps) { const a = byCountry.get(c.country) || []; a.push(c); byCountry.set(c.country, a) }
-  const order = ['Europe', 'England', 'Spain', 'Germany', 'Italy', 'France', 'Portugal', 'Netherlands']
+  const order = ['International', 'Europe', 'England', 'Spain', 'Germany', 'Italy', 'France', 'Portugal', 'Netherlands']
   const entries = [...byCountry.entries()].sort((a, b) => ((order.indexOf(a[0]) + 1) || 99) - ((order.indexOf(b[0]) + 1) || 99) || a[0].localeCompare(b[0]))
+  // internationals: the big tournaments first, friendlies last
+  const intlOrder = (c: Competition) => (c.intl?.kind === 'friendly' ? 9 : c.tier) + (c.status === 'finished' ? 0.5 : 0)
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
       {entries.map(([country, list]) => (
         <div key={country} className="card">
-          <div className="card-h"><div className="row tight">{country !== 'Europe' && <Flag w={w} nation={country} code={Object.values(w.leagues).find((l) => l.country === country)?.flag} size={13} />}<span className="label">{country}</span></div></div>
+          <div className="card-h"><div className="row tight">{country === 'International' ? <Icon name="globe" size={15} color="var(--info)" /> : country !== 'Europe' && <Flag w={w} nation={country} code={Object.values(w.leagues).find((l) => l.country === country)?.flag} size={13} />}<span className="label">{country}</span></div>{country === 'International' && <span className="tiny dim">{Object.keys(w.intl?.nt || {}).length} nations</span>}</div>
           <div className="list">
-            {list.sort((a, b) => (a.format === 'league' ? 0 : 1) - (b.format === 'league' ? 0 : 1) || a.tier - b.tier).map((c) => (
+            {list.sort((a, b) => country === 'International' ? intlOrder(a) - intlOrder(b) : (a.format === 'league' ? 0 : 1) - (b.format === 'league' ? 0 : 1) || a.tier - b.tier).map((c) => (
               <button key={c.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'comp', params: { id: c.id } })}>
                 <div className="logo-tile"><CompLogo k={compLogoKey(c)} size={30} name={c.name} /></div>
-                <div className="meta"><div className="t small">{c.name}</div><div className="s">{c.status === 'finished' ? `Winner: ${w.clubs[c.winner || 0]?.short || sortTable(w, c)[0] && w.clubs[sortTable(w, c)[0].clubId]?.short}` : `${c.clubs.length} clubs`}</div></div>
+                <div className="meta"><div className="t small">{c.name}</div><div className="s">{c.format === 'intl' ? `${c.intl?.kind === 'friendly' ? '' : `${c.clubs.length} nations · `}${intlStage(w, c)}` : c.status === 'finished' ? `Winner: ${w.clubs[c.winner || 0]?.short || sortTable(w, c)[0] && w.clubs[sortTable(w, c)[0].clubId]?.short}` : `${c.clubs.length} clubs`}</div></div>
                 <Icon name="forward" size={16} color="var(--t3)" />
               </button>
             ))}
@@ -263,11 +266,12 @@ export function CompScreen({ params }: { params: { id: string } }) {
   const w = useWorld()
   const c = w.competitions[params.id]
   const hasTable = !!c?.table
-  const hasKO = !!c && c.rounds.length > 0
-  const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : 'bracket')
+  const groups = !!c?.groups && Object.keys(c.groups).length > 0
+  const hasKO = !!c && (c.rounds.length > 0 || c.intl?.kind === 'tournament')
+  const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : c?.intl ? 'fixtures' : 'bracket')
   if (!c) return <Screen title="Competition" back><Empty icon="trophy" title="Competition not found" /></Screen>
   const items = [
-    ...(hasTable ? [{ id: 'table' as const, label: c.format === 'uefa' ? 'League Phase' : 'Table' }] : []),
+    ...(hasTable ? [{ id: 'table' as const, label: c.format === 'uefa' ? 'League Phase' : groups ? 'Groups' : 'Table' }] : []),
     { id: 'fixtures' as const, label: 'Fixtures' },
     ...(hasKO ? [{ id: 'bracket' as const, label: c.format === 'league' ? 'Play-offs' : 'Knockouts' }] : []),
     { id: 'stats' as const, label: 'Stats' },
@@ -275,7 +279,7 @@ export function CompScreen({ params }: { params: { id: string } }) {
   return (
     <Screen title={c.short} sub={`${c.name} · ${seasonLabel(c.season)}`} back right={<div style={{ width: 40 }}><CompLogo k={compLogoKey(c)} size={32} name={c.name} /></div>}>
       <Tabs sticky items={items} value={tab} onChange={setTab} />
-      {tab === 'table' && <TableView w={w} c={c} />}
+      {tab === 'table' && (groups ? <GroupTables w={w} c={c} /> : <TableView w={w} c={c} />)}
       {tab === 'fixtures' && <CompFixtures w={w} c={c} />}
       {tab === 'bracket' && <Bracket w={w} c={c} />}
       {tab === 'stats' && <CompStats w={w} c={c} />}
@@ -320,10 +324,75 @@ export function TableView({ w, c, compact, highlight }: { w: World; c: Competiti
   )
 }
 
+/** Groups (a competition played in groups: internationals): one table per group, qualification marked. */
+function GroupTables({ w, c }: { w: World; c: Competition }) {
+  const go = useGame((s) => s.go)
+  const meta = c.intl
+  const names = Object.keys(c.groups || {})
+  // the manager's own nation is highlighted; sides with his players in them carry his club's badge
+  const home = w.intl?.nt[w.user.nationality] || 0
+  const withMine = useMemo(() => userNations(w), [w.date, w.userClubId])
+  const myClub = w.clubs[w.userClubId]
+  const zone = (name: string, pos: number): { color: string; label: string } | undefined => {
+    if (!meta) return undefined
+    if (meta.kind === 'groups') {
+      const top = meta.qualify?.top || 2
+      if (pos <= top) return { color: 'var(--pos)', label: `Qualify for the ${meta.feeds === 'WC' ? 'World Cup' : 'Euro'}` }
+      if (pos === top + 1 && meta.qualify?.extra) return { color: 'var(--warn)', label: 'Best of the rest qualify' }
+      return undefined
+    }
+    const adv = meta.advance
+    if (!adv || (adv.groupsPrefix && !name.startsWith(adv.groupsPrefix))) return undefined
+    if (pos <= adv.top) return { color: adv.top === 1 ? 'var(--gold)' : 'var(--pos)', label: adv.top === 1 ? 'Finals' : 'Knockout stage' }
+    if (adv.thirds && pos === adv.top + 1) return { color: 'var(--warn)', label: 'Best third-placed sides go through' }
+    return undefined
+  }
+  const legend = new Map<string, string>()
+  return (
+    <div className="pad stack" style={{ marginTop: 12 }}>
+      {names.map((g) => {
+        const rows = sortTable(w, c, (c.table || []).filter((r) => r.group === g))
+        return (
+          <div key={g} className="card">
+            <div className="card-h"><span className="label">{g}</span>{rows.every((r) => r.p) && rows.length > 0 && <span className="tiny dim">{rows[0].p} played</span>}</div>
+            <table className="tbl">
+              <thead><tr><th style={{ width: 28 }}>#</th><th className="l">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => {
+                  const z = zone(g, i + 1)
+                  if (z) legend.set(z.label, z.color)
+                  return (
+                    <tr key={r.clubId} className={r.clubId === home ? 'me' : ''} onClick={() => go({ name: 'club', params: { id: r.clubId } })}>
+                      <td><span className="zone-num" style={{ borderColor: z?.color || 'transparent' }}>{i + 1}</span></td>
+                      <td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={20} /><span className="ellipsis b" style={{ maxWidth: 96 }}>{w.clubs[r.clubId]?.short}</span>{withMine.has(r.clubId) && myClub && <Badge club={myClub} size={12} style={{ opacity: 0.85 }} />}</div></td>
+                      <td>{r.p}</td><td>{r.w}</td><td>{r.d}</td><td>{r.l}</td>
+                      <td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td>
+                      <td className="b">{r.pts}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      })}
+      {legend.size > 0 && <div className="row wrap" style={{ gap: 12 }}>{[...legend.entries()].map(([l, col]) => <span key={l} className="row tight tiny muted"><span className="status-dot" style={{ background: col }} />{l}</span>)}</div>}
+    </div>
+  )
+}
+
+/** International fixtures page by matchday across the groups (friendlies by date); everything else by round. */
+const fixtureRound = (c: Competition, f: Fixture) => {
+  if (c.format !== 'intl') return f.roundName
+  if (c.intl?.kind === 'friendly') return fmtDate(f.date, 'long')
+  const md = f.roundName.match(/· MD(\d+)$/)
+  return md ? `Matchday ${md[1]}` : f.roundName
+}
+
 function CompFixtures({ w, c }: { w: World; c: Competition }) {
   const rounds = useMemo(() => {
     const m = new Map<string, Fixture[]>()
-    for (const id of c.fixtures) { const f = w.fixtures[id]; if (!f) continue; const a = m.get(f.roundName) || []; a.push(f); m.set(f.roundName, a) }
+    for (const id of c.fixtures) { const f = w.fixtures[id]; if (!f) continue; const k = fixtureRound(c, f); const a = m.get(k) || []; a.push(f); m.set(k, a) }
     return [...m.entries()].map(([name, fx]) => ({ name, fx: fx.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)) })).sort((a, b) => a.fx[0].date.localeCompare(b.fx[0].date))
   }, [c.fixtures.length, c.id])
   const current = Math.max(0, rounds.findIndex((r) => r.fx.some((f) => !f.played)))
@@ -344,6 +413,7 @@ function CompFixtures({ w, c }: { w: World; c: Competition }) {
 
 export function Bracket({ w, c }: { w: World; c: Competition }) {
   const rounds = c.rounds
+  if (!rounds.length && c.intl?.koDates?.length) return <Empty icon="bracket" title="Knockouts to come" text={`The draw follows the group stage; the knockouts start on ${fmtDate(c.intl.koDates[0], 'long')}.`} />
   if (!rounds.length) return <Empty icon="bracket" title="No knockout rounds" />
   return (
     <div className="bracket" style={{ marginTop: 12 }}>
@@ -389,10 +459,11 @@ function Tie({ w, fx }: { w: World; fx: Fixture[] }) {
 function CompStats({ w, c }: { w: World; c: Competition }) {
   const go = useGame((s) => s.go)
   const [k, setK] = useState<'totw' | 'goals' | 'assists' | 'cleanSheets' | 'rating'>(c.format === 'league' ? 'totw' : 'goals')
+  const intl = c.format === 'intl'
   const list = useMemo(() => {
     const out: { p: Player; v: number; apps: number }[] = []
     for (const p of allPlayers(w)) {
-      const s = p.season[c.id]
+      const s = intl ? p.intlSeason?.[c.id] : p.season[c.id]
       if (!s || !s.apps) continue
       const v = k === 'rating' ? (s.rated >= Math.max(3, Math.round(c.fixtures.filter((id) => w.fixtures[id]?.played).length / Math.max(1, c.clubs.length / 2) * 0.4)) ? s.ratingSum / s.rated : 0) : (s as any)[k]
       if (v > 0) out.push({ p, v, apps: s.apps })
@@ -409,7 +480,7 @@ function CompStats({ w, c }: { w: World; c: Competition }) {
           <button key={p.id} className={`li tap ${p.clubId === w.userClubId ? 'me-row' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
             <span className="display" style={{ width: 22, fontSize: 18, color: i < 3 ? 'var(--gold)' : 'var(--t3)' }}>{i + 1}</span>
             <Face p={p} size={38} radius={10} club={w.clubs[p.clubId]} />
-            <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight"><Badge club={w.clubs[p.clubId]} size={13} />{w.clubs[p.clubId]?.short} · {apps} apps</div></div>
+            <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight">{intl ? <><Badge club={w.clubs[w.intl?.nt[p.nation] || 0]} size={13} />{w.clubs[w.intl?.nt[p.nation] || 0]?.short}</> : <><Badge club={w.clubs[p.clubId]} size={13} />{w.clubs[p.clubId]?.short}</>} · {apps} apps</div></div>
             <span className="display" style={{ fontSize: 24 }}>{k === 'rating' ? v.toFixed(2) : v}</span>
           </button>
         ))}
@@ -478,6 +549,7 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   const [editing, toggleEdit, setEditing] = useEditing('Club')
   const c = w.clubs[params.id]
   if (!c) return <Screen title="Club" back><Empty icon="stadium" title="Club not found" /></Screen>
+  if (c.national) return <NationProfile w={w} c={c} />
   const squad = [...rosterOf(w, c.id)].sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)
   const lg = leagueOf(w, c.id)
   const pos = lg ? sortTable(w, lg).findIndex((r) => r.clubId === c.id) + 1 : 0
@@ -541,6 +613,95 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   )
 }
 
+const POS_GRP: Record<string, string> = { GK: 'Goalkeepers', CB: 'Defenders', LB: 'Defenders', RB: 'Defenders', LWB: 'Defenders', RWB: 'Defenders', CDM: 'Midfielders', CM: 'Midfielders', CAM: 'Midfielders', LM: 'Midfielders', RM: 'Midfielders' }
+
+/** A national team: its flag, strength, the squad it has called up (or would), fixtures and competitions. */
+function NationProfile({ w, c }: { w: World; c: Club }) {
+  const go = useGame((s) => s.go)
+  const [tab, setTab] = useRemember<'overview' | 'squad' | 'fixtures'>('ntab', 'overview')
+  const called = !!w.intl?.squads[c.id]?.length
+  const squad = nationalSquad(w, c.id)
+  const fx = fixturesOf(w, c.id)
+  const next = fx.find((f) => !f.played)
+  const comps = Object.values(w.competitions).filter((x) => x.season === w.season && x.format === 'intl' && x.intl?.kind !== 'friendly' && x.clubs.includes(c.id))
+  const nextComp = next ? w.competitions[next.compId] : comps[0]
+  const sheet = squad.length >= 11 ? sideInput(w, c.id, nextComp, false).sheet : undefined
+  const mine = squad.filter((p) => p.clubId === w.userClubId)
+  const trophies = new Map<string, number>()
+  for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
+  const groups = new Map<string, Player[]>()
+  for (const p of [...squad].sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)) {
+    const g = POS_GRP[p.positions[0]] || 'Forwards'
+    groups.set(g, [...(groups.get(g) || []), p])
+  }
+  return (
+    <Screen title={c.short} sub={`${c.confed || 'FIFA'} · National team`} back>
+      <div className="pad">
+        <div className="hero" style={{ padding: 16, background: `linear-gradient(140deg, ${c.kit[0] === '#f4f6f8' ? c.kit[1] : c.kit[0]}, #06080d 85%)` }}>
+          <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>
+            <Badge club={c} size={76} />
+            <div className="grow">
+              <div className="h2">{c.name}</div>
+              <div className="small" style={{ marginTop: 6, opacity: 0.9 }}>{called ? `In camp · ${squad.length} called up` : 'Next squad announced before the next international window'}</div>
+              <div style={{ marginTop: 6 }}><Stars n={starRating(c.squadAvg)} size={13} /></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="pad grid3" style={{ marginTop: 10 }}>
+        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Strength</div><div className="b small" style={{ marginTop: 3 }}>{c.squadAvg.toFixed(1)} <span className="tiny dim">best 23</span></div></div>
+        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Home ground</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium}</div></div>
+        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Your players</div><div className="b small" style={{ marginTop: 3 }}>{mine.length || '—'}</div></div>
+      </div>
+      <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'overview', label: 'Overview' }, { id: 'squad', label: called ? 'Squad' : 'Likely squad' }, { id: 'fixtures', label: 'Fixtures' }]} value={tab} onChange={setTab} /></div>
+      {tab === 'overview' && (
+        <div className="pad stack" style={{ marginTop: 10 }}>
+          {next && <div className="card"><div className="card-h"><span className="label">Next match</span></div><div className="list"><FixtureRow w={w} f={next} /></div></div>}
+          <div className="card pad-card"><div className="label" style={{ marginBottom: 10 }}>Form</div><FormStrip w={w} clubId={c.id} /></div>
+          {comps.length > 0 && (
+            <div className="card list">
+              <div className="card-h"><span className="label">Competitions</span></div>
+              {comps.map((x) => {
+                const row = x.table?.find((r) => r.clubId === c.id)
+                const pos = row?.group ? sortTable(w, x, (x.table || []).filter((r) => r.group === row.group)).findIndex((r) => r.clubId === c.id) + 1 : 0
+                const out = x.rounds.some((r) => r.winners?.length && r.fixtures.some((id) => { const f = w.fixtures[id]; return f && (f.home === c.id || f.away === c.id) }) && !r.winners.includes(c.id))
+                return (
+                  <button key={x.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'comp', params: { id: x.id } })}>
+                    <div className="logo-tile"><CompLogo k={compLogoKey(x)} size={28} name={x.name} /></div>
+                    <div className="meta"><div className="t small">{x.name}</div><div className="s">{x.winner === c.id ? 'Winners!' : out ? 'Knocked out' : row?.group ? `${row.group} · ${ordinal(pos)} · ${row.pts} pts` : intlStage(w, x)}</div></div>
+                    <Icon name="forward" size={16} color="var(--t3)" />
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {sheet?.lineup?.length ? <TeamLineup w={w} side={sideFromSheet(w, c.id, sheet, nextComp, called ? 'Expected XI' : 'Likely XI')} mode="live" onTap={(t) => t.id && go({ name: 'player', params: { id: t.id } })} /> : null}
+          {trophies.size > 0 && <div className="card list"><div className="card-h"><span className="label">Trophies won in this save</span></div>{[...trophies.entries()].map(([k, n]) => <div key={k} className="li"><CompLogo k={k} size={24} /><div className="meta"><div className="t small">{Object.values(w.competitions).find((x) => x.key === k)?.name || k}</div></div><b>×{n}</b></div>)}</div>}
+        </div>
+      )}
+      {tab === 'squad' && (
+        <div className="pad stack" style={{ marginTop: 10 }}>
+          {!called && <div className="tiny dim" style={{ padding: '0 4px' }}>Who would be picked today: the best available players, balanced by position. The real squad is named a few days before each game.</div>}
+          {[...groups.entries()].map(([g, list]) => (
+            <div key={g} className="card list">
+              <div className="card-h"><span className="label">{g}</span><span className="tiny dim">{list.length}</span></div>
+              {list.map((p) => (
+                <button key={p.id} className={`li tap ${p.clubId === w.userClubId ? 'me-row' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
+                  <Face p={p} size={40} radius={10} club={w.clubs[p.clubId]} />
+                  <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s row tight"><Badge club={w.clubs[p.clubId]} size={13} /><span className="ellipsis">{w.clubs[p.clubId]?.short || 'Free agent'}</span> · {p.nationalCaps || 0} caps</div></div>
+                  <PosChip pos={p.positions[0]} />
+                  <Ovr v={p.ovr} size="sm" />
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'fixtures' && <ClubFixtures w={w} clubId={c.id} />}
+    </Screen>
+  )
+}
+
 /** FotMob-style club overview: next match, form, table, key players and the expected XI. */
 function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
   const go = useGame((s) => s.go)
@@ -586,6 +747,17 @@ function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
 
 // ============================================================================ calendar
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+/** A calendar fixture: the club's own, or a national team game with the manager's players in it (named underneath). */
+function IntlOr({ w, e }: { w: World; e: { text: string; f?: Fixture; nt?: boolean } }) {
+  if (!e.nt) return <FixtureRow w={w} f={e.f!} clubId={w.userClubId} />
+  return (
+    <div className="cal-nt">
+      <FixtureRow w={w} f={e.f!} />
+      <div className="tiny dim row tight cal-nt-who"><Icon name="globe" size={12} color="var(--info)" />{e.text}</div>
+    </div>
+  )
+}
 export function CalendarScreen() {
   const w = useWorld()
   const advance = useGame((s) => s.advance)
@@ -598,8 +770,12 @@ export function CalendarScreen() {
   const days: (string | null)[] = [...Array(lead).fill(null)]
   for (let d = first; d.slice(0, 7) === month; d = addDays(d, 1)) days.push(d)
   const shift = (n: number) => { haptic(); const [y, m] = month.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setMonth(dt.toISOString().slice(0, 7)); setSel(undefined) }
+  // national sides the manager's players are with (or would be picked for): their games are on his calendar too
+  const review = seasonReviewDate(w)
+  const all = fixturesByDate(w)
+  const myNations = useMemo(() => new Map([...userNations(w)].map(([id, ps]) => [id, ps.map((p) => p.name.split(' ').slice(-1)[0])])), [w.date, w.userClubId])
   const events = (d: string) => {
-    const out: { icon: string; text: string; color?: string; f?: Fixture }[] = []
+    const out: { icon: string; text: string; color?: string; f?: Fixture; nt?: boolean }[] = []
     const f = fx.find((x) => x.date === d)
     if (f) out.push({ icon: 'ball', text: `${w.clubs[f.home].short} v ${w.clubs[f.away].short} · ${w.competitions[f.compId]?.short}`, f })
     for (const win of w.windows) {
@@ -608,7 +784,11 @@ export function CalendarScreen() {
     }
     for (const b of w.intlBreaks) if (b.start === d) out.push({ icon: 'globe', text: 'International break begins', color: 'var(--info)' })
     for (const c of Object.values(w.competitions)) for (const r of c.rounds) if (!r.drawn && addDays(r.date, -10) === d && c.clubs.includes(w.userClubId)) out.push({ icon: 'bracket', text: `${c.short} ${r.name} draw`, color: 'var(--gold)' })
-    if (d === `${w.season + 1}-06-01`) out.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
+    for (const x of all.get(d) || []) {
+      const players = myNations.get(x.home) || myNations.get(x.away)
+      if (players) out.push({ icon: 'globe', text: players.join(', '), color: 'var(--info)', f: x, nt: true })
+    }
+    if (d === review) out.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
     return out
   }
   const inWindow = (d: string) => w.windows.some((x) => d >= x.open && d <= x.close)
@@ -618,7 +798,6 @@ export function CalendarScreen() {
   const comps = [...new Set(monthFx.map((f) => f.compId))].map((id) => w.competitions[id]).filter(Boolean)
   const agenda = days.filter((d): d is string => !!d).map((d) => ({ d, ev: events(d) })).filter((x) => x.ev.length)
   const selEvents = sel ? events(sel) : []
-  const all = fixturesByDate(w)
   return (
     <Screen title="Calendar" sub={fmtDate(w.date, 'full')} back>
       <div className="pad">
@@ -663,7 +842,7 @@ export function CalendarScreen() {
         <div className="pad stack fade-up" style={{ marginTop: 12 }} key={sel}>
           <div className="label">{fmtDate(sel, 'full')}</div>
           <div className="card list">
-            {selEvents.length ? selEvents.map((e, i) => e.f ? <FixtureRow key={i} w={w} f={e.f} clubId={w.userClubId} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
+            {selEvents.length ? selEvents.map((e, i) => e.f ? <IntlOr key={i} w={w} e={e} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
           </div>
           {sel > w.date && (
             <button className="btn club block" disabled={advancing} onClick={() => { haptic('medium'); advance(sel) }}>
@@ -683,7 +862,7 @@ export function CalendarScreen() {
                 <div key={d} className={`cal-ag ${d < w.date ? 'past' : ''} ${d === w.date ? 'today' : ''}`}>
                   <button className="cal-ag-d" onClick={() => { haptic(); setSel(d) }}><b className="display">{Number(d.slice(8))}</b><span className="tiny dim">{fmtDate(d, 'day')}</span></button>
                   <div className="grow" style={{ minWidth: 0 }}>
-                    {ev.map((e, i) => e.f ? <FixtureRow key={i} w={w} f={e.f} clubId={w.userClubId} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
+                    {ev.map((e, i) => e.f ? <IntlOr key={i} w={w} e={e} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
                   </div>
                 </div>
               ))}

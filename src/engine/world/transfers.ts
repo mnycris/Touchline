@@ -523,7 +523,7 @@ function aiClubDay(w: World, club: Club, rng: Rng, windowOpen: boolean) {
 export function aiTransferDay(w: World, rng: Rng) {
   if (!w.settings.aiTransfers) return
   const open = isWindowOpen(w)
-  const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClubId)
+  const clubs = Object.values(w.clubs).filter((c) => c.id !== w.userClubId && !c.national)
   const urgent = clubs.filter((c) => c.transferPolicy?.review)
   if (!open) {
     // outside a window only a club that lost a starter looks at free agents, now and then
@@ -574,7 +574,7 @@ function aiBidForUserPlayer(w: World, club: Club, p: Player, rng: Rng) {
 function rumour(w: World, rng: Rng) {
   const top = Object.values(w.players).filter((p) => p.ovr >= 80 && p.clubId)
   const p = rng.pick(top)
-  const clubs = Object.values(w.clubs).filter((c) => c.reputation >= (w.clubs[p.clubId]?.reputation || 50) - 3 && c.id !== p.clubId && c.leagueId)
+  const clubs = Object.values(w.clubs).filter((c) => !c.national && c.reputation >= (w.clubs[p.clubId]?.reputation || 50) - 3 && c.id !== p.clubId && c.leagueId)
   if (!clubs.length) return
   const c = rng.pick(clubs)
   p.interestedClubs = [...new Set([...(p.interestedClubs || []), c.id])].slice(-4)

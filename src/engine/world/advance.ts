@@ -25,6 +25,7 @@ import { postNews, sendInbox, staffNames } from './messages'
 import { rollInjury } from './matchRunner'
 import { rosterOf } from './roster'
 import { processPendingDeals } from './userActions'
+import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -72,6 +73,10 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
       const r = advanceUefa(w, comp, f, rng, idx)
       if (r.champion) championNews(w, comp, r.champion, f)
       else if (r.stageDrawn && comp.clubs.includes(w.userClubId)) drawNews(w, comp, r.stageDrawn)
+    } else if (comp.format === 'intl') {
+      intlAfterMatch(w, f, result, res.injuries)
+      const r = advanceIntl(w, comp, f, rng)
+      if (r.champion) championIntlNews(w, comp, r.champion, f)
     } else if (comp.format === 'playoff') {
       advancePlayoff(w, comp, f.id)
     } else if (comp.format === 'league') {
@@ -186,6 +191,8 @@ function endOfDay(w: World, rng: Rng) {
   // injuries heal, training, fitness
   const staff = staffNames(w)
   const breakNow = w.intlBreaks.find((b) => d >= b.start && d <= b.end)
+  // players in a national squad play real internationals (their minutes drain them); the rest are simply away
+  const inSquad = new Set(Object.values(w.intl?.squads || {}).flat())
   for (const p of Object.values(w.players)) {
     if (p.injury && d >= p.injury.until) {
       const wasUser = p.clubId === w.userClubId
@@ -201,9 +208,11 @@ function endOfDay(w: World, rng: Rng) {
       p.injury = { ...inj, type: `${inj.type} (training)` }
       if (p.clubId === w.userClubId) sendInbox(w, { from: staff.medical, fromRole: 'Head of Medical', category: 'Medical', subject: `Training injury: ${p.name}`, body: `${p.name} picked up a ${inj.type.toLowerCase()} in training and will miss around ${inj.totalDays} days.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
     }
-    if (breakNow && p.intlDuty) p.fitness = clamp(p.fitness - 1.5, 30, 100)
+    if (breakNow && p.intlDuty && !inSquad.has(p.id)) p.fitness = clamp(p.fitness - 1.5, 30, 100)
   }
-  // international duty flags
+  // international football: national squads called up and sent home around their matches;
+  // players of nations without a simulated national team are away for the break as before
+  intlDaily(w)
   internationalDuty(w, rng)
   // scouting & youth
   dailyScouting(w, rng)
@@ -215,7 +224,7 @@ function endOfDay(w: World, rng: Rng) {
   // conversations & morale
   if (!w.flags.unemployed) maybeConversations(w, rng)
   if (wd === 1) {
-    for (const c of Object.values(w.clubs)) weeklyMorale(w, c.id, rng, c.id === w.userClubId)
+    for (const c of Object.values(w.clubs)) if (!c.national) weeklyMorale(w, c.id, rng, c.id === w.userClubId)
     checkPromises(w)
     if (!w.flags.unemployed) {
       updateBoardConfidence(w)
@@ -274,7 +283,8 @@ function internationalDuty(w: World, rng: Rng) {
   if (starting) {
     const byNation = new Map<string, typeof w.players[number][]>()
     for (const p of Object.values(w.players)) {
-      if (!p.clubId || p.injury || p.academy) continue
+      // nations with a simulated national team call their own squads (international.ts)
+      if (!p.clubId || p.injury || p.academy || w.intl?.nt[p.nation]) continue
       const arr = byNation.get(p.nation) || []
       arr.push(p)
       byNation.set(p.nation, arr)
@@ -292,7 +302,7 @@ function internationalDuty(w: World, rng: Rng) {
   }
   if (ending) {
     for (const p of Object.values(w.players)) {
-      if (!p.intlDuty) continue
+      if (!p.intlDuty || w.intl?.nt[p.nation]) continue
       p.intlDuty = false
       p.nationalCaps = (p.nationalCaps || 0) + (rng.next() < 0.7 ? 2 : 1)
       if (rng.next() < 0.012 && p.clubId) {
@@ -317,6 +327,7 @@ function weeklyFinances(w: World) {
 
 function monthlyFinances(w: World) {
   for (const club of Object.values(w.clubs)) {
+    if (club.national) continue
     const lg = w.leagues[club.leagueId]
     const tv = Math.round(((lg?.wealth || 2) ** 2.2) * 95_000 * (0.8 + club.prestige.intl * 0.05))
     const spons = Math.round(club.reputation ** 1.8 * 90)
@@ -341,7 +352,7 @@ function contractWatch(w: World, rng: Rng) {
     })
     for (const p of expiring) {
       if (p.ovr >= 74 && rng.next() < 0.4) {
-        const suitor = Object.values(w.clubs).filter((c) => c.reputation >= w.clubs[w.userClubId].reputation - 10 && c.id !== w.userClubId)
+        const suitor = Object.values(w.clubs).filter((c) => !c.national && c.reputation >= w.clubs[w.userClubId].reputation - 10 && c.id !== w.userClubId)
         if (suitor.length) {
           const c = rng.pick(suitor)
           p.interestedClubs = [...new Set([...(p.interestedClubs || []), c.id])]
@@ -379,7 +390,8 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
     simulateDay(w, rng)
     endOfDay(w, rng)
     // season end
-    if (w.date >= `${w.season + 1}-06-20` || (w.date >= `${w.season + 1}-06-01` && allPlayed(w))) {
+    // (a summer tournament keeps the season open until its final, at the latest 30 June)
+    if (w.date >= `${w.season + 1}-06-30` || (w.date >= `${w.season + 1}-06-01` && allPlayed(w))) {
       if (!allPlayed(w)) { simulateRemaining(w, rng) }
       seasonRollover(w, rng)
       resetFixtureIndexes(w)
@@ -409,8 +421,12 @@ function allPlayed(w: World) {
 }
 
 function simulateRemaining(w: World, rng: Rng) {
-  const rest = Object.values(w.fixtures).filter((f) => !f.played).sort((a, b) => a.date.localeCompare(b.date))
-  for (const f of rest) afterMatch(w, f, simulateFixture(w, f), rng)
+  // knockout rounds are drawn as earlier ones finish, so keep going until nothing is left
+  for (let pass = 0; pass < 10; pass++) {
+    const rest = Object.values(w.fixtures).filter((f) => !f.played).sort((a, b) => a.date.localeCompare(b.date))
+    if (!rest.length) return
+    for (const f of rest) if (!f.played) afterMatch(w, f, simulateFixture(w, f), rng)
+  }
 }
 
 function generateNewSeasonInbox(w: World) {

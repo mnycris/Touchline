@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
 import darkLogos from '../../data/darkLogos.json'
-import { badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
+import { badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
 import { Silhouette } from './Silhouette'
 import { Icon } from '../icons/Icon'
 import { ovrColor } from '../../domain/ratings'
@@ -114,6 +114,14 @@ const DARK_COMPS = new Set((darkLogos as { comps: string[] }).comps)
 
 export function Badge({ club, size = 32, style }: { club?: Club; size?: number; style?: CSSProperties }) {
   if (!club) return <div style={{ width: size, height: size }} />
+  // a national team wears its flag, round like FotMob's
+  if (club.national && club.flag) {
+    return (
+      <div className="nt-badge" style={{ width: size, height: size, ...style }}>
+        <img src={flagCodeUrl(club.flag)} alt={club.name} draggable={false} loading="lazy" />
+      </div>
+    )
+  }
   return (
     <div className={DARK_CLUBS.has(club.id) ? 'logo-lift' : undefined} style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', ...style }}>
       <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: size, height: size }} fallback={<Crest club={club} size={size} />} />
@@ -145,13 +153,35 @@ const EMBLEM_COLORS: Record<string, [string, string]> = {
   SCI: ['#1D4F9C', '#05122a'], CDF: ['#1E3F9A', '#050f28'], TDC: ['#E1B12C', '#261c04'], KNVB: ['#F36C21', '#2a1003'],
   JCS: ['#E2231A', '#260504'], TACA: ['#C9A227', '#231c05'], SUPERTACA: ['#00A650', '#022210'], SCOTCUP: ['#005EB8', '#021833'],
   BELCUP: ['#E30613', '#2a0204'], TURCUP: ['#E30A17', '#2a0204'], COMMSHIELD: ['#BFC6D1', '#161a21'],
+  // international football
+  WC: ['#D9B44A', '#3b1d05'], EURO: ['#1F4FE0', '#050c2e'], UNL: ['#2DD4BF', '#041b2e'], CA: ['#1E5BB8', '#07142c'],
+  AFCON: ['#E0B12A', '#0d3a1c'], ASIAN: ['#1b8f5a', '#06221a'], GOLD: ['#E3B341', '#1a1406'], INTF: ['#8C99AB', '#12161d'],
 }
+const EMBLEM_LABEL: Record<string, string> = { WC: 'WC', EURO: 'EURO', UNL: 'UNL', CA: 'COPA', AFCON: 'AFCON', ASIAN: 'ASIA', GOLD: 'GOLD', INTF: 'INTL' }
+const INTL_EMBLEM = new Set(['WC', 'EURO', 'UNL', 'CA', 'AFCON', 'ASIAN', 'GOLD', 'INTF'])
 
 export function CompEmblem({ k, size = 32, name, color }: { k: string; size?: number; name?: string; color?: string }) {
   const base = k.replace(/-\d+$/, '')
   const [c1, c2] = EMBLEM_COLORS[base] || [color || '#3A6FD8', '#0a1428']
   const cup = !base.startsWith('L') && !base.startsWith('PO')
-  const label = (name || base).replace(/^(UEFA|EFL|Emirates|Roshn)\s+/i, '').split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase()
+  const label = EMBLEM_LABEL[base] || (name || base).replace(/^(UEFA|EFL|Emirates|Roshn)\s+/i, '').split(' ').map((w) => w[0]).join('').slice(0, 3).toUpperCase()
+  if (INTL_EMBLEM.has(base)) {
+    // international competitions: a roundel with a globe, the competition's short name on a band
+    const fs = label.length >= 5 ? 7 : label.length === 4 ? 8 : 9.5
+    return (
+      <svg width={size} height={size} viewBox="0 0 48 48" style={{ display: 'block' }}>
+        <defs><linearGradient id={`em${base}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c1} /><stop offset="1" stopColor={c2} /></linearGradient></defs>
+        <circle cx="24" cy="24" r="22" fill={`url(#em${base})`} stroke="rgba(255,255,255,.4)" strokeWidth="1.3" />
+        <g fill="none" stroke="#fff" strokeWidth="1.5" opacity=".92">
+          <circle cx="24" cy="19" r="10" />
+          <ellipse cx="24" cy="19" rx="4.4" ry="10" />
+          <path d="M14.4 16h19.2 M14.4 22h19.2" />
+        </g>
+        <rect x="7" y="31" width="34" height="10" rx="5" fill="rgba(0,0,0,.4)" />
+        <text x="24" y="38.6" textAnchor="middle" fontFamily="Barlow Condensed" fontWeight="800" fontSize={fs} fill="#fff" letterSpacing=".6">{label}</text>
+      </svg>
+    )
+  }
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" style={{ display: 'block' }}>
       <defs>

@@ -1067,3 +1067,21 @@ select.input option { background: #151b27; }
 .sc-lrow.out { opacity: .55; }
 .sc-lst { flex: none; width: 34px; font-family: var(--display); font-weight: 800; font-size: 11px; text-align: center; padding: 2px 0; border-radius: 6px; background: var(--s3); color: var(--t3); }
 .sc-lst.xi { background: rgba(46, 229, 138, .18); color: var(--pos); } .sc-lst.bench { background: rgba(62, 166, 255, .16); color: var(--info); }
+
+/* ---------- international football ---------- */
+.intl-card .list { overflow: hidden; }
+.intl-row { border-top: 1px solid var(--line); }
+.intl-row:first-child { border-top: 0; }
+.intl-row .fixture-row { border-top: 0; min-height: 48px; padding-top: 4px; }
+.intl-who { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px 4px; }
+.intl-who:active { background: rgba(255, 255, 255, 0.03); }
+.intl-faces { display: flex; align-items: center; flex: none; }
+.intl-faces .face { box-shadow: 0 0 0 2px var(--s1); }
+.intl-faces .face + .face { margin-left: -8px; }
+.intl-faces .tiny { margin-left: 6px; color: var(--t2); }
+.card-more { display: block; width: 100%; padding: 11px 14px; border-top: 1px solid var(--line); color: var(--club2); text-align: center; }
+.summer-comp { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.3); color: #fff; }
+.summer-comp:active { background: rgba(0, 0, 0, 0.42); }
+.cal-nt .fixture-row { padding-bottom: 2px; min-height: 48px; }
+.cal-nt-who { padding: 0 14px 9px 70px; gap: 5px; }
+.cal-nt + .cal-nt, .cal-ag-ev + .cal-nt, .cal-nt + .cal-ag-ev { border-top: 1px solid var(--line); }

@@ -9,7 +9,8 @@ import { Chips, HubActions, Screen, Seg } from '../components/layout'
 import { POS_GROUP, POS_ORDER } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
-import { ageOf, avgRating, playerStatus, totals, userClub } from '../selectors'
+import { ageOf, avgRating, fixturesOf, playerStatus, totals, userClub } from '../selectors'
+import { dutyTeam } from '../../engine/world/international'
 import { formLabel, moraleLevel, moraleColor, moraleIcon } from '../../domain/ratings'
 import { wageBill, loanedOut } from '../../engine/world/userActions'
 import { yearsLeft } from '../../engine/world/transfers'
@@ -251,7 +252,7 @@ export function SquadStatus() {
       {!inj.length && !sus.length && !tired.length && !unhappy.length && !intl.length && <Empty icon="check" title="All clear" text="Everyone is fit, available and happy." />}
       <Section title="Injured" list={inj} sub={(p) => `${p.injury!.type} · back ${fmtDate(p.injury!.until, 'dm')}`} />
       <Section title="Suspended" list={sus} sub={(p) => p.suspensions.map((s) => `${s.matches} ${s.scope === 'all' ? 'match' : s.scope}${s.matches > 1 ? 'es' : ''}`).join(', ')} />
-      <Section title="International duty" list={intl} sub={(p) => p.nation} />
+      <Section title="International duty" list={intl} sub={(p) => { const nt = dutyTeam(w, p); const next = nt && fixturesOf(w, nt.id).find((f) => !f.played); return nt ? `${nt.short}${next ? ` · v ${w.clubs[next.home === nt.id ? next.away : next.home]?.short} ${fmtDate(next.date, 'dm')}` : ''}` : p.nation }} />
       <Section title="Low energy" list={tired} sub={(p) => `${Math.round(p.fitness)}% energy`} />
       <Section title="Unhappy" list={unhappy} sub={(p) => `${moraleLevel(p.morale)} · form ${formLabel(p)}`} />
     </Screen>

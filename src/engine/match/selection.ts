@@ -3,22 +3,26 @@ import { DEFAULT_TACTICS, FORMATIONS, POS_GROUP, VISION_TACTICS, formationOf } f
 import { A } from '../../domain/types'
 import { bestRole, posRating } from '../../domain/ratings'
 import { rosterOf } from '../world/roster'
+import { nationalSquad } from '../world/international'
 
 export function squadOf(w: World, clubId: number): Player[] {
+  // a national team picks from the players it has called up
+  if (w.clubs[clubId]?.national) return nationalSquad(w, clubId)
   return [...rosterOf(w, clubId)]
 }
 
 export function isSuspendedFor(p: Player, comp?: Competition): boolean {
   if (!p.suspensions.length) return false
   if (!comp) return p.suspensions.some((s) => s.scope === 'all')
-  const scope = comp.format === 'league' ? 'league' : comp.format === 'uefa' ? 'continental' : 'cup'
+  const scope = comp.format === 'league' ? 'league' : comp.format === 'uefa' ? 'continental' : comp.format === 'intl' ? 'intl' : 'cup'
   return p.suspensions.some((s) => s.scope === 'all' || (s.scope === scope && (!s.compId || s.compId === comp.key || s.compId === comp.id)))
 }
 
 export function isAvailable(w: World, p: Player, comp?: Competition): boolean {
   if (p.injury) return false
   if (isSuspendedFor(p, comp)) return false
-  if (p.intlDuty) return false
+  // away with his country: unavailable to his club, available to his national team
+  if (p.intlDuty && comp?.format !== 'intl') return false
   return true
 }
 

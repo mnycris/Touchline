@@ -12,6 +12,7 @@ import type { MatchSim } from '../engine/match/engine'
 import { touchRoster } from '../engine/world/roster'
 import { dynamicValue } from '../domain/finance'
 import { clearMemory } from '../ui/memory'
+import { migrateIntl } from '../engine/world/international'
 
 export type Tab = 'central' | 'squad' | 'transfers' | 'academy' | 'season'
 export interface Route { name: string; params?: any }
@@ -27,6 +28,8 @@ function migrateWorld(w: World) {
     }
     w.flags.valueCalibV1 = true
   }
+  // international football: national teams and the rest of this season's windows
+  migrateIntl(w)
 }
 
 export interface LiveMatch {
