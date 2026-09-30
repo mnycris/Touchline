@@ -33,6 +33,7 @@ export function applyTheme(club?: Pick<Club, 'theme' | 'kit'>) {
   if (!club) {
     root.style.setProperty('--club', '#1f7a55')
     root.style.setProperty('--club-rgb', '31, 122, 85')
+    root.style.setProperty('--club-ink', '#ffffff')
     root.style.setProperty('--club2', '#ffffff')
     root.style.setProperty('--club-deep', '#06231a')
     return
@@ -42,8 +43,18 @@ export function applyTheme(club?: Pick<Club, 'theme' | 'kit'>) {
   const second = [club.kit?.[1], club.kit?.[0], '#ffffff'].find((c) => c && Math.abs(luminance(c) - luminance(acc)) > 60) || '#ffffff'
   root.style.setProperty('--club', acc)
   root.style.setProperty('--club-rgb', `${r}, ${g}, ${b}`)
+  root.style.setProperty('--club-ink', luminance(acc) > 165 ? '#0b0d11' : '#ffffff')
   root.style.setProperty('--club2', luminance(second) < 60 ? '#ffffff' : second)
   root.style.setProperty('--club-deep', mix(acc, [5, 7, 12], 0.78))
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.setAttribute('content', mix(acc, [5, 7, 12], 0.85))
+}
+
+/** A club colour made safe to sit under white text: light kits (white, yellow, sky blue) are pulled towards the
+ *  app's slate; dark and mid colours pass unchanged. */
+export function underWhite(hex?: string): string {
+  if (!hex) return '#2a3346'
+  const l = luminance(hex)
+  const k = l > 200 ? 0.62 : l > 150 ? 0.42 : l > 100 ? 0.2 : 0
+  return k ? mix(hex, [26, 32, 48], k) : hex
 }

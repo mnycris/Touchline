@@ -21,6 +21,14 @@ function hexRgb(h: string): [number, number, number] {
 const lum = (h: string) => { const [r, g, b] = hexRgb(h); return (r * 299 + g * 587 + b * 114) / 1000 }
 const dist = (a: string, b: string) => { const x = hexRgb(a), y = hexRgb(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) }
 
+/** Text colour that reads on a kit colour: dark ink on light kits (white, yellow, sky blue), white on the rest. */
+export const inkOn = (hex: string) => (lum(hex) > 165 ? '#0b0d11' : '#fff')
+
+/** CSS variables for a match's two colours and the ink that reads on each. */
+export function kitVars([h, a]: [string, string]): React.CSSProperties {
+  return { ['--home-c' as any]: h, ['--away-c' as any]: a, ['--home-ink' as any]: inkOn(h), ['--away-ink' as any]: inkOn(a) }
+}
+
 /** Kit colours for both sides, switching the away side to its second colour on a clash. */
 export function kitColors(home: Club, away: Club): [string, string] {
   const h = home.kit?.[0] || '#3ea6ff'

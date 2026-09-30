@@ -10,18 +10,19 @@ import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
 import { fmtDate } from '../../domain/dates'
 import { attendanceFor, createSim, sideInput } from '../../engine/world/matchRunner'
-import { kitColors } from '../components/LivePitch'
+import { kitColors, kitVars } from '../components/LivePitch'
 import { validateSheet } from '../../engine/match/selection'
 import { userFixtureOn } from '../../engine/world/advance'
 import { compLogoKey, fixturesOf, leagueOf, outcomeFor, playerStatus } from '../selectors'
-import { sortTable } from '../../engine/competitions/tables'
+import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competitions/tables'
+import { aggregateBefore } from '../../engine/competitions/cups'
 import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
 import { MatchLineup, sideFromSheet, type LineupTap, RatingPill } from '../components/Lineup'
 import { buildSheet, setPieceTakers } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
 import { storyLines } from '../../engine/world/storylines'
-import { TableView } from './Competitions'
+import { Bracket, TableView } from './Competitions'
 import { FixtureRow, assignToFormation } from './Match'
 import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
@@ -55,7 +56,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const setLive = useGame((s) => s.setLive)
   const prefs = useGame((s) => s.prefs)
   const finish = useGame((s) => s.finishUserMatch)
-  const [tab, setTab] = useRemember<'preview' | 'lineups' | 'table' | 'h2h'>('tab', 'preview')
+  const [tab, setTab] = useRemember<'preview' | 'lineups' | 'table' | 'bracket' | 'h2h'>('tab', 'preview')
   const [pick, setPick] = useState<LineupTap>()
   const [formOpen, setFormOpen] = useState(false)
   const todayFx = userFixtureOn(w, w.date)
@@ -76,8 +77,11 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const oppSide = sideFromSheet(w, oppId, oppSheet, comp, 'Predicted')
   const homeSide = us === 0 ? ourSide : oppSide, awaySide = us === 0 ? oppSide : ourSide
   const [ph, pd, pa] = winProbability(w, f, homeSide.xi.map((x) => x?.id || 0), awaySide.xi.map((x) => x?.id || 0))
-  const pos = (id: number) => { const c = leagueOf(w, id); if (!c?.table?.some((r) => r.p)) return undefined; return sortTable(w, c).findIndex((r) => r.clubId === id) + 1 }
-  const lg = leagueOf(w, w.userClubId)
+  // the competition this match belongs to decides the table: the league, the league phase, or the knockout draw
+  const knockout = !!f.tieId
+  const ctxTable = comp?.table && !knockout && comp.table.some((r) => r.clubId === f.home) ? comp : undefined
+  const hasBracket = knockout && !!comp?.rounds.length
+  const pos = (id: number) => { const c = ctxTable || (knockout ? undefined : leagueOf(w, id)); if (!c?.table?.some((r) => r.p)) return undefined; const i = sortTable(w, c).findIndex((r) => r.clubId === id); return i >= 0 ? i + 1 : undefined }
   const pressDone = !!w.flags.pressDone?.[`pre:${f.id}`]
 
   const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { const c = w.clubs[w.userClubId]; const s = c.sheets.find((x) => x.id === c.activeSheet) || c.sheets[0]; fn(s) })
@@ -105,9 +109,11 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
     setPick(t)
   }
 
+  // a remembered Table tab on a knockout match (or the other way round) falls back to what this match has
+  const view = tab === 'table' && !ctxTable ? (hasBracket ? 'bracket' : 'preview') : tab === 'bracket' && !hasBracket ? (ctxTable ? 'table' : 'preview') : tab
   const colors = kitColors(home, away)
   return (
-    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={close} noNav style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}
+    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={close} noNav style={kitVars(colors)}
       footer={isToday ? (
         <div className="md-footer">
           <button className="btn" onClick={() => start('sim')}><Icon name="skip" size={18} /> Quick sim</button>
@@ -133,8 +139,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       </div>
 
       <div className="md-actions">
-        <button className="md-act" onClick={() => setTab('lineups')}><Icon name="pitch" size={20} /><span>Line-up</span></button>
-        <button className="md-act" onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={20} /><span>Tactics</span></button>
+        <button className="md-act" onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={20} /><span>Team sheet</span></button>
         <button className="md-act" onClick={() => open({ name: 'press', params: { kind: 'pre', fixtureId: f.id } })} disabled={pressDone || !isToday}><Icon name="chat" size={20} /><span>{pressDone ? 'Press done' : isToday ? 'Press' : 'Match day'}</span></button>
         <button className="md-act" onClick={() => go({ name: 'club', params: { id: oppId } })}><Icon name="scout" size={20} /><span>Opponent</span></button>
       </div>
@@ -149,10 +154,10 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       )}
 
       <div style={{ marginTop: 10 }}>
-        <Tabs sticky items={[{ id: 'preview', label: 'Preview' }, { id: 'lineups', label: 'Line-ups' }, ...(lg ? [{ id: 'table' as const, label: 'Table' }] : []), { id: 'h2h', label: 'H2H' }]} value={tab} onChange={setTab} />
+        <Tabs sticky items={[{ id: 'preview', label: 'Preview' }, { id: 'lineups', label: 'Line-ups' }, ...(ctxTable ? [{ id: 'table' as const, label: comp?.format === 'uefa' ? 'League phase' : 'Table' }] : []), ...(hasBracket ? [{ id: 'bracket' as const, label: 'Knockouts' }] : []), { id: 'h2h', label: 'H2H' }]} value={view} onChange={setTab} />
       </div>
 
-      {tab === 'preview' && (
+      {view === 'preview' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           <div className="card pad-card">
             <div className="label" style={{ marginBottom: 10 }}>Prediction</div>
@@ -165,6 +170,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
               <span><span className="dim">{away.short}</span> <b className="num">{Math.round(pa * 100)}%</b></span>
             </div>
           </div>
+
+          <Stakes w={w} f={f} />
 
           {lines.length > 0 && (
             <div className="card">
@@ -181,6 +188,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
           </div>
 
           <KeyPlayers w={w} ids={[home.id, away.id]} />
+          <Absentees w={w} f={f} />
           <SeasonCompare w={w} a={home.id} b={away.id} />
 
           <div className="card pad-card small">
@@ -193,7 +201,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
         </div>
       )}
 
-      {tab === 'lineups' && (
+      {view === 'lineups' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           <div className="row" style={{ gap: 8 }}>
             <button className="btn sm grow" style={{ whiteSpace: 'nowrap' }} onClick={() => setFormOpen(true)}><Icon name="grid" size={15} /> {formationOf(valid.formation).name.replace(/[()]/g, '')}</button>
@@ -208,9 +216,10 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
         </div>
       )}
 
-      {tab === 'table' && lg && <TableView w={w} c={lg} compact highlight={[home.id, away.id]} />}
+      {view === 'table' && ctxTable && <TableView w={w} c={ctxTable} compact highlight={[home.id, away.id]} />}
+      {view === 'bracket' && comp && <Bracket w={w} c={comp} />}
 
-      {tab === 'h2h' && <H2H w={w} f={f} />}
+      {view === 'h2h' && <H2H w={w} f={f} />}
 
       <PickSheet w={w} t={pick} sheet={valid} onClose={() => setPick(undefined)} edit={edit} comp={comp} />
       <Sheet open={formOpen} onClose={() => setFormOpen(false)} title="Formation">
@@ -281,6 +290,116 @@ function KeyPlayers({ w, ids }: { w: World; ids: number[] }) {
                 {s.n > 0 && <RatingPill v={Math.round(s.avg * 100) / 100} size="sm" />}
               </button>
             ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** What the result means: league positions for a win, draw or defeat; the knockout situation; the prize in a final. */
+function Stakes({ w, f }: { w: World; f: Fixture }) {
+  const comp = w.competitions[f.compId]
+  if (!comp) return null
+  const me = w.userClubId
+  const them = f.home === me ? f.away : f.home
+  const us = w.clubs[me], opp = w.clubs[them]
+  const ri = comp.rounds.findIndex((r) => r.id === f.roundId)
+  const nextRound = ri >= 0 ? comp.rounds[ri + 1] : undefined
+  const final = /final/i.test(f.roundName) && !/semi|quarter/i.test(f.roundName)
+
+  if (!f.tieId && comp.table?.some((r) => r.clubId === me)) {
+    const t = sortTable(w, comp)
+    const row = t.find((r) => r.clubId === me)!
+    if (!row.p && comp.format !== 'uefa') return null
+    const now = t.findIndex((r) => r.clubId === me) + 1
+    const project = (gf: number, ga: number) => {
+      const rows = t.map((r) => ({ id: r.clubId, pts: r.pts - (r.ded || 0), gd: r.gf - r.ga, gf: r.gf }))
+      const a = rows.find((r) => r.id === me)!, b = rows.find((r) => r.id === them)
+      const pa = gf > ga ? 3 : gf === ga ? 1 : 0, pb = gf < ga ? 3 : gf === ga ? 1 : 0
+      a.pts += pa; a.gd += gf - ga; a.gf += gf
+      if (b) { b.pts += pb; b.gd += ga - gf; b.gf += ga }
+      rows.sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf)
+      return rows.findIndex((r) => r.id === me) + 1
+    }
+    const outs: { k: string; pos: number }[] = [{ k: 'Win', pos: project(1, 0) }, { k: 'Draw', pos: project(1, 1) }, { k: 'Defeat', pos: project(0, 1) }]
+    return (
+      <div className="card pad-card">
+        <div className="row between" style={{ marginBottom: 10 }}><span className="label">What's at stake</span><span className="tiny dim">{us.short} now {ordinal(now)}</span></div>
+        <div className="stk-grid">
+          {outs.map((o) => {
+            const z = zoneFor(w, comp, o.pos, t.length)
+            const d = now - o.pos
+            return (
+              <div key={o.k} className={`stk k-${o.k}`}>
+                <span className="tiny dim">{o.k}</span>
+                <b className="display">{ordinal(o.pos)}</b>
+                <span className={`tiny stk-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}`}>{d > 0 ? `▲ ${d}` : d < 0 ? `▼ ${-d}` : 'No change'}</span>
+                {z && <span className="tiny stk-z"><i style={{ background: ZONE_COLOR[z] }} />{ZONE_LABEL[z]}</span>}
+              </div>
+            )
+          })}
+        </div>
+        <div className="tiny dim" style={{ marginTop: 8 }}>If every other result stays as it is.</div>
+      </div>
+    )
+  }
+
+  if (f.tieId || comp.format === 'supercup' || final) {
+    const agg = f.leg === 2 ? aggregateBefore(w, f) : undefined
+    const home = f.home === me
+    const [ua, ta] = agg ? (home ? [agg[0], agg[1]] : [agg[1], agg[0]]) : [0, 0]
+    const d = ua - ta
+    const et = comp.rules.extraTime !== false
+    const lines: string[] = []
+    if (final) lines.push(`The winner lifts the ${comp.name} trophy.`)
+    else if (f.leg === 1) {
+      const l2 = Object.values(w.fixtures).find((x) => x.tieId === f.tieId && x.leg === 2)
+      lines.push(`First leg. The return is ${l2 ? `${l2.home === me ? 'at home' : 'away'} on ${fmtDate(l2.date, 'long')}` : 'still to come'}.`)
+    } else if (agg) {
+      lines.push(`Aggregate ${us.short} ${ua}–${ta} ${opp.short}.`)
+      lines.push(d > 0 ? `${us.short} lead by ${d}: any draw takes them through; ${d === 1 ? 'a one-goal defeat' : `losing by ${d}`} means ${et ? 'extra time' : 'penalties'}.`
+        : d === 0 ? `All square: the winner on the night goes through, a draw means ${et ? 'extra time' : 'penalties'}.`
+          : `${us.short} trail by ${-d}: win by ${-d + 1} to go through, by ${-d} to force ${et ? 'extra time' : 'penalties'}.`)
+    } else lines.push(`Knockout: win and you're through${et ? '; a draw goes to extra time and penalties' : '; a draw goes straight to penalties'}.`)
+    if (!final && nextRound && f.leg !== 1) lines.push(`Next: the ${nextRound.name.toLowerCase()}${nextRound.drawn ? '' : ', drawn after this round'}.`)
+    return (
+      <div className="card pad-card">
+        <div className="row tight" style={{ marginBottom: 8 }}>{final ? <Icon name="trophy" size={16} color="var(--gold)" /> : <Icon name="bracket" size={16} color="var(--t2)" />}<span className="label">What's at stake</span></div>
+        {lines.map((l) => <div key={l} className="small" style={{ marginTop: 4 }}>{l}</div>)}
+      </div>
+    )
+  }
+  return null
+}
+
+/** Who is missing: injuries, suspensions and international duty, both sides. */
+function Absentees({ w, f }: { w: World; f: Fixture }) {
+  const go = useGame((s) => s.go)
+  const comp = w.competitions[f.compId]
+  const out = (id: number) => rosterOf(w, id).map((p) => ({ p, s: playerStatus(w, p, comp) }))
+    .filter((x) => x.s.key === 'injured' || x.s.key === 'suspended' || x.s.key === 'intl').sort((a, b) => b.p.ovr - a.p.ovr)
+  const sides = [f.home, f.away].map((id) => ({ id, list: out(id) }))
+  const why = (p: Player, key: string) => key === 'injured' && p.injury ? `${p.injury.type} · back ${fmtDate(p.injury.until, 'dm')}` : key === 'suspended' ? 'Suspended' : 'International duty'
+  if (!sides[0].list.length && !sides[1].list.length) return <div className="card pad-card small muted row tight"><Icon name="check" size={16} color="var(--pos)" /> Both squads are fully available.</div>
+  return (
+    <div className="card">
+      <div className="card-h"><span className="label">Unavailable</span></div>
+      <div className="kp-grid">
+        {sides.map(({ id, list }) => (
+          <div key={id} className="abs-col">
+            {list.length === 0 && <div className="tiny dim" style={{ padding: 12 }}>Nobody missing</div>}
+            {list.slice(0, 5).map(({ p, s }) => (
+              <button key={p.id} className="abs" onClick={() => go({ name: 'player', params: { id: p.id } })}>
+                <Face p={p} size={30} radius={15} club={w.clubs[id]} />
+                <span className="grow" style={{ minWidth: 0, textAlign: 'left' }}>
+                  <span className="small b ellipsis" style={{ display: 'block' }}>{callName(p.name)}</span>
+                  <span className="tiny ellipsis" style={{ display: 'block', color: s.color }}><Icon name={s.icon} size={10} /> {why(p, s.key)}</span>
+                </span>
+                <span className="tiny dim num">{p.ovr}</span>
+              </button>
+            ))}
+            {list.length > 5 && <div className="tiny dim" style={{ padding: '0 12px 10px' }}>+{list.length - 5} more</div>}
           </div>
         ))}
       </div>

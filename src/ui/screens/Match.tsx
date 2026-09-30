@@ -13,8 +13,9 @@ import { compLogoKey, outcomeFor, scoreLine } from '../selectors'
 import { callName } from '../../engine/match/commentary'
 import { posRating } from '../../domain/ratings'
 import { Ball, BenchRowFM, Boot, MatchLineup, MissedPen, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
-import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
+import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
+import { underWhite } from '../theme'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
@@ -318,7 +319,7 @@ export function LiveMatch() {
   const pipO = live.pip && !spectate ? others.find((o) => o.fixtureId === live.pip) : undefined
 
   return (
-    <div className="match-screen" style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
+    <div className="match-screen" style={kitVars(colors)}>
       <div className="match-top">
         <div className="row between" style={{ padding: '0 4px' }}>
           <div className="row tight">{comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}{spectator ? ' · Spectating' : ''}</span></div>
@@ -496,7 +497,7 @@ function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchS
   const kind = goal ? (e.type === 'owngoal' ? 'Own goal' : e.type === 'penGoal' ? 'Penalty goal' : 'Goal') : e.type === 'penMiss' ? 'Penalty missed' : 'Red card'
   const reds = sim.events.filter((x) => (x.type === 'red' || x.type === 'secondYellow') && x.side === e.side).length
   return (
-    <button className={`goal-card ${goal ? 'is-goal' : 'is-red'}`} style={{ ['--gc' as any]: club?.kit?.[0] || '#1fd67a' }} onClick={onClose}>
+    <button className={`goal-card ${goal ? 'is-goal' : 'is-red'}`} style={{ ['--gc' as any]: club ? underWhite(club.kit?.[0]) : '#1fd67a' }} onClick={onClose}>
       <div className="gc-top">
         <Badge club={club} size={22} />
         <span className="gc-word">{kind}</span>
@@ -546,7 +547,7 @@ export function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: 
   }
   if (key) {
     return (
-      <div className="feed-item goal big fade-up" style={club ? { ['--gc' as any]: club.kit?.[0] } : undefined}>
+      <div className="feed-item goal big fade-up" style={club ? { ['--gc' as any]: underWhite(club.kit?.[0]) } : undefined}>
         <div className="feed-min">{minLabel(e)}</div>
         <div className="feed-ic"><Ball size={18} /></div>
         <div className="grow" style={{ minWidth: 0 }}>
@@ -818,7 +819,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
   const [panel, setPanel] = useState<LineupTap>()
   const panelSt = panel ? r.players.find((x) => x.id === panel.id && x.side === panel.side) : undefined
   return (
-    <div style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
+    <div style={kitVars(colors)}>
       <div className="md-head">
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span></div>
         <div className="md-teams">

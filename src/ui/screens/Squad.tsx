@@ -1,4 +1,5 @@
 import { useRemember } from '../memory'
+import { underWhite } from '../theme'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, World } from '../../domain/types'
@@ -153,7 +154,7 @@ export function PlayerCard({ w, p }: { w: World; p: Player }) {
   const st = playerStatus(w, p)
   const tier = p.ovr >= 85 ? 't-elite' : p.ovr >= 80 ? 't-gold' : p.ovr >= 70 ? 't-silver' : 't-bronze'
   return (
-    <button className={`pcard ${tier}`} style={{ ['--pc' as any]: club?.theme || '#2a3346' }} onClick={() => { haptic(); go({ name: 'player', params: { id: p.id } }) }}>
+    <button className={`pcard ${tier}`} style={{ ['--pc' as any]: underWhite(club?.theme) }} onClick={() => { haptic(); go({ name: 'player', params: { id: p.id } }) }}>
       <span className="pcard-shine" />
       <div className="pcard-top">
         <div className="col" style={{ alignItems: 'center' }}>

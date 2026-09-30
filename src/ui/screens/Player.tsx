@@ -1,4 +1,5 @@
 import { useRemember } from '../memory'
+import { underWhite } from '../theme'
 import { useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, SquadRole, World } from '../../domain/types'
@@ -36,7 +37,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
   return (
     <Screen title={p.name} sub={club ? club.name : 'Free agent'} back right={!mine ? <ShortlistBtn w={w} p={p} /> : undefined}>
       <div className="pad">
-        <div className="player-hero" style={{ ['--pc' as any]: club?.theme || '#2a3346' }}>
+        <div className="player-hero" style={{ ['--pc' as any]: underWhite(club?.theme) }}>
           <div className="player-hero-bg" />
           <span className="holo" />
           <div className="row" style={{ position: 'relative', zIndex: 1, alignItems: 'flex-end', gap: 12 }}>

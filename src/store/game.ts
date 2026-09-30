@@ -259,7 +259,8 @@ export const useGame = create<GameState>((set, get) => ({
   async advance(until) {
     const w = get().world
     if (!w || get().advancing) return
-    set({ advancing: true, stopRequested: false })
+    // moving on dismisses the last drop of stories
+    set({ advancing: true, stopRequested: false, newsDrop: undefined })
     let stop: StopReason = 'limit'
     const stopOn = get().prefs.stopOn
     const seenInbox = new Set(w.inbox.map((m) => m.id))
@@ -297,7 +298,8 @@ export const useGame = create<GameState>((set, get) => ({
     } finally {
       set({ advancing: false, lastStop: stop, v: get().v + 1, stopRequested: false })
     }
-    get().checkNews()
+    // on a match day the stories wait: the preview opens clean and the news drops in after the final whistle
+    if (stop !== 'match' && stop !== 'watch') get().checkNews()
     if (stop === 'match') get().open({ name: 'prematch' })
     else if (stop === 'watch' && w.flags.watch) get().watchFixture(w.flags.watch)
     else if (stop === 'season-end') get().open({ name: 'seasonReview', params: { season: w.season - 1 } })

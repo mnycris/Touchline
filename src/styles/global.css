@@ -177,7 +177,7 @@ img { user-select: none; -webkit-user-drag: none; }
 .btn:active { transform: scale(0.97); }
 .btn:disabled { opacity: 0.4; pointer-events: none; }
 .btn.primary { background: var(--acc); color: #03170c; border: 0; box-shadow: none; }
-.btn.club { background: rgba(var(--club-rgb), 1); border: 0; color: #fff; box-shadow: none; }
+.btn.club { background: rgba(var(--club-rgb), 1); border: 0; color: var(--club-ink, #fff); box-shadow: none; }
 .btn.danger { background: rgba(255, 77, 94, 0.14); color: #ff8a95; }
 .btn.ghost { background: transparent; }
 .btn.sm { height: 36px; font-size: 13.5px; padding: 0 12px; border-radius: 10px; }

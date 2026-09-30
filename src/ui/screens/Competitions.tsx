@@ -212,7 +212,7 @@ function CompFixtures({ w, c }: { w: World; c: Competition }) {
   )
 }
 
-function Bracket({ w, c }: { w: World; c: Competition }) {
+export function Bracket({ w, c }: { w: World; c: Competition }) {
   const rounds = c.rounds
   if (!rounds.length) return <Empty icon="bracket" title="No knockout rounds" />
   return (

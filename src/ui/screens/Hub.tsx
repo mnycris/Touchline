@@ -15,6 +15,8 @@ import { userFixtureOn } from '../../engine/world/advance'
 import { ordinal } from './Menu'
 import type { Fixture, World } from '../../domain/types'
 import { Fx } from '../components/Fx'
+import { kitColors } from '../components/LivePitch'
+import { underWhite } from '../theme'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 
@@ -192,9 +194,12 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
   const comp = w.competitions[f.compId]
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const days = diffDays(f.date, w.date)
-  const lg = (id: number) => { const c = leagueOf(w, id); if (!c || !c.table?.some((r) => r.p)) return ''; const t = sortTable(w, c); const i = t.findIndex((r) => r.clubId === id); return i >= 0 && c.leagueId === w.clubs[id].leagueId ? ordinal(i + 1) : '' }
+  // position in this match's own competition (league, league phase); nothing for a knockout tie
+  const ctx = comp?.table && !f.tieId ? comp : undefined
+  const lg = (id: number) => { const c = ctx || (f.tieId ? undefined : leagueOf(w, id)); if (!c || !c.table?.some((r) => r.p)) return ''; const t = sortTable(w, c); const i = t.findIndex((r) => r.clubId === id); return i >= 0 ? `${ordinal(i + 1)}${c.format === 'uefa' ? ` in the ${c.short}` : ''}` : '' }
+  const [hc, ac] = kitColors(home, away).map(underWhite)
   return (
-    <div className="hero next-match">
+    <div className="hero next-match duo" style={{ ['--hc' as any]: hc, ['--ac' as any]: ac }}>
       <div style={{ position: 'relative', zIndex: 1, padding: '14px 14px 16px' }}>
         <div className="row between">
           <div className="row tight">
@@ -225,8 +230,9 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
         </div>
         <div className="row" style={{ marginTop: 14 }}>
           <button className="btn sm grow" style={{ background: 'rgba(0,0,0,.28)' }} onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={16} /> Team Sheet</button>
-          <button className="btn sm grow" style={{ background: 'rgba(0,0,0,.28)' }} onClick={() => open({ name: 'prematch', params: { id: f.id } })}><Icon name="eye" size={16} /> Preview</button>
-          {today && <button className="btn sm primary grow" onClick={() => open({ name: 'prematch' })}><Icon name="play" size={16} /> Play</button>}
+          {today
+            ? <button className="btn sm primary grow" onClick={() => open({ name: 'prematch' })}><Icon name="play" size={16} /> Match Day</button>
+            : <button className="btn sm grow" style={{ background: 'rgba(0,0,0,.28)' }} onClick={() => open({ name: 'prematch', params: { id: f.id } })}><Icon name="eye" size={16} /> Preview</button>}
         </div>
       </div>
     </div>

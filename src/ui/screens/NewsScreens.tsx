@@ -10,6 +10,7 @@ import { fmtDate } from '../../domain/dates'
 import { articleFor } from '../../engine/world/articles'
 import { Ball } from '../components/Glyphs'
 import { useRemember } from '../memory'
+import { underWhite } from '../theme'
 
 const KIND_LABEL: Record<string, string> = { transfer: 'Transfer', rumour: 'Rumour', result: 'Result', injury: 'Injury', manager: 'Manager', record: 'Record', milestone: 'Milestone', youth: 'Youth', contract: 'Contract', title: 'Title', relegation: 'Relegation', award: 'Awards', board: 'Board', preview: 'Preview' }
 const FILTERS = ['Top', 'My Club', 'World', 'Transfers', 'Results', 'Awards'] as const
@@ -62,7 +63,7 @@ export function NewsCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolean
   const comp = n.compId ? w.competitions[n.compId] : undefined
   const club = n.clubIds[0] ? w.clubs[n.clubIds[0]] : undefined
   return (
-    <button className={`card tap news-item ${lead ? 'lead' : ''}`} style={lead && club ? { ['--nc' as any]: club.kit?.[0] } : undefined} onClick={() => { haptic(); go({ name: 'article', params: { id: n.id } }) }}>
+    <button className={`card tap news-item ${lead ? 'lead' : ''}`} style={lead && club ? { ['--nc' as any]: underWhite(club.kit?.[0]) } : undefined} onClick={() => { haptic(); go({ name: 'article', params: { id: n.id } }) }}>
       <div className="row" style={{ gap: 12, padding: 12, alignItems: 'flex-start' }}>
         <NewsThumb w={w} n={n} size={lead ? 64 : 48} />
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
@@ -90,7 +91,7 @@ export function Article({ params }: { params: { id: string } }) {
   return (
     <Screen title={KIND_LABEL[n.kind] || 'News'} back>
       <div className="art fade-up">
-        <div className="art-hero" style={{ ['--hc' as any]: heroClub?.kit?.[0] || '#1fd67a', ['--hc2' as any]: heroClub?.kit?.[1] || '#0b0e13' }}>
+        <div className="art-hero" style={{ ['--hc' as any]: heroClub ? underWhite(heroClub.kit?.[0]) : '#1fd67a', ['--hc2' as any]: heroClub?.kit?.[1] || '#0b0e13' }}>
           <div className="art-hero-bg" />
           {heroP ? <div className="art-face"><Face p={heroP} size={112} radius={24} club={heroClub} /></div>
             : f ? <div className="art-pair"><Badge club={w.clubs[f.home]} size={70} /><span className="art-score num">{f.result?.score[0]}–{f.result?.score[1]}</span><Badge club={w.clubs[f.away]} size={70} /></div>

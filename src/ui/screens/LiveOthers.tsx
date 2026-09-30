@@ -8,7 +8,7 @@ import { haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo } from '../components/atoms'
 import { Tabs } from '../components/layout'
-import { kitColors, LivePitch, MomentumGraph } from '../components/LivePitch'
+import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { Ball, MatchLineup, sideFromSim } from '../components/Lineup'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { compLogoKey } from '../selectors'
@@ -136,7 +136,7 @@ export function SpectatorView({ w, o, lead, speed, running, onToggle, onClose, o
   const feed = sim.events.filter((e) => e.text).slice().reverse()
   const goals = sim.events.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))
   return (
-    <div className="spec match-screen" style={{ ['--home-c' as any]: colors[0], ['--away-c' as any]: colors[1] }}>
+    <div className="spec match-screen" style={kitVars(colors)}>
       <div className="match-top">
         <div className="row between">
           <button className="spec-back" onClick={onClose}>
