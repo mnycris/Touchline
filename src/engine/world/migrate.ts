@@ -3,6 +3,7 @@
 // away: players, fixtures, finances, history and settings all carry over.
 import type { World } from '../../domain/types'
 import { dynamicValue } from '../../domain/finance'
+import { addDays } from '../../domain/dates'
 import { migrateIntl } from './international'
 import { emptyLine } from './matchRunner'
 import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
@@ -32,6 +33,15 @@ const MIGRATIONS: Migration[] = [
     run: (w) => {
       // the live transfer feed starts from the deals already in the history
       w.market ||= { stories: [], seq: 1 }
+      // this season's notable moves go into the centre as done deals (their undo records never existed)
+      if (!w.market.stories.length) {
+        for (const h of w.transfers.history.slice(0, 400)) {
+          if (h.season !== w.season || !['transfer', 'loan', 'free'].includes(h.type)) continue
+          const p = w.players[h.playerId]
+          if (!p || !(h.fee >= 8e6 || p.ovr >= 74 || h.to === w.userClubId || h.from === w.userClubId)) continue
+          w.market.stories.push({ id: w.market.seq++, playerId: h.playerId, from: h.from, to: h.to, stage: 'done', kind: h.type as 'transfer' | 'loan' | 'free', fee: h.fee, started: h.date, updated: h.date, expires: addDays(w.date, 30), log: [{ date: h.date, stage: 'done', note: `${w.clubs[h.to]?.short} complete the ${h.type === 'loan' ? 'loan' : h.type === 'free' ? 'free signing' : 'signing'} of ${p.name}${h.fee ? ` for €${(h.fee / 1e6).toFixed(1)}M` : ''}.` }] })
+        }
+      }
       // fixture clashes are resolved and out-of-sequence games labelled
       for (const c of Object.values(w.competitions)) if (c.season === w.season && c.format === 'league') markOutOfSequence(w, c.id)
       rescheduleClashes(w)

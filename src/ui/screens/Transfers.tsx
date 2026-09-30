@@ -1,4 +1,5 @@
 import { useRemember } from '../memory'
+import { TransferCentre } from './TransferCentre'
 import { EditToggle, useEditing } from '../components/Editors'
 import { editDealFlags, editNegotiation, editTalks } from '../../engine/world/edit'
 import { squadPlan } from '../../engine/world/squadPlan'
@@ -27,7 +28,7 @@ export function TransferHub() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const open = useGame((s) => s.open)
-  const [tab, setTab] = useRemember<'hub' | 'shortlist' | 'deals'>('tab', 'hub')
+  const [tab, setTab] = useRemember<'centre' | 'hub' | 'shortlist'>('tab', 'centre')
   const club = userClub(w)
   if (w.flags.unemployed) return <Screen title="Transfers" right={<HubActions />}><Empty icon="transfers" title="No club" text="You need a club to do business." /></Screen>
   const win = currentWindow(w)
@@ -56,7 +57,7 @@ export function TransferHub() {
         </div>
       </div>
       <div style={{ marginTop: 12 }}>
-        <Tabs items={[{ id: 'hub', label: 'Transfer Hub', badge: incoming.filter((o) => o.status !== 'Awaiting Window').length }, { id: 'shortlist', label: `Shortlist (${w.transfers.shortlist.length})` }, { id: 'deals', label: 'Done Deals' }]} value={tab} onChange={setTab} />
+        <Tabs items={[{ id: 'centre', label: 'Transfer Centre' }, { id: 'hub', label: 'My Business', badge: incoming.filter((o) => o.status !== 'Awaiting Window').length }, { id: 'shortlist', label: `Shortlist (${w.transfers.shortlist.length})` }]} value={tab} onChange={setTab} />
       </div>
       {tab === 'hub' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
@@ -99,7 +100,7 @@ export function TransferHub() {
           )}
         </div>
       )}
-      {tab === 'deals' && <DoneDeals w={w} mine />}
+      {tab === 'centre' && <TransferCentre w={w} />}
     </Screen>
   )
 }

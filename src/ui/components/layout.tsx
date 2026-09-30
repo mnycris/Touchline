@@ -217,13 +217,86 @@ export function KV({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode 
   )
 }
 
-export function Stepper({ value, onChange, min, max, step = 1, fmt }: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode }) {
-  const set = (v: number) => { haptic(); onChange(Math.max(min, Math.min(max, v))) }
+/** A number with − / + for small steps (hold to repeat, speeding up) and a tap on the value to type it straight in. */
+export function Stepper({ value, onChange, min, max, step = 1, fmt, label, money, presets }: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode; label?: string; money?: boolean; presets?: number[] }) {
+  const clampV = (v: number) => Math.max(min, Math.min(max, v))
+  const set = (v: number) => { haptic(); onChange(clampV(v)) }
+  const [pad, setPad] = useState(false)
+  // hold to repeat: the value is tracked locally so each repeat builds on the last
+  const cur = useRef(value)
+  cur.current = value
+  const timer = useRef<number | undefined>(undefined)
+  const fired = useRef(false)
+  const stop = () => { window.clearTimeout(timer.current); timer.current = undefined }
+  const hold = (dir: 1 | -1) => {
+    let n = 0
+    fired.current = false
+    const tick = () => {
+      n++
+      fired.current = true
+      const mult = n > 24 ? 10 : n > 10 ? 4 : 1
+      const next = clampV(cur.current + dir * step * mult)
+      if (next === cur.current) { stop(); return }
+      cur.current = next
+      onChange(next)
+      if (n % 4 === 0) haptic()
+      timer.current = window.setTimeout(tick, n < 4 ? 140 : 70)
+    }
+    timer.current = window.setTimeout(tick, 380)
+  }
+  useEffect(() => stop, [])
+  const isMoney = money ?? (max >= 100_000 && !!fmt)
   return (
     <div className="stepper">
-      <button onClick={() => set(value - step)} disabled={value <= min} aria-label="Decrease"><Icon name="minus" size={18} /></button>
-      <div className="num">{fmt ? fmt(value) : value}</div>
-      <button onClick={() => set(value + step)} disabled={value >= max} aria-label="Increase"><Icon name="plus" size={18} /></button>
+      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value - step) }} onPointerDown={() => hold(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value <= min} aria-label="Decrease"><Icon name="minus" size={18} /></button>
+      <button className="num stepper-v" onClick={() => { haptic(); setPad(true) }} aria-label="Type a value">{fmt ? fmt(value) : value}</button>
+      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value + step) }} onPointerDown={() => hold(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value >= max} aria-label="Increase"><Icon name="plus" size={18} /></button>
+      <NumberPad open={pad} onClose={() => setPad(false)} value={value} min={min} max={max} money={isMoney} fmt={fmt} label={label} presets={presets} onDone={(v) => { onChange(clampV(v)); setPad(false) }} />
     </div>
+  )
+}
+
+/** Type a number: a keypad (with K / M for money), range shown and enforced, quick presets where they help. */
+export function NumberPad({ open, onClose, value, min, max, money, fmt, label, presets, onDone }: { open: boolean; onClose: () => void; value: number; min: number; max: number; money?: boolean; fmt?: (v: number) => ReactNode; label?: string; presets?: number[]; onDone: (v: number) => void }) {
+  const [txt, setTxt] = useState('')
+  useEffect(() => { if (open) setTxt('') }, [open])
+  const parse = (t: string): number | undefined => {
+    if (!t) return undefined
+    const m = t.match(/^(-?\d*\.?\d*)([KMB]?)$/)
+    if (!m || m[1] === '' || m[1] === '-' || m[1] === '.') return undefined
+    const k = m[2] === 'K' ? 1e3 : m[2] === 'M' ? 1e6 : m[2] === 'B' ? 1e9 : 1
+    return Math.round(Number(m[1]) * k)
+  }
+  const v = parse(txt)
+  const out = v != null && (v < min || v > max)
+  const press = (k: string) => {
+    haptic()
+    if (k === '⌫') { setTxt(txt.slice(0, -1)); return }
+    if ('KMB'.includes(k)) { if (/\d$/.test(txt)) setTxt(txt.replace(/[KMB]$/, '') + k); return }
+    if (/[KMB]$/.test(txt)) return
+    if (k === '.' && (txt.includes('.') || !money)) return
+    if (k === '-' ) { setTxt(txt.startsWith('-') ? txt.slice(1) : `-${txt}`); return }
+    if (txt.replace(/[^\d]/g, '').length >= 12) return
+    setTxt(txt + k)
+  }
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', money ? '.' : min < 0 ? '-' : '', '0', '⌫']
+  const quick = presets ?? (money ? [] : max <= 130 && min >= 0 ? [15, 30, 45, 60, 75, 90].filter((x) => x >= min && x <= max) : [])
+  return (
+    <Sheet open={open} onClose={onClose} title={label || 'Enter a value'}>
+      <div className={`np-display ${out ? 'out' : ''}`} onKeyDown={(e) => { if (/^[\d.]$/.test(e.key)) press(e.key); else if (e.key === 'Backspace') press('⌫'); else if (/^[kmb]$/i.test(e.key)) press(e.key.toUpperCase()); else if (e.key === 'Enter' && v != null && !out) onDone(v) }} tabIndex={0}>
+        <span className="np-txt">{txt ? txt : <span className="dim">{fmt ? fmt(value) : value}</span>}</span>
+        <span className="np-caret" />
+      </div>
+      <div className="np-sub tiny">
+        {v != null && fmt ? <b>{fmt(Math.max(min, Math.min(max, v)))}</b> : <span className="dim">Now {fmt ? fmt(value) : value}</span>}
+        <span className="dim">{out ? 'Out of range: ' : 'Range '}{fmt ? fmt(min) : min} – {fmt ? fmt(max) : max}</span>
+      </div>
+      {quick.length > 0 && <div className="np-quick">{quick.map((q) => <button key={q} className="chip sm" onClick={() => { haptic(); onDone(q) }}>{fmt ? fmt(q) : q}</button>)}</div>}
+      <div className="np-keys">
+        {keys.map((k, i) => k ? <button key={i} className={`np-k ${k === '⌫' ? 'fn' : ''}`} onClick={() => press(k)}>{k === '⌫' ? <Icon name="back" size={20} /> : k}</button> : <span key={i} />)}
+        {money && ['K', 'M', 'B'].map((k) => <button key={k} className="np-k unit" onClick={() => press(k)}>{k === 'K' ? 'thousand' : k === 'M' ? 'million' : 'billion'}</button>)}
+      </div>
+      <button className="btn primary block" style={{ marginTop: 12 }} disabled={v == null || out} onClick={() => v != null && onDone(v)}><Icon name="check" size={17} /> Set {v != null && !out && fmt ? fmt(v) : ''}</button>
+    </Sheet>
   )
 }

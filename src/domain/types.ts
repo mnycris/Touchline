@@ -818,27 +818,42 @@ export interface TransferStory {
   /** why the player wants it / why it collapsed */
   reason?: string
   log: { date: ISODate; stage: StoryStage; note: string }[]
+  /** what weighed on the player's decision (for the story page) */
+  why?: { v: number; text: string }[]
   /** made or changed in Edit Mode */
   edited?: boolean
   /** a done deal's undo record (what the transfer changed) */
   undo?: TransferUndo
   /** a real negotiation the AI is running (drives the stage) */
-  ai?: { interest: number; nextStep: ISODate; round: number }
+  ai?: { interest: number; nextStep: ISODate; round: number; cap?: number }
 }
 export interface TransferUndo {
+  date: ISODate
   fee: number
   fromClub: number
   toClub: number
+  type: 'transfer' | 'loan' | 'free'
   contract: Player['contract']
   wage: number
   jersey?: number
   loan?: Player['loan']
-  historyIndex?: string
-  newsIds: number[]
-  inboxIds: number[]
-  squadRole?: string
   joinedDate?: ISODate
   transferListed?: boolean
+  loanListed?: boolean
+  untouchable?: boolean
+  morale: number
+  /** his stats for the season before the move (the career entry the move closed is removed again) */
+  season: Player['season']
+  careerLen: number
+  /** what the move did to the two clubs' budgets and the buyer's signing bonus */
+  fromBudgetAdded: number
+  toBudgetSpent: number
+  signingBonus: number
+  /** stories and messages the move produced */
+  newsIds: string[]
+  inboxIds: string[]
+  /** a swap deal moved a second player: not reversible */
+  swap?: boolean
 }
 
 export interface LeagueDef {

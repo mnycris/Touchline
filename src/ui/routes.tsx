@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import { TransferStoryScreen } from './screens/TransferCentre'
 import type { Tab } from '../store/game'
 import { Hub } from './screens/Hub'
 import { Inbox, Message, ConversationScreen, PressConference, SellNegotiation } from './screens/Comms'
@@ -55,4 +56,5 @@ export const ROUTES: Record<string, ComponentType<any>> = {
   awards: Awards,
   seasonReview: SeasonReview,
   settings: CareerSettingsScreen,
+  story: TransferStoryScreen,
 }

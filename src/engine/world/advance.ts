@@ -10,6 +10,7 @@ import { positionOf, sortTable } from '../competitions/tables'
 import { applyMatchResult, simulateFixture } from './matchRunner'
 import { fixturesByDate, resetFixtureIndexes, takeNewFixtures, worldDateIndex } from '../competitions/fixtures'
 import { rescheduleClashes } from '../competitions/reschedule'
+import { marketDaily, windowShut } from './market'
 import { applyGrowth, dailyTraining } from './development'
 import { aiTransferDay, processOffers, yearsLeft } from './transfers'
 import { updateBoardConfidence, generateObjectives } from './board'
@@ -225,6 +226,9 @@ function endOfDay(w: World, rng: Rng) {
   processOffers(w, rng)
   processPendingDeals(w, rng)
   aiTransferDay(w, rng)
+  // the transfer centre: stories move on; at the deadline whatever is unfinished collapses
+  if (w.settings.aiTransfers) marketDaily(w, rng)
+  if (w.windows.some((x) => x.close === d)) windowShut(w)
   // conversations & morale
   if (!w.flags.unemployed) maybeConversations(w, rng)
   if (wd === 1) {

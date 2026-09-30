@@ -1,4 +1,6 @@
 import { useRemember } from '../memory'
+import { openStoryFor } from '../../engine/world/market'
+import { DealArrows, STAGE_BANNER, STAGE_TONE } from '../components/TransferCard'
 import { underWhite } from '../theme'
 import { EditToggle, PlayerEditor, useEditing } from '../components/Editors'
 import { useState } from 'react'
@@ -84,6 +86,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
           <div className="col center" style={{ gap: 4 }}><Sparkline values={p.formRatings.length ? p.formRatings : [6.5, 6.5]} w={70} h={36} /><span className="tiny dim">Form: {formLabel(p)}</span></div>
         </div>
         {st.key !== 'ok' && <div className="card pad-card row tight small" style={{ marginTop: 8, borderColor: st.color }}><Icon name={st.icon} size={16} color={st.color} /><span style={{ color: st.color }} className="b">{st.label}</span></div>}
+        <StoryBanner w={w} p={p} />
       </div>
 
       <PlayerActions w={w} p={p} mine={mine} />
@@ -98,6 +101,25 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
       {tab === 'career' && <CareerTab w={w} p={p} />}
       {tab === 'development' && mine && <DevelopmentTab w={w} p={p} />}
     </Screen>
+  )
+}
+
+/** He's in the transfer centre: the most advanced story about him, one tap from the full picture. */
+function StoryBanner({ w, p }: { w: World; p: Player }) {
+  const go = useGame((s) => s.go)
+  const s = openStoryFor(w, p.id)
+  if (!s) return null
+  const to = w.clubs[s.to]
+  const tone = STAGE_TONE[s.stage]
+  return (
+    <button className={`card tap story-banner ${tone}`} onClick={() => { haptic(); go({ name: 'story', params: { id: s.id } }) }}>
+      <Badge club={to} size={26} />
+      <div className="grow" style={{ minWidth: 0, textAlign: 'left' }}>
+        <div className="small b ellipsis">{s.stage === 'rumour' ? `Linked with ${to?.short}` : `${to?.short}: ${STAGE_BANNER[s.stage].toLowerCase()}`}</div>
+        <div className="tiny dim ellipsis">{s.log[s.log.length - 1]?.note}</div>
+      </div>
+      <DealArrows stage={s.stage} size={14} />
+    </button>
   )
 }
 
