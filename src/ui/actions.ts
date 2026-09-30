@@ -19,6 +19,7 @@ export function runAction(a: InboxAction, msgId?: string) {
     case 'openComp': s.setTab('season'); s.resetTab(); s.go({ name: 'comp', params: { id: a.payload } }); break
     case 'openDevelopment': s.go({ name: 'development' }); break
     case 'openSettings': s.go({ name: 'settings' }); break
+    case 'openCalendar': s.go({ name: 'calendar' }); break
     case 'openContracts': s.go({ name: 'contracts' }); break
     case 'openConversation': s.go({ name: 'conversation', params: { id: a.payload, msgId } }); break
     case 'openJobs': case 'openJobOffer': s.go({ name: 'jobs' }); break

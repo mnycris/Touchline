@@ -6,6 +6,8 @@ import { CUP_DEFS, createCup, createSuperCup, drawCupRound, reservedWeekends } f
 import { createUefaCompetition } from './uefa'
 import { sortTable } from './tables'
 import { setupIntlSeason } from '../world/international'
+import { markOutOfSequence, rescheduleClashes } from './reschedule'
+import { takeNewFixtures } from './fixtures'
 
 export interface SeasonSeed {
   realFixtures?: Record<string, [string, string, number, number, number][]>
@@ -62,6 +64,11 @@ export function setupSeason(w: World, season: number, seed: SeasonSeed, rng: Rng
 
   // ---- international football: national teams, their competitions and friendlies
   setupIntlSeason(w, season, rng)
+
+  // real calendars bring games forward and put them back: say so; then move whatever clashes with a cup or European date
+  for (const c of Object.values(w.competitions)) if (c.season === season && c.format === 'league') markOutOfSequence(w, c.id)
+  rescheduleClashes(w)
+  takeNewFixtures(w)
 
   // the user's fixtures (played ones from former clubs stay in the career record)
   for (const f of Object.values(w.fixtures)) f.userInvolved = f.home === w.userClubId || f.away === w.userClubId || (f.played && !!f.userInvolved)

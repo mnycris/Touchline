@@ -1114,3 +1114,9 @@ select.input option { background: #151b27; }
 .save-cps { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .28s cubic-bezier(.2, .8, .2, 1); }
 .save-cps.open { grid-template-rows: 1fr; }
 .save-cps > div { overflow: hidden; }
+
+/* ---------- rescheduled fixtures ---------- */
+.moved-chip { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 2px 7px; border-radius: 999px; font-size: 9.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: rgba(var(--tw-rgb), .18); color: var(--tw); }
+.fx-moved { font-size: 8.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--tw); line-height: 1; }
+.moved-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(var(--tw-rgb), .08); font-size: 12.5px; color: var(--t2); line-height: 1.35; }
+.moved-note svg { flex: none; margin-top: 1px; }

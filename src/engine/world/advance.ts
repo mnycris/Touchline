@@ -8,7 +8,8 @@ import { advanceCup, advanceSuperCup } from '../competitions/cups'
 import { advanceUefa } from '../competitions/uefa'
 import { positionOf, sortTable } from '../competitions/tables'
 import { applyMatchResult, simulateFixture } from './matchRunner'
-import { fixturesByDate, resetFixtureIndexes, worldDateIndex } from '../competitions/fixtures'
+import { fixturesByDate, resetFixtureIndexes, takeNewFixtures, worldDateIndex } from '../competitions/fixtures'
+import { rescheduleClashes } from '../competitions/reschedule'
 import { applyGrowth, dailyTraining } from './development'
 import { aiTransferDay, processOffers, yearsLeft } from './transfers'
 import { updateBoardConfidence, generateObjectives } from './board'
@@ -89,6 +90,9 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
     }
     if (comp.status === 'upcoming') comp.status = 'active'
   }
+  // new ties (a cup round, a knockout draw, play-offs) can collide with league dates: the league game moves
+  const fresh = takeNewFixtures(w)
+  if (fresh.length) rescheduleClashes(w, fresh.flatMap((x) => [x.home, x.away]), { notify: true })
   matchWorldNews(w, f, result, res.injuries)
   // user-facing messages
   if (f.userInvolved) {

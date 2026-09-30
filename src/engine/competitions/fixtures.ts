@@ -39,7 +39,33 @@ export function newFixture(w: World, comp: Competition, home: number, away: numb
   if (idx) { idx.add(home, date); idx.add(away, date) }
   const bd = byDate.get(w)
   if (bd) { const a = bd.get(date); if (a) a.push(f); else bd.set(date, [f]) }
+  let fresh = created.get(w)
+  if (!fresh) created.set(w, (fresh = []))
+  fresh.push(f.id)
   return f
+}
+
+const created = new WeakMap<World, string[]>()
+/** Fixtures created since the last call (new cup rounds, knockout draws, play-offs): checked for clashes. */
+export function takeNewFixtures(w: World): Fixture[] {
+  const ids = created.get(w) || []
+  created.set(w, [])
+  return ids.map((id) => w.fixtures[id]).filter(Boolean)
+}
+
+/** Move a fixture to another date, keeping the date caches and the fixture lists in step. */
+export function moveFixture(w: World, f: Fixture, date: ISODate, time?: string) {
+  const bd = byDate.get(w)
+  if (bd) {
+    const old = bd.get(f.date)
+    if (old) { const i = old.indexOf(f); if (i >= 0) old.splice(i, 1) }
+    const a = bd.get(date); if (a) a.push(f); else bd.set(date, [f])
+  }
+  const idx = indexes.get(w)
+  if (idx) { idx.remove(f.home, f.date); idx.remove(f.away, f.date); idx.add(f.home, date); idx.add(f.away, date) }
+  f.date = date
+  if (time) f.time = time
+  w.flags.fxRev = (w.flags.fxRev || 0) + 1
 }
 
 export function clubFixtures(w: World, clubId: number): Fixture[] {

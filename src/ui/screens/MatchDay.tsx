@@ -1,6 +1,7 @@
 // Match day (pre-match), FotMob-style: header, preview (prediction, storylines, form, key players, season stats),
 // editable line-ups on the pitch for both teams, league table and head-to-head, with play / quick sim / press.
 import { createOthers } from '../../engine/world/liveDay'
+import { movedText } from '../moved'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Fixture, Player, TeamSheet, World } from '../../domain/types'
@@ -126,7 +127,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
         <div className="md-footer"><div className="md-countdown"><Icon name="clock" size={18} /> Kick-off {fmtDate(f.date, 'long')} · {f.time}</div></div>
       )}>
       <div className="md-head">
-        <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span></div>
+        <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span>{f.moved && <span className="moved-chip">{movedText(f)!.tag}</span>}</div>
+        {f.moved && <div className="tiny" style={{ textAlign: 'center', opacity: 0.7, marginTop: 4 }}>{movedText(f)!.long}</div>}
         <div className="md-teams">
           <button className="md-team" onClick={() => go({ name: 'club', params: { id: home.id } })}><Badge club={home} size={62} /><b>{home.short}</b>{pos(home.id) ? <span className="tiny dim">{ordinal(pos(home.id)!)}</span> : null}</button>
           <div className="col center" style={{ minWidth: 92 }}>

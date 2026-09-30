@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { movedText } from '../moved'
 import { useGame, useWorld, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components/atoms'
@@ -208,6 +209,7 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
           <div className="row tight">
             {comp && <CompLogo k={compLogoKey(comp)} size={22} name={comp.name} />}
             <span className="label" style={{ color: 'rgba(255,255,255,.85)' }}>{comp?.short} · {f.roundName}</span>
+            {f.moved && <span className="moved-chip" title={movedText(f)!.long}><Icon name="refresh" size={10} strokeWidth={2.6} />{movedText(f)!.tag}</span>}
           </div>
           <span className="pill" style={{ background: today ? 'var(--acc)' : 'rgba(0,0,0,.35)', color: today ? '#03170c' : '#fff' }}>{today ? 'MATCH DAY' : days === 1 ? 'TOMORROW' : `${days} DAYS`}</span>
         </div>

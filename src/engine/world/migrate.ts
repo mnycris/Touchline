@@ -5,6 +5,8 @@ import type { World } from '../../domain/types'
 import { dynamicValue } from '../../domain/finance'
 import { migrateIntl } from './international'
 import { emptyLine } from './matchRunner'
+import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
+import { takeNewFixtures } from '../competitions/fixtures'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
 export const SAVE_SCHEMA = 4
@@ -30,6 +32,10 @@ const MIGRATIONS: Migration[] = [
     run: (w) => {
       // the live transfer feed starts from the deals already in the history
       w.market ||= { stories: [], seq: 1 }
+      // fixture clashes are resolved and out-of-sequence games labelled
+      for (const c of Object.values(w.competitions)) if (c.season === w.season && c.format === 'league') markOutOfSequence(w, c.id)
+      rescheduleClashes(w)
+      takeNewFixtures(w)
     },
   },
 ]

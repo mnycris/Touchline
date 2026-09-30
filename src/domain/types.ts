@@ -447,6 +447,8 @@ export interface Fixture {
   userInvolved?: boolean
   derby?: string
   importance?: number
+  /** moved from its original date: when it was due, why, and whether it was brought forward or put back */
+  moved?: { from: ISODate; reason: string; kind: 'early' | 'late'; source?: 'calendar' | 'clash' }
 }
 
 // ---------------------------------------------------------------- transfers

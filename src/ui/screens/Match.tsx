@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { movedText } from '../moved'
 import { DEFAULT_SPEEDS, useGame, useWorld, haptic } from '../../store/game'
 import { fmtSpeed } from '../components/SpeedEditor'
 import type { Fixture, MatchEvent, MatchResult, Player, TeamMatchStats, TeamTactics, World } from '../../domain/types'
@@ -68,6 +69,7 @@ export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: nu
         <div className="col" style={{ width: 44, alignItems: 'center', gap: 2 }}>
           {comp && <CompLogo k={compLogoKey(comp)} size={18} name={comp.name} />}
           <span className="tiny dim">{fmtDate(f.date, 'dm')}</span>
+          {f.moved && !f.played && <span className="fx-moved" title={movedText(f)!.long}>{f.moved.kind === 'early' ? 'Early' : 'Moved'}</span>}
         </div>
         <div className="grow row" style={{ gap: 6, minWidth: 0 }}>
           <span className="grow ellipsis small b" style={{ textAlign: 'right' }}>{w.clubs[f.home]?.short}</span>
@@ -105,6 +107,7 @@ function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => 
         <div className="col center" style={{ minWidth: 90 }}><div className="display" style={{ fontSize: 26 }}>{f.time}</div><div className="tiny dim">{today ? 'Today' : fmtDate(f.date, 'long')}</div></div>
         <button className="md-team" onClick={() => { onClose(); go({ name: 'club', params: { id: away.id } }) }}><Badge club={away} size={52} /><b>{away.short}</b></button>
       </div>
+      {f.moved && <div className="moved-note"><Icon name="refresh" size={14} color="var(--tw)" /><span>{movedText(f)!.long}</span></div>}
       {canWatch && (
         today ? (
           <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => { onClose(); watch(f.id) }}><Icon name="eye" size={18} /> Watch live</button>

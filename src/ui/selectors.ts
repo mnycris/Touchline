@@ -27,7 +27,8 @@ export function leaguePos(w: World, clubId: number): number | undefined {
 const fxCache = new WeakMap<World, { v: number; map: Map<number, Fixture[]> }>()
 export function fixturesOf(w: World, clubId: number): Fixture[] {
   // cheap memo keyed by number of played fixtures + total
-  const key = Object.keys(w.fixtures).length * 7 + playedCount(w)
+  // (a rescheduled fixture bumps fxRev so the sorted lists are rebuilt)
+  const key = Object.keys(w.fixtures).length * 7 + playedCount(w) + (w.flags.fxRev || 0) * 100003
   let c = fxCache.get(w)
   if (!c || c.v !== key) { c = { v: key, map: new Map() }; fxCache.set(w, c) }
   let arr = c.map.get(clubId)

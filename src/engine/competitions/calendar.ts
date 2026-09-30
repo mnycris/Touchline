@@ -102,6 +102,9 @@ export class ClubDateIndex {
     if (!s) this.map.set(club, (s = new Set()))
     s.add(dayNum(date))
   }
+  remove(club: number, date: ISODate) {
+    this.map.get(club)?.delete(dayNum(date))
+  }
   static from(fixtures: Iterable<Fixture>) {
     const idx = new ClubDateIndex()
     for (const f of fixtures) { idx.add(f.home, f.date); idx.add(f.away, f.date) }
