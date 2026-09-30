@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
+import { useRemember } from '../memory'
 import type { TrainingPlan } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Face, Ovr, PosChip, Sparkline } from '../components/atoms'
@@ -75,7 +76,7 @@ export function DevelopmentScreen() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const club = userClub(w)
-  const [grp, setGrp] = useState<'young' | 'all'>('young')
+  const [grp, setGrp] = useRemember<'young' | 'all'>('devGroup', 'young')
   const squad = [...rosterOf(w, club.id)].filter((p) => grp === 'all' || ageOf(w, p) <= 23).sort((a, b) => (b.pot - b.ovr) - (a.pot - a.ovr))
   return (
     <Screen title="Player Development" back>

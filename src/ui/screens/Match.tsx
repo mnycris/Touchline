@@ -145,7 +145,7 @@ export function LiveMatch() {
   const open = useGame((s) => s.open)
   const go = useGame((s) => s.go)
   const [, force] = useReducer((x: number) => x + 1, 0)
-  const [tab, setTab] = useState<'feed' | 'lineups' | 'stats' | 'matches'>('feed')
+  const [tab, setTab] = useRemember<'feed' | 'lineups' | 'stats' | 'matches'>('liveTab', 'feed')
   const [spectate, setSpectate] = useState<string>()
   const [elsewhere, setElsewhere] = useState<{ id: number; text: string }>()
   const spectateRef = useRef<string | undefined>(undefined)

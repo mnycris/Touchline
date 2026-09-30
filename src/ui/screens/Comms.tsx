@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
+import { useRemember } from '../memory'
 import type { InboxMessage, NewsItem, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CompLogo, Empty, Face, Ovr, PosChip, UserAvatar } from '../components/atoms'
@@ -36,7 +37,7 @@ export function Inbox() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const mutate = useGame((s) => s.mutate)
-  const [cat, setCat] = useState<string>('All')
+  const [cat, setCat] = useRemember<string>('inboxCat', 'All')
   const cats = ['All', 'Unread', 'Transfers', 'Squad', 'Player', 'Board', 'Medical', 'Scouting', 'Youth', 'Competitions']
   const list = w.inbox.filter((m) => cat === 'All' || (cat === 'Unread' ? !m.read : m.category === cat || (cat === 'Squad' && m.category === 'Assistant')))
   const unread = w.inbox.filter((m) => !m.read).length

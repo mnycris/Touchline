@@ -2,7 +2,7 @@
    Touchline — screen & component styles (layered on global.css tokens)
    ========================================================================== */
 
-.layer { position: absolute; inset: 0; }
+.layer { position: absolute; inset: 0; background: inherit; } /* opaque, so a screen fading in covers the one it replaces */
 .overlay { overflow: hidden; }
 .overlay-in { animation: slideUp 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .fade-in { animation: fadeIn 0.2s ease both; }
@@ -439,6 +439,19 @@ select.input option { background: #151b27; }
 
 /* ---------- FC details: section slashes, transitions, broadcast clock ---------- */
 .layer-in { animation: layerIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.layer-in-tab { animation: tabIn 0.2s ease-out both; }
+@keyframes tabIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* the screen being left, as a snapshot (see navFx): held under the incoming one, or animated away over it */
+.fx-host { position: absolute; inset: 0; pointer-events: none; }
+.fx-host:empty { display: none; }
+.ghost { pointer-events: none !important; isolation: isolate; } /* its own stacking layer: a snapshot's header must not float above the new screen */
+.ghost * { animation: none !important; transition: none !important; }
+.ghost-hold-ov { z-index: 59; }
+.ghost-back { z-index: 38; animation: ghostBack 0.22s cubic-bezier(0.4, 0, 0.6, 1) both; box-shadow: -12px 0 30px rgba(0, 0, 0, 0.35); background: radial-gradient(120% 60% at 50% -10%, rgba(var(--club-rgb), 0.35), transparent 60%), var(--bg); }
+.ghost-hold { background: radial-gradient(120% 60% at 50% -10%, rgba(var(--club-rgb), 0.35), transparent 60%), var(--bg); }
+@keyframes ghostBack { from { transform: none; opacity: 1; } to { transform: translateX(34%); opacity: 0; } }
+.ghost-close { z-index: 61; animation: ghostClose 0.22s cubic-bezier(0.4, 0, 0.6, 1) both; }
+@keyframes ghostClose { from { transform: none; opacity: 1; } to { transform: translateY(32px); opacity: 0; } }
 @keyframes layerIn { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
 .section-title .h3 { display: flex; align-items: center; gap: 8px; }
 .section-title .h3::before { content: none; }

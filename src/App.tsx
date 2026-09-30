@@ -7,6 +7,9 @@ import { MainMenu } from './ui/screens/Menu'
 import { NewsDrop } from './ui/screens/NewsScreens'
 import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
+import { initNavFx, useEnterClass } from './ui/navFx'
+
+initNavFx()
 
 export default function App() {
   const world = useGame((s) => s.world)
@@ -57,7 +60,9 @@ export default function App() {
 
   return (
     <div className="app">
+      <div id="fx-under" className="fx-host" />
       {world ? <Career /> : <MainMenu />}
+      <div id="fx-over" className="fx-host" />
       <div id="sheet-host" />
       <Toast />
     </div>
@@ -75,9 +80,13 @@ function Career() {
   const View: ComponentType<any> | undefined = top ? ROUTES[top.name] : undefined
   const ov = overlay[overlay.length - 1]
   const Ov = ov ? ROUTES[ov.name] : undefined
+  const layerKey = `${tab}:${stack.length}:${top?.name ?? 'root'}`
+  const ovKey = ov ? `ov:${overlay.length}:${ov.name}` : ''
+  const layerIn = useEnterClass(layerKey, 'layer')
+  const ovIn = useEnterClass(ovKey, 'overlay')
   return (
     <>
-      <div className="layer layer-in" key={`${tab}:${stack.length}:${top?.name ?? 'root'}`}>
+      <div className={`layer ${layerIn}`} key={layerKey}>
         <ViewKey.Provider value={viewKeyFor(tab, stack.length, top?.name ?? 'root', top?.params)}>
           {View ? <View params={top!.params} /> : <Root />}
         </ViewKey.Provider>
@@ -85,7 +94,7 @@ function Career() {
       <BottomNav />
       <NewsDrop />
       {Ov && (
-        <div className="overlay overlay-in" key={`ov:${overlay.length}:${ov.name}`}>
+        <div className={`overlay ${ovIn}`} key={ovKey}>
           <ViewKey.Provider value={viewKeyFor('ov', overlay.length, ov.name, ov.params)}>
             <Ov params={ov.params} />
           </ViewKey.Provider>
