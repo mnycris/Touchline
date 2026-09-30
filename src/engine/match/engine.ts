@@ -350,6 +350,12 @@ export class MatchSim {
     this.vrng = new Rng((seed ^ 0x5bd1e995) >>> 0)
     this.crng = new Rng((seed ^ 0x27d4eb2f) >>> 0)
     this.detail = ctx.commentary
+    // Edit Mode "stars": the three best outfield players of a side have a big day
+    const st = ctx.script?.stars
+    if (st) for (const [k, inp] of [[0, home], [1, away]] as const) {
+      if (st !== 'both' && (st === 'home') !== (k === 0)) continue
+      inp.sheet.lineup.map((id) => inp.players[id]).filter((p) => p && p.positions[0] !== 'GK').sort((a, b) => b.ovr - a.ovr).slice(0, 3).forEach((p) => this.stars.add(p.id))
+    }
     this.sides = [new Side(home, 0), new Side(away, 1)]
     const us = ctx.userSide
     for (const s of this.sides) {
@@ -373,7 +379,7 @@ export class MatchSim {
       keyPasses: 0, tackles: 0, interceptions: 0, saves: 0, fouls: 0, yellow: false, red: false, started: on, ...emptyExt(),
     }
     const sd = 1.6 + 2.6 * (1 - clamp(p.hidden.consistency, 1, 99) / 100)
-    const told = this.ctx.script?.form?.[p.id]
+    const told = this.ctx.script?.form?.[p.id] ?? (this.stars.has(p.id) ? 2 : undefined)
     // an Edit Mode performance level replaces the day's random form (a little spread keeps it human)
     const form = told ? clamp(told * 3.6 + this.rng.normal(0, 0.8), -9, 9) : clamp(this.rng.normal(0, sd), -7, 7)
     const ps: Record<string, number> = {}
@@ -779,8 +785,13 @@ export class MatchSim {
 
   // =========================================================== edit mode scripts
   private forceShot?: 'goal'
+  private forceCard?: 'none' | 'yellow' | 'red'
+  private stars = new Set<number>()
   private forcePen?: { taker: number; res?: 'goal' | 'saved' | 'miss'; spot?: PenaltyKick['spot']; dive?: 'L' | 'R' | 'C' }
   private scriptDone = new Set<string>()
+
+  /** Edit Mode temper: a calm or heated game (cards and tempers). */
+  private temper(): number { const t = this.ctx.script?.temper; return t === -1 ? 0.5 : t === 1 ? 1.7 : 1 }
 
   /** The period a match minute belongs to. */
   private periodOf(min: number): Phase { return min <= 45 ? '1H' : min <= 90 ? '2H' : min <= 105 ? 'ET1' : 'ET2' }
@@ -853,9 +864,13 @@ export class MatchSim {
   /** A goal built from a real move: the assist plays it in, the scorer finishes, every stat is counted as usual. */
   private scriptedGoal(e: ScriptEvent): number {
     const X = this.sides[e.side]
-    const c = this.bringOn(X, e.player) || this.rng.weighted(X.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'ST' ? 5 : l.g === 'W' || l.g === 'AM' ? 3 : 1))
+    // AUTO scorer (or a scripted one who can't come on): who usually scores, by position and finishing
+    const c = (e.player ? this.bringOn(X, e.player) : undefined) || this.rng.weighted(X.on.filter((l) => l.pos !== 'GK'), (l) => (l.g === 'ST' ? 5 : l.g === 'W' || l.g === 'AM' ? 3 : l.g === 'CM' ? 1.4 : 0.5) * (1 + (this.fin(l) - this.ref) / 60))
     if (!c) return 0
-    const a = e.assist ? this.bringOn(X, e.assist) : undefined
+    // AUTO assist: the engine's usual creators (most goals have one, not all)
+    const a = e.assist === -1
+      ? (() => { const cr = X.on.filter((l) => l !== c && l.pos !== 'GK'); return cr.length && this.rng.next() < 0.75 ? this.rng.weighted(cr, (l) => (l.g === 'AM' || l.g === 'W' ? 2.4 : l.g === 'CM' || l.g === 'ST' || l.g === 'FB' ? 1.4 : 0.6) * (1 + Math.max(0, this.thru(l) - this.ref) / 12)) : undefined })()
+      : e.assist ? this.bringOn(X, e.assist) : undefined
     this.pending = null
     this.ps = e.side
     this.counter = false
@@ -897,7 +912,9 @@ export class MatchSim {
     this.car = victim
     victim.at = { ...this.b }
     this.forcePen = { taker: taker.p.id, res: e.pen || 'goal', spot: e.spot, dive: e.dive }
+    this.forceCard = e.card
     let dt = this.foul(def, victim, 'tackle', this.b)
+    this.forceCard = undefined
     const r = this.pending as Restart | null
     if (r && r.kind === 'pen') {
       r.taker = taker
@@ -911,7 +928,8 @@ export class MatchSim {
   /** A scripted booking or sending-off, after a foul on the nearest opponent. */
   private scriptedCard(e: ScriptEvent): number {
     const F = this.sides[e.side], V = this.sides[1 - e.side]
-    const lp = F.on.find((l) => l.p.id === e.player)
+    // AUTO: whoever is likeliest to see a card (defensive players, the combative ones)
+    const lp = e.player ? F.on.find((l) => l.p.id === e.player) : this.rng.weighted(F.on.filter((l) => !l.red && (e.kind === 'red' || !l.yellow)), (l) => (l.g === 'CB' || l.g === 'DM' ? 2.4 : l.g === 'FB' || l.g === 'CM' ? 1.6 : l.pos === 'GK' ? 0.2 : 1) * Math.pow(this.e(l, A.aggression) / 65, 1.5))
     if (!lp) return 0
     const victim = this.nearestOutfield(V.on, flip(lp.at)).l || V.on[0]
     F.stats.fouls++
@@ -1987,6 +2005,10 @@ export class MatchSim {
     const gq = gk ? this.gkStop(gk) : 20
     const Lg = logit(xgNb) + 0.013 * (sk - this.ref) - 0.02 * (gq - this.ref - 4)
     let pGoal = sigmoid(Lg)
+    // Edit Mode feel: a tight or open game, and late drama
+    const scr = this.ctx.script
+    if (scr?.goals && !force) pGoal = clamp(pGoal * (scr.goals === -1 ? 0.6 : scr.goals === 1 ? 1.35 : 1.75), 0, 0.97)
+    if (scr?.late && !force && (this.phase === '2H' || this.phase === 'ET2') && this.minute >= 80) pGoal = clamp(pGoal * 2.1, 0, 0.97)
     // Edit Mode final score: no goals past the target, and more clinical finishing while a side is short of it
     const room = force ? undefined : this.goalRoom(X.idx)
     if (room !== undefined) pGoal = room <= 0 ? 0 : 1 - Math.pow(1 - pGoal, clamp(room / Math.max(0.25, this.minutesLeft() * 0.016), 1, 8))
@@ -2410,13 +2432,15 @@ export class MatchSim {
     this.log('foul', F.idx, def, flip(at), flip(at), false, victim)
     const box = inBox(at)
     const clearChance = this.chain.oneOnOne || (this.counter && at.x > 70 && this.dis > 0.5)
-    const strict = this.ctx.strictness * (this.ctx.derby ? 1.12 : 1) * (this.minute > 75 ? 1.1 : 1) * (F.idx === 0 && !this.ctx.neutral ? 0.92 : 1)
+    const strict = this.ctx.strictness * (this.ctx.derby ? 1.12 : 1) * (this.minute > 75 ? 1.1 : 1) * (F.idx === 0 && !this.ctx.neutral ? 0.92 : 1) * this.temper()
     const agg = this.e(def, A.aggression)
     const tactical = this.counter && this.dis > 0.3
     const pRed = clearChance ? (box ? 0.07 : 0.25) * strict : 0.0022 * strict * (agg / 70) * (kind === 'aerial' ? 0.5 : 1)
     const pYel = 0.105 * Math.pow(Math.max(20, agg) / 65, 1.1) * strict * (tactical ? 2.4 : 1) * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.55 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
     let dead = 18 + this.rng.next() * 14 + (at.x > 66 ? 10 : 0)
-    const u = this.rng.next()
+    // Edit Mode: the card for a scripted penalty's foul
+    const fc = this.forceCard
+    const u = fc === 'red' ? -1 : fc === 'yellow' ? pRed + pYel * 0.5 : fc === 'none' ? 2 : this.rng.next()
     if (u < pRed) { this.sendOff(def, false); dead += 40 }
     else if (u < pRed + pYel) {
       dead += 22
@@ -2488,7 +2512,7 @@ export class MatchSim {
   private misconduct() {
     for (const s of this.sides) {
       const waste = this.timeWasting(s)
-      const p = 0.0028 * this.ctx.strictness * (this.ctx.derby ? 1.3 : 1) + (waste ? 0.012 : 0)
+      const p = 0.0028 * this.ctx.strictness * this.temper() * (this.ctx.derby ? 1.3 : 1) + (waste ? 0.012 : 0)
       if (this.rng.next() >= p) continue
       const pool = s.on.filter((l) => !l.yellow)
       if (!pool.length) continue

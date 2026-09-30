@@ -37,6 +37,9 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
   if (buyerId) v *= 1 - clubRelation(w, club.id) / 500
   if (w.settings.transferDifficulty === 'Hard') v *= 1.12
   if (w.settings.transferDifficulty === 'Easy') v *= 0.9
+  // Edit Mode selling stance
+  if (club.market?.sell === -1) v *= 1.35
+  else if (club.market?.sell === 1) v *= 0.85
   if (p.contract.releaseClause && v > p.contract.releaseClause) v = p.contract.releaseClause
   return roundValue(v)
 }
@@ -47,6 +50,8 @@ export function sellerStance(w: World, p: Player, buyerId: number): { willing: b
   if (!club) return { willing: true }
   if (w.meta.editMode && w.flags.editWilling?.[p.id]) return { willing: true }
   if (p.untouchable) return { willing: false, reason: `${club.short} consider ${p.name} untouchable.` }
+  if (club.market?.sell === 1 && club.id !== w.userClubId) return { willing: true }
+  if (club.market?.sell === -1 && club.id !== w.userClubId && (p.contract.role === 'Crucial' || p.contract.role === 'Important')) return { willing: false, reason: `${club.short} are not selling their key players.` }
   const blocked = buyerId === w.userClubId ? bidBlock(w, p.id) : undefined
   if (blocked) return { willing: false, reason: `${club.short} refuse to discuss ${p.name} again until ${fmtDate(blocked.until, 'dm')} after the last talks collapsed.` }
   if (p.joinedDate && diffDays(w.date, p.joinedDate) < 60) return { willing: false, reason: `${p.name} only recently joined ${club.short}.` }
@@ -551,7 +556,7 @@ export function aiTransferDay(w: World, rng: Rng) {
   const urgent = clubs.filter((c) => c.transferPolicy?.review)
   if (!open) {
     // outside a window only a club that lost a starter looks at free agents, now and then; the papers never stop
-    for (const c of urgent) if (rng.next() < 0.15) aiClubDay(w, c, rng, false)
+    for (const c of urgent) if (c.market?.buy !== -2 && rng.next() < 0.15) aiClubDay(w, c, rng, false)
     if (rng.next() < 0.3) paperTalk(w, rng)
     return
   }
@@ -564,9 +569,10 @@ export function aiTransferDay(w: World, rng: Rng) {
   // clubs that just lost a starter act first (within days, not weeks)
   for (const c of urgent) if (picks.size < n && rng.next() < 0.6) picks.add(c)
   // bigger leagues do more business
-  const weight = (c: Club) => 1 + (w.leagues[c.leagueId]?.prestige || 2) / 3
+  const weight = (c: Club) => (1 + (w.leagues[c.leagueId]?.prestige || 2) / 3) * (c.market?.buy === -1 ? 0.25 : c.market?.buy === 1 ? 2 : c.market?.buy === 2 ? 4 : 1)
+  for (const c of [...picks]) if (c.market?.buy === -2) picks.delete(c)
   let guard = 0
-  while (picks.size < n && guard++ < n * 6) { const c = rng.pick(clubs); if (rng.next() * 4.4 < weight(c)) picks.add(c) }
+  while (picks.size < n && guard++ < n * 6) { const c = rng.pick(clubs); if (c.market?.buy !== -2 && rng.next() * 4.4 < weight(c)) picks.add(c) }
   for (const c of picks) aiClubDay(w, c, rng, true)
   // paper talk
   for (let k = rng.next() < 0.5 ? 2 : 1; k > 0; k--) if (rng.next() < 0.6 * intensity) paperTalk(w, rng)

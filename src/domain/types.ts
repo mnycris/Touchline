@@ -232,6 +232,8 @@ export interface Club {
     lost?: { id: number; pos: Position; date: ISODate; key?: boolean }[]
   }
   trophies: { compKey: string; season: number }[]
+  /** Edit Mode transfer behaviour for an AI club: buying activity (−2 never … 2 splurges) and selling stance */
+  market?: { buy?: -2 | -1 | 1 | 2; sell?: -1 | 1 }
   lastSeasonPos?: number
   recent?: ('W' | 'D' | 'L')[]
   /** national team (a nation's side, not a club) */
@@ -387,13 +389,15 @@ export interface ScriptEvent {
   id: string
   kind: 'goal' | 'pen' | 'yellow' | 'red'
   side: 0 | 1
-  player: number // scorer, penalty taker, or the player booked
-  assist?: number
+  player: number // scorer, penalty taker, or the player booked; 0 = the engine picks (AUTO)
+  assist?: number // undefined = no assist; -1 = the engine picks (AUTO)
   min: number // match minute 1–120
   add?: number // stoppage-time minute (45+add, 90+add)
   pen?: 'goal' | 'saved' | 'miss'
   spot?: 'BL' | 'BR' | 'TL' | 'TR' | 'C'
   dive?: 'L' | 'R' | 'C'
+  /** penalty: the card for the foul that gave it (undefined: the referee decides) */
+  card?: 'none' | 'yellow' | 'red'
 }
 /** Facts the editor guarantees; the match engine plays everything else out as normal around them. */
 export interface MatchScript {
@@ -402,6 +406,14 @@ export interface MatchScript {
   events?: ScriptEvent[]
   form?: Record<number, ScriptLevel> // individual performances
   lineups?: Partial<Record<'0' | '1', { formation: string; lineup: number[]; bench: number[] }>>
+  /** how open the game is: −1 tight, 1 open, 2 goal-fest (finishing, both ways) */
+  goals?: -1 | 1 | 2
+  /** −1 calm, 1 heated (the referee's cards and the players' tempers) */
+  temper?: -1 | 1
+  /** late drama: the last ten minutes and stoppage time turn frantic */
+  late?: boolean
+  /** each side's three best players have a big day */
+  stars?: 'home' | 'away' | 'both'
 }
 
 export interface PenaltyKick {

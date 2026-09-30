@@ -1,7 +1,7 @@
 // Edit Mode: sandbox changes to the world, applied through the same code paths the game itself uses, so everything
 // downstream (overall, value, squads, tables, news, finances) stays consistent. Overall is never set directly: it is
 // recalculated from the attributes and the position, exactly like growth does.
-import type { AttrKey, ContractOffer, MatchScript, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
+import type { AttrKey, Club, ContractOffer, MatchScript, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { A } from '../../domain/types'
 import { computeOvr } from '../../domain/ratings'
 import { dynamicValue } from '../../domain/finance'
@@ -120,4 +120,46 @@ export function editClubMoney(w: World, clubId: number, patch: { transferBudget?
   if (patch.transferBudget != null) c.finance.transferBudget = Math.max(0, Math.round(patch.transferBudget))
   if (patch.wageBudget != null) c.finance.wageBudget = Math.max(0, Math.round(patch.wageBudget))
   if (patch.balance != null) c.finance.balance = Math.round(patch.balance)
+}
+
+export interface ClubPatch {
+  name?: string; short?: string; stadium?: string; capacity?: number
+  reputation?: number; domestic?: number; intl?: number; youthRating?: number
+  kit?: [string, string]
+  market?: Club['market']
+  formation?: string
+}
+
+/** Identity, standing, academy, colours, preferred shape and transfer behaviour of a club. */
+export function editClub(w: World, clubId: number, patch: ClubPatch) {
+  const c = w.clubs[clubId]
+  if (!c) return
+  if (patch.name?.trim()) c.name = patch.name.trim().slice(0, 40)
+  if (patch.short?.trim()) c.short = patch.short.trim().slice(0, 18)
+  if (patch.stadium?.trim()) c.stadium = patch.stadium.trim().slice(0, 48)
+  if (patch.capacity != null) c.capacity = clamp(Math.round(patch.capacity), 1000, 130000)
+  if (patch.reputation != null) c.reputation = clamp(Math.round(patch.reputation), 1, 100)
+  if (patch.domestic != null) c.prestige.domestic = clamp(Math.round(patch.domestic), 1, 10)
+  if (patch.intl != null) c.prestige.intl = clamp(Math.round(patch.intl), 1, 10)
+  if (patch.youthRating != null) c.youthRating = clamp(Math.round(patch.youthRating), 1, 10)
+  if (patch.kit) c.kit = patch.kit
+  if (patch.market !== undefined) c.market = patch.market && (patch.market.buy || patch.market.sell) ? patch.market : undefined
+  if (patch.formation) { const m = w.managers[c.managerId]; if (m) m.formation = patch.formation }
+}
+
+/** Make a whole squad stronger or weaker: every player's attributes shift together, overall recalculated. */
+export function editSquadStrength(w: World, clubId: number, delta: number): number {
+  const c = w.clubs[clubId]
+  if (!c || !delta) return c?.squadAvg || 0
+  const squad = Object.values(w.players).filter((p) => p.clubId === clubId)
+  for (const p of squad) {
+    for (let i = 0; i < p.attrs.length; i++) p.attrs[i] = clamp(Math.round(p.attrs[i] + delta), 1, 99)
+    p.ovr = computeOvr(p)
+    p.pot = clamp(Math.max(p.pot + delta, p.ovr), 1, 99)
+    p.value = dynamicValue(p, w.date, p.valueCalib ?? 1)
+  }
+  const top = squad.map((p) => p.ovr).sort((a, b) => b - a).slice(0, 16)
+  if (top.length) c.squadAvg = Math.round((top.reduce((a, b) => a + b, 0) / top.length) * 10) / 10
+  touchRoster(w)
+  return c.squadAvg
 }

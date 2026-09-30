@@ -7,10 +7,13 @@ import { ATTR_GROUPS, ATTR_LABEL, GK_GROUPS, POSITIONS, SQUAD_ROLES } from '../.
 import { computeOvr } from '../../domain/ratings'
 import { fmtMoney } from '../../domain/finance'
 import { useGame, haptic } from '../../store/game'
-import { editClubMoney, editPlayer, editTransfer, type PlayerPatch } from '../../engine/world/edit'
+import { editClub, editClubMoney, editPlayer, editSquadStrength, editTransfer, type ClubPatch, type PlayerPatch } from '../../engine/world/edit'
+import { generateObjectives } from '../../engine/world/board'
+import { worldRng } from '../../engine/world/advance'
+import { FORMATIONS } from '../../domain/constants'
 import { Icon } from '../icons/Icon'
 import { Badge, Ovr } from './atoms'
-import { Seg } from './layout'
+import { Seg, Stepper as LStepper } from './layout'
 
 /** Local editing state for a screen, with the little "Edit …" confirmation toast. */
 export function useEditing(label: string): [boolean, () => void, (v: boolean) => void] {
@@ -30,16 +33,9 @@ export function EditToggle({ w, on, onClick, label = 'Edit' }: { w: World; on: b
   )
 }
 
-/** A compact −/+ stepper with the value in the middle. */
-export function Stepper({ value, onChange, min, max, step = 1, fmt }: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode }) {
-  const set = (v: number) => { const x = Math.max(min, Math.min(max, v)); if (x !== value) { haptic(); onChange(x) } }
-  return (
-    <span className="ed-step">
-      <button onClick={() => set(value - step)} disabled={value <= min} aria-label="Less"><Icon name="minus" size={14} strokeWidth={2.6} /></button>
-      <b className="num">{fmt ? fmt(value) : value}</b>
-      <button onClick={() => set(value + step)} disabled={value >= max} aria-label="More"><Icon name="plus" size={14} strokeWidth={2.6} /></button>
-    </span>
-  )
+/** A compact −/+ stepper with the value in the middle: hold to repeat, tap the value to type it. */
+export function Stepper(props: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode; label?: string; money?: boolean; presets?: number[] }) {
+  return <LStepper {...props} compact />
 }
 
 function AttrRow({ k, v, base, onChange }: { k: AttrKey; v: number; base: number; onChange: (v: number) => void }) {
@@ -227,6 +223,123 @@ export function ClubMoneyEditor({ club, onClose }: { club: Club; onClose: () => 
       <div className="ed-foot">
         <button className="btn sm" onClick={onClose}>Cancel</button>
         <button className="btn sm ed-apply grow" onClick={() => { haptic('medium'); mutate((w) => editClubMoney(w, club.id, { transferBudget: t, wageBudget: wg, balance: b })); notify(`${club.short} finances updated`, 'edit'); onClose() }}><Icon name="check" size={16} /> Apply</button>
+      </div>
+    </div>
+  )
+}
+
+const KIT_SWATCHES = ['#EF0107', '#C8102E', '#DA291C', '#6CABDD', '#034694', '#132257', '#003399', '#FDB913', '#FFD700', '#00A650', '#1B5E20', '#7A263A', '#670E36', '#FFFFFF', '#111111', '#F58220', '#5C2D91', '#00A3E0']
+
+/** Everything about a club in one editor: identity, standing, money, squad strength and shape, transfer behaviour,
+ *  and (for your club) the board's objectives. Changes apply together. */
+export function ClubEditor({ w, club, onClose }: { w: World; club: Club; onClose: () => void }) {
+  const mutate = useGame((s) => s.mutate)
+  const notify = useGame((s) => s.notify)
+  const user = club.id === w.userClubId
+  const [tab, setTab] = useState<'identity' | 'standing' | 'money' | 'squad' | 'market' | 'board'>('identity')
+  const [p, setP] = useState<ClubPatch>({ name: club.name, short: club.short, stadium: club.stadium, capacity: club.capacity, reputation: club.reputation, domestic: club.prestige.domestic, intl: club.prestige.intl, youthRating: club.youthRating, kit: [...club.kit] as [string, string], market: club.market ? { ...club.market } : undefined, formation: w.managers[club.managerId]?.formation })
+  const [t, setT] = useState(club.finance.transferBudget)
+  const [wg, setWg] = useState(club.finance.wageBudget)
+  const [b, setB] = useState(club.finance.balance)
+  const [shift, setShift] = useState(0)
+  const [objs, setObjs] = useState(() => w.board.objectives.filter((o) => o.season === w.season).map((o) => o.id))
+  const [regen, setRegen] = useState(false)
+  const up = (x: Partial<ClubPatch>) => setP((q) => ({ ...q, ...x }))
+  const step = (v: number) => (Math.abs(v) >= 100_000_000 ? 10_000_000 : Math.abs(v) >= 10_000_000 ? 1_000_000 : 250_000)
+  const tabs = [{ id: 'identity' as const, label: 'Club' }, { id: 'standing' as const, label: 'Standing' }, { id: 'money' as const, label: 'Money' }, { id: 'squad' as const, label: 'Squad' }, ...(user ? [{ id: 'board' as const, label: 'Board' }] : [{ id: 'market' as const, label: 'Market' }])]
+  const forms = FORMATIONS.filter((f) => ['4-3-3', '4-2-3-1', '4-4-2', '3-5-2', '3-4-3', '5-3-2', '4-1-2-1-2', '4-5-1', '4-1-4-1', '5-4-1'].some((c) => f.name.startsWith(c))).slice(0, 12)
+  const apply = () => {
+    haptic('medium')
+    mutate((w) => {
+      editClub(w, club.id, p)
+      editClubMoney(w, club.id, { transferBudget: t, wageBudget: wg, balance: b })
+      if (shift) editSquadStrength(w, club.id, shift)
+      if (user) {
+        if (regen) generateObjectives(w, worldRng(w))
+        else w.board.objectives = w.board.objectives.filter((o) => o.season !== w.season || objs.includes(o.id))
+      }
+    })
+    notify(`${p.short || club.short} updated`, 'edit')
+    onClose()
+  }
+  const cur = w.board.objectives.filter((o) => o.season === w.season)
+  const top16 = useMemo(() => { const t = Object.values(w.players).filter((x) => x.clubId === club.id).map((x) => x.ovr).sort((a, b) => b - a).slice(0, 16); return t.length ? t.reduce((a, b) => a + b, 0) / t.length : club.squadAvg }, [club.id])
+  return (
+    <div className="card ed-card fade-up">
+      <div className="ed-head"><span className="ed-badge"><Icon name="edit" size={13} strokeWidth={2.3} /> Editing</span><span className="grow" /><Badge club={{ ...club, kit: p.kit || club.kit }} size={18} /><span className="small b">{club.short}</span></div>
+      <div className="ed-tabs"><Seg small items={tabs} value={tab} onChange={(v) => { haptic(); setTab(v) }} /></div>
+      <div className="ed-body stack fade-up" key={tab} style={{ gap: 12 }}>
+        {tab === 'identity' && (
+          <>
+            <label className="ed-field"><span className="tiny dim">Name</span><input className="input" value={p.name} maxLength={40} onChange={(e) => up({ name: e.target.value })} /></label>
+            <label className="ed-field"><span className="tiny dim">Short name</span><input className="input" value={p.short} maxLength={18} onChange={(e) => up({ short: e.target.value })} /></label>
+            <label className="ed-field"><span className="tiny dim">Stadium</span><input className="input" value={p.stadium} maxLength={48} onChange={(e) => up({ stadium: e.target.value })} /></label>
+            <div className="ed-line"><span className="small">Capacity</span><Stepper value={p.capacity!} min={1000} max={130000} step={p.capacity! >= 20000 ? 1000 : 500} label="Stadium capacity" onChange={(v) => up({ capacity: v })} fmt={(v) => v.toLocaleString('en-GB')} /></div>
+            {(['Home colour', 'Second colour'] as const).map((lab, i) => (
+              <div key={lab}>
+                <div className="tiny dim" style={{ margin: '0 2px 6px' }}>{lab}</div>
+                <div className="ed-swatches">
+                  {KIT_SWATCHES.map((c) => <button key={c} className={`ed-sw ${p.kit![i].toLowerCase() === c.toLowerCase() ? 'on' : ''}`} style={{ background: c }} onClick={() => { haptic(); const k = [...p.kit!] as [string, string]; k[i] = c; up({ kit: k }) }} aria-label={c} />)}
+                  <label className="ed-sw custom" style={{ background: p.kit![i] }}><input type="color" value={p.kit![i]} onChange={(e) => { const k = [...p.kit!] as [string, string]; k[i] = e.target.value; up({ kit: k }) }} /><Icon name="plus" size={12} /></label>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+        {tab === 'standing' && (
+          <>
+            <div className="ed-line"><span className="small">Reputation</span><Stepper value={p.reputation!} min={1} max={100} label="Reputation" onChange={(v) => up({ reputation: v })} /></div>
+            <div className="tiny dim" style={{ marginTop: -6 }}>How big the club is seen to be: who wants to join, who answers the phone, board expectations.</div>
+            <div className="ed-line"><span className="small">Domestic prestige</span><Stepper value={p.domestic!} min={1} max={10} label="Domestic prestige" onChange={(v) => up({ domestic: v })} fmt={(v) => `${v}/10`} /></div>
+            <div className="ed-line"><span className="small">International prestige</span><Stepper value={p.intl!} min={1} max={10} label="International prestige" onChange={(v) => up({ intl: v })} fmt={(v) => `${v}/10`} /></div>
+            <div className="ed-line"><span className="small">Academy quality</span><Stepper value={p.youthRating!} min={1} max={10} label="Academy quality" onChange={(v) => up({ youthRating: v })} fmt={(v) => `${v}/10`} /></div>
+            <div className="tiny dim" style={{ marginTop: -6 }}>The academy's quality sets the talent of future youth intakes.</div>
+          </>
+        )}
+        {tab === 'money' && (
+          <>
+            <div className="ed-line"><span className="small">Transfer budget</span><Stepper value={t} min={0} max={2_000_000_000} step={step(t)} label="Transfer budget" money onChange={setT} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+            <div className="ed-line"><span className="small">Wage budget / wk</span><Stepper value={wg} min={0} max={20_000_000} step={wg >= 1_000_000 ? 50_000 : 10_000} label="Weekly wage budget" money onChange={setWg} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+            <div className="ed-line"><span className="small">Bank balance</span><Stepper value={b} min={-1_000_000_000} max={5_000_000_000} step={step(b)} label="Bank balance" money onChange={setB} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+          </>
+        )}
+        {tab === 'squad' && (
+          <>
+            <div className="ed-line"><span className="small">Squad strength</span><Stepper value={shift} min={-15} max={15} label="Shift every player's attributes" onChange={setShift} fmt={(v) => (v > 0 ? `+${v}` : `${v}`)} /></div>
+            <div className="ed-preview"><span className="tiny dim">Top-16 average</span><b className="num">{top16.toFixed(1)}</b>{shift !== 0 && <><Icon name="forward" size={12} color="var(--t3)" /><b className="num" style={{ color: shift > 0 ? 'var(--pos)' : 'var(--neg)' }}>≈ {Math.min(99, top16 + shift).toFixed(1)}</b></>}</div>
+            <div className="tiny dim" style={{ marginTop: -6 }}>Every player's attributes move together; overall, potential and value are recalculated from them.</div>
+            {!user && (
+              <>
+                <div className="tiny dim" style={{ margin: '4px 2px 0' }}>Preferred shape (the manager's formation)</div>
+                <div className="ed-chips">{forms.map((f) => <button key={f.id} className={`chip sm ${p.formation === f.id ? 'on' : ''}`} onClick={() => { haptic(); up({ formation: f.id }) }}>{f.name}</button>)}</div>
+              </>
+            )}
+          </>
+        )}
+        {tab === 'market' && (
+          <>
+            <div><div className="tiny dim" style={{ margin: '0 2px 6px' }}>Buying</div><Seg small items={[{ id: '-2', label: 'Never' }, { id: '-1', label: 'Quiet' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Active' }, { id: '2', label: 'Splurge' }]} value={String(p.market?.buy || 0)} onChange={(v) => { haptic(); up({ market: { ...(p.market || {}), buy: (Number(v) || undefined) as -2 | -1 | 1 | 2 | undefined } }) }} /></div>
+            <div><div className="tiny dim" style={{ margin: '0 2px 6px' }}>Selling</div><Seg small items={[{ id: '-1', label: 'Reluctant' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Willing' }]} value={String(p.market?.sell || 0)} onChange={(v) => { haptic(); up({ market: { ...(p.market || {}), sell: (Number(v) || undefined) as -1 | 1 | undefined } }) }} /></div>
+            <div className="tiny dim">Reluctant sellers ask more and keep their key players; willing sellers take less and let anyone go. Buying sets how often they act in a window.</div>
+          </>
+        )}
+        {tab === 'board' && (
+          <>
+            {cur.map((o) => (
+              <div key={o.id} className={`ed-obj ${objs.includes(o.id) && !regen ? '' : 'off'}`}>
+                <span className={`ed-pri p-${o.priority.replace(' ', '')}`}>{o.priority}</span>
+                <span className="small grow">{o.text}</span>
+                <button className="sc-x" disabled={regen} onClick={() => { haptic(); setObjs(objs.includes(o.id) ? objs.filter((x) => x !== o.id) : [...objs, o.id]) }} aria-label={objs.includes(o.id) ? 'Remove' : 'Keep'}><Icon name={objs.includes(o.id) ? 'close' : 'undo'} size={13} strokeWidth={2.4} /></button>
+              </div>
+            ))}
+            <button className={`chip sm ${regen ? 'on' : ''}`} style={{ alignSelf: 'flex-start' }} onClick={() => { haptic(); setRegen(!regen) }}><Icon name="refresh" size={13} /> {regen ? 'New objectives on apply' : 'Draw up new objectives'}</button>
+            <div className="tiny dim">New objectives are set from the club as it stands (after this edit's reputation and squad changes).</div>
+          </>
+        )}
+      </div>
+      <div className="ed-foot">
+        <button className="btn sm" onClick={onClose}>Cancel</button>
+        <button className="btn sm ed-apply grow" onClick={apply}><Icon name="check" size={16} /> Apply</button>
       </div>
     </div>
   )

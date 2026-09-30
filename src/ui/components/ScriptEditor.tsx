@@ -1,6 +1,8 @@
-// Edit Mode match scripting. Simple: say how the match should go. Advanced: fix the score, script moments (goals and
-// assists, penalties down to the corner and the dive, cards) at their minute, set individual performances and pick
-// an AI side's line-up. The match engine still plays the whole match; the script only guarantees what you chose.
+// Edit Mode match scripting. Simple: say how the match should go (who's on top, how open, how heated, late drama,
+// stars). Advanced: also fix the score (or roll a plausible one), script moments (goals and assists, penalties down
+// to the corner, the dive and the card, bookings) at their minute with the engine picking players on AUTO, set
+// individual performances and pick an AI side's line-up. The match engine still plays the whole match; the script
+// only guarantees what you chose.
 import { useMemo, useState } from 'react'
 import type { Fixture, MatchScript, Player, ScriptEvent, ScriptLevel, World } from '../../domain/types'
 import { FORMATIONS, formationOf } from '../../domain/constants'
@@ -10,9 +12,11 @@ import { sideInput } from '../../engine/world/matchRunner'
 import { validateSheet } from '../../engine/match/selection'
 import { squadOf } from '../../engine/match/selection'
 import { callName } from '../../engine/match/commentary'
+import { plausibleScore, predictFixture } from '../../engine/match/predict'
+import { Rng } from '../../domain/rng'
 import { Icon } from '../icons/Icon'
 import { Badge, Face } from './atoms'
-import { Seg, Sheet } from './layout'
+import { Seg, Sheet, Toggle } from './layout'
 import { Ball, Boot, MissedPen } from './Glyphs'
 import { Stepper } from './Editors'
 import { assignToFormation } from '../screens/Match'
@@ -22,6 +26,7 @@ const LEVEL_NAME: Record<number, string> = { [-2]: 'Nightmare', [-1]: 'Off day',
 const uid = () => Math.random().toString(36).slice(2, 9)
 const goalsFor = (s: MatchScript, side: 0 | 1) => (s.events || []).filter((e) => e.side === side && (e.kind === 'goal' || (e.kind === 'pen' && (e.pen ?? 'goal') === 'goal'))).length
 const minLabel = (e: Pick<ScriptEvent, 'min' | 'add'>) => (e.add ? `${e.min}+${e.add}'` : `${e.min}'`)
+const AUTO = 0, AUTO_ASSIST = -1
 
 export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose: () => void }) {
   const mutate = useGame((s) => s.mutate)
@@ -32,10 +37,12 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
   const [adding, setAdding] = useState<ScriptEvent>()
   const [formFor, setFormFor] = useState<0 | 1>()
   const [lineupFor, setLineupFor] = useState<0 | 1>()
+  const [rolled, setRolled] = useState(0)
   const comp = w.competitions[f.compId]
   const clubs = [w.clubs[f.home], w.clubs[f.away]] as const
   const colors = kitColors(clubs[0], clubs[1])
   const knockout = !!f.tieId
+  const pred = useMemo(() => predictFixture(w, f), [f.id])
   // each side's matchday squad: the user's selected sheet, a scripted AI line-up, or the XI the AI would pick
   const squads = useMemo(() => ([0, 1] as const).map((i) => {
     const id = i ? f.away : f.home
@@ -51,10 +58,12 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
     if (n.score) n.score = [Math.max(n.score[0], goalsFor(n, 0)), Math.max(n.score[1], goalsFor(n, 1))]
     return n
   })
+  const feel = (x: MatchScript): MatchScript => ({ bias: x.bias, goals: x.goals, temper: x.temper, late: x.late, stars: x.stars })
+  const empty = (x: MatchScript) => !Object.values(x).some((v) => v !== undefined && v !== false && !(Array.isArray(v) && !v.length) && !(typeof v === 'object' && v && !Array.isArray(v) && !Object.keys(v).length))
   const save = () => {
     haptic('medium')
     // an AI side whose players are scripted keeps the squad you saw here, so they're all there on the day
-    const out: MatchScript = { ...s }
+    const out: MatchScript = mode === 'simple' ? feel(s) : { ...s }
     if (mode === 'advanced') {
       for (const i of [0, 1] as const) {
         const k = String(i) as '0' | '1'
@@ -64,26 +73,30 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
         if (used) out.lineups = { ...(out.lineups || {}), [k]: { formation: squads[i].formation, lineup: squads[i].xi.map((p) => p.id), bench: squads[i].bench.map((p) => p.id) } }
       }
     }
-    mutate((w) => setScript(w, f.id, mode === 'simple' ? (s.bias ? { bias: s.bias } : undefined) : out))
-    notify(mode === 'simple' && !s.bias ? 'Match script cleared' : 'Match scripted', 'edit')
+    const final = empty(out) ? undefined : out
+    mutate((w) => setScript(w, f.id, final))
+    notify(final ? 'Match scripted' : 'Match script cleared', 'edit')
     onClose()
   }
   const clear = () => { haptic('medium'); mutate((w) => setScript(w, f.id, undefined)); notify('Match script cleared', 'edit'); onClose() }
-  const name = (id?: number) => (id ? callName(w.players[id]?.name || '') : '')
+  const roll = () => {
+    haptic('medium')
+    const [a, b] = plausibleScore(w, f, new Rng(Date.now() & 0x7fffffff))
+    set({ score: [a, b] })
+    setRolled((x) => x + 1)
+  }
 
   const levels: { v: ScriptLevel; label: string }[] = [
     { v: 2, label: `${clubs[0].short} dominate` }, { v: 1, label: `${clubs[0].short} have the edge` }, { v: 0, label: 'An even contest' },
     { v: -1, label: `${clubs[1].short} have the edge` }, { v: -2, label: `${clubs[1].short} dominate` },
   ]
-  const balance = (
-    <div className="sc-levels">
-      {levels.map((l) => (
-        <button key={l.v} className={`sc-level ${(s.bias || 0) === l.v ? 'on' : ''}`} onClick={() => { haptic(); set({ bias: l.v || undefined }) }}>
-          <span className="sc-share"><i style={{ flex: 3 + l.v * 1.3, background: colors[0] }} /><i style={{ flex: 3 - l.v * 1.3, background: colors[1] }} /></span>
-          <span className="small b">{l.label}</span>
-          {(s.bias || 0) === l.v && <Icon name="check" size={16} color="var(--gold)" />}
-        </button>
-      ))}
+  const pct = (x: number) => `${Math.round(x * 100)}%`
+  const feelControls = (
+    <div className="sc-feel">
+      <div className="sc-feel-row"><span className="small b">Goals</span><Seg small items={[{ id: '-1', label: 'Tight' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Open' }, { id: '2', label: 'Goal-fest' }]} value={String(s.goals || 0)} onChange={(v) => { haptic(); set({ goals: (Number(v) || undefined) as MatchScript['goals'] }) }} /></div>
+      <div className="sc-feel-row"><span className="small b">Temper</span><Seg small items={[{ id: '-1', label: 'Calm' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Heated' }]} value={String(s.temper || 0)} onChange={(v) => { haptic(); set({ temper: (Number(v) || undefined) as MatchScript['temper'] }) }} /></div>
+      <div className="sc-feel-row"><span className="small b">Stars shine</span><Seg small items={[{ id: '', label: 'Off' }, { id: 'home', label: clubs[0].short }, { id: 'away', label: clubs[1].short }, { id: 'both', label: 'Both' }]} value={s.stars || ''} onChange={(v) => { haptic(); set({ stars: (v || undefined) as MatchScript['stars'] }) }} /></div>
+      <Toggle label="Late drama" sub="The last ten minutes and stoppage time turn frantic" on={!!s.late} onChange={(v) => set({ late: v || undefined })} />
     </div>
   )
 
@@ -93,66 +106,104 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}><span className="ed-badge"><Icon name="edit" size={13} strokeWidth={2.3} /> Edit match</span></div>
         <div className="sc-teams">
           <span className="row tight"><Badge club={clubs[0]} size={30} /><b className="ellipsis">{clubs[0].short}</b></span>
-          <span className="display sc-score">{s.score && mode === 'advanced' ? `${s.score[0]}–${s.score[1]}` : 'v'}</span>
+          <span className="display sc-score" key={rolled}>{s.score && mode === 'advanced' ? `${s.score[0]}–${s.score[1]}` : 'v'}</span>
           <span className="row tight" style={{ justifyContent: 'flex-end' }}><b className="ellipsis">{clubs[1].short}</b><Badge club={clubs[1]} size={30} /></span>
+        </div>
+        <div className="sc-pred">
+          <span className="sc-pred-bar"><i style={{ flex: pred.pHome, background: colors[0] }} /><i style={{ flex: pred.pDraw }} /><i style={{ flex: pred.pAway, background: colors[1] }} /></span>
+          <span className="tiny dim">Left alone: {clubs[0].short} {pct(pred.pHome)} · draw {pct(pred.pDraw)} · {clubs[1].short} {pct(pred.pAway)}</span>
         </div>
         <Seg small items={[{ id: 'simple' as const, label: 'Simple' }, { id: 'advanced' as const, label: 'Advanced' }]} value={mode} onChange={(v) => { haptic(); setMode(v) }} />
 
         {mode === 'simple' && (
-          <>
-            <div className="label" style={{ margin: '14px 2px 8px' }}>How should it go?</div>
-            {balance}
-            <div className="tiny dim" style={{ marginTop: 8 }}>The whole match is still simulated: this shifts how sharp each side is on the day, not the result itself.</div>
-          </>
+          <div className="fade-up" key="simple">
+            <div className="label" style={{ margin: '14px 2px 8px' }}>Who's on top?</div>
+            <div className="sc-levels">
+              {levels.map((l) => (
+                <button key={l.v} className={`sc-level ${(s.bias || 0) === l.v ? 'on' : ''}`} onClick={() => { haptic(); set({ bias: l.v || undefined }) }}>
+                  <span className="sc-share"><i style={{ flex: 3 + l.v * 1.3, background: colors[0] }} /><i style={{ flex: 3 - l.v * 1.3, background: colors[1] }} /></span>
+                  <span className="small b">{l.label}</span>
+                  {(s.bias || 0) === l.v && <Icon name="check" size={16} color="var(--gold)" />}
+                </button>
+              ))}
+            </div>
+            <div className="label" style={{ margin: '16px 2px 8px' }}>The feel of it</div>
+            {feelControls}
+            <div className="tiny dim" style={{ marginTop: 10 }}>The whole match is still simulated: these shape the day, not the result itself. For a fixed score or exact moments, use Advanced.</div>
+          </div>
         )}
 
         {mode === 'advanced' && (
-          <div className="stack" style={{ gap: 14, marginTop: 14 }}>
-            <section>
-              <div className="label" style={{ margin: '0 2px 8px' }}>Balance</div>
-              <Seg small items={levels.map((l) => ({ id: String(l.v), label: l.v === 0 ? 'Even' : l.v > 0 ? `${clubs[0].short}${l.v > 1 ? '++' : '+'}` : `${clubs[1].short}${l.v < -1 ? '++' : '+'}` }))} value={String(s.bias || 0)} onChange={(v) => { haptic(); set({ bias: (Number(v) || undefined) as ScriptLevel | undefined }) }} />
+          <div className="stack fade-up" style={{ gap: 14, marginTop: 14 }} key="advanced">
+            <section className="card sc-sec">
+              <div className="row between"><span className="small b">Who's on top?</span><span className="tiny dim">{levels.find((l) => l.v === (s.bias || 0))?.label}</span></div>
+              <div className="sc-balance">
+                <Badge club={clubs[0]} size={20} />
+                <div className="sc-bdots">
+                  {([2, 1, 0, -1, -2] as ScriptLevel[]).map((v) => <button key={v} className={`sc-bdot ${(s.bias || 0) === v ? 'on' : ''}`} style={{ ['--c' as any]: v > 0 ? colors[0] : v < 0 ? colors[1] : '#dfe5ec', ['--s' as any]: 0.7 + Math.abs(v) * 0.15 }} onClick={() => { haptic(); set({ bias: v || undefined }) }} aria-label={levels.find((l) => l.v === v)?.label} />)}
+                  <i className="sc-bline" />
+                </div>
+                <Badge club={clubs[1]} size={20} />
+              </div>
             </section>
 
             <section className="card sc-sec">
               <div className="row between">
                 <span className="small b">Final score</span>
-                <button className={`chip sm ${s.score ? 'on' : ''}`} onClick={() => { haptic(); set({ score: s.score ? undefined : [Math.max(1, goalsFor(s, 0)), goalsFor(s, 1)] }) }}>{s.score ? 'Fixed' : 'Let it play out'}</button>
+                <span className="row tight">
+                  <button className="chip sm" onClick={roll}><Icon name="refresh" size={13} /> Randomize</button>
+                  <button className={`chip sm ${s.score ? 'on' : ''}`} onClick={() => { haptic(); set({ score: s.score ? undefined : [Math.max(1, goalsFor(s, 0)), goalsFor(s, 1)] }) }}>{s.score ? 'Fixed' : 'Let it play out'}</button>
+                </span>
               </div>
               {s.score && (
                 <div className="sc-scoreset">
-                  <Stepper value={s.score[0]} min={goalsFor(s, 0)} max={12} onChange={(v) => set({ score: [v, s.score![1]] })} />
+                  <Badge club={clubs[0]} size={22} />
+                  <Stepper value={s.score[0]} min={goalsFor(s, 0)} max={12} label={`${clubs[0].short} goals`} onChange={(v) => set({ score: [v, s.score![1]] })} />
                   <span className="dim">–</span>
-                  <Stepper value={s.score[1]} min={goalsFor(s, 1)} max={12} onChange={(v) => set({ score: [s.score![0], v] })} />
+                  <Stepper value={s.score[1]} min={goalsFor(s, 1)} max={12} label={`${clubs[1].short} goals`} onChange={(v) => set({ score: [s.score![0], v] })} />
+                  <Badge club={clubs[1]} size={22} />
                 </div>
               )}
-              {s.score && <div className="tiny dim" style={{ marginTop: 6 }}>Goals you don't script come from the run of play{knockout && s.score[0] === s.score[1] ? '; a draw in a knockout still goes to extra time and penalties' : ''}.</div>}
+              <div className="tiny dim" style={{ marginTop: 6 }}>{s.score ? `Goals you don't script come from the run of play${knockout && s.score[0] === s.score[1] ? '; a draw in a knockout still goes to extra time and penalties' : ''}.` : `Randomize rolls a plausible score from the teams' strength (most likely ${pred.likely[0]}–${pred.likely[1]}).`}</div>
             </section>
 
             <section className="card sc-sec">
               <div className="row between"><span className="small b">Moments</span><span className="tiny dim">{(s.events || []).length || 'None yet'}</span></div>
-              {(s.events || []).slice().sort((a, b) => a.min - b.min || (a.add || 0) - (b.add || 0)).map((e) => (
-                <div key={e.id} className="sc-ev">
-                  <span className="sc-min num">{minLabel(e)}</span>
-                  <span className="sc-ic">{e.kind === 'goal' ? <Ball size={14} /> : e.kind === 'pen' ? (e.pen === 'goal' || !e.pen ? <Ball size={14} /> : <MissedPen size={14} />) : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}</span>
-                  <span className="grow small" style={{ minWidth: 0 }}>
-                    <b>{name(e.player)}</b>
-                    <span className="dim"> · {e.kind === 'goal' ? (e.assist ? <>assist {name(e.assist)}</> : 'goal') : e.kind === 'pen' ? `penalty ${e.pen === 'saved' ? 'saved' : e.pen === 'miss' ? 'missed' : 'scored'}` : e.kind === 'red' ? 'sent off' : 'booked'}</span>
-                  </span>
-                  <Badge club={clubs[e.side]} size={16} />
-                  <button className="sc-x" onClick={() => { haptic(); set({ events: (s.events || []).filter((x) => x.id !== e.id) }) }} aria-label="Remove"><Icon name="close" size={13} strokeWidth={2.5} /></button>
-                </div>
-              ))}
+              {(s.events || []).length > 0 && <Timeline w={w} events={s.events!} colors={colors} knockout={knockout} />}
+              {(s.events || []).slice().sort((a, b) => a.min - b.min || (a.add || 0) - (b.add || 0)).map((e) => {
+                const p = e.player ? w.players[e.player] : undefined
+                const as = e.assist && e.assist > 0 ? w.players[e.assist] : undefined
+                return (
+                  <div key={e.id} className="sc-ev">
+                    <span className="sc-min num">{minLabel(e)}</span>
+                    <span className="sc-ic">{e.kind === 'goal' ? <Ball size={14} /> : e.kind === 'pen' ? (e.pen === 'goal' || !e.pen ? <Ball size={14} /> : <MissedPen size={14} />) : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}</span>
+                    {p ? <Face p={p} size={24} radius={12} club={clubs[e.side]} /> : <span className="sc-auto sm"><Icon name="refresh" size={11} /></span>}
+                    <span className="grow small" style={{ minWidth: 0 }}>
+                      <b>{p ? callName(p.name) : 'Auto'}</b>
+                      <span className="dim"> · {e.kind === 'goal' ? (as ? <>assist {callName(as.name)}</> : e.assist === AUTO_ASSIST ? 'auto assist' : 'goal') : e.kind === 'pen' ? `penalty ${e.pen === 'saved' ? 'saved' : e.pen === 'miss' ? 'missed' : 'scored'}${e.card && e.card !== 'none' ? ` · ${e.card} for the foul` : ''}` : e.kind === 'red' ? 'sent off' : 'booked'}</span>
+                    </span>
+                    <Badge club={clubs[e.side]} size={16} />
+                    <button className={`sc-x ${adding?.id === e.id ? 'on' : ''}`} onClick={() => { haptic(); setAdding({ ...e }) }} aria-label="Edit"><Icon name="edit" size={12} /></button>
+                    <button className="sc-x" onClick={() => { haptic(); set({ events: (s.events || []).filter((x) => x.id !== e.id) }) }} aria-label="Remove"><Icon name="close" size={13} strokeWidth={2.5} /></button>
+                  </div>
+                )
+              })}
               {!adding && (
                 <div className="sc-add">
                   {(['goal', 'pen', 'yellow', 'red'] as const).map((k) => (
-                    <button key={k} className="chip sm" onClick={() => { haptic(); setAdding({ id: uid(), kind: k, side: 0, player: squads[0].xi.find((p) => p.positions[0] !== 'GK')?.id || 0, min: k === 'goal' ? 30 : 60, ...(k === 'pen' ? { pen: 'goal' as const } : {}) }) }}>
+                    <button key={k} className="chip sm" onClick={() => { haptic(); setAdding({ id: uid(), kind: k, side: 0, player: AUTO, ...(k === 'goal' ? { assist: AUTO_ASSIST } : {}), min: k === 'goal' ? 30 : 60, ...(k === 'pen' ? { pen: 'goal' as const } : {}) }) }}>
                       {k === 'goal' ? <Ball size={12} /> : k === 'pen' ? <Icon name="target" size={13} /> : <i className={`card-${k === 'red' ? 'r' : 'y'}`} />} {k === 'goal' ? 'Goal' : k === 'pen' ? 'Penalty' : k === 'red' ? 'Red card' : 'Yellow card'}
                     </button>
                   ))}
                 </div>
               )}
               {adding && <EventForm w={w} e={adding} squads={squads} clubs={clubs} knockout={knockout} onChange={setAdding} onCancel={() => setAdding(undefined)}
-                onDone={(e) => { haptic('medium'); set({ events: [...(s.events || []), e] }); setAdding(undefined) }} />}
+                onDone={(e) => { haptic('medium'); set({ events: [...(s.events || []).filter((x) => x.id !== e.id), e] }); setAdding(undefined) }} editing={(s.events || []).some((x) => x.id === adding.id)} />}
+            </section>
+
+            <section className="card sc-sec">
+              <div className="row between"><span className="small b">The feel of it</span></div>
+              {feelControls}
             </section>
 
             <section className="card sc-sec">
@@ -170,15 +221,16 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
                 )
               })}
               <div className="sc-add">
-                {([0, 1] as const).map((i) => <button key={i} className={`chip sm ${formFor === i ? 'on' : ''}`} onClick={() => { haptic(); setFormFor(formFor === i ? undefined : i) }}><Badge club={clubs[i]} size={14} /> {clubs[i].short} player</button>)}
+                {([0, 1] as const).map((i) => <button key={i} className={`chip sm ${formFor === i ? 'on' : ''}`} onClick={() => { haptic(); setFormFor(formFor === i ? undefined : i) }}><Badge club={clubs[i]} size={14} /> {clubs[i].short} players</button>)}
               </div>
               {formFor != null && (
                 <div className="sc-form fade-up">
-                  {[...squads[formFor].xi, ...squads[formFor].bench].map((p) => {
+                  {[...squads[formFor].xi, ...squads[formFor].bench].map((p, i) => {
                     const lv = s.form?.[p.id] ?? 0
                     return (
-                      <div key={p.id} className="sc-frow">
-                        <span className="small ellipsis grow">{callName(p.name)} <span className="dim tiny">{p.positions[0]}</span></span>
+                      <div key={p.id} className={`sc-frow ${i === 11 ? 'first-bench' : ''}`}>
+                        <Face p={p} size={26} radius={13} club={clubs[formFor]} />
+                        <span className="small ellipsis grow">{callName(p.name)} <span className="dim tiny">{p.positions[0]}{i >= 11 ? ' · bench' : ''}</span></span>
                         <div className="sc-lvs">{([-2, -1, 0, 1, 2] as ScriptLevel[]).map((v) => <button key={v} className={`sc-lvb l${v} ${lv === v ? 'on' : ''}`} onClick={() => { haptic(); const n = { ...(s.form || {}) }; if (v) n[p.id] = v; else delete n[p.id]; set({ form: n }) }} title={LEVEL_NAME[v]}>{v === 0 ? '·' : v > 0 ? '+'.repeat(v) : '−'.repeat(-v)}</button>)}</div>
                       </div>
                     )
@@ -205,7 +257,7 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
           </div>
         )}
 
-        <div className="ed-foot" style={{ margin: '14px -16px calc(-1 * var(--sab) - 18px)', padding: '12px 16px calc(var(--sab) + 16px)' }}>
+        <div className="ed-foot sc-foot">
           {existing && <button className="btn sm" onClick={clear}><Icon name="trash" size={15} /> Clear</button>}
           <button className="btn sm ed-apply grow" onClick={save}><Icon name="check" size={16} /> Save script</button>
         </div>
@@ -216,38 +268,74 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
 
 type Squad = { id: number; user: boolean; xi: Player[]; bench: Player[]; formation: string }
 
-function PlayerChips({ w, list, value, onPick, none }: { w: World; list: Player[]; value?: number; onPick: (id?: number) => void; none?: string }) {
+/** The scripted moments on a match clock: the home side above the line, the away side below. */
+function Timeline({ w, events, colors, knockout }: { w: World; events: ScriptEvent[]; colors: [string, string]; knockout: boolean }) {
+  const end = knockout && events.some((e) => e.min > 90) ? 120 : 90
+  const x = (e: ScriptEvent) => `${Math.min(100, ((e.min + (e.add || 0) * 0.4) / end) * 100)}%`
   return (
-    <div className="sc-chips">
-      {none && <button className={`chip sm ${!value ? 'on' : ''}`} onClick={() => { haptic(); onPick(undefined) }}>{none}</button>}
-      {list.map((p, i) => <button key={p.id} className={`chip sm ${value === p.id ? 'on' : ''} ${i >= 11 ? 'bench' : ''}`} onClick={() => { haptic(); onPick(p.id) }}>{p.jersey ? <span className="dim num">{p.jersey}</span> : null} {callName(p.name)}</button>)}
+    <div className="sc-tl">
+      <i className="sc-tl-line" />
+      <i className="sc-tl-ht" style={{ left: `${(45 / end) * 100}%` }} />
+      {end === 120 && <i className="sc-tl-ht" style={{ left: '75%' }} />}
+      {events.map((e) => (
+        <span key={e.id} className={`sc-tl-m ${e.side ? 'away' : 'home'}`} style={{ left: x(e), ['--c' as any]: colors[e.side] }} title={`${minLabel(e)} ${e.player ? callName(w.players[e.player]?.name || '') : 'Auto'}`}>
+          {e.kind === 'goal' || (e.kind === 'pen' && (e.pen ?? 'goal') === 'goal') ? <Ball size={11} /> : e.kind === 'pen' ? <MissedPen size={11} /> : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}
+        </span>
+      ))}
+      <span className="sc-tl-lab l">0'</span><span className="sc-tl-lab c" style={{ left: `${(45 / end) * 100}%` }}>HT</span><span className="sc-tl-lab r">{end}'</span>
     </div>
   )
 }
 
-function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone }: {
-  w: World; e: ScriptEvent; squads: Squad[]; clubs: readonly [World['clubs'][number], World['clubs'][number]]; knockout: boolean
+/** Players as face tiles, the starters then the bench; AUTO (the engine picks) and None where they apply. */
+function PlayerPicker({ list, bench, value, onPick, auto, none, club }: { list: Player[]; bench: Set<number>; value?: number; onPick: (id: number | undefined) => void; auto?: number; none?: boolean; club: World['clubs'][number] }) {
+  const starters = list.filter((p) => !bench.has(p.id)), subs = list.filter((p) => bench.has(p.id))
+  const tile = (p: Player) => (
+    <button key={p.id} className={`sc-pt ${value === p.id ? 'on' : ''} ${bench.has(p.id) ? 'bench' : ''}`} onClick={() => { haptic(); onPick(p.id) }}>
+      <Face p={p} size={34} radius={17} club={club} />
+      <span className="sc-pt-n ellipsis">{callName(p.name)}</span>
+      <span className="sc-pt-p">{p.jersey ? `${p.jersey} · ` : ''}{p.positions[0]}</span>
+    </button>
+  )
+  return (
+    <div className="sc-pick">
+      <div className="sc-pgrid">
+        {auto != null && <button className={`sc-pt special ${value === auto ? 'on' : ''}`} onClick={() => { haptic(); onPick(auto) }}><span className="sc-auto"><Icon name="refresh" size={16} /></span><span className="sc-pt-n">Auto</span><span className="sc-pt-p">Engine picks</span></button>}
+        {none && <button className={`sc-pt special ${value == null ? 'on' : ''}`} onClick={() => { haptic(); onPick(undefined) }}><span className="sc-auto none"><Icon name="close" size={15} /></span><span className="sc-pt-n">None</span><span className="sc-pt-p">Solo goal</span></button>}
+        {starters.map(tile)}
+      </div>
+      {subs.length > 0 && <><div className="tiny dim sc-pick-h">Bench</div><div className="sc-pgrid">{subs.map(tile)}</div></>}
+    </div>
+  )
+}
+
+function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone, editing }: {
+  w: World; e: ScriptEvent; squads: Squad[]; clubs: readonly [World['clubs'][number], World['clubs'][number]]; knockout: boolean; editing?: boolean
   onChange: (e: ScriptEvent) => void; onCancel: () => void; onDone: (e: ScriptEvent) => void
 }) {
   const sq = squads[e.side]
   const all = [...sq.xi, ...sq.bench]
+  const bench = new Set(sq.bench.map((p) => p.id))
   const maxMin = knockout ? 120 : 90
   const endOfHalf = e.min === 45 || e.min === 90 || e.min === 105 || e.min === 120
   const up = (p: Partial<ScriptEvent>) => onChange({ ...e, ...p })
+  const what = e.kind === 'goal' ? 'goal' : e.kind === 'pen' ? 'penalty' : e.kind === 'red' ? 'red card' : 'yellow card'
   return (
     <div className="sc-evform fade-up">
-      <Seg small items={[{ id: '0', label: clubs[0].short }, { id: '1', label: clubs[1].short }]} value={String(e.side)} onChange={(v) => { const side = Number(v) as 0 | 1; up({ side, player: squads[side].xi.find((p) => p.positions[0] !== 'GK')?.id || 0, assist: undefined }) }} />
-      <div className="tiny dim" style={{ margin: '10px 2px 5px' }}>{e.kind === 'goal' ? 'Scorer' : e.kind === 'pen' ? 'Taker' : 'Player'}</div>
-      <PlayerChips w={w} list={all} value={e.player} onPick={(id) => id && up({ player: id, assist: e.assist === id ? undefined : e.assist })} />
+      <div className="sc-sides">
+        {([0, 1] as const).map((i) => <button key={i} className={`sc-sidebtn ${e.side === i ? 'on' : ''}`} onClick={() => { haptic(); up({ side: i, player: AUTO, assist: e.kind === 'goal' ? AUTO_ASSIST : undefined }) }}><Badge club={clubs[i]} size={20} /><b className="ellipsis">{clubs[i].short}</b></button>)}
+      </div>
+      <div className="tiny dim sc-pick-h">{e.kind === 'goal' ? 'Scorer' : e.kind === 'pen' ? 'Taker' : 'Player'}</div>
+      <PlayerPicker list={all} bench={bench} value={e.player} club={clubs[e.side]} auto={AUTO} onPick={(id) => up({ player: id ?? AUTO, assist: e.assist === id ? AUTO_ASSIST : e.assist })} />
       {e.kind === 'goal' && (
         <>
-          <div className="tiny dim" style={{ margin: '10px 2px 5px' }}>Assist</div>
-          <PlayerChips w={w} list={all.filter((p) => p.id !== e.player)} value={e.assist} onPick={(id) => up({ assist: id })} none="No assist" />
+          <div className="tiny dim sc-pick-h">Assist</div>
+          <PlayerPicker list={all.filter((p) => p.id !== e.player)} bench={bench} value={e.assist} club={clubs[e.side]} auto={AUTO_ASSIST} none onPick={(id) => up({ assist: id })} />
         </>
       )}
       {e.kind === 'pen' && (
         <>
-          <div className="tiny dim" style={{ margin: '10px 2px 5px' }}>Outcome</div>
+          <div className="tiny dim sc-pick-h">Outcome</div>
           <Seg small items={[{ id: 'goal', label: 'Scored' }, { id: 'saved', label: 'Saved' }, { id: 'miss', label: 'Missed' }]} value={e.pen || 'goal'} onChange={(v) => up({ pen: v as ScriptEvent['pen'] })} />
           <div className="row" style={{ gap: 12, marginTop: 10, alignItems: 'flex-start' }}>
             <div>
@@ -262,21 +350,23 @@ function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone }
               <div className="tiny dim" style={{ marginTop: 6 }}>From the taker's side. Untouched, the taker and keeper decide.</div>
             </div>
           </div>
+          <div className="tiny dim sc-pick-h">Card for the foul</div>
+          <Seg small items={[{ id: '', label: 'Referee' }, { id: 'none', label: 'None' }, { id: 'yellow', label: 'Yellow' }, { id: 'red', label: 'Red' }]} value={e.card || ''} onChange={(v) => { haptic(); up({ card: (v || undefined) as ScriptEvent['card'] }) }} />
         </>
       )}
-      <div className="ed-line" style={{ marginTop: 10 }}>
+      <div className="ed-line" style={{ marginTop: 12 }}>
         <span className="small">Minute</span>
         <span className="row tight">
-          <Stepper value={e.min} min={1} max={maxMin} onChange={(v) => up({ min: v, add: v === 45 || v === 90 || v === 105 || v === 120 ? e.add : undefined })} fmt={(v) => `${v}'`} />
-          {endOfHalf && <Stepper value={e.add || 0} min={0} max={e.min === 90 ? 8 : 5} onChange={(v) => up({ add: v || undefined })} fmt={(v) => (v ? `+${v}` : '+0')} />}
+          <Stepper value={e.min} min={1} max={maxMin} label="Minute" onChange={(v) => up({ min: v, add: v === 45 || v === 90 || v === 105 || v === 120 ? e.add : undefined })} fmt={(v) => `${v}'`} />
+          {endOfHalf && <Stepper value={e.add || 0} min={0} max={e.min === 90 ? 8 : 5} label="Stoppage time" onChange={(v) => up({ add: v || undefined })} fmt={(v) => (v ? `+${v}` : '+0')} />}
         </span>
       </div>
       {e.min > 90 && <div className="tiny dim">Extra-time moments only happen if the match goes to extra time.</div>}
       {sq.bench.some((p) => p.id === e.player || p.id === e.assist) && <div className="tiny" style={{ color: 'var(--gold)', marginTop: 4 }}>Starting on the bench: he comes on before the moment if a change is left.</div>}
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
         <button className="btn sm" onClick={onCancel}>Cancel</button>
-        <button className="btn sm ed-apply grow" disabled={!e.player} onClick={() => onDone(e)}>
-          {e.kind === 'goal' ? <Boot size={14} /> : <Icon name="plus" size={15} />} Add {e.kind === 'goal' ? 'goal' : e.kind === 'pen' ? 'penalty' : e.kind === 'red' ? 'red card' : 'yellow card'} · {minLabel(e)}
+        <button className="btn sm ed-apply grow" onClick={() => onDone(e)}>
+          {e.kind === 'goal' ? <Boot size={14} /> : <Icon name={editing ? 'check' : 'plus'} size={15} />} {editing ? 'Update' : 'Add'} {what} · {minLabel(e)}
         </button>
       </div>
     </div>
@@ -290,6 +380,7 @@ function LineupPicker({ w, clubId, start, onSave, onReset }: { w: World; clubId:
   const [formation, setFormation] = useState(start.formation)
   const [xi, setXi] = useState<number[]>(start.xi.map((p) => p.id))
   const [bench, setBench] = useState<number[]>(start.bench.map((p) => p.id))
+  const club = w.clubs[clubId]
   const cycle = (id: number) => {
     haptic()
     if (xi.includes(id)) { setXi(xi.filter((x) => x !== id)); if (bench.length < 12) setBench([...bench, id]) }
@@ -308,6 +399,7 @@ function LineupPicker({ w, clubId, start, onSave, onReset }: { w: World; clubId:
         return (
           <button key={p.id} className={`sc-lrow ${st}`} onClick={() => cycle(p.id)}>
             <span className={`sc-lst ${st}`}>{st === 'xi' ? 'XI' : st === 'bench' ? 'SUB' : '—'}</span>
+            <Face p={p} size={26} radius={13} club={club} />
             <span className="small ellipsis grow" style={{ textAlign: 'left' }}>{callName(p.name)}</span>
             <span className="tiny dim">{p.positions[0]}</span>
             <b className="num small" style={{ width: 24, textAlign: 'right' }}>{p.ovr}</b>

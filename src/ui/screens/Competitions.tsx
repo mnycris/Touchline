@@ -1,5 +1,5 @@
 import { useRemember } from '../memory'
-import { ClubMoneyEditor, EditToggle, useEditing } from '../components/Editors'
+import { ClubEditor, EditToggle, useEditing } from '../components/Editors'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Club, Competition, Fixture, Player, World } from '../../domain/types'
@@ -517,7 +517,7 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
   return (
     <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back right={<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit club" />}>
-      {editing && <div className="pad" style={{ marginBottom: 10 }}><ClubMoneyEditor club={c} onClose={() => setEditing(false)} /></div>}
+      {editing && <div className="pad" style={{ marginBottom: 10 }}><ClubEditor w={w} club={c} onClose={() => setEditing(false)} /></div>}
       <div className="pad">
         <div className="hero" style={{ padding: 16, background: `linear-gradient(140deg, ${c.theme}, #06080d 85%)` }}>
           <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>

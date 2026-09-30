@@ -218,7 +218,7 @@ export function KV({ k, v, sub }: { k: ReactNode; v: ReactNode; sub?: ReactNode 
 }
 
 /** A number with − / + for small steps (hold to repeat, speeding up) and a tap on the value to type it straight in. */
-export function Stepper({ value, onChange, min, max, step = 1, fmt, label, money, presets }: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode; label?: string; money?: boolean; presets?: number[] }) {
+export function Stepper({ value, onChange, min, max, step = 1, fmt, label, money, presets, compact }: { value: number; onChange: (v: number) => void; min: number; max: number; step?: number; fmt?: (v: number) => ReactNode; label?: string; money?: boolean; presets?: number[]; /** small inline variant (editors) */ compact?: boolean }) {
   const clampV = (v: number) => Math.max(min, Math.min(max, v))
   const set = (v: number) => { haptic(); onChange(clampV(v)) }
   const [pad, setPad] = useState(false)
@@ -247,10 +247,10 @@ export function Stepper({ value, onChange, min, max, step = 1, fmt, label, money
   useEffect(() => stop, [])
   const isMoney = money ?? (max >= 100_000 && !!fmt)
   return (
-    <div className="stepper">
-      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value - step) }} onPointerDown={() => hold(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value <= min} aria-label="Decrease"><Icon name="minus" size={18} /></button>
+    <div className={`stepper ${compact ? 'compact' : ''}`}>
+      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value - step) }} onPointerDown={() => hold(-1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value <= min} aria-label="Decrease"><Icon name="minus" size={compact ? 14 : 18} /></button>
       <button className="num stepper-v" onClick={() => { haptic(); setPad(true) }} aria-label="Type a value">{fmt ? fmt(value) : value}</button>
-      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value + step) }} onPointerDown={() => hold(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value >= max} aria-label="Increase"><Icon name="plus" size={18} /></button>
+      <button onClick={() => { if (fired.current) { fired.current = false; return } set(value + step) }} onPointerDown={() => hold(1)} onPointerUp={stop} onPointerLeave={stop} onPointerCancel={stop} disabled={value >= max} aria-label="Increase"><Icon name="plus" size={compact ? 14 : 18} /></button>
       <NumberPad open={pad} onClose={() => setPad(false)} value={value} min={min} max={max} money={isMoney} fmt={fmt} label={label} presets={presets} onDone={(v) => { onChange(clampV(v)); setPad(false) }} />
     </div>
   )
