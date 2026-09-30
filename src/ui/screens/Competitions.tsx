@@ -14,7 +14,7 @@ import { FixtureRow } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
 import { ordinal } from './Menu'
-import { tieWinner } from '../../engine/competitions/cups'
+import { Bracket } from '../components/KnockoutBracket'
 import { fixturesByDate } from '../../engine/competitions/fixtures'
 import { starRating } from '../rawHelpers'
 import { tableAround } from '../selectors'
@@ -411,50 +411,7 @@ function CompFixtures({ w, c }: { w: World; c: Competition }) {
   )
 }
 
-export function Bracket({ w, c }: { w: World; c: Competition }) {
-  const rounds = c.rounds
-  if (!rounds.length && c.intl?.koDates?.length) return <Empty icon="bracket" title="Knockouts to come" text={`The draw follows the group stage; the knockouts start on ${fmtDate(c.intl.koDates[0], 'long')}.`} />
-  if (!rounds.length) return <Empty icon="bracket" title="No knockout rounds" />
-  return (
-    <div className="bracket" style={{ marginTop: 12 }}>
-      {rounds.map((r) => {
-        const ties = new Map<string, Fixture[]>()
-        for (const id of r.fixtures) { const f = w.fixtures[id]; if (!f) continue; const k = f.tieId || f.id; const a = ties.get(k) || []; a.push(f); ties.set(k, a) }
-        return (
-          <div key={r.id} className="bracket-col">
-            <div className="label" style={{ marginBottom: 8 }}>{r.name}</div>
-            <div className="tiny dim" style={{ marginBottom: 8 }}>{fmtDate(r.date, 'dm')}{r.date2 ? ` & ${fmtDate(r.date2, 'dm')}` : ''}</div>
-            {!r.drawn && <div className="card pad-card tiny muted">Draw pending{r.byes?.length ? ` · ${r.byes.length} byes` : ''}</div>}
-            {[...ties.values()].map((fx) => <Tie key={fx[0].id} w={w} fx={fx} />)}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function Tie({ w, fx }: { w: World; fx: Fixture[] }) {
-  const go = useGame((s) => s.go)
-  const legs = [...fx].sort((a, b) => (a.leg || 0) - (b.leg || 0))
-  const a = legs[0].home, b = legs[0].away
-  const done = legs.every((f) => f.played)
-  const winner = done ? tieWinner(w, legs) : undefined
-  const goals = (club: number) => legs.reduce((s, f) => s + (f.result ? (f.home === club ? f.result.score[0] : f.result.score[1]) : 0), 0)
-  const pens = legs.find((f) => f.result?.pens)?.result?.pens
-  const me = a === w.userClubId || b === w.userClubId
-  return (
-    <button className={`card tap tie ${me ? 'mine' : ''}`} onClick={() => go({ name: legs.some((f) => f.played) ? 'fixture' : 'club', params: { id: legs.some((f) => f.played) ? legs.filter((f) => f.played).slice(-1)[0].id : a } })}>
-      {[a, b].map((club) => (
-        <div key={club} className={`tie-row ${winner === club ? 'win' : winner ? 'lose' : ''}`}>
-          <Badge club={w.clubs[club]} size={18} />
-          <span className="grow ellipsis small">{w.clubs[club]?.short}</span>
-          <b className="num small">{legs.some((f) => f.played) ? goals(club) : ''}{pens ? <span className="tiny dim"> ({legs[legs.length - 1].home === club ? pens[0] : pens[1]})</span> : ''}</b>
-        </div>
-      ))}
-      {!legs.some((f) => f.played) && <div className="tiny dim" style={{ marginTop: 4 }}>{fmtDate(legs[0].date, 'dm')} {legs[0].time}</div>}
-    </button>
-  )
-}
+export { Bracket }
 
 function CompStats({ w, c }: { w: World; c: Competition }) {
   const go = useGame((s) => s.go)

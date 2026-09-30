@@ -15,7 +15,7 @@ import { boardMood } from '../../engine/world/board'
 import { userFixtureOn } from '../../engine/world/advance'
 import { ordinal } from './Menu'
 import type { Fixture, World } from '../../domain/types'
-import { Fx } from '../components/Fx'
+import { Celebration } from '../components/Celebration'
 import { kitColors } from '../components/LivePitch'
 import { underWhite } from '../theme'
 import { FixtureRow } from './Match'
@@ -141,24 +141,6 @@ export function Hub() {
         </div>
       </div>
     </Screen>
-  )
-}
-
-function Celebration({ w }: { w: World }) {
-  const mutate = useGame((s) => s.mutate)
-  const c = w.competitions[w.flags.celebrate.compId]
-  if (!c) return null
-  return (
-    <div className="hero celebrate-card">
-      <Fx kind="confetti" />
-      <div style={{ position: 'relative', zIndex: 1, padding: 18 }} className="col center">
-        <CompLogo k={compLogoKey(c)} size={52} name={c.name} />
-        <div className="kicker gold" style={{ marginTop: 10 }}>Champions</div>
-        <div className="h1" style={{ textAlign: 'center', marginTop: 4 }}>{c.name}</div>
-        <div className="small" style={{ opacity: 0.85, marginTop: 6 }}>{w.clubs[w.userClubId].name} · {seasonLabel(c.season)}</div>
-        <button className="btn sm" style={{ marginTop: 12, background: 'rgba(0,0,0,.35)' }} onClick={() => mutate((w) => { w.flags.celebrate = undefined })}>Celebrate & continue</button>
-      </div>
-    </div>
   )
 }
 
