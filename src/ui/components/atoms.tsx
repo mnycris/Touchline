@@ -281,8 +281,8 @@ export function Radar({ values, labels, size = 200, color = 'rgba(var(--club-rgb
 }
 
 /** Animated number (ease-out count-up), used for budgets, ratings and scores. */
-export function CountUp({ value, format = (v: number) => String(Math.round(v)), ms = 700 }: { value: number; format?: (v: number) => string; ms?: number }) {
-  const [shown, setShown] = useState(value)
+export function CountUp({ value, format = (v: number) => String(Math.round(v)), ms = 700, from }: { value: number; format?: (v: number) => string; ms?: number; from?: number }) {
+  const [shown, setShown] = useState(from ?? value)
   useEffect(() => {
     const from = shown
     if (from === value) return

@@ -169,7 +169,8 @@ export function acceptJob(w: World, clubId: number) {
   w.user.history.push({ clubId, from: w.date, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, trophies: [] })
   w.transfers.targets = {}
   w.transfers.shortlist = []
-  for (const f of Object.values(w.fixtures)) f.userInvolved = f.home === clubId || f.away === clubId
+  // the new club's fixtures are the user's now; matches already played stay in the career record
+  for (const f of Object.values(w.fixtures)) if (f.home === clubId || f.away === clubId) f.userInvolved = true; else if (!f.played) f.userInvolved = false
   w.flags.staff = undefined
   w.flags.newJob = w.date
   postNews(w, { headline: `${club.short} appoint ${w.user.firstName} ${w.user.lastName}`, body: `${club.name} have appointed ${w.user.firstName} ${w.user.lastName} as their new manager.`, kind: 'manager', playerIds: [], clubIds: [clubId], importance: 4, userRelated: true })

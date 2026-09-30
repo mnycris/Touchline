@@ -32,7 +32,9 @@ export function SeasonHub() {
       <Tabs items={[{ id: 'mine', label: 'Competitions' }, { id: 'fixtures', label: 'Fixtures' }, { id: 'world', label: 'World' }]} value={tab} onChange={setTab} />
       {tab === 'mine' && (
         <div className="pad stack stagger" style={{ marginTop: 12 }}>
+          {!w.flags.unemployed && <SeasonOverview w={w} />}
           {comps.map((c) => <CompCard key={c.id} w={w} c={c} />)}
+          {!w.flags.unemployed && <SeasonLeaders w={w} />}
           <div className="grid2">
             <button className="card tap mini-btn" onClick={() => go({ name: 'calendar' })}><Icon name="calendar" size={22} color="var(--club2)" /><span>Calendar</span></button>
             <button className="card tap mini-btn" onClick={() => go({ name: 'awards' })}><Icon name="medal" size={22} color="var(--club2)" /><span>Awards & History</span></button>
@@ -43,6 +45,131 @@ export function SeasonHub() {
       {tab === 'world' && <WorldLeagues w={w} />}
     </Screen>
   )
+}
+
+/** Where the season stands: league progress, the next match and what is coming up on the calendar. */
+function SeasonOverview({ w }: { w: World }) {
+  const go = useGame((s) => s.go)
+  const me = w.userClubId
+  const lg = leagueOf(w, me)
+  const all = fixturesOf(w, me).filter((f) => w.competitions[f.compId]?.season === w.season)
+  const lgFx = lg ? all.filter((f) => f.compId === lg.id) : []
+  const done = lgFx.filter((f) => f.played).length
+  const next = all.find((f) => !f.played)
+  const upcoming: { d: string; icon: string; text: string; color: string }[] = []
+  for (const x of w.windows) {
+    if (x.open > w.date) upcoming.push({ d: x.open, icon: 'transfers', text: `${x.name} window opens`, color: 'var(--acc)' })
+    else if (x.close >= w.date) upcoming.push({ d: x.close, icon: 'deadline', text: `${x.name} deadline day`, color: 'var(--neg)' })
+  }
+  for (const b of w.intlBreaks) if (b.start > w.date) upcoming.push({ d: b.start, icon: 'globe', text: 'International break', color: 'var(--info)' })
+  upcoming.push({ d: `${w.season + 1}-06-01`, icon: 'season', text: 'Season review', color: 'var(--gold)' })
+  const soon = upcoming.filter((u) => u.d >= w.date).sort((a, b) => a.d.localeCompare(b.d)).slice(0, 2)
+  const res = all.filter((f) => f.played && f.result).map((f) => outcomeFor(f, me))
+  const pct = lgFx.length ? done / lgFx.length : 0
+  return (
+    <div className="card pad-card so-card">
+      <div className="row between">
+        <div><div className="label">Season {seasonLabel(w.season)}</div><div className="h3" style={{ marginTop: 4 }}>{lg ? (done ? `Matchday ${done} of ${lgFx.length}` : 'Pre-season') : 'Season'}</div></div>
+        {res.length > 0 && <div className="col" style={{ alignItems: 'flex-end', gap: 3 }}><span className="tiny dim">All competitions</span><span className="small b"><span className="pos">W{res.filter((r) => r === 'W').length}</span> · D{res.filter((r) => r === 'D').length} · <span className="neg">L{res.filter((r) => r === 'L').length}</span></span></div>}
+      </div>
+      {lg && <div className="so-bar"><i style={{ width: `${Math.max(2, pct * 100)}%` }} /></div>}
+      {next && (
+        <button className="so-next" onClick={() => go({ name: 'prematch', params: { id: next.id } })}>
+          <span className="tiny dim">Next</span>
+          <Badge club={w.clubs[opponent(next, me)]} size={22} />
+          <span className="small b ellipsis">{w.clubs[opponent(next, me)]?.short} ({next.home === me ? 'H' : 'A'})</span>
+          <span className="tiny dim ellipsis">{w.competitions[next.compId]?.short} · {fmtDate(next.date, 'dm')}</span>
+          <Icon name="forward" size={14} color="var(--t3)" />
+        </button>
+      )}
+      {soon.length > 0 && (
+        <div className="so-soon">
+          {soon.map((u) => {
+            const n = Math.max(0, Math.round((Date.parse(u.d) - Date.parse(w.date)) / 864e5))
+            return <span key={u.text} className="tiny row tight"><Icon name={u.icon} size={13} color={u.color} />{u.text} · <b>{n === 0 ? 'today' : n === 1 ? 'tomorrow' : `${n} days`}</b></span>
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The squad's season so far across every competition. */
+function SeasonLeaders({ w }: { w: World }) {
+  const go = useGame((s) => s.go)
+  const squad = rosterOf(w, w.userClubId)
+  const tot = (p: Player) => Object.entries(p.season).filter(([cid]) => w.competitions[cid]?.season === w.season || !w.competitions[cid])
+    .reduce((a, [, x]) => ({ apps: a.apps + x.apps, g: a.g + x.goals, as: a.as + x.assists, r: a.r + x.ratingSum, n: a.n + x.rated, cs: a.cs + x.cleanSheets }), { apps: 0, g: 0, as: 0, r: 0, n: 0, cs: 0 })
+  const rows = squad.map((p) => ({ p, s: tot(p) })).filter((x) => x.s.apps > 0)
+  if (!rows.length) return null
+  const top = <K extends 'g' | 'as' | 'cs'>(k: K) => [...rows].sort((a, b) => b.s[k] - a.s[k])[0]
+  const minApps = Math.max(3, Math.round(Math.max(...rows.map((r) => r.s.apps)) * 0.4))
+  const best = [...rows].filter((x) => x.s.n >= minApps).sort((a, b) => b.s.r / b.s.n - a.s.r / a.s.n)[0]
+  const gk = [...rows].filter((x) => x.p.positions[0] === 'GK').sort((a, b) => b.s.cs - a.s.cs)[0]
+  const tiles = [
+    { k: 'Top scorer', x: top('g'), v: (x: (typeof rows)[number]) => `${x.s.g}`, show: top('g')?.s.g > 0, icon: <Ball size={12} /> },
+    { k: 'Most assists', x: top('as'), v: (x: (typeof rows)[number]) => `${x.s.as}`, show: top('as')?.s.as > 0, icon: <Boot size={14} /> },
+    { k: 'Best rated', x: best, v: (x: (typeof rows)[number]) => (x.s.r / x.s.n).toFixed(2), show: !!best, icon: <Icon name="star" size={12} color="var(--gold)" /> },
+    { k: 'Clean sheets', x: gk, v: (x: (typeof rows)[number]) => `${x.s.cs}`, show: !!gk && gk.s.cs > 0, icon: <Icon name="shield" size={12} color="var(--info)" /> },
+  ].filter((t) => t.show && t.x)
+  if (!tiles.length) return null
+  return (
+    <div className="card">
+      <div className="card-h"><span className="label">Season leaders</span></div>
+      <div className="sl-grid">
+        {tiles.map((t) => (
+          <button key={t.k} className="sl" onClick={() => go({ name: 'player', params: { id: t.x!.p.id } })}>
+            <Face p={t.x!.p} size={44} radius={22} club={w.clubs[w.userClubId]} />
+            <span className="small b ellipsis" style={{ maxWidth: '100%' }}>{t.x!.p.name.split(' ').slice(-1)[0]}</span>
+            <span className="row tight tiny dim">{t.icon}{t.k}</span>
+            <b className="display">{t.v(t.x!)}</b>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const shortRound = (name: string) => {
+  const n = name.toLowerCase()
+  if (/semi/.test(n)) return 'SF'
+  if (/quarter/.test(n)) return 'QF'
+  if (/final/.test(n)) return 'F'
+  if (/league phase/.test(n)) return 'LP'
+  if (/play-?off/.test(n)) return 'PO'
+  const m = n.match(/round of (\d+)/); if (m) return `R${m[1]}`
+  const ord = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth'].findIndex((x) => n.startsWith(x)); if (ord >= 0) return `R${ord + 1}`
+  const d = n.match(/(\d+)/); if (d) return `R${d[1]}`
+  return name.split(/\s+/).map((x) => x[0]).join('').toUpperCase().slice(0, 3)
+}
+
+/** The user's road through a cup: rounds played (won or lost), the current one and the ones still ahead. */
+function cupPath(w: World, c: Competition): { id: string; name: string; short: string; state: 'won' | 'lost' | 'now' | 'ahead' }[] {
+  const me = w.userClubId
+  const mine = (id: string) => { const f = w.fixtures[id]; return !!f && (f.home === me || f.away === me) }
+  const out: ReturnType<typeof cupPath> = []
+  if (c.format === 'uefa' && c.table?.some((r) => r.clubId === me)) {
+    const row = c.table.find((r) => r.clubId === me)!
+    const pos = sortTable(w, c).findIndex((r) => r.clubId === me) + 1
+    const lpDone = row.p >= 8
+    out.push({ id: 'lp', name: 'League phase', short: 'LP', state: !lpDone ? 'now' : pos <= 24 ? 'won' : 'lost' })
+    if (out[0].state === 'lost') return out
+  }
+  const first = c.rounds.findIndex((r) => r.fixtures.some(mine) || r.entrants?.includes(me))
+  const start = first >= 0 ? first : out.length ? 0 : -1
+  if (start < 0) return out
+  for (let i = start; i < c.rounds.length; i++) {
+    const r = c.rounds[i]
+    const played = r.fixtures.filter(mine).map((id) => w.fixtures[id])
+    // a drawn round we are not in (a bye, or a play-off round skipped by finishing high enough) is not on our road
+    if (r.drawn && !played.length && (r.byes?.includes(me) || c.format === 'uefa' || r.winners?.length)) continue
+    const done = played.length > 0 && played.every((f) => f.played) && !!r.winners?.length
+    const current = out.some((x) => x.state === 'now')
+    const state = done ? (r.winners!.includes(me) ? 'won' : 'lost') : current ? 'ahead' : 'now'
+    out.push({ id: r.id, name: r.name, short: shortRound(r.name), state })
+    if (state === 'lost') break
+  }
+  return out
 }
 
 function CompCard({ w, c }: { w: World; c: Competition }) {
@@ -69,6 +196,7 @@ function CompCard({ w, c }: { w: World; c: Competition }) {
     else if (!status) status = c.rounds[0] ? `${c.rounds[0].name} · ${fmtDate(c.rounds[0].date, 'dm')}` : 'Upcoming'
   }
   const next = fixturesOf(w, me).find((f) => !f.played && f.compId === c.id)
+  const path = c.format !== 'league' ? cupPath(w, c) : []
   return (
     <button className="card tap comp-card" onClick={() => { haptic(); go({ name: 'comp', params: { id: c.id } }) }}>
       <div className="row" style={{ padding: 14, gap: 14 }}>
@@ -77,6 +205,7 @@ function CompCard({ w, c }: { w: World; c: Competition }) {
           <div className="h3 ellipsis">{c.name}</div>
           <div className="small muted" style={{ marginTop: 3 }}>{status}</div>
           {next && <div className="tiny dim" style={{ marginTop: 3 }}>Next: {w.clubs[opponent(next, me)]?.short} ({next.home === me ? 'H' : 'A'}) · {fmtDate(next.date, 'dm')}</div>}
+          {path.length > 1 && <div className="cup-path">{path.map((r) => <span key={r.id} className={`cp ${r.state}`} title={r.name}>{r.short}</span>)}</div>}
         </div>
         <Icon name="forward" size={18} color="var(--t3)" />
       </div>
@@ -458,14 +587,14 @@ export function CalendarScreen() {
   const w = useWorld()
   const advance = useGame((s) => s.advance)
   const advancing = useGame((s) => s.advancing)
-  const [month, setMonth] = useState(w.date.slice(0, 7))
+  const [month, setMonth] = useRemember('month', w.date.slice(0, 7))
   const [sel, setSel] = useState<string>()
   const fx = fixturesOf(w, w.userClubId)
   const first = `${month}-01`
   const lead = (weekday(first) + 6) % 7
   const days: (string | null)[] = [...Array(lead).fill(null)]
   for (let d = first; d.slice(0, 7) === month; d = addDays(d, 1)) days.push(d)
-  const shift = (n: number) => { const [y, m] = month.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setMonth(dt.toISOString().slice(0, 7)) }
+  const shift = (n: number) => { haptic(); const [y, m] = month.split('-').map(Number); const dt = new Date(Date.UTC(y, m - 1 + n, 1)); setMonth(dt.toISOString().slice(0, 7)); setSel(undefined) }
   const events = (d: string) => {
     const out: { icon: string; text: string; color?: string; f?: Fixture }[] = []
     const f = fx.find((x) => x.date === d)
@@ -479,35 +608,56 @@ export function CalendarScreen() {
     if (d === `${w.season + 1}-06-01`) out.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
     return out
   }
+  const inWindow = (d: string) => w.windows.some((x) => d >= x.open && d <= x.close)
+  const inBreak = (d: string) => w.intlBreaks.some((x) => d >= x.start && d <= x.end)
+  const monthFx = fx.filter((f) => f.date.slice(0, 7) === month)
+  const res = monthFx.filter((f) => f.played).map((f) => outcomeFor(f, w.userClubId))
+  const comps = [...new Set(monthFx.map((f) => f.compId))].map((id) => w.competitions[id]).filter(Boolean)
+  const agenda = days.filter((d): d is string => !!d).map((d) => ({ d, ev: events(d) })).filter((x) => x.ev.length)
   const selEvents = sel ? events(sel) : []
   const all = fixturesByDate(w)
   return (
     <Screen title="Calendar" sub={fmtDate(w.date, 'full')} back>
       <div className="pad">
-        <div className="row between" style={{ marginBottom: 10 }}>
+        <div className="row between" style={{ marginBottom: 6 }}>
           <button className="iconbtn" onClick={() => shift(-1)} aria-label="Previous month"><Icon name="back" size={20} /></button>
-          <div className="h3">{fmtDate(first, 'month')}</div>
+          <div className="col center">
+            <div className="h3 fade-in" key={month}>{fmtDate(first, 'month')}</div>
+            <div className="tiny dim row tight" style={{ marginTop: 3 }}>
+              {monthFx.length ? <>{monthFx.length} match{monthFx.length > 1 ? 'es' : ''}{res.length > 0 && <> · <b className="pos">W{res.filter((r) => r === 'W').length}</b> <b>D{res.filter((r) => r === 'D').length}</b> <b className="neg">L{res.filter((r) => r === 'L').length}</b></>}</> : 'No matches'}
+              {comps.map((c) => <CompLogo key={c.id} k={compLogoKey(c)} size={13} name={c.name} />)}
+            </div>
+          </div>
           <button className="iconbtn" onClick={() => shift(1)} aria-label="Next month"><Icon name="forward" size={20} /></button>
         </div>
-        <div className="cal-grid">
-          {WD.map((d) => <div key={d} className="tiny dim b" style={{ textAlign: 'center' }}>{d}</div>)}
+        <div className="cal-grid" key={month}>
+          {WD.map((d) => <div key={d} className="tiny dim b" style={{ textAlign: 'center', paddingBottom: 2 }}>{d}</div>)}
           {days.map((d, i) => {
             if (!d) return <div key={i} />
             const f = fx.find((x) => x.date === d)
             const ev = events(d)
             const past = d < w.date
             const o = f?.played ? outcomeFor(f, w.userClubId) : undefined
+            const home = f?.home === w.userClubId
             return (
-              <button key={d} className={`cal-cell ${d === w.date ? 'today' : ''} ${sel === d ? 'sel' : ''} ${past ? 'past' : ''}`} onClick={() => { haptic(); setSel(d) }}>
-                <span className="tiny b">{Number(d.slice(8))}</span>
-                {f ? <span className={`cal-fx ${o || ''}`}><Badge club={w.clubs[opponent(f, w.userClubId)]} size={18} /></span> : ev[0] ? <Icon name={ev[0].icon} size={13} color={ev[0].color} /> : (all.get(d)?.length ? <span className="cal-dot" /> : null)}
+              <button key={d} className={`cal-cell ${d === w.date ? 'today' : ''} ${sel === d ? 'sel' : ''} ${past ? 'past' : ''} ${f ? 'has-fx' : ''} ${inWindow(d) ? 'win' : ''} ${inBreak(d) ? 'intl' : ''}`} onClick={() => { haptic(); setSel(sel === d ? undefined : d) }}>
+                <span className="cal-n">{Number(d.slice(8))}</span>
+                {f ? (
+                  <>
+                    <span className={`cal-fx ${o || ''}`}><Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /></span>
+                    <span className={`cal-sub ${o || ''}`}>{f.played && f.result ? `${home ? f.result.score[0] : f.result.score[1]}-${home ? f.result.score[1] : f.result.score[0]}` : home ? 'H' : 'A'}</span>
+                  </>
+                ) : ev[0] ? <Icon name={ev[0].icon} size={14} color={ev[0].color} /> : (all.get(d)?.length ? <span className="cal-dot" /> : <span />)}
               </button>
             )
           })}
         </div>
+        <div className="row wrap tiny dim cal-legend">
+          <span><i className="lg-win" />Transfer window</span><span><i className="lg-intl" />International break</span><span><i className="lg-w" />Won</span><span><i className="lg-l" />Lost</span>
+        </div>
       </div>
       {sel && (
-        <div className="pad stack" style={{ marginTop: 12 }}>
+        <div className="pad stack fade-up" style={{ marginTop: 12 }} key={sel}>
           <div className="label">{fmtDate(sel, 'full')}</div>
           <div className="card list">
             {selEvents.length ? selEvents.map((e, i) => e.f ? <FixtureRow key={i} w={w} f={e.f} clubId={w.userClubId} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
@@ -518,6 +668,24 @@ export function CalendarScreen() {
             </button>
           )}
           {sel > w.date && <div className="tiny dim">Advancing stops early for your matches and anything your stop conditions flag (Settings → Advance).</div>}
+        </div>
+      )}
+      {!sel && (
+        <div className="pad" style={{ marginTop: 14 }}>
+          <div className="label" style={{ margin: '0 2px 8px' }}>{fmtDate(first, 'month').split(' ')[0]} at a glance</div>
+          {!agenda.length && <div className="card pad-card small muted">Nothing scheduled for your club this month.</div>}
+          {agenda.length > 0 && (
+            <div className="card list cal-agenda">
+              {agenda.map(({ d, ev }) => (
+                <div key={d} className={`cal-ag ${d < w.date ? 'past' : ''} ${d === w.date ? 'today' : ''}`}>
+                  <button className="cal-ag-d" onClick={() => { haptic(); setSel(d) }}><b className="display">{Number(d.slice(8))}</b><span className="tiny dim">{fmtDate(d, 'day')}</span></button>
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    {ev.map((e, i) => e.f ? <FixtureRow key={i} w={w} f={e.f} clubId={w.userClubId} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </Screen>

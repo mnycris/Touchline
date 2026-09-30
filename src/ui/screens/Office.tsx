@@ -1,11 +1,11 @@
 import { useRemember } from '../memory'
 import { DeepLeaguePicker } from '../components/DeepLeaguePicker'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { ObjectiveCategory, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { Badge, CompLogo, Empty, Face, Ring, Stars, UserAvatar } from '../components/atoms'
+import { Badge, CompLogo, CountUp, Empty, Face, Flag, Ring, Stars, UserAvatar } from '../components/atoms'
 import { Confirm, Screen, Seg, Tabs, Toggle } from '../components/layout'
 import { fmtMoney } from '../../domain/finance'
 import { addDays, ageOn, fmtDate, seasonLabel } from '../../domain/dates'
@@ -18,6 +18,7 @@ import { ordinal } from './Menu'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
 import { sortTable } from '../../engine/competitions/tables'
+import { careerSummary, seasonOfDate } from '../../engine/world/career'
 
 const CAT_ICON: Record<ObjectiveCategory, string> = { 'Domestic Success': 'trophy', 'Continental Success': 'globe', Financial: 'money', 'Brand Exposure': 'star', 'Youth Development': 'youth' }
 
@@ -120,43 +121,181 @@ function Finances({ w }: { w: World }) {
 // ============================================================================ manager career
 export function ManagerCareer() {
   const w = useWorld()
+  const go = useGame((s) => s.go)
   const u = w.user
-  const tot = u.history.reduce((a, h) => ({ p: a.p + h.p, w: a.w + h.w, d: a.d + h.d, l: a.l + h.l }), { p: 0, w: 0, d: 0, l: 0 })
+  const c = useMemo(() => careerSummary(w), [w.date, w.user.history.length, w.lastUserResult])
+  const cur = u.history[u.history.length - 1]
+  const club = w.flags.unemployed ? undefined : w.clubs[u.clubId]
+  const cabinet = useMemo(() => {
+    const m = new Map<string, { key: string; name: string; seasons: number[] }>()
+    for (const t of u.trophies) { const e = m.get(t.compKey) || { key: t.compKey, name: t.compName, seasons: [] }; e.seasons.push(t.season); m.set(t.compKey, e) }
+    return [...m.values()].sort((a, b) => b.seasons.length - a.seasons.length)
+  }, [u.trophies.length])
+  const seasons = new Set(c.seasons.map((s) => s.season)).size
+  const fx = (m?: { f: { id: string } }) => m && go({ name: 'fixture', params: { id: m.f.id } })
+  const scoreOf = (m: NonNullable<typeof c.biggestWin>) => `${m.f.result!.score[0]}–${m.f.result!.score[1]}`
+  const RecordTile = ({ label, m, tone }: { label: string; m?: typeof c.biggestWin; tone?: string }) => m ? (
+    <button className="mc-rec" onClick={() => fx(m)}>
+      <span className="tiny dim">{label}</span>
+      <span className="row tight" style={{ gap: 6 }}><Badge club={w.clubs[m.f.home]} size={20} /><b className="display" style={{ color: tone }}>{scoreOf(m)}</b><Badge club={w.clubs[m.f.away]} size={20} /></span>
+      <span className="tiny dim ellipsis">{w.clubs[m.opp]?.short} · {fmtDate(m.f.date, 'dm')} {m.f.date.slice(0, 4)}</span>
+    </button>
+  ) : null
+  const RunTile = ({ label, r }: { label: string; r: typeof c.winRun }) => r.n > 1 ? (
+    <div className="mc-rec">
+      <span className="tiny dim">{label}</span>
+      <b className="display">{r.n} <span className="small dim">matches</span></b>
+      <span className="tiny dim ellipsis">{r.from && fmtDate(r.from.f.date, 'dm')} – {r.to && fmtDate(r.to.f.date, 'dm')} {r.to?.f.date.slice(0, 4)}</span>
+    </div>
+  ) : null
+  const People = ({ title, rows, stat }: { title: string; rows: typeof c.scorers; stat: (r: (typeof c.scorers)[number]) => string }) => rows.length ? (
+    <div className="card list">
+      <div className="card-h"><span className="label">{title}</span></div>
+      {rows.map((r, i) => {
+        const p = w.players[r.id]
+        return (
+          <button key={r.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => p && go({ name: 'player', params: { id: r.id } })} disabled={!p}>
+            <span className="mc-rank">{i + 1}</span>
+            {p ? <Face p={p} size={32} radius={16} club={w.clubs[p.clubId]} /> : <span style={{ width: 32 }} />}
+            <div className="meta"><div className="t small ellipsis">{p?.name || 'Retired player'}</div><div className="s">{r.apps} apps · {r.goals} goals · {r.assists} assists</div></div>
+            <b className="num">{stat(r)}</b>
+          </button>
+        )
+      })}
+    </div>
+  ) : null
   return (
     <Screen title="Manager Career" back>
       <div className="pad stack">
-        <div className="hero" style={{ padding: 16 }}>
+        <div className="hero mc-hero">
           <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>
-            <UserAvatar w={w} size={96} radius={18} />
-            <div className="grow">
-              <div className="h2">{u.firstName} {u.lastName}</div>
-              <div className="small" style={{ opacity: 0.85, marginTop: 4 }}>{u.nationality} · {ageOn(u.dob, w.date)} yrs</div>
-              <div className="row tight" style={{ marginTop: 8 }}><span className="tiny" style={{ opacity: 0.8 }}>Reputation</span><Stars n={u.reputation / 20} size={13} /></div>
+            <UserAvatar w={w} size={92} radius={20} />
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="h2 ellipsis">{u.firstName} {u.lastName}</div>
+              <div className="small row tight" style={{ opacity: 0.85, marginTop: 4 }}><Flag w={w} nation={u.nationality} size={11} />{u.nationality} · {ageOn(u.dob, w.date)} yrs</div>
+              <div className="small row tight" style={{ marginTop: 6 }}>
+                {club ? <><Badge club={club} size={18} /><span className="ellipsis">{club.short} since {fmtDate(cur.from, 'month')}</span></> : <span className="neg">Out of work</span>}
+              </div>
+              <div className="row tight" style={{ marginTop: 8 }}><span className="tiny" style={{ opacity: 0.8 }}>Reputation</span><Stars n={u.reputation / 20} size={13} />{u.style && <span className="chip sm" style={{ marginLeft: 4 }}>{u.style}</span>}</div>
             </div>
           </div>
         </div>
-        <div className="grid4">
-          <div className="card pad-card" style={{ padding: 10, textAlign: 'center' }}><div className="tiny dim">Played</div><div className="display" style={{ fontSize: 24 }}>{tot.p}</div></div>
-          <div className="card pad-card" style={{ padding: 10, textAlign: 'center' }}><div className="tiny dim">Won</div><div className="display pos" style={{ fontSize: 24 }}>{tot.w}</div></div>
-          <div className="card pad-card" style={{ padding: 10, textAlign: 'center' }}><div className="tiny dim">Drawn</div><div className="display" style={{ fontSize: 24 }}>{tot.d}</div></div>
-          <div className="card pad-card" style={{ padding: 10, textAlign: 'center' }}><div className="tiny dim">Lost</div><div className="display neg" style={{ fontSize: 24 }}>{tot.l}</div></div>
+
+        <div className="mc-kpis">
+          <div><b className="display"><CountUp value={c.p} from={0} /></b><span className="tiny dim">Matches</span></div>
+          <div><b className="display"><CountUp value={c.winPct} from={0} format={(v) => `${Math.round(v)}%`} /></b><span className="tiny dim">Win rate</span></div>
+          <div><b className="display gold"><CountUp value={u.trophies.length} from={0} /></b><span className="tiny dim">Trophies</span></div>
+          <div><b className="display"><CountUp value={seasons} from={0} /></b><span className="tiny dim">Seasons</span></div>
         </div>
-        <div className="card list">
-          <div className="card-h"><span className="label">Clubs managed</span><span className="tiny dim">Win rate {tot.p ? Math.round((tot.w / tot.p) * 100) : 0}%</span></div>
-          {[...u.history].reverse().map((h, i) => (
-            <div key={i} className="li">
-              <Badge club={w.clubs[h.clubId]} size={34} />
-              <div className="meta"><div className="t small">{w.clubs[h.clubId]?.name}</div><div className="s">{fmtDate(h.from, 'short')} – {h.to ? fmtDate(h.to, 'short') : 'present'} · P{h.p} W{h.w} D{h.d} L{h.l} · GF {h.gf} GA {h.ga}</div></div>
+
+        {c.p > 0 && (
+          <div className="card pad-card">
+            <div className="mc-wdl">
+              <i className="w" style={{ flex: c.w || 0.001 }} /><i className="d" style={{ flex: c.d || 0.001 }} /><i className="l" style={{ flex: c.l || 0.001 }} />
             </div>
-          ))}
+            <div className="row between small" style={{ marginTop: 8 }}>
+              <span><b className="pos">{c.w}</b> <span className="dim">won</span></span>
+              <span><b>{c.d}</b> <span className="dim">drawn</span></span>
+              <span><b className="neg">{c.l}</b> <span className="dim">lost</span></span>
+              <span><b>{c.gf}–{c.ga}</b> <span className="dim">goals</span></span>
+            </div>
+          </div>
+        )}
+
+        <div className="card">
+          <div className="card-h"><span className="label">Trophy cabinet</span><span className="tiny dim">{u.trophies.length}</span></div>
+          {cabinet.length === 0 ? <div className="card-b small muted">The cabinet is waiting for its first piece of silverware.</div> : (
+            <div className="mc-cab">
+              {cabinet.map((t) => (
+                <div key={t.key} className="mc-trophy">
+                  <div className="mc-tr-logo"><CompLogo k={t.key} size={44} name={t.name} />{t.seasons.length > 1 && <span className="mc-x">×{t.seasons.length}</span>}</div>
+                  <span className="tiny b ellipsis2" style={{ textAlign: 'center' }}>{t.name}</span>
+                  <span className="tiny dim" style={{ textAlign: 'center' }}>{t.seasons.sort().map((s) => seasonLabel(s)).join(', ')}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
+        {c.seasons.length > 0 && (
+          <div className="card list">
+            <div className="card-h"><span className="label">Season by season</span></div>
+            {c.seasons.map((s) => {
+              const done = !s.live && w.archive.some((a) => a.season === s.season)
+              return (
+                <button key={`${s.season}${s.club}`} className="li tap mc-season" style={{ width: '100%', textAlign: 'left' }} disabled={!done} onClick={() => done && go({ name: 'seasonReview', params: { season: s.season } })}>
+                  <span className="mc-sl">{seasonLabel(s.season)}</span>
+                  <Badge club={w.clubs[s.club]} size={26} />
+                  <div className="meta">
+                    <div className="t small ellipsis">{s.finish ? `${ordinal(s.finish)} in the ${s.league}` : w.clubs[s.club]?.short}</div>
+                    <div className="s">W{s.w} D{s.d} L{s.l} · {s.gf}–{s.ga}{s.p ? ` · ${Math.round((s.w / s.p) * 100)}% wins` : ''}{s.live ? ' · so far' : ''}</div>
+                  </div>
+                  <div className="row tight">{s.trophies.map((k, i) => <CompLogo key={i} k={k} size={20} />)}</div>
+                  {done && <Icon name="forward" size={14} color="var(--t3)" />}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {(c.biggestWin || c.winRun.n > 1) && (
+          <>
+            <div className="label" style={{ margin: '4px 2px 0' }}>Records</div>
+            <div className="mc-recs">
+              <RecordTile label="Biggest win" m={c.biggestWin} tone="var(--pos)" />
+              <RecordTile label="Heaviest defeat" m={c.worstDefeat} tone="var(--neg)" />
+              <RunTile label="Longest winning run" r={c.winRun} />
+              <RunTile label="Longest unbeaten run" r={c.unbeatenRun} />
+              {c.mostGoals && c.mostGoals !== c.biggestWin && c.mostGoals !== c.worstDefeat && c.mostGoals.gf + c.mostGoals.ga >= 5 && <RecordTile label="Most goals in a match" m={c.mostGoals} />}
+            </div>
+          </>
+        )}
+
+        {c.formations.length > 0 && (
+          <div className="card list">
+            <div className="card-h"><span className="label">Favourite systems</span></div>
+            {c.formations.map((f) => (
+              <div key={f.id} className="li">
+                <div className="meta"><div className="t small">{f.name}</div><div className="s">{f.p} matches · W{f.w} D{f.d} L{f.l}</div></div>
+                <div className="mc-fbar"><i style={{ width: `${(f.w / f.p) * 100}%` }} /></div>
+                <b className="num small" style={{ width: 38, textAlign: 'right' }}>{Math.round((f.w / f.p) * 100)}%</b>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <People title="Top scorers under you" rows={c.scorers} stat={(r) => String(r.goals)} />
+        <People title="Most appearances" rows={c.apps} stat={(r) => String(r.apps)} />
+        <People title="Best average rating" rows={c.rated} stat={(r) => (r.rating / r.rated).toFixed(2)} />
+
         <div className="card list">
-          <div className="card-h"><span className="label">Trophies</span><span className="tiny dim">{u.trophies.length}</span></div>
-          {!u.trophies.length && <div className="li muted small">Your trophy cabinet is waiting.</div>}
-          {u.trophies.map((t, i) => (
-            <div key={i} className="li"><CompLogo k={t.compKey} size={30} name={t.compName} /><div className="meta"><div className="t small">{t.compName}</div><div className="s">{seasonLabel(t.season)} · {w.clubs[t.clubId]?.short}</div></div><Icon name="trophy" size={18} color="var(--gold)" /></div>
+          <div className="card-h"><span className="label">Clubs managed</span></div>
+          {[...u.history].reverse().map((h, i) => (
+            <button key={i} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'club', params: { id: h.clubId } })}>
+              <Badge club={w.clubs[h.clubId]} size={34} />
+              <div className="meta">
+                <div className="t small">{w.clubs[h.clubId]?.name}</div>
+                <div className="s">{fmtDate(h.from, 'short')} – {h.to ? fmtDate(h.to, 'short') : 'present'} · P{h.p} W{h.w} D{h.d} L{h.l}</div>
+              </div>
+              <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><b className="num small">{h.p ? Math.round((h.w / h.p) * 100) : 0}%</b><span className="tiny dim">{u.trophies.filter((t) => t.clubId === h.clubId && t.season >= seasonOfDate(h.from)).length} trophies</span></div>
+            </button>
           ))}
         </div>
+
+        {c.milestones.length > 0 && (
+          <div className="card">
+            <div className="card-h"><span className="label">Milestones</span></div>
+            <div className="mc-tl">
+              {c.milestones.slice(0, 14).map((m, i) => (
+                <button key={i} className="mc-ms" disabled={!m.fixtureId} onClick={() => m.fixtureId && go({ name: 'fixture', params: { id: m.fixtureId } })}>
+                  <span className={`mc-dot ${m.icon === 'trophy' ? 'gold' : ''}`}><Icon name={m.icon} size={12} /></span>
+                  <span className="grow" style={{ minWidth: 0, textAlign: 'left' }}><span className="small b" style={{ display: 'block' }}>{m.text}</span><span className="tiny dim">{fmtDate(m.date.slice(0, 10), 'long')}</span></span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {u.awards.length > 0 && (
           <div className="card list">
             <div className="card-h"><span className="label">Personal awards</span></div>
