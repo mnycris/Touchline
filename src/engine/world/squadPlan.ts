@@ -156,6 +156,8 @@ export function squadPlan(w: World, club: Club): SquadPlan {
   for (const l of club.transferPolicy?.lost || []) {
     const gone = w.players[l.id]
     if (!gone || gone.clubId === club.id) continue
+    // already replaced: someone was signed for that line after he left
+    if (signedSince(w, club.id, LINE[l.pos] || l.pos, l.date)) continue
     const was = posRating(gone, l.pos)
     const line = LINE[l.pos] || l.pos
     const now = Math.max(0, ...slots.filter((s) => (LINE[s.pos] || s.pos) === line).map((s) => s.rating))
@@ -186,8 +188,23 @@ export function squadPlan(w: World, club: Club): SquadPlan {
     ? all.filter((p) => !used.has(p.id) && !benchUsed.has(p.id) && !p.academy && !p.loan && !(ageOn(p.dob, w.date) <= 21 && p.pot >= level))
       .sort((a, b) => a.ovr - b.ovr).slice(0, all.length - 25)
     : []
+  // a fourth keeper is surplus whatever the squad size
+  const keepers = all.filter((p) => p.positions[0] === 'GK' && !p.academy && !p.loan && !used.has(p.id) && !benchUsed.has(p.id) && !surplus.includes(p))
+    .sort((a, b) => a.ovr - b.ovr)
+  surplus.push(...keepers.slice(0, Math.max(0, all.filter((p) => p.positions[0] === 'GK' && !p.academy).length - 3)))
   const key = new Set(slots.filter((s) => s.id && s.rating >= level - 1.5).map((s) => s.id!))
   return { clubId: club.id, formation: f.id, level, slots, cover, needs, surplus, key, wageBill }
+}
+
+/** Has the club signed anyone for this line since `date`? */
+function signedSince(w: World, clubId: number, line: string, date: string): boolean {
+  const h = w.transfers.history
+  for (let i = h.length - 1; i >= 0 && h[i].date >= date; i--) {
+    const t = h[i]
+    const p = t.to === clubId && ['transfer', 'free', 'loan', 'loan-buy'].includes(t.type) ? w.players[t.playerId] : undefined
+    if (p && (LINE[p.positions[0]] || p.positions[0]) === line) return true
+  }
+  return false
 }
 
 /** How a player figures in his club's plan: key starter, starter, first cover or surplus. */

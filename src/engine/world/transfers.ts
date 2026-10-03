@@ -396,6 +396,42 @@ function market(w: World) {
 const LINE_OF = (pos: string) => (pos === 'RB' || pos === 'LB' || pos === 'RWB' || pos === 'LWB' ? 'FB' : pos === 'RW' || pos === 'LW' || pos === 'RM' || pos === 'LM' ? 'W' : pos === 'CF' ? 'ST' : pos)
 const WAGE_ROOM: Record<FinStyle, number> = { Ambitious: 1.16, Balanced: 1.06, Frugal: 1.0, Seller: 1.03 }
 
+/** Most senior players a club carries in one line before it stops recruiting there (keepers: three). */
+const LINE_CAP: Record<string, number> = { GK: 3, CB: 5, FB: 4, CDM: 3, CM: 4, CAM: 3, W: 4, ST: 4 }
+/**
+ * What a club is already doing in each line: pursuits under way (an AI move still at the rumour stage included) and
+ * signings in the last six weeks. A club that has just bought a keeper, or is chasing one, does not go after
+ * another one: it waits to see what it has (clubs were buying two or three keepers in the same window).
+ */
+export function lineActivity(w: World, club: Club): { pursuing: Set<string>; signed: Map<string, number> } {
+  const pursuing = new Set<string>()
+  for (const s of storiesFor(w, (x) => x.to === club.id && isOpen(x) && (x.stage !== 'rumour' || !!x.ai))) {
+    const p = w.players[s.playerId]
+    if (p) pursuing.add(LINE_OF(p.positions[0]))
+  }
+  const signed = new Map<string, number>()
+  const since = addDays(w.date, -42)
+  const h = w.transfers.history
+  for (let i = h.length - 1; i >= 0 && h[i].date >= since; i--) {
+    const t = h[i]
+    if (t.to !== club.id || !['transfer', 'free', 'loan', 'loan-buy'].includes(t.type)) continue
+    const p = w.players[t.playerId]
+    if (p) { const k = LINE_OF(p.positions[0]); signed.set(k, (signed.get(k) || 0) + 1) }
+  }
+  return { pursuing, signed }
+}
+/** Should the club act on this need now, given what it already has and is doing in that line? */
+function needStillOpen(w: World, club: Club, plan: SquadPlan, need: PlanNeed, act: ReturnType<typeof lineActivity>): boolean {
+  const line = LINE_OF(need.pos)
+  if (act.pursuing.has(line)) return false
+  const emptySlot = need.kind === 'starter' && !need.replaces
+  if (act.signed.has(line) && !emptySlot) return false
+  const have = rosterOf(w, club.id).filter((p) => !p.academy && LINE_OF(p.positions[0]) === line).length
+  const cap = LINE_CAP[line] ?? 4
+  // a clear new first choice can still come in over a full line (keepers never past three)
+  return have < cap || (need.kind === 'starter' && line !== 'GK' && have < cap + 1)
+}
+
 /** Shortlist of realistic signings for one need, best first. */
 export function findPlanTargets(w: World, club: Club, plan: SquadPlan, need: PlanNeed, rng: Rng, freeOnly = false): Player[] {
   const by = market(w)
@@ -492,8 +528,9 @@ function aiClubDay(w: World, club: Club, rng: Rng, windowOpen: boolean) {
   // move surplus on (listed players are what other clubs' bargain hunts find)
   if (windowOpen) for (const p of plan.surplus.slice(0, 2)) if (!p.transferListed && rng.next() < 0.45) p.transferListed = true
   const urgent = !!tp.review
-  // the top needs compete; lower ones only sometimes get attention
-  const pool = plan.needs.filter((n, i) => i < 3 && (n.priority >= 4 || rng.next() < 0.35 + n.priority / 8))
+  // the top needs compete; lower ones only sometimes get attention; a line already being dealt with waits
+  const act = lineActivity(w, club)
+  const pool = plan.needs.filter((n) => needStillOpen(w, club, plan, n, act)).filter((n, i) => i < 3 && (n.priority >= 4 || rng.next() < 0.35 + n.priority / 8))
   const need = pool[0]
   if (!need) { tp.review = undefined; miss('no need'); return }
   if (!windowOpen && need.kind !== 'starter') return
