@@ -33,7 +33,7 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
   if (p.transferListed) v *= 0.82
   if (buyerId && club.rivals.some((r) => r[0] === buyerId)) v *= 1.15
   v *= 0.95 + club.prestige.intl * 0.012
-  if (p.joinedDate && diffDays(w.date, p.joinedDate) < 180) v *= 1.12
+  if (settlingIn(w, p) !== undefined) v *= 1.25
   if (buyerId) v *= 1 - clubRelation(w, club.id) / 500
   if (w.settings.transferDifficulty === 'Hard') v *= 1.12
   if (w.settings.transferDifficulty === 'Easy') v *= 0.9
@@ -42,6 +42,39 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
   else if (club.market?.sell === 1) v *= 0.85
   if (p.contract.releaseClause && v > p.contract.releaseClause) v = p.contract.releaseClause
   return roundValue(v)
+}
+
+/** Days a signing needs before he can be sold on: clubs don't turn a new signing round within six months. */
+export const SETTLE_DAYS = 183
+/** Last permanent move into his current club for each player, from the career's own transfer record (the database's
+ *  join dates can't be used: most players carry the date the data was taken). Rebuilt when the record grows. */
+const movedCache = new WeakMap<World, { n: number; at: Map<number, string> }>()
+function lastMove(w: World, id: number): string | undefined {
+  const h = w.transfers.history
+  let c = movedCache.get(w)
+  if (!c || c.n !== h.length) {
+    const at = new Map<number, string>()
+    for (const t of h) if (t.type === 'transfer' || t.type === 'free' || t.type === 'loan-buy') at.set(t.playerId, t.date)
+    c = { n: h.length, at }
+    movedCache.set(w, c)
+  }
+  return c.at.get(id)
+}
+/** Days since a player's last permanent move in this career (free agents and loanees excluded). */
+export function daysSinceMove(w: World, p: Player): number | undefined {
+  if (!p.clubId || p.loan) return undefined
+  const d0 = lastMove(w, p.id)
+  return d0 ? diffDays(w.date, d0) : undefined
+}
+/** Days since a player's last move, when that is within the settling-in period. */
+export function settlingIn(w: World, p: Player): number | undefined {
+  const d = daysSinceMove(w, p)
+  return d !== undefined && d < SETTLE_DAYS ? d : undefined
+}
+/** The date a player's settling-in period ends, if he is in one. */
+export function settledOn(w: World, p: Player): string | undefined {
+  const d = settlingIn(w, p)
+  return d === undefined ? undefined : addDays(w.date, SETTLE_DAYS - d)
 }
 
 /** Would the selling club even consider selling? */
@@ -54,7 +87,9 @@ export function sellerStance(w: World, p: Player, buyerId: number): { willing: b
   if (club.market?.sell === -1 && club.id !== w.userClubId && (p.contract.role === 'Crucial' || p.contract.role === 'Important')) return { willing: false, reason: `${club.short} are not selling their key players.` }
   const blocked = buyerId === w.userClubId ? bidBlock(w, p.id) : undefined
   if (blocked) return { willing: false, reason: `${club.short} refuse to discuss ${p.name} again until ${fmtDate(blocked.until, 'dm')} after the last talks collapsed.` }
-  if (p.joinedDate && diffDays(w.date, p.joinedDate) < 60) return { willing: false, reason: `${p.name} only recently joined ${club.short}.` }
+  // a new signing is not for sale in his first six months, unless the club itself has put him on the list
+  const settled = settledOn(w, p)
+  if (settled && !p.transferListed) return { willing: false, reason: `${p.name} only joined ${club.short} on ${fmtDate(addDays(settled, -SETTLE_DAYS), 'dm')}. They won't consider selling him before ${fmtDate(settled, 'dm')}.` }
   const buyer = w.clubs[buyerId]
   const squad = rosterOf(w, club.id)
   const samePos = squad.filter((q) => POS_GROUP[q.positions[0]] === POS_GROUP[p.positions[0]] && q.id !== p.id).length
@@ -465,7 +500,7 @@ export function findPlanTargets(w: World, club: Club, plan: SquadPlan, need: Pla
       const from = w.clubs[p.clubId]
       if (from && from.reputation > club.reputation + 10 && !p.transferListed) continue
       // quick no-gos the seller would give anyway
-      if (from && p.joinedDate && diffDays(w.date, p.joinedDate) < 60) continue
+      if (from && settlingIn(w, p) !== undefined && !p.transferListed) continue
       if (from && p.contract.role === 'Crucial' && from.reputation > club.reputation - 5 && !p.contract.releaseClause && !p.transferListed && from.id !== w.userClubId) continue
       const cost = p.clubId ? p.value * (p.transferListed ? 1.02 : 1.25) : 0
       if (cost > cap) continue

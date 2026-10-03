@@ -623,12 +623,19 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
             <div className="row between"><span className="h3">Personal terms</span><span className="tiny dim">Wage room {fmtMoney(Math.max(0, wageRoom(w)))}/wk</span></div>
             {agentAsk && (
               <div className="nego-ask">
-                <div className="grow"><div className="tiny dim">Agent's position</div><div className="b small">{fmtMoney(agentAsk.wage)}/wk · {agentAsk.years} yrs · {talks!.expectedRole}</div></div>
+                <div className="grow"><div className="tiny dim">Agent's position</div><div className="b small">{talks!.loan ? `On loan · ${talks!.expectedRole} role` : `${fmtMoney(agentAsk.wage)}/wk · ${agentAsk.years} yrs · ${talks!.expectedRole}`}</div></div>
                 <button className="btn xs" onClick={() => { haptic(); setC({ ...c, wage: agentAsk.wage, years: agentAsk.years, role: talks!.expectedRole }) }}>Match</button>
               </div>
             )}
-            <div className="row between"><span className="label">Weekly wage</span><span className="tiny dim">Now earns {fmtMoney(p.wage)}/wk</span></div>
-            <Stepper value={c.wage} min={500} max={Math.max(c.wage, (agentAsk?.wage || p.wage) * 2.5)} step={c.wage >= 100000 ? 5000 : c.wage >= 20000 ? 1000 : 250} onChange={(v) => setC({ ...c, wage: v })} fmt={(v) => `${fmtMoney(v)}/wk`} />
+            {offer?.type.startsWith('loan') ? <>
+              {/* a loan: he keeps his contract and wage at his club; the terms are about his role */}
+              <div className="row between"><span className="label">Wage</span><span className="small b">{fmtMoney(p.contract.wage || p.wage)}/wk · you pay {offer.loanWageSplit ?? 50}%</span></div>
+              <div><div className="label" style={{ marginBottom: 6 }}>Squad role while on loan</div><Seg small items={SQUAD_ROLES.map((r) => ({ id: r, label: r === 'Sparingly' ? 'Spare' : r }))} value={c.role} onChange={(v) => setC({ ...c, role: v as SquadRole })} /></div>
+              <div className="tiny dim">On loan he stays under contract with {w.clubs[p.clubId]?.short}. What he wants from the move is football.</div>
+            </> : <>
+              <div className="row between"><span className="label">Weekly wage</span><span className="tiny dim">Now earns {fmtMoney(p.wage)}/wk</span></div>
+              <Stepper value={c.wage} min={500} max={Math.max(c.wage, (agentAsk?.wage || p.wage) * 2.5)} step={c.wage >= 100000 ? 5000 : c.wage >= 20000 ? 1000 : 250} onChange={(v) => setC({ ...c, wage: v })} fmt={(v) => `${fmtMoney(v)}/wk`} />
+            </>}
             {!offer?.type.startsWith('loan') && <>
               <div><div className="label" style={{ marginBottom: 6 }}>Contract length</div><Seg small items={[1, 2, 3, 4, 5].map((y) => ({ id: y, label: `${y} yr` }))} value={c.years} onChange={(v) => setC({ ...c, years: v })} /></div>
               <div><div className="label" style={{ marginBottom: 6 }}>Squad role</div><Seg small items={SQUAD_ROLES.map((r) => ({ id: r, label: r === 'Sparingly' ? 'Spare' : r }))} value={c.role} onChange={(v) => setC({ ...c, role: v as SquadRole })} /></div>
@@ -638,7 +645,7 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
               <div className="row wrap" style={{ gap: 6 }}>{[0, 1.5, 2, 3, 5].map((m) => <button key={m} className={`chip ${c.releaseClause === (m ? roundValue(p.value * m) : 0) ? 'on' : ''}`} onClick={() => setC({ ...c, releaseClause: m ? roundValue(p.value * m) : 0 })}>{m ? `${fmtMoney(roundValue(p.value * m), { short: true })}` : 'None'}</button>)}</div>
               <div className="row tight tiny dim">Performance bonuses: goal {fmtMoney(c.bonusGoal)}, clean sheet {fmtMoney(c.bonusCleanSheet)}, appearance {fmtMoney(c.bonusApp)}</div>
             </>}
-            <button className="btn primary block" onClick={propose} disabled={chat.busy}>Offer contract</button>
+            <button className="btn primary block" onClick={propose} disabled={chat.busy}>{offer?.type.startsWith('loan') ? 'Agree loan terms' : 'Offer contract'}</button>
           </div>
         )}
 

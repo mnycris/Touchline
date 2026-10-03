@@ -28,6 +28,12 @@ export interface Talks {
   priority?: Priority
   expectedRole: SquadRole
   lastWage?: number
+  /** a loan: personal terms are about the role (his contract and wage stay with his club) */
+  loan?: boolean
+  /** how the player valued the last offer: "nothing has moved" means this, not the wage alone */
+  lastValue?: number
+  /** a structure the agent proposed himself (lower wage + signing-on fee, or a longer deal): meeting it is a deal */
+  suggest?: { wage: number; bonus?: number; years?: number }
   status: 'open' | 'agreed' | 'walked'
   used: string[] // phrase keys already used (avoid repeats)
   log: TalkLine[]
@@ -85,6 +91,21 @@ const AGENT: Bank = {
     'Let me be straight with you: there is interest from elsewhere. For {p} to choose {club} we need {wage} a week on a {years}-year deal, with {roleA} role.',
     'We have prepared for this meeting. The numbers that work for {p}: {wage} weekly, {years} years, {roleA} role. Everything else we can talk about.',
     '{p} has told me he wants this to happen, but it has to be right for his career. That means {wage} a week and a {years}-year contract as {roleA} player.',
+  ],
+  // a loan: his contract (and wage) stay with his club; what he negotiates is playing time
+  openLoan: [
+    '{p} is open to the loan. His wage stays as it is; what he needs is to play. He wants to be {roleA} player.',
+    'My client sees this loan as a chance to play every week. That is the condition: {roleA} role.',
+    'A loan only makes sense for {p} if he plays. Tell me he will be {roleA} player and we can agree quickly.',
+  ],
+  loanRole: [
+    'He is not going on loan to sit on the bench. {roleOffered} is not enough: he needs to be {roleA} player.',
+    'The whole point of the loan is minutes. As {roleOffered} he would be better off staying where he is.',
+    'We need a clearer promise of football. {roleA} role, or there is no reason for him to move.',
+  ],
+  acceptLoan: [
+    'Good. He wants to play and you have convinced him. We have a deal for the loan.',
+    'That works for {p}. He is looking forward to playing for {club}.',
   ],
   openRenew: [
     '{p} is happy here, but he knows his worth now. We are asking for {wage} a week over {years} years as {roleA} player.',
@@ -287,7 +308,8 @@ function interestFor(w: World, p: Player, clubId: number, kind: Talks['kind']) {
 
 export function openContractTalks(w: World, p: Player, kind: Talks['kind'], rng: Rng, offerId?: string): Talks {
   const existing = getTalks(w, kind, p.id)
-  if (existing && existing.status === 'open' && existing.clubId === w.userClubId) { if (offerId) existing.offerId = offerId; return existing }
+  const loan = !!offerId && !!w.transfers.offers[offerId]?.type.startsWith('loan')
+  if (existing && existing.status === 'open' && existing.clubId === w.userClubId && !!existing.loan === loan) { if (offerId) existing.offerId = offerId; return existing }
   const clubId = w.userClubId
   const club = w.clubs[clubId]
   const expectedRole = roleForBuyer(w, p, clubId)
@@ -303,9 +325,14 @@ export function openContractTalks(w: World, p: Player, kind: Talks['kind'], rng:
   const floor = roundWage(Math.max(kind === 'renew' ? p.contract.wage : 0, ask.wage * floorF))
   const patience = Math.round(100 * (style === 'friendly' ? 1.15 : style === 'hardball' ? 0.85 : style === 'greedy' ? 0.92 : 1) * (priority === 'Loyalty' ? 1.2 : 1) * (0.82 + interest / 280))
   if (priority === 'Security') ask.years = Math.min(5, ask.years + 1)
-  const t: Talks = { id: `${kind}:${p.id}`, playerId: p.id, clubId, kind, offerId, started: w.date, round: 0, patience, ask, floor, style, priority, expectedRole, status: 'open', used: [], log: [] }
+  if (loan) {
+    // on loan he keeps his contract: same wage (shared between the clubs as agreed), no length, no bonuses
+    const wage = p.contract.wage || p.wage
+    Object.assign(ask, { wage, years: 0, signingBonus: 0, releaseClause: 0, bonusGoal: 0, bonusCleanSheet: 0, bonusApp: 0 })
+  }
+  const t: Talks = { id: `${kind}:${p.id}`, playerId: p.id, clubId, kind, offerId, started: w.date, round: 0, patience, ask, floor: loan ? ask.wage : floor, style, priority, expectedRole, status: 'open', used: [], log: [], loan: loan || undefined }
   const v = vars(w, p, t)
-  t.log.push({ by: 'agent', date: w.date, text: `${pick(rng, AGENT, kind === 'renew' ? 'openRenew' : 'open', t.used, { ...v, club: club.short })} ${fill(rng.pick(PRIORITY_LINE[priority]), v)}` })
+  t.log.push({ by: 'agent', date: w.date, text: loan ? pick(rng, AGENT, 'openLoan', t.used, { ...v, club: club.short }) : `${pick(rng, AGENT, kind === 'renew' ? 'openRenew' : 'open', t.used, { ...v, club: club.short })} ${fill(rng.pick(PRIORITY_LINE[priority]), v)}` })
   talksMap(w)[t.id] = t
   return t
 }
@@ -344,12 +371,49 @@ export function respondToContract(w: World, t: Talks, c: ContractOffer, rng: Rng
     replies.push({ by: 'agent', text, date: w.date, tone })
   }
   t.round++
-  t.log.push({ by: 'me', date: w.date, text: offerLine(c) })
+  t.log.push({ by: 'me', date: w.date, text: t.loan ? `Loan · ${c.role} role` : offerLine(c) })
+  // a loan is about minutes: the role decides it (his wage stays as it is at his club)
+  if (t.loan) {
+    const gap = ROLE_RANK[c.role] - ROLE_RANK[t.expectedRole]
+    if (gap <= 0 || (gap === 1 && rng.next() < 0.3 + t.round * 0.2)) {
+      replies.push({ by: 'agent', text: pick(rng, AGENT, 'acceptLoan', t.used, v), date: w.date, tone: 'good' })
+      t.log.push(...replies)
+      t.status = 'agreed'
+      return { result: 'accept', talks: t, replies }
+    }
+    t.patience -= gap >= 2 ? 30 : 16
+    if (t.patience <= 0) {
+      say('walk', {}, 'bad')
+      t.log.push(...replies)
+      applyWalkout(w, t, rng)
+      return { result: 'walk', talks: t, replies }
+    }
+    replies.push({ by: 'agent', text: pick(rng, AGENT, 'loanRole', t.used, { ...v, roleOffered: roleNoun(c.role) }), date: w.date, tone: 'bad' })
+    t.log.push(...replies)
+    return { result: 'counter', talks: t, replies }
+  }
   const pref = t.ask
   const V = packageValue(p, c, pref, t.expectedRole, age, t.priority)
+  const finishEarly = (result: TalkResult['result']) => {
+    t.log.push(...replies)
+    if (result === 'accept') t.status = 'agreed'
+    return { result, talks: t, replies }
+  }
   const T = packageValue(p, { ...pref }, pref, t.expectedRole, age, t.priority)
   const F = packageValue(p, { ...pref, wage: t.floor }, pref, t.expectedRole, age, t.priority)
-  const repeat = t.lastWage != null && c.wage <= t.lastWage && t.round > 1
+  // taking the agent up on his own suggestion is never "the same offer again"
+  const s = t.suggest
+  const tookSuggestion = !!s && c.wage >= s.wage && c.signingBonus >= (s.bonus || 0) * 0.98 && c.years >= (s.years || 0) && ROLE_RANK[c.role] <= ROLE_RANK[t.expectedRole]
+  if (tookSuggestion) {
+    t.lastWage = c.wage
+    t.lastValue = V
+    t.suggest = undefined
+    say(t.kind === 'renew' ? 'acceptRenew' : 'accept', {}, 'good')
+    return finishEarly('accept')
+  }
+  // "nothing has moved" is judged on the whole package (a lower wage with a bigger signing-on fee is a move)
+  const repeat = t.lastValue != null && V <= t.lastValue * 1.002 && t.round > 1
+  t.lastValue = V
   // visible progress from the club calms things down
   const progress = t.lastWage != null && c.wage >= t.lastWage * 1.05 ? 0.6 : 1
   t.lastWage = c.wage
@@ -407,10 +471,13 @@ export function respondToContract(w: World, t: Talks, c: ContractOffer, rng: Rng
         if (rng.next() < 0.55 || age >= 30) {
           const altWage = roundWage(t.floor * 1.01)
           const altBonus = roundValue((t.ask.wage - altWage) * 52 * t.ask.years * 0.9)
+          t.suggest = { wage: altWage, bonus: altBonus, years: Math.min(c.years, t.ask.years) }
           say('alt', { altWage: fmtMoney(altWage), altBonus: fmtMoney(altBonus) }, 'good')
         } else {
           const altYears = Math.min(5, pref.years + 1)
-          say('altYears', { altYears, altWage: fmtMoney(roundWage(Math.max(t.floor, t.ask.wage * 0.95))) }, 'good')
+          const altWage = roundWage(Math.max(t.floor, t.ask.wage * 0.95))
+          t.suggest = { wage: altWage, years: altYears }
+          say('altYears', { altYears, altWage: fmtMoney(altWage) }, 'good')
         }
       } else say(held ? 'hold' : 'close', {}, 'neutral')
     }

@@ -9,7 +9,7 @@ import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { positionOf } from '../competitions/tables'
 import { postNews } from './messages'
 import { rosterOf, setPlayerClub, touchRoster } from './roster'
-import { askingPrice, contractDemand, executeTransfer, makeOffer, roleForBuyer, sellerStance } from './transfers'
+import { askingPrice, contractDemand, daysSinceMove, executeTransfer, makeOffer, roleForBuyer, sellerStance, settlingIn, SETTLE_DAYS } from './transfers'
 import { finStyle } from './squadPlan'
 import { callName } from '../match/commentary'
 
@@ -86,11 +86,10 @@ export function moveAppeal(w: World, p: Player, toId: number): Appeal {
   const money = clamp(Math.log2(ratio) * 11 * (age >= 30 ? 1.4 : 1), -12, 18)
   add(money, money > 0 ? (ratio >= 1.9 ? 'his wages would double' : 'a pay rise') : 'less money')
   // how settled he is
-  if (from && p.joinedDate) {
-    const days = diffDays(w.date, p.joinedDate)
-    if (days < 180) add(p.morale < 40 ? -12 : -34, `he only joined ${from.short} ${Math.max(1, Math.round(days / 30))} months ago`)
-    else if (days < 365) add(p.morale < 40 ? -6 : -20, `he joined ${from.short} less than a year ago`)
-  }
+  // how settled he is: a move he made in this career (the database's join dates are mostly the data's own date)
+  const moved = from ? daysSinceMove(w, p) : undefined
+  if (moved !== undefined && moved < SETTLE_DAYS) add(p.morale < 30 ? -18 : -48, moved < 31 ? `he only joined ${from!.short} a few weeks ago` : `he only joined ${from!.short} ${Math.max(1, Math.round(moved / 30))} months ago`)
+  else if (moved !== undefined && moved < 365) add(p.morale < 40 ? -6 : -20, `he joined ${from!.short} less than a year ago`)
   if (p.morale < 35) add(14, `he is unsettled at ${from?.short || 'his club'}`)
   else if (p.morale > 75 && from) add(-8, `he is happy at ${from.short}`)
   if (p.transferListed) add(12, `${from?.short} have made him available`)
@@ -189,7 +188,8 @@ function rumourNews(w: World, s: TransferStory) {
 
 /** Paper talk: a link that may or may not have anything behind it. */
 export function paperTalk(w: World, rng: Rng) {
-  const pool = Object.values(w.players).filter((p) => p.ovr >= 77 && p.clubId && !p.academy && !p.loan)
+  // the papers don't link a player with a move weeks after he signed
+  const pool = Object.values(w.players).filter((p) => p.ovr >= 77 && p.clubId && !p.academy && !p.loan && settlingIn(w, p) === undefined)
   if (!pool.length) return
   const p = rng.pick(pool)
   const from = w.clubs[p.clubId]
