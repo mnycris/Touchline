@@ -53,6 +53,9 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const todayFx = userFixtureOn(w, w.date)
   const f = params?.id ? w.fixtures[params.id] : todayFx
   const isToday = !!f && !!todayFx && f.id === todayFx.id
+  // a match the manager is set to watch on the same day
+  const watchedId = w.flags.watch as string | undefined
+  const watched = f && watchedId && w.fixtures[watchedId] && !w.fixtures[watchedId].played && w.fixtures[watchedId].date === f.date ? w.fixtures[watchedId] : undefined
   const lines = useMemo(() => (f ? storyLines(w, f) : []), [f?.id, w.date])
   if (!f) return <Screen title="Match Day" back onBack={close} noNav><div className="pad muted">No match today.</div></Screen>
 
@@ -137,6 +140,18 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
         <button className="md-act" onClick={() => open({ name: 'press', params: { kind: 'pre', fixtureId: f.id } })} disabled={pressDone || !isToday}><Icon name="chat" size={20} /><span>{pressDone ? 'Press done' : isToday ? 'Press' : 'Match day'}</span></button>
         <button className="md-act" onClick={() => go({ name: 'opponent', params: { id: oppId, fixtureId: f.id } })}><Icon name="scout" size={20} /><span>Opponent</span></button>
       </div>
+
+      {watched && (
+        <div className="pad" style={{ marginTop: 10 }}>
+          <button className="card pad-card small row tight" style={{ width: '100%', textAlign: 'left', gap: 10 }} onClick={() => open({ name: 'fixture', params: { id: watched.id } })}>
+            <Icon name="eye" size={18} color="var(--acc)" />
+            <span className="grow">
+              <span className="b">Also watching today: {w.clubs[watched.home]?.short} v {w.clubs[watched.away]?.short}</span>
+              <span className="muted" style={{ display: 'block', marginTop: 2 }}>{watched.time < f.time ? `Kicks off at ${watched.time}, before yours. Continue to watch it first, or play yours and it will be waiting after.` : `Kicks off at ${watched.time}. It will be waiting for you after your match, not played without you.`}</span>
+            </span>
+          </button>
+        </div>
+      )}
 
       {issues.length > 0 && (
         <div className="pad" style={{ marginTop: 10 }}>

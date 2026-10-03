@@ -183,6 +183,8 @@ function drawNews(w: World, comp: Competition, stage?: string) {
 export function simulateDay(w: World, rng: Rng, includeUser = false) {
   for (const f of fixturesOn(w, w.date)) {
     if (!includeUser && f.userInvolved && !w.flags.unemployed) continue
+    // the match the manager asked to watch waits for him (advance stops for it)
+    if (f.id === w.flags.watch) continue
     const r = simulateFixture(w, f)
     afterMatch(w, f, r, rng)
   }
@@ -394,6 +396,10 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
   // finish today (all remaining matches except the user's)
   while (days < maxDays) {
     const uf = userFixtureOn(w, w.date)
+    // a match the manager asked to watch: stop before its day is played, ahead of his own match if it kicks off
+    // first, otherwise straight after it (it is kept out of the day's other results until then)
+    const wf = watchedOn(w)
+    if (wf && (!uf || wf.time < uf.time)) return result('watch', wf)
     if (uf) return result('match', uf)
     simulateDay(w, rng)
     endOfDay(w, rng)
@@ -413,14 +419,16 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
     if (win && w.date === win.close) return result('deadline')
     if (win && w.date === win.open) return result('window')
     if (w.flags.stopForInbox) return result('inbox')
-    // a match the manager asked to watch: stop on its day (unless it has gone, e.g. postponed or already played)
-    if (w.flags.watch) {
-      const wf = w.fixtures[w.flags.watch]
-      if (!wf || wf.played || wf.date < w.date) w.flags.watch = undefined
-      else if (wf.date === w.date && !userFixtureOn(w, w.date)) return result('watch', wf)
-    }
   }
   return result('limit')
+}
+
+/** The watched match if it is today and still to be played (a stale mark is cleared: played, or postponed past). */
+export function watchedOn(w: World): Fixture | undefined {
+  if (!w.flags.watch) return undefined
+  const wf = w.fixtures[w.flags.watch]
+  if (!wf || wf.played || wf.date < w.date) { w.flags.watch = undefined; return undefined }
+  return wf.date === w.date ? wf : undefined
 }
 
 function allPlayed(w: World) {
