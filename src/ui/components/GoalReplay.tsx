@@ -3,7 +3,7 @@
 // the players involved run onto it, the camera follows play and the net ripples at the end.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { MatchEvent, ReplayStep, World } from '../../domain/types'
+import type { MatchEvent, ReplayStep, ShotInfo, World } from '../../domain/types'
 import { Markings } from './PitchSurface'
 import { Badge, Face } from './atoms'
 import { Icon } from '../icons/Icon'
@@ -20,7 +20,7 @@ interface Track { id: number; side: 0 | 1; keys: { t: number; x: number; y: numb
 const WORD: Record<string, string> = { pass: 'Pass', long: 'Long ball', through: 'Through ball', cross: 'Cross', carry: 'Carry', drib: 'Dribble', shot: 'Shot', goal: 'Goal', tackle: 'Tackle', int: 'Interception', rec: 'Loose ball won', corner: 'Corner', fk: 'Free kick', throw: 'Throw-in', aerial: 'Header', clear: 'Clearance', gk: 'Goal kick', kick: 'Kick-off' }
 
 /** Build the timeline: ball segments with durations from real distances, and a track per player involved. */
-function build(chain: ReplayStep[], side: 0 | 1) {
+function build(chain: ReplayStep[], side: 0 | 1, shot?: ShotInfo) {
   // always attacking left to right
   const fx = (x: number) => (side === 0 ? x : 100 - x), fy = (y: number) => (side === 0 ? y : 100 - y)
   const segs: Seg[] = []
@@ -29,7 +29,8 @@ function build(chain: ReplayStep[], side: 0 | 1) {
   for (const c of chain) {
     const a: [number, number] = [fx(c.x0) * L / 100, fy(c.y0) * W / 100]
     let b: [number, number] = [fx(c.x1) * L / 100, fy(c.y1) * W / 100]
-    if (c.k === 'goal') b = [L + 1.6, W / 2 + (b[1] - W / 2) * 0.1 + (a[1] - W / 2) * 0.04]
+    // the finish goes exactly where the shot map and the goal frame say it went (the match's own shot record)
+    if (c.k === 'goal') b = [L + 1.6, shot && shot.res === 'goal' ? fy(shot.end[1]) * W / 100 : b[1]]
     // the ball gets from where the last action ended to where this one starts
     if (last && Math.hypot(last[0] - a[0], last[1] - a[1]) > 0.8) { segs.push({ k: 'bridge', s: c.s, p: c.p, ok: true, a: last, b: a, t0: t, t1: t + 0.14, air: 0 }); t += 0.14 }
     const d = Math.hypot(b[0] - a[0], b[1] - a[1])
@@ -95,7 +96,7 @@ function ballAt(segs: Seg[], t: number): { x: number; y: number; h: number; seg?
 
 export function GoalReplay({ w, e, colors, home, away, onClose }: { w: World; e: MatchEvent; colors: [string, string]; home: number; away: number; onClose: () => void }) {
   const side = e.side as 0 | 1
-  const { segs, tracks, end } = useMemo(() => build(e.chain || [], side), [e])
+  const { segs, tracks, end } = useMemo(() => build(e.chain || [], side, e.shot), [e])
   const reduce = useGame((s) => s.prefs.reduceMotion)
   const [t, setT] = useState(reduce ? end : 0)
   const [speed, setSpeed] = useState(1)
