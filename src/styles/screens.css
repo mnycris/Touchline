@@ -1495,8 +1495,13 @@ select.input option { background: #151b27; }
 .art-kicker .ns-type { margin-right: 8px; }
 
 /* match editor: one scroll, face tiles, the moments on a clock */
-.sheet:has(.sc) { max-height: 94%; overscroll-behavior: contain; }
-.sc-foot { margin: 14px -16px calc(-1 * var(--sab) - 18px); padding: 12px 16px calc(var(--sab) + 16px); }
+/* the match editor: a scrolling body and a save bar below it (not over it), so every section is reachable */
+.sheet:has(.sc) { max-height: 94%; display: flex; flex-direction: column; overflow: hidden; padding-bottom: 0; }
+.sc { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.sc-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px 18px; }
+.sc-foot { position: static; flex: none; margin: 0 -16px; padding: 12px 16px calc(var(--sab) + 16px); background: var(--s1); border-top: 1px solid var(--line); }
+/* toasts never sit on top of an open sheet's controls */
+.app:has(.sheet) .toast { top: calc(var(--sat) + 10px); bottom: auto; }
 .sc-pred { display: flex; flex-direction: column; align-items: center; gap: 5px; margin: -4px 0 12px; }
 .sc-pred-bar { display: flex; gap: 2px; width: 100%; max-width: 260px; height: 5px; border-radius: 3px; overflow: hidden; }
 .sc-pred-bar i { display: block; background: rgba(255, 255, 255, .25); }

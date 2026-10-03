@@ -103,6 +103,8 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
   return (
     <Sheet open onClose={onClose}>
       <div className="sc">
+        {/* everything scrolls in here; the save bar sits below it, so it can never cover a section */}
+        <div className="sc-scroll">
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}><span className="ed-badge"><Icon name="edit" size={13} strokeWidth={2.3} /> Edit match</span></div>
         <div className="sc-teams">
           <span className="row tight"><Badge club={clubs[0]} size={30} /><b className="ellipsis">{clubs[0].short}</b></span>
@@ -257,6 +259,7 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
           </div>
         )}
 
+        </div>
         <div className="ed-foot sc-foot">
           {existing && <button className="btn sm" onClick={clear}><Icon name="trash" size={15} /> Clear</button>}
           <button className="btn sm ed-apply grow" onClick={save}><Icon name="check" size={16} /> Save script</button>
