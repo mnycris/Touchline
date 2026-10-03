@@ -20,6 +20,7 @@ import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/Live
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { underWhite } from '../theme'
 import { ScriptEditor } from '../components/ScriptEditor'
+import { Presence } from '../components/Presence'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
@@ -359,7 +360,7 @@ export function LiveMatch() {
       {pitchOpen && (
         <div className="lp-wrap">
           <LivePitch sim={sim} w={w} speed={speed} frameCount={sim.timeline.length} home={home} away={away} />
-          {moment && <MomentView m={moment} w={w} sim={sim} onClose={nextMoment} />}
+          <Presence id={moment?.id}>{moment && <MomentView m={moment} w={w} sim={sim} onClose={nextMoment} />}</Presence>
         </div>
       )}
       <div className="mom-wrap">
@@ -369,7 +370,7 @@ export function LiveMatch() {
       <Tabs items={[{ id: 'feed', label: 'Live' }, { id: 'lineups', label: 'Line-ups' }, { id: 'stats', label: 'Stats' }, ...(others.length ? [{ id: 'matches' as const, label: `Matches (${others.length})` }] : [])]} value={tab} onChange={setTab} />
 
       <div className="match-body">
-        {!pitchOpen && moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}
+        {!pitchOpen && <Presence id={moment?.id}>{moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}</Presence>}
         {brk && !spectator && (
           <div className="card pad-card" style={{ margin: '12px 16px 0', textAlign: 'center' }}>
             <div className="kicker">{sim.phase === 'HT' ? 'Half-time' : 'Extra-time break'}</div>

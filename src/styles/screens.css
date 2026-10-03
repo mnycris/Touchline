@@ -643,6 +643,13 @@ select.input option { background: #151b27; }
 .gc-score .hit { color: var(--acc); animation: gcHit 0.8s 0.35s ease both; display: inline-block; }
 .gc-timer { position: absolute !important; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255, 255, 255, 0.85); transform-origin: left; animation: gcTimer linear both; }
 @keyframes gcIn { from { opacity: 0; transform: translateY(-18px) scale(0.96); } to { opacity: 1; transform: none; } }
+/* Presence (components/Presence.tsx): a popup on its way out keeps its place and fades up and away */
+.presence { display: contents; }
+.presence-leaving > * { animation: popOut 0.24s cubic-bezier(0.4, 0, 0.7, 0.2) both !important; pointer-events: none !important; }
+.presence-leaving > * * { animation: none !important; } /* what is leaving shows its final state, nothing replays */
+@keyframes popOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-12px) scale(0.97); } }
+.presence-leaving > .toast { animation: toastOut 0.24s ease-in both !important; }
+@keyframes toastOut { from { opacity: 1; transform: translateX(-50%); } to { opacity: 0; transform: translateX(-50%) translateY(8px); } }
 @keyframes gcWord { from { opacity: 0; transform: translateX(-10px) skewX(-8deg); letter-spacing: 0.3em; } to { opacity: 1; transform: none; } }
 @keyframes gcBall { from { transform: scale(0) rotate(-180deg); } to { transform: none; } }
 @keyframes gcHit { 0% { transform: scale(1.8); } 100% { transform: none; } }
