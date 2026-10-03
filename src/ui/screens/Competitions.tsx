@@ -268,7 +268,8 @@ export function CompScreen({ params }: { params: { id: string } }) {
   const w = useWorld()
   const c = w.competitions[params.id]
   const hasTable = !!c?.table
-  const groups = !!c?.groups && Object.keys(c.groups).length > 0
+  // a UEFA league phase is one 36-club table (its draw pots are kept in `groups` only for the record)
+  const groups = c?.format !== 'uefa' && !!c?.groups && Object.keys(c.groups).length > 0
   const hasKO = !!c && (c.rounds.length > 0 || c.intl?.kind === 'tournament')
   const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : c?.intl ? 'fixtures' : 'bracket')
   if (!c) return <Screen title="Competition" back><Empty icon="trophy" title="Competition not found" /></Screen>

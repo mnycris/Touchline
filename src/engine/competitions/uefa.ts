@@ -14,7 +14,11 @@ export const UEFA_META: Record<string, { name: string; short: string; matches: n
 
 type Edge = [number, number]
 
-/** Swiss-model draw: `perPot` opponents from each pot, no same-country opponents, max 2 from any country. */
+/**
+ * Swiss-model draw: `perPot` opponents from each pot, no same-country opponents, max 2 from any country.
+ * Edges come out as [home, away]: with two opponents per pot (Champions League, Europa League) each club plays one
+ * of them at home and one away, so every club has four home and four away games.
+ */
 function swissGraph(w: World, pots: number[][], perPot: number, rng: Rng): Edge[] | null {
   const country = (c: number) => w.clubs[c]?.country || String(c)
   for (let attempt = 0; attempt < 400; attempt++) {
@@ -36,6 +40,7 @@ function swissGraph(w: World, pots: number[][], perPot: number, rng: Rng): Edge[
             for (let t = 0; t < 200 && !ok; t++) {
               const order = rng.shuffle([...A])
               ok = order.every((c, k) => country(c) !== country(order[(k + 1) % order.length]))
+              // round the cycle: each club hosts the next one and visits the previous one
               if (ok) order.forEach((c, k) => add(c, order[(k + 1) % order.length]))
             }
             if (!ok) failed = true
@@ -58,7 +63,8 @@ function swissGraph(w: World, pots: number[][], perPot: number, rng: Rng): Edge[
               ok = A.every((a, k) => country(a) !== country(perm[k]) && !used.some((u) => u.get(a) === perm[k]))
               if (ok) {
                 const mm = new Map<number, number>()
-                A.forEach((a, k) => { add(a, perm[k]); mm.set(a, perm[k]) })
+                // the first opponent from this pot comes to A, A goes to the second (and the reverse for B)
+                A.forEach((a, k) => { if (m % 2 === 0) add(a, perm[k]); else add(perm[k], a); mm.set(a, perm[k]) })
                 used.push(mm)
               }
             }
@@ -127,19 +133,37 @@ function perfectMatching(nodes: number[], adj: Map<number, Set<number>>, rng: Rn
   return solve() ? out : null
 }
 
-/** Orient edges so every team has an equal number of home and away games (Euler circuit). */
-function balanceHomeAway(nodes: number[], days: Edge[][], rng: Rng): Edge[][] {
-  const home = new Map<number, number>()
-  nodes.forEach((n) => home.set(n, 0))
-  const target = days.length / 2
-  return days.map((day) => day.map(([a, b]) => {
-    const ha = home.get(a)!, hb = home.get(b)!
-    let h = a, x = b
-    if (ha > hb || (ha === hb && rng.chance(0.5))) { h = b; x = a }
-    if (home.get(h)! >= target && home.get(x)! < target) { const t = h; h = x; x = t }
-    home.set(h, home.get(h)! + 1)
-    return [h, x] as Edge
-  }))
+/** Orient edges so every club has as many home as away games: walk Euler circuits of the (even-degree) graph and
+ *  give each edge the direction it is walked in. Used when the draw itself doesn't fix venues (Conference League). */
+function eulerOrient(nodes: number[], edges: Edge[], rng: Rng): Edge[] {
+  const adj = new Map<number, number[]>()
+  nodes.forEach((n) => adj.set(n, []))
+  edges.forEach(([a, b], i) => { adj.get(a)!.push(i); adj.get(b)!.push(i) })
+  const used = new Array(edges.length).fill(false)
+  const out: Edge[] = []
+  for (const start of rng.shuffle([...nodes])) {
+    const stack = [start]
+    while (stack.length) {
+      const v = stack[stack.length - 1]
+      const list = adj.get(v)!
+      while (list.length && used[list[list.length - 1]]) list.pop()
+      if (!list.length) { stack.pop(); continue }
+      const e = list.pop()!
+      used[e] = true
+      const [a, b] = edges[e]
+      const to = a === v ? b : a
+      out.push([v, to])
+      stack.push(to)
+    }
+  }
+  return out
+}
+
+/** Put each matchday's pairs the right way round, from the draw's [home, away] edges. */
+function orientDays(days: Edge[][], oriented: Edge[]): Edge[][] {
+  const home = new Map<string, number>()
+  for (const [h, a] of oriented) home.set(h < a ? `${h}-${a}` : `${a}-${h}`, h)
+  return days.map((day) => day.map(([a, b]) => { const h = home.get(a < b ? `${a}-${b}` : `${b}-${a}`); return (h === b ? [b, a] : [a, b]) as Edge }))
 }
 
 export function createUefaCompetition(w: World, key: 'UCL' | 'UEL' | 'UECL', season: number, pots: number[][], dates: SeasonDates, rng: Rng, idx: ClubDateIndex): Competition {
@@ -167,7 +191,7 @@ export function createUefaCompetition(w: World, key: 'UCL' | 'UEL' | 'UECL', sea
       days.push(day)
     }
   }
-  days = balanceHomeAway(clubs, days, rng)
+  days = orientDays(days, graph && perPot === 2 ? graph : eulerOrient(clubs, graph || days.flat(), rng))
   days.forEach((day, r) => {
     const base = lpDates[r]
     day.forEach(([h, a], i) => {

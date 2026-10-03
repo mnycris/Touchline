@@ -117,7 +117,8 @@ function build(w: World, c: Competition) {
       } as TieV
     })
   }
-  const cur = cols.findIndex((x) => x.ties.some((t) => t.state !== 'done'))
+  // "now" is a drawn round still being played: nothing is current while the league phase or groups go on
+  const cur = cols.findIndex((x) => x.drawn && x.ties.some((t) => t.state !== 'done'))
   if (cur >= 0) cols[cur].current = true
   const earlier = real.slice(0, start).map((r, i) => ({ r, ties: ties[i] })).filter((x) => x.r.drawn)
   const champion = cols.length && cols[cols.length - 1].ties[0]?.winner
@@ -134,7 +135,8 @@ export function Bracket({ w, c }: { w: World; c: Competition }) {
   const [open, setOpen] = useState<{ t: TieV; col: number } | undefined>()
   const scroller = useRef<HTMLDivElement>(null)
   const ci = cols.findIndex((x) => x.current)
-  const cur = ci >= 0 ? ci : cols.length - 1 // all played: the semi-finals, the final and the winners
+  // all played: the semi-finals, the final and the winners; nothing drawn yet: the start of the bracket
+  const cur = ci >= 0 ? ci : cols.some((x) => x.drawn) ? cols.length - 1 : 0
   useLayoutEffect(() => {
     const el = scroller.current
     // the round just played and the current one side by side

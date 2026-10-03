@@ -159,6 +159,27 @@ export function computeUefaPots(w: World, prev: number, rng: Rng): Record<string
     }
   }
   fill(ucl, uel); fill(uel, uecl); fill(uecl, null)
+  // Places still open are what the qualifying rounds hand out in reality: they go round the associations, each
+  // sending its next club (the next one in its league table) — never more than three of one country in the Europa or
+  // Conference League, eight in Europe in all. Filling them with the strongest clubs left anywhere sent eight
+  // mid-table English sides to the Conference League.
+  const country = (c: number) => w.clubs[c]?.country || ''
+  const queues = new Map<string, number[]>()
+  for (const lg of leagues) queues.set(lg.country, lastTable(w, `L${lg.id}`, prev).filter((c) => !taken.has(c)))
+  for (const [k, list] of Object.entries(byCountry)) if (!queues.has(k)) queues.set(k, list.filter((c) => !taken.has(c)))
+  const prestige = (k: string) => leagues.find((l) => l.country === k)?.prestige || 0
+  const inEurope = (k: string) => [...taken].filter((c) => country(c) === k).length
+  for (const [arr, cap] of [[ucl, 5], [uel, 3], [uecl, 3]] as const) {
+    for (let guard = 0; arr.length < 36 && guard < 400; guard++) {
+      const inComp = (k: string) => arr.filter((c) => country(c) === k).length
+      const k = [...queues.keys()].filter((x) => queues.get(x)!.some((c) => !taken.has(c)) && inComp(x) < cap && inEurope(x) < 8)
+        .sort((a, b) => inComp(a) - inComp(b) || prestige(b) - prestige(a))[0]
+      if (!k) break
+      const c = queues.get(k)!.find((x) => !taken.has(x))!
+      arr.push(c); taken.add(c)
+    }
+  }
+  // (only if the associations run out: the best clubs left)
   const pool = Object.values(w.clubs).filter((c) => isUefaClub(w, c.id) && !taken.has(c.id) && w.leagues[c.leagueId]?.level !== 2)
     .sort((a, b) => strength(b.id) - strength(a.id)).map((c) => c.id)
   for (const arr of [ucl, uel, uecl]) while (arr.length < 36 && pool.length) { const c = pool.shift()!; arr.push(c); taken.add(c) }
