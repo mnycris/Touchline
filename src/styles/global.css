@@ -42,6 +42,10 @@
   --sat: env(safe-area-inset-top, 0px);
   /* the colour at the very top of the current screen; see the page background below */
   --band: #06070c;
+  /* that colour as it shows above the screen (status bar, page background): dimmed while a sheet is open */
+  --top: var(--band);
+  /* height of the status cover (installed app only) */
+  --cover-h: 0px;
   --sab: env(safe-area-inset-bottom, 0px);
   --nav-h: 64px;
   --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
@@ -55,19 +59,21 @@ html, body, #root { height: 100%; margin: 0; }
    bar: ui/theme.ts tints it with this colour through theme-color, and apps added while the status bar style was
    "black" have that strip painted in the page background, so the page background is the same colour. Either way the
    strip reads as part of the screen. Nothing else of the page background is ever visible on a phone. */
-html, body { background-color: var(--band); transition: background-color 0.4s ease; }
+html, body { background-color: var(--top); transition: background-color 0.2s ease; }
 html:has(.menu-screen) { --band: #0c2421; }
 html:has(.match-top) { --band: color-mix(in srgb, rgb(var(--club-rgb)) 26%, #070a10); }
+/* a sheet's backdrop dims the app; the status bar and the cover above it dim with it (same 0.2s fade) */
+html:has(.sheet-backdrop.fade-in) { --top: color-mix(in srgb, var(--band) 45%, #000); }
 /* Since iOS 26 a Home Screen app gets a Liquid Glass "scroll edge" blur over the top ~40pt of the page, over the
    header, unless a fixed, full-width box at the top edge paints one solid colour: WebKit then fills the status bar
    with that colour and drops the blur (LocalFrameView::fixedContainerEdges hit-tests the top edge a few px down and
    needs a fixed box spanning the width, opaque, over ~10px tall, without backdrop-filter). Every screen here starts with
    a gradient or a frosted bar, so this cover is that box: the screen's top colour behind the status bar, with the app
-   starting just below it. */
+   starting just below it. Below an opaque status bar it is 12px tall and sits in the header's top padding. */
 #status-cover { display: none; }
 @media (display-mode: standalone) {
-  :root { --sat: max(env(safe-area-inset-top, 0px), 12px); }
-  #status-cover { display: block; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background-color: var(--band); z-index: 2147483000; transition: background-color 0.4s ease; }
+  :root { --sat: max(env(safe-area-inset-top, 0px), 4px); --cover-h: max(env(safe-area-inset-top, 0px), 12px); }
+  #status-cover { display: block; position: fixed; top: 0; left: 0; right: 0; height: var(--cover-h); background-color: var(--top); z-index: 2147483000; transition: background-color 0.2s ease; }
 }
 body {
   color: var(--t1);

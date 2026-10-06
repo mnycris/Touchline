@@ -57,16 +57,17 @@ function toHex(c: string): string | undefined {
 }
 
 /**
- * Keeps the theme colour on the colour the current screen starts with (--band, set in global.css per screen). On an
- * iPhone the installed app sits below an opaque status bar tinted with the theme colour, so the bar reads as part of
- * the screen; a browser tab tints its toolbar the same way. Watches the page and updates at most a few times a second.
+ * Keeps the theme colour on the colour above the current screen (--top in global.css: the screen's top colour, dimmed
+ * while a sheet is open). On an iPhone the installed app sits below an opaque status bar tinted with the theme colour,
+ * so the bar reads as part of the screen; a browser tab tints its toolbar the same way. Watches the page and updates
+ * within a frame or two of a change.
  */
 export function syncThemeColor() {
   const meta = document.querySelector('meta[name="theme-color"]')
   if (!meta) return
   const probe = document.createElement('i')
   probe.setAttribute('aria-hidden', 'true')
-  probe.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none;background-color:var(--band)'
+  probe.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none;background-color:var(--top)'
   document.body.appendChild(probe)
   let last = ''
   let timer = 0
@@ -75,8 +76,9 @@ export function syncThemeColor() {
     const hex = toHex(getComputedStyle(probe).backgroundColor)
     if (hex && hex !== last) { last = hex; meta.setAttribute('content', hex) }
   }
-  const soon = () => { if (!timer) timer = window.setTimeout(update, 120) }
-  new MutationObserver(soon).observe(document.body, { childList: true, subtree: true })
+  const soon = () => { if (!timer) timer = window.setTimeout(update, 60) }
+  // screens come and go (childList); a sheet's backdrop switches from fade-in to fade-out as it closes (class)
+  new MutationObserver(soon).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] })
   new MutationObserver(soon).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] })
   update()
 }
