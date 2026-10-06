@@ -13,9 +13,11 @@ import { formationOf } from '../../domain/constants'
 import { posRating } from '../../domain/ratings'
 import type { MatchContext, SideInput } from './engine'
 import { CLEAN_SHEET, GOAL_W, RGROUP, type RG } from './rating'
+import { keeperQuality, penaltyChance, takerQuality } from './penalty'
 
 const ASSIST_W: Record<RG, number> = { GK: 0.02, CB: 0.1, FB: 0.45, DM: 0.3, CM: 0.65, AM: 1, W: 0.95, ST: 0.45 }
-const CARD_W: Record<RG, number> = { GK: 0.15, CB: 1.2, FB: 1.1, DM: 1.4, CM: 1, AM: 0.6, W: 0.6, ST: 0.7 }
+// bookings per 90 by position as the action engine gives them (aggression sharpens it, but only a little)
+const CARD_W: Record<RG, number> = { GK: 0.08, CB: 0.75, FB: 0.68, DM: 1.15, CM: 1.05, AM: 0.78, W: 0.6, ST: 0.62 }
 const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.1, AM: 0.96, W: 1.05, ST: 0.95 }
 /**
  * Shots per 90 and xG per shot by position, as top-flight players (and the action engine) produce them. Shots are
@@ -101,6 +103,13 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
     }
   }
   const onAt = (q: QP, m: number) => q.on <= m && q.off >= m
+  // penalties: the designated taker if he is on, else the best taker on the pitch, against the keeper on the day,
+  // with the action engine's model (penalty.ts)
+  const penTaker = (side: 0 | 1, minute: number) => {
+    const on = ps.filter((q) => q.side === side && onAt(q, minute) && q.g !== 'GK')
+    return on.find((q) => q.p.id === sides[side].sheet.penalties) || [...on].sort((a, b) => takerQuality(b.p) - takerQuality(a.p))[0]
+  }
+  const penOdds = (side: 0 | 1, t: QP, pressure = 0) => penaltyChance(takerQuality(t.p), t.p.attrs[A.composure], keeperQuality(ps.find((q) => q.side !== side && q.g === 'GK' && q.off >= 90)?.p), pressure, t.p.foot === 'L' ? 'L' : 'R')
   // --- goals
   // a shared component (open games stay open, tight ones stay tight) gives the engine's draw rate
   const common = poisson(rng, 0.14)
@@ -117,9 +126,12 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
         events.push({ min: minute, type: 'owngoal', side, player: og.p.id, text: '', big: true })
         continue
       }
-      if (u < 0.115) {
-        const taker = [...mates].sort((a, b) => b.p.attrs[A.penalties] - a.p.attrs[A.penalties])[0]
-        if (taker) { taker.st.goals++; taker.st.shots++; taker.st.sot++; taker.st.xg += 0.76; events.push({ min: minute, type: 'penGoal', side, player: taker.p.id, text: '', xg: 0.76, big: true }); continue }
+      // about one goal in twelve is a penalty, a few more for a side with a reliable taker
+      const taker = penTaker(side, minute)
+      if (taker && u < 0.03 + 0.085 * (penOdds(side, taker) / 0.78)) {
+        taker.st.goals++; taker.st.shots++; taker.st.sot++; taker.st.xg += 0.76
+        events.push({ min: minute, type: 'penGoal', side, player: taker.p.id, text: '', xg: 0.76, big: true })
+        continue
       }
       // the same pick that shares out the shots, weighted by how well each converts them
       const scorer = rng.weighted(mates, (q) => shotW(q) * finishW(q))
@@ -140,10 +152,12 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   goalEvents(1, score[1], 0, 90)
   // the penalties that were missed
   for (const i of [0, 1] as const) {
-    if (rng.next() >= 0.03) continue
     const minute = clamp(Math.round(rng.next() * 90), 3, 90)
-    const taker = ps.filter((q) => q.side === i && onAt(q, minute)).sort((a, b) => b.p.attrs[A.penalties] - a.p.attrs[A.penalties])[0]
-    if (taker) { taker.st.shots++; taker.st.xg += 0.76; events.push({ min: minute, type: 'penMiss', side: i, player: taker.p.id, text: '', xg: 0.76, big: true }) }
+    const taker = penTaker(i, minute)
+    // a side is awarded about 0.15 penalties a game; the ones its taker does not score are the misses
+    if (!taker || rng.next() >= 0.15 * (1 - penOdds(i, taker))) continue
+    taker.st.shots++; taker.st.xg += 0.76
+    events.push({ min: minute, type: 'penMiss', side: i, player: taker.p.id, text: '', xg: 0.76, big: true })
   }
   let regScore: [number, number] | undefined
   let pens: [number, number] | undefined
@@ -159,11 +173,10 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       goalEvents(1, e1, 90, 120)
     }
     if (level()) {
+      // the five best takers left on the pitch, under shoot-out pressure
       const pk = (i: 0 | 1) => {
-        const xs = ps.filter((q) => q.side === i && q.off >= 90)
-        const t = xs.reduce((a, q) => a + q.p.attrs[A.penalties], 0) / Math.max(1, xs.length)
-        const gk = ps.find((q) => q.side !== i && q.g === 'GK')
-        return clamp(0.75 + (t - 65) / 500 - ((gk?.p.attrs[A.gkDiving] || 60) - 70) / 600, 0.6, 0.88)
+        const xs = ps.filter((q) => q.side === i && q.off >= 90 && q.g !== 'GK').sort((a, b) => takerQuality(b.p) - takerQuality(a.p)).slice(0, 5)
+        return xs.length ? xs.reduce((a, q) => a + penOdds(i, q, 0.035), 0) / xs.length : 0.7
       }
       const p0 = pk(0), p1 = pk(1)
       let a = 0, b = 0
@@ -184,9 +197,9 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   // --- cards
   for (const i of [0, 1] as const) {
     const pool = ps.filter((q) => q.side === i)
-    const ny = poisson(rng, 1.65 * ctx.strictness * (ctx.derby ? 1.2 : 1))
+    const ny = poisson(rng, 1.48 * ctx.strictness * (ctx.derby ? 1.2 : 1))
     for (let c = 0; c < ny; c++) {
-      const q = rng.weighted(pool, (x) => CARD_W[x.g] * Math.pow(x.p.attrs[A.aggression] / 65, 1.5) * (x.mins / 90))
+      const q = rng.weighted(pool, (x) => CARD_W[x.g] * Math.pow(x.p.attrs[A.aggression] / 65, 0.9) * (x.mins / 90))
       if (!q) continue
       const minute = clamp(Math.round(q.on + rng.next() * Math.max(1, q.off - q.on)), 1, 90)
       if (q.st.yellow) {

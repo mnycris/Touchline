@@ -20,6 +20,7 @@ import { posRating } from '../../domain/ratings'
 import { BODY_PARTS, callName, line } from './commentary'
 import { type Pt, type RoleShift, type ShapeInput, type ShotContext, roleShift, baseXg, chanceXg, encodeHeat, flip, heatIndex, HEAT_H, HEAT_W, inBox, logit, metres, playerSpot, sigmoid, toAbs } from './pitch'
 import { computeRating, GAIN, GOAL_W, PAR, RGROUP, RP, type RG } from './rating'
+import { keeperQuality, takePenalty, takerQuality } from './penalty'
 
 export type Phase = 'pre' | '1H' | 'HT' | '2H' | 'ET1' | 'ETHT' | 'ET2' | 'PENS' | 'FT'
 
@@ -166,6 +167,14 @@ const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.
 
 /** Shooting instinct by position (inside the box; weaker from distance). */
 const SHOOT: Record<RG, number> = { GK: -2, CB: -0.45, FB: -0.5, DM: -0.15, CM: 0.2, AM: 0.08, W: 0.25, ST: 0 }
+
+/**
+ * How often a challenge from each position is a foul: a centre-back or full-back meets forwards late and from behind,
+ * while midfield pressing is mostly a clean nick of the ball or a jockey.
+ */
+const FOUL_POS: Record<RG, number> = { GK: 1, CB: 2.9, FB: 2.6, DM: 1.05, CM: 0.72, AM: 0.75, W: 0.85, ST: 1.05 }
+/** How often a foul from each position is a booking: cynical stops of attacks at the back, mostly harmless ones up front. */
+const CARD_POS: Record<RG, number> = { GK: 0.8, CB: 1.9, FB: 1.65, DM: 1, CM: 0.9, AM: 0.85, W: 0.85, ST: 0.7 }
 
 /** How much each position gets the ball in general circulation (centre-backs and full-backs see a lot of it). */
 const DEMAND: Record<RG, number> = { GK: 1, CB: 1.35, FB: 1.2, DM: 0.95, CM: 0.78, AM: 0.68, W: 0.95, ST: 0.78 }
@@ -470,7 +479,6 @@ export class MatchSim {
   private lsh(l: LP) { return this.e(l, A.longShots) * 0.5 + this.e(l, A.shotPower) * 0.3 + this.e(l, A.curve) * 0.1 + this.e(l, A.composure) * 0.1 + l.pb.lsh }
   private hfin(l: LP) { return this.e(l, A.heading) * 0.5 + this.e(l, A.jumping) * 0.2 + this.e(l, A.positioning) * 0.15 + this.e(l, A.strength) * 0.15 + (l.p.height - 181) * 0.3 + l.pb.hfin }
   private vol(l: LP) { return this.e(l, A.volleys) * 0.5 + this.e(l, A.finishing) * 0.3 + this.e(l, A.composure) * 0.2 + l.pb.vol }
-  private pk(l: LP) { return this.e(l, A.penalties) * 0.6 + this.e(l, A.composure) * 0.25 + this.e(l, A.shotPower) * 0.15 }
   private fk(l: LP) { return this.e(l, A.fkAccuracy) * 0.55 + this.e(l, A.curve) * 0.3 + this.e(l, A.shotPower) * 0.15 + l.pb.fk }
   private gkStop(l: LP) {
     if (l.pos !== 'GK') return 25 + l.p.attrs[A.reactions] * 0.2
@@ -1329,11 +1337,13 @@ export class MatchSim {
 
   private foulProb(def: LP, att: LP, k: number, at: Pt = this.b) {
     const Y = this.sides[def.side]
-    // defenders stay on their feet in their own box
-    if (att.side === this.ps && inBox(at)) k *= 0.16
+    // defenders stay on their feet in their own box (whatever their position: a penalty is a penalty)
+    const box = att.side === this.ps && inBox(at)
+    if (box) k *= 0.16
+    else k *= FOUL_POS[def.g]
     const agg = this.e(def, A.aggression), tk = this.tackleS(def)
     return clamp(
-      0.26 * k * Math.pow(Math.max(20, agg) / 65, 1.3) * (1 + (this.ref - tk) / 90) * (def.energy < 50 ? 1.2 : 1) * (def.yellow ? 0.6 : 1)
+      0.26 * k * Math.pow(Math.max(20, agg) / 65, 1.05) * (1 + (this.ref - tk) / 90) * (def.energy < 50 ? 1.2 : 1) * (def.yellow ? 0.6 : 1)
       * (Y.tactics.defApproach === 'Aggressive' ? 1.2 : 1) * (this.ctx.derby ? 1.12 : 1) * (1 + (this.drib(att) - this.ref) / 150) * (1 + def.bias.dw * 0.25),
       0.02, 0.45,
     )
@@ -2539,7 +2549,7 @@ export class MatchSim {
     const agg = this.e(def, A.aggression)
     const tactical = this.counter && this.dis > 0.3
     const pRed = clearChance ? (box ? 0.07 : 0.25) * strict : 0.0022 * strict * (agg / 70) * (kind === 'aerial' ? 0.5 : 1)
-    const pYel = 0.105 * Math.pow(Math.max(20, agg) / 65, 1.1) * strict * (tactical ? 2.4 : 1) * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.55 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
+    const pYel = 0.112 * CARD_POS[def.g] * Math.pow(Math.max(20, agg) / 65, 0.6) * strict * (tactical ? 2.4 : 1) * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.55 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
     let dead = 18 + this.rng.next() * 14 + (at.x > 66 ? 10 : 0)
     // Edit Mode: the card for a scripted penalty's foul
     const fc = this.forceCard
@@ -2615,11 +2625,11 @@ export class MatchSim {
   private misconduct() {
     for (const s of this.sides) {
       const waste = this.timeWasting(s)
-      const p = 0.0028 * this.ctx.strictness * this.temper() * (this.ctx.derby ? 1.3 : 1) + (waste ? 0.012 : 0)
+      const p = 0.0016 * this.ctx.strictness * this.temper() * (this.ctx.derby ? 1.3 : 1) + (waste ? 0.012 : 0)
       if (this.rng.next() >= p) continue
       const pool = s.on.filter((l) => !l.yellow)
       if (!pool.length) continue
-      const l = this.rng.weighted(pool, (x) => Math.pow(x.p.hidden.temperament / 60, 2) + (waste && x.pos === 'GK' ? 3 : 0))
+      const l = this.rng.weighted(pool, (x) => Math.pow(x.p.hidden.temperament / 60, 1.4) + (waste && x.pos === 'GK' ? 3 : 0))
       l.yellow = true
       l.st.yellow = true
       this.rp(l, RP.yellow)
@@ -2631,25 +2641,16 @@ export class MatchSim {
   // =========================================================== penalties
   private penaltyKick(taker: LP, X: Side, Y: Side, shootout: boolean, round = 0): number {
     const gk = Y.gk
-    const pk = this.pk(taker)
-    const gq = gk ? this.gkStop(gk) * 0.6 + this.e(gk, A.gkPositioning) * 0.4 : 20
-    const pressure = shootout ? (round >= 4 ? 0.06 : 0.03) : this.minute >= 80 && Math.abs(this.score[0] - this.score[1]) <= 1 ? 0.03 : 0
-    const confident = clamp((this.e(taker, A.composure) - this.ref + 12) / 60, 0, 0.6)
+    // the taker against the keeper on absolute scales (see penalty.ts): the level of the match and the rest of the
+    // team play no part, only the two players, the taker's day and the pressure of the moment
+    const pressure = shootout ? (round >= 4 ? 0.05 : 0.025) : this.minute >= 80 && Math.abs(this.score[0] - this.score[1]) <= 1 ? 0.02 : 0
     const fp = this.forcePen && this.forcePen.taker === taker.p.id ? this.forcePen : undefined
     if (fp) this.forcePen = undefined
-    const spot = fp?.spot ?? this.rng.weighted<PenaltyKick['spot']>(['BL', 'BR', 'TL', 'TR', 'C'], (s) => (s === 'BL' || s === 'BR' ? 0.33 : s === 'C' ? 0.1 : 0.1 + confident * 0.15) * ((taker.p.foot === 'L') === (s === 'BR' || s === 'TR') ? 1.15 : 1))
-    const dirOf = (s: string): 'L' | 'R' | 'C' => (s === 'C' ? 'C' : s[1] === 'L' ? 'L' : 'R')
-    const read = clamp(0.36 + (gq - this.ref + 2) / 300, 0.28, 0.5)
-    const want = dirOf(spot)
-    let dive: 'L' | 'R' | 'C' = fp?.dive ?? (this.rng.next() < 0.1 ? 'C' : this.rng.next() < read + (want === 'C' ? 0 : 0.14) ? (want === 'C' ? (this.rng.next() < 0.5 ? 'L' : 'R') : want) : want === 'L' ? 'R' : want === 'R' ? 'L' : this.rng.next() < 0.5 ? 'L' : 'R')
-    const high = spot === 'TL' || spot === 'TR'
-    const missP = clamp(0.035 + (high ? 0.08 : spot === 'C' ? 0.01 : 0.025) - (pk - this.ref) * 0.0015 + pressure, 0.01, 0.2)
-    let res: PenaltyKick['res']
-    if (this.rng.next() < missP) res = this.rng.next() < 0.35 ? 'post' : 'miss'
-    else if (dive === want) {
-      const saveP = want === 'C' ? 0.85 : high ? 0.2 : clamp(0.55 + (gq - pk) * 0.012, 0.3, 0.8)
-      res = this.rng.next() < saveP ? 'saved' : 'goal'
-    } else res = 'goal'
+    const kick = takePenalty(this.rng, takerQuality(taker.p, taker.form), taker.p.attrs[A.composure], keeperQuality(gk?.p), pressure, taker.p.foot === 'L' ? 'L' : 'R', { spot: fp?.spot, dive: fp?.dive })
+    const spot = kick.spot
+    const want: 'L' | 'R' | 'C' = spot === 'C' ? 'C' : spot[1] === 'L' ? 'L' : 'R'
+    let dive = kick.dive
+    let res: PenaltyKick['res'] = kick.res
     // Edit Mode: a scripted outcome, and no natural penalty goal past a scripted final score
     if (!shootout) {
       const room = fp ? undefined : this.goalRoom(X.idx)
@@ -2659,6 +2660,7 @@ export class MatchSim {
       else if (want2 === 'miss') { res = this.rng.next() < 0.35 ? 'post' : 'miss' }
     }
     const pen: PenaltyKick = { taker: taker.p.id, keeper: gk?.p.id, spot, dive, res }
+    this.lastPen = res
     if (shootout) return res === 'goal' ? 1 : 0
     const v = { p: callName(taker.p.name), gk: gk ? callName(gk.p.name) : 'the keeper', t: X.name }
     const loc: [number, number] = (() => { const a = toAbs(X.idx, { x: 88.6, y: 50 }); return [r1(a.x), r1(a.y)] as [number, number] })()
@@ -2704,10 +2706,13 @@ export class MatchSim {
     return 2
   }
 
+  private lastPen: PenaltyKick['res'] = 'goal'
+
   private shootout() {
     const order = (s: Side) => {
       const sheet = s.input.sheet
-      return [...s.on].sort((a, b) => (b.p.id === sheet.penalties ? 100 : 0) + this.pk(b) - ((a.p.id === sheet.penalties ? 100 : 0) + this.pk(a)))
+      const q = (l: LP) => (l.p.id === sheet.penalties ? 100 : 0) + (l.pos === 'GK' ? -50 : 0) + takerQuality(l.p, l.form)
+      return [...s.on].sort((a, b) => q(b) - q(a))
     }
     const lists = [order(this.sides[0]), order(this.sides[1])]
     const sc: [number, number] = [0, 0]
@@ -2724,7 +2729,7 @@ export class MatchSim {
       taken[side]++
       if (scored) sc[side]++
       const keeper = gk ? callName(gk.p.name) : 'the keeper'
-      const text = scored ? `${callName(taker.p.name)} scores! (${sc[0]}-${sc[1]})` : this.crng.next() < 0.6 ? `${callName(taker.p.name)}'s penalty is saved by ${keeper}! (${sc[0]}-${sc[1]})` : `${callName(taker.p.name)} misses the target! (${sc[0]}-${sc[1]})`
+      const text = scored ? `${callName(taker.p.name)} scores! (${sc[0]}-${sc[1]})` : this.lastPen === 'saved' ? `${callName(taker.p.name)}'s penalty is saved by ${keeper}! (${sc[0]}-${sc[1]})` : this.lastPen === 'post' ? `${callName(taker.p.name)} hits the woodwork! (${sc[0]}-${sc[1]})` : `${callName(taker.p.name)} misses the target! (${sc[0]}-${sc[1]})`
       this.push({ min: 120, type: 'shootout', side, player: taker.p.id, text })
     }
     for (round = 0; round < 5; round++) {

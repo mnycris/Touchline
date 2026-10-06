@@ -281,6 +281,8 @@ export interface Round {
   byes?: number[] // clubs passing straight through this round
   winners?: number[]
   pool?: number[] // all clubs involved in this round at draw time
+  /** clubs left after this round, for a play-off round the draw inserted (it has no entry in the cup's definition) */
+  target?: number
 }
 
 export interface Competition {

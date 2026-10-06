@@ -15,8 +15,11 @@ export function Emblem({ size = 44 }: { size?: number }) {
   )
 }
 
-/** The game's version: the number before the dot moves with major updates, the one after with fixes. */
-export const APP_VERSION = '4.1'
+/**
+ * The game's version, major.minor.hotfix: 4.0 is Major Update 4, 4.1 the first minor update after it, 4.1.1 the first
+ * hotfix for 4.1 (4.1.2 the second), 4.2 the next minor update and 5.0 the next major one.
+ */
+export const APP_VERSION = '4.1.1'
 
 export function Wordmark({ size = 1, version }: { size?: number; version?: boolean }) {
   return (

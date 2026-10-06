@@ -1,6 +1,6 @@
 import type { Competition, Fixture, ISODate, Round, World } from '../../domain/types'
 import { Rng } from '../../domain/rng'
-import { addDays } from '../../domain/dates'
+import { addDays, diffDays } from '../../domain/dates'
 import { ClubDateIndex, findDate, kickoffFor, type SeasonDates } from './calendar'
 import { newFixture } from './fixtures'
 
@@ -87,8 +87,8 @@ export const CUP_DEFS: CupDef[] = [
     key: 'CI', name: 'Coppa Italia Frecciarossa', short: 'Coppa Italia', country: 'Italy', dates: 'CI', tier: 2, extraTime: true,
     clubs: (w) => leagueClubs(w, [31, 32]),
     rounds: [
-      { name: 'First Round', target: 32, dateIdx: 0, entry: (w, c) => levelOf(w, c) === 2 || (w.flags.ciSeeds && !w.flags.ciSeeds.includes(c)) },
-      { name: 'Round of 32', target: 16, dateIdx: 1 },
+      { name: 'First Round', target: 16, dateIdx: 0, entry: (w, c) => levelOf(w, c) === 2 || (w.flags.ciSeeds && !w.flags.ciSeeds.includes(c)) },
+      { name: 'Second Round', target: 8, dateIdx: 1 },
       { name: 'Round of 16', target: 8, dateIdx: 2, entry: (w, c) => !!w.flags.ciSeeds?.includes(c) },
       { name: 'Quarter-final', target: 4, dateIdx: 3 },
       { name: 'Semi-final', target: 2, dateIdx: 4, dateIdx2: 5 },
@@ -143,6 +143,7 @@ export const CUP_DEFS: CupDef[] = [
     key: 'BELCUP', name: 'Croky Cup', short: 'Belgian Cup', country: 'Belgium', dates: 'BELCUP', tier: 2, extraTime: true,
     clubs: (w) => leagueClubs(w, [4]),
     rounds: [
+      { name: 'First Round', target: 16, dateIdx: 0 },
       { name: 'Round of 16', target: 8, dateIdx: 1 },
       { name: 'Quarter-final', target: 4, dateIdx: 2 },
       { name: 'Semi-final', target: 2, dateIdx: 3 },
@@ -153,6 +154,7 @@ export const CUP_DEFS: CupDef[] = [
     key: 'TURCUP', name: 'Türkiye Kupası', short: 'Turkish Cup', country: 'Türkiye', dates: 'TURCUP', tier: 2, extraTime: true,
     clubs: (w) => leagueClubs(w, [68]),
     rounds: [
+      { name: 'First Round', target: 16, dateIdx: 0 },
       { name: 'Round of 16', target: 8, dateIdx: 1 },
       { name: 'Quarter-final', target: 4, dateIdx: 2 },
       { name: 'Semi-final', target: 2, dateIdx: 3 },
@@ -197,31 +199,62 @@ export function cupDef(key: string) {
   return CUP_DEFS.find((d) => d.key === key)
 }
 
-/** Draw a knockout round: pool = previous winners + byes + new entrants. Lowest seeds play first; rest get byes. */
+/**
+ * Draw a knockout round: pool = previous winners + byes + new entrants. Lowest seeds play first; rest get byes.
+ * From the round where nobody new joins, every round must halve exactly down to the final. A dynamic round (target 0)
+ * leaves just enough clubs for that; when the clubs still to come in leave it too few games to play, the lowest of
+ * them come in a round early. If a round would still hold more clubs than it can halve (a bracket that has gone out
+ * of shape), the surplus is settled first in a play-off between the lowest-ranked, so nobody walks through on byes.
+ */
 export function drawCupRound(w: World, comp: Competition, idx: number, rng: Rng, idxDates: ClubDateIndex) {
   const def = cupDef(comp.key)
   const round = comp.rounds[idx]
   if (!def || round.drawn) return
-  const rdef = def.rounds[idx]
+  // rounds are matched to the definition by name: a play-off the draw inserted has no definition of its own
+  const di = def.rounds.findIndex((r) => r.name === round.name)
+  const rdef: CupRoundDef = di >= 0 ? def.rounds[di] : { name: round.name, target: round.target ?? 1, dateIdx: -1 }
   const prev = idx > 0 ? comp.rounds[idx - 1] : undefined
   const already = new Set<number>()
   for (const r of comp.rounds.slice(0, idx)) for (const c of r.pool || []) already.add(c)
   let pool: number[] = prev ? [...(prev.winners || []), ...(prev.byes || [])] : []
-  const entrants = comp.clubs.filter((c) => !already.has(c) && !pool.includes(c) && (idx === 0 ? (rdef.entry ? rdef.entry(w, c) : true) : rdef.entry ? rdef.entry(w, c) : false))
+  const entrants = di < 0 ? [] : comp.clubs.filter((c) => !already.has(c) && !pool.includes(c) && (idx === 0 ? (rdef.entry ? rdef.entry(w, c) : true) : rdef.entry ? rdef.entry(w, c) : false))
   pool = [...pool, ...entrants]
   // final round safety: everyone left enters
-  if (idx === def.rounds.length - 1 || !def.rounds.slice(idx + 1).some((r) => r.entry)) {
+  if (di >= 0 && (di === def.rounds.length - 1 || !def.rounds.slice(di + 1).some((r) => r.entry))) {
     const rest = comp.clubs.filter((c) => !already.has(c) && !pool.includes(c))
     if (idx === 0) pool.push(...rest)
   }
   let target = rdef.target
   if (target === 0) {
-    // dynamic: make the following round a power of two
-    const nextEntrants = comp.clubs.filter((c) => !already.has(c) && !pool.includes(c)).length
-    target = Math.max(1, 32 - nextEntrants)
+    // dynamic: the rounds after this one halve down to the final, so the next round needs a power of two
+    const later = comp.clubs.filter((c) => !already.has(c) && !pool.includes(c))
+    target = Math.max(1, Math.pow(2, def.rounds.length - di - 1) - later.length)
+    if (pool.length > 2 * target) {
+      const early = [...later].sort((a, b) => strength(w, a) - strength(w, b)).slice(0, pool.length - 2 * target)
+      pool.push(...early)
+      target += early.length
+    }
+  }
+  if (pool.length > 2 * target && di >= 0) {
+    // too many clubs to halve: a play-off for the lowest-ranked settles the surplus before this round is drawn
+    const extra = pool.length - 2 * target
+    const after = prev?.date && prev.date > w.date ? prev.date : w.date
+    let date = round.date > addDays(after, 9) ? addDays(round.date, -7) : addDays(after, 3)
+    if (date > addDays(round.date, -3)) {
+      const shift = diffDays(addDays(date, 4), round.date)
+      round.date = addDays(round.date, shift)
+      if (round.date2) round.date2 = addDays(round.date2, shift)
+    }
+    const po: Round = { id: `${round.id}P`, name: `${round.name} play-off`, legs: 1, date, fixtures: [], drawn: false, target: pool.length - extra }
+    comp.rounds.splice(idx, 0, po)
+    drawPlayoff(w, comp, po, pool, extra, rng, idxDates)
+    return
   }
   const games = Math.max(0, Math.min(Math.floor(pool.length / 2), pool.length - target))
-  const sorted = [...pool].sort((a, b) => strength(w, a) - strength(w, b))
+  // a club that sat out the last round plays in this one
+  const rested = new Set(prev?.byes || [])
+  const rank = (c: number) => strength(w, c) - (rested.has(c) ? 1000 : 0)
+  const sorted = [...pool].sort((a, b) => rank(a) - rank(b))
   const players = sorted.slice(0, games * 2)
   const byes = sorted.slice(games * 2)
   rng.shuffle(players)
@@ -252,6 +285,26 @@ export function drawCupRound(w: World, comp: Competition, idx: number, rng: Rng,
   }
   comp.status = 'active'
   if (games === 0 && idx < comp.rounds.length - 1) drawCupRound(w, comp, idx + 1, rng, idxDates)
+}
+
+/** The play-off the draw inserted: the lowest-ranked clubs of the pool meet, everyone else waits for the round itself. */
+function drawPlayoff(w: World, comp: Competition, po: Round, pool: number[], extra: number, rng: Rng, idxDates: ClubDateIndex) {
+  const sorted = [...pool].sort((a, b) => strength(w, a) - strength(w, b))
+  const players = sorted.slice(0, extra * 2)
+  rng.shuffle(players)
+  po.pool = pool
+  po.byes = sorted.slice(extra * 2)
+  po.winners = []
+  po.drawn = true
+  for (let i = 0; i < extra; i++) {
+    let h = players[2 * i], a = players[2 * i + 1]
+    if (levelOf(w, a) > levelOf(w, h)) [h, a] = [a, h]
+    const d = findDate(idxDates, h, a, po.date, { gap: 1 })
+    const f = newFixture(w, comp, h, a, d, kickoffFor(d, 'cup'), po.name, { roundId: po.id, tieId: `${po.id}:T${i + 1}` })
+    idxDates.add(h, d); idxDates.add(a, d)
+    po.fixtures.push(f.id)
+  }
+  comp.status = 'active'
 }
 
 /** Winner of a tie (single or two-legged) once decided, otherwise undefined. */
