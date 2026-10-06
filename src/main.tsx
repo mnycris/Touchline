@@ -4,6 +4,9 @@ import './styles/global.css'
 import './styles/screens.css'
 import App from './App'
 import { ErrorBoundary } from './ui/components/ErrorBoundary'
+import { initViewport } from './ui/viewport'
+
+initViewport()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
