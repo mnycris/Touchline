@@ -51,9 +51,10 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
-/* Installed on an iPhone the app sits below an opaque status bar, and iOS paints that strip in the page background
-   colour; the page background is therefore the colour the current screen starts with, so the strip reads as part of
-   the screen rather than an empty bar. Nothing else of the page background is ever visible on a phone. */
+/* --band is the colour the current screen starts with. Installed on an iPhone the app sits below an opaque status
+   bar: ui/theme.ts tints it with this colour through theme-color, and apps added while the status bar style was
+   "black" have that strip painted in the page background, so the page background is the same colour. Either way the
+   strip reads as part of the screen. Nothing else of the page background is ever visible on a phone. */
 html, body { background-color: var(--band); transition: background-color 0.4s ease; }
 html:has(.menu-screen) { --band: #0c2421; }
 html:has(.match-top) { --band: color-mix(in srgb, rgb(var(--club-rgb)) 26%, #070a10); }

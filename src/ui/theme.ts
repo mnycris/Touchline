@@ -46,8 +46,39 @@ export function applyTheme(club?: Pick<Club, 'theme' | 'kit'>) {
   root.style.setProperty('--club-ink', luminance(acc) > 165 ? '#0b0d11' : '#ffffff')
   root.style.setProperty('--club2', luminance(second) < 60 ? '#ffffff' : second)
   root.style.setProperty('--club-deep', mix(acc, [5, 7, 12], 0.78))
+}
+
+/** A computed CSS colour (rgb(), rgba() or color(srgb ...)) as #rrggbb. */
+function toHex(c: string): string | undefined {
+  const rgb = c.match(/rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/)
+  const srgb = c.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/)
+  const v = rgb ? rgb.slice(1, 4).map(Number) : srgb ? srgb.slice(1, 4).map((x) => Number(x) * 255) : undefined
+  return v && `#${v.map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, '0')).join('')}`
+}
+
+/**
+ * Keeps the theme colour on the colour the current screen starts with (--band, set in global.css per screen). On an
+ * iPhone the installed app sits below an opaque status bar tinted with the theme colour, so the bar reads as part of
+ * the screen; a browser tab tints its toolbar the same way. Watches the page and updates at most a few times a second.
+ */
+export function syncThemeColor() {
   const meta = document.querySelector('meta[name="theme-color"]')
-  if (meta) meta.setAttribute('content', mix(acc, [5, 7, 12], 0.85))
+  if (!meta) return
+  const probe = document.createElement('i')
+  probe.setAttribute('aria-hidden', 'true')
+  probe.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none;background-color:var(--band)'
+  document.body.appendChild(probe)
+  let last = ''
+  let timer = 0
+  const update = () => {
+    timer = 0
+    const hex = toHex(getComputedStyle(probe).backgroundColor)
+    if (hex && hex !== last) { last = hex; meta.setAttribute('content', hex) }
+  }
+  const soon = () => { if (!timer) timer = window.setTimeout(update, 120) }
+  new MutationObserver(soon).observe(document.body, { childList: true, subtree: true })
+  new MutationObserver(soon).observe(document.documentElement, { attributes: true, attributeFilter: ['style', 'class'] })
+  update()
 }
 
 /** A club colour made safe to sit under white text: light kits (white, yellow, sky blue) are pulled towards the
