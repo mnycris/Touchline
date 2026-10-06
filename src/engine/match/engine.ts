@@ -182,7 +182,8 @@ const DEMAND: Record<RG, number> = { GK: 1, CB: 1.35, FB: 1.2, DM: 0.95, CM: 0.7
 const LN_DEMAND = Object.fromEntries(Object.entries(DEMAND).map(([k, v]) => [k, Math.log(v)])) as Record<RG, number>
 
 const ZB: Bias = { sh: 0, ca: 0, dr: 0, cr: 0, pf: 0, rw: 0, bx: 0, dw: 0 }
-const ROLE_BIAS: Record<string, Partial<Bias>> = {
+/** How each role leans a player's choices (used by the engine; the tactics guide explains it from the same table). */
+export const ROLE_BIAS: Record<string, Partial<Bias>> = {
   'Inside Forward': { sh: 0.18, dr: 0.3, cr: -0.45, bx: 0.25 },
   Winger: { cr: 0.45, dr: 0.3, ca: 0.2 },
   'Wide Playmaker': { pf: 0.2, rw: 0.2, cr: 0.1, sh: -0.1 },
@@ -208,7 +209,7 @@ const ROLE_BIAS: Record<string, Partial<Bias>> = {
   'Ball-Playing Defender': { pf: 0.3, ca: 0.2, rw: 0.15 },
   'Ball-Playing Keeper': { pf: 0.2 },
 }
-const FOCUS_BIAS: Record<string, Partial<Bias>> = {
+export const FOCUS_BIAS: Record<string, Partial<Bias>> = {
   Attack: { sh: 0.05, bx: 0.1, dw: -0.15 },
   Defend: { dw: 0.2, bx: -0.2, sh: -0.1, ca: -0.1 },
   'Build-Up': { pf: 0.1, rw: 0.1 },

@@ -1630,3 +1630,63 @@ select.input option { background: #151b27; }
 
 .sct-meta { display: flex; align-items: center; gap: 6px; padding: 0 12px 12px; margin-top: -4px; }
 .sct-meta .tiny { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---------- tactics guide (4.1.1) ---------- */
+.tb-info { width: 24px; height: 24px; margin: -4px 0; display: inline-grid; place-items: center; border-radius: 999px; color: var(--t3); flex: none; transition: color .15s, background .15s; }
+.tb-info:active { background: rgba(255,255,255,.08); color: var(--t1); }
+.tb-sub.row { display: flex; }
+.guide-opts { display: flex; flex-direction: column; gap: 6px; }
+.guide-opt { padding: 9px 11px; border-radius: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--t2); }
+.guide-opt b { color: var(--t1); }
+.guide-opt .tiny { margin-top: 3px; line-height: 1.4; }
+.guide-opt.on { background: rgba(var(--acc-rgb), .1); border-color: color-mix(in srgb, var(--acc) 55%, transparent); color: var(--t1); }
+.guide-now { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--acc); }
+.guide-list { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; color: var(--t2); line-height: 1.4; }
+.guide-move { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.06); font-size: 11.5px; font-weight: 700; color: var(--t1); }
+.guide-move.up svg { color: var(--pos); } .guide-move.down svg { color: var(--neg); } .guide-move.mixed svg { color: var(--t3); }
+.tb-tend { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.tb-tend-row .tiny.b { font-size: 11.5px; }
+.tb-meter { position: relative; height: 6px; margin: 6px 0 4px; border-radius: 3px; background: linear-gradient(90deg, rgba(255,255,255,.07), rgba(255,255,255,.16)); }
+.tb-meter i { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; transform: translateY(-50%); background: var(--club2, var(--acc)); box-shadow: 0 0 0 3px rgba(0,0,0,.35); transition: left .45s cubic-bezier(.2,.8,.2,1); }
+.tb-ends { font-size: 10px; color: var(--t3); }
+.tb-combo { display: flex; gap: 9px; align-items: flex-start; padding: 9px 10px; border-radius: 11px; background: rgba(255,255,255,.04); border: 1px solid var(--line); }
+.tb-combo > svg { flex: none; margin-top: 2px; color: var(--club2, var(--acc)); }
+.tb-combo .tiny { line-height: 1.4; margin-top: 2px; }
+.tb-tw { display: flex; align-items: center; gap: 4px; padding-right: 10px; }
+.tb-tw > button { padding: 12px 4px 12px 14px; }
+.role-tend { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); color: var(--t2); line-height: 1.4; }
+.role-tend b { color: var(--t1); margin-right: 4px; }
+
+/* ---------- tactical practice (4.1.1) ---------- */
+.pr-entry { display: flex !important; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 12px 14px; text-align: left; }
+.pr-entry .meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.pr-entry b { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
+.pr-entry-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; color: var(--club2); background: rgba(var(--club-rgb), .28); }
+.pr-styles { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.pr-style { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 9px 10px 10px; border-radius: 12px; text-align: left; background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--t1); transition: transform .12s, border-color .2s, background .2s; }
+.pr-style:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.pr-style b { font-size: 12.5px; }
+.pr-style span { font-size: 10.5px; line-height: 1.3; color: var(--t3); }
+.pr-style.on { border-color: var(--club2, var(--acc)); background: rgba(var(--club-rgb), .18); }
+.pr-style:active { transform: scale(.97); }
+.pr-chg { color: var(--warn); font-weight: 700; }
+.pr-watch { overflow: hidden; animation: fadeIn .35s ease both; }
+.pr-score { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px; background: radial-gradient(120% 100% at 50% 0%, rgba(var(--club-rgb), .35), transparent 75%), #070a10; }
+.pr-feed { padding: 8px 12px 10px; min-height: 34px; color: var(--t2); line-height: 1.35; }
+.pr-feed b { color: var(--t1); margin-right: 4px; }
+.pr-spin { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.12); border-top-color: var(--club2, var(--acc)); animation: spin .8s linear infinite; flex: none; }
+.pr-report { animation: fadeIn .35s ease both; }
+.pr-notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; line-height: 1.4; }
+.pr-rows { display: flex; flex-direction: column; }
+.pr-row { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.pr-row:last-child { border-bottom: 0; }
+.pr-d { font-size: 10.5px; font-weight: 800; margin-left: 4px; }
+.pr-d.up { color: var(--pos); } .pr-d.down { color: var(--neg); } .pr-d.same { color: var(--t3); }
+.pr-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.pr-bar i { display: block; height: 100%; background: var(--club2, var(--acc)); transition: width .5s cubic-bezier(.2,.8,.2,1); }
+.pr-chip { padding: 4px 9px; border-radius: 999px; background: rgba(255,255,255,.06); font-size: 11px; font-weight: 700; color: var(--t2); }
+.pr-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pr-people { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pr-person { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px; border-radius: 11px; background: rgba(255,255,255,.04); min-width: 0; }
+.pr-person .meta { min-width: 0; width: 100%; }
+.link-btn { color: var(--club2, var(--acc)); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }

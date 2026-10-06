@@ -101,6 +101,11 @@ export function SquadHub() {
           <QuickBtn icon="development" label="Develop" onClick={() => go({ name: 'development' })} />
           <QuickBtn icon="contract" label="Contracts" onClick={() => go({ name: 'contracts' })} />
         </div>
+        <button className="card tap pr-entry" onClick={() => { haptic(); useGame.getState().open({ name: 'practice' }) }}>
+          <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
+          <span className="meta"><b>Tactical practice</b><span className="tiny dim">Test your tactics in a training match. Nothing counts.</span></span>
+          <Icon name="forward" size={16} color="var(--t3)" />
+        </button>
         {(injured || banned || unhappy || expiring) ? (
           <button className="sq-attn" onClick={() => { haptic(); go({ name: 'squadStatus' }) }}>
             {injured > 0 && <span className="neg"><Icon name="injury" size={12} /> {injured} injured</span>}

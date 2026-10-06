@@ -6,6 +6,9 @@ import { Icon } from '../icons/Icon'
 import { Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Slider, Tabs, Toggle } from '../components/layout'
 import { TacticsBoard } from '../components/TacticsBoard'
+import { GuideButton } from '../components/TacticsGuide'
+import { roleTendencies } from '../tacticsGuide'
+import { FOCUS_BIAS, ROLE_BIAS } from '../../engine/match/engine'
 import { Pitch } from '../components/Pitch'
 import { DEFAULT_TACTICS, FORMATIONS, formationOf, MENTALITIES, ROLE_GROUP, ROLES, VISION_TACTICS } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
@@ -99,6 +102,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
       )}
       {tab === 'roles' && (
         <div className="pad" style={{ marginTop: 12 }}>
+          <div className="row between tiny dim" style={{ marginBottom: 8 }}><span>Tap a player to change his role and duty.</span><span className="row tight">What roles do <GuideButton k="roles" /></span></div>
           <div className="card list">
             {f.slots.map((s, i) => {
               const p = P(sheet.lineup[i])
@@ -116,7 +120,18 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
           </div>
         </div>
       )}
-      {tab === 'tactics' && <TacticsPanel t={sheet.tactics} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />}
+      {tab === 'tactics' && (
+        <>
+          <div className="pad" style={{ marginTop: 12 }}>
+            <button className="card tap pr-entry" style={{ marginTop: 0 }} onClick={() => { haptic(); useGame.getState().open({ name: 'practice', params: forMatch ? { fixtureId: forMatch.id } : undefined }) }}>
+              <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
+              <span className="meta"><b>Test in a practice match</b><span className="tiny dim">See how these tactics play before a real game</span></span>
+              <Icon name="forward" size={16} color="var(--t3)" />
+            </button>
+          </div>
+          <TacticsPanel t={sheet.tactics} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />
+        </>
+      )}
       {tab === 'setpieces' && <SetPieces w={w} sheet={sheet} edit={edit} />}
       {tab === 'presets' && <Presets w={w} fixtureId={forMatch?.id} />}
 
@@ -226,6 +241,7 @@ function RolePicker({ w, p, pos, cur, onPick }: { w: World; p?: Player; pos: any
         })}
       </div>
       {def && <div><div className="label" style={{ marginBottom: 6 }}>Focus</div><Seg small items={def.focuses.map((x) => ({ id: x, label: x }))} value={focus} onChange={setFocus} /></div>}
+      {def && <div className="tiny role-tend"><b>In a match</b> {roleTendencies(ROLE_BIAS[role], FOCUS_BIAS[focus]).join(' · ') || 'plays the position straight'}</div>}
       <button className="btn primary block" onClick={() => onPick(role, focus)}>Apply</button>
     </div>
   )
@@ -241,11 +257,11 @@ export function TacticsPanel({ t, onChange }: { t: TeamTactics; onChange: (p: Pa
         </div>
       </div>
       <TacticsBoard t={t} onChange={onChange} />
-      <div className="card pad-card"><Slider label="Players in the box" value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} fmt={(v) => `${v}`} /><div className="tiny dim">How many arrive in the box for crosses and cut-backs.</div></div>
+      <div className="card pad-card"><Slider label={<span className="row tight">Players in the box <GuideButton k="playersInBox" t={t} /></span>} value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} fmt={(v) => `${v}`} /><div className="tiny dim">How much you play for crosses: higher, and wide players cross more often.</div></div>
       <div className="card pad-card stack" style={{ gap: 12 }}>
         <div className="label">Set pieces</div>
-        <div><div className="small b" style={{ marginBottom: 6 }}>Corners</div><Seg small items={(['Balanced', 'Near Post', 'Far Post', 'Short'] as const).map((x) => ({ id: x, label: x }))} value={t.corners} onChange={(v) => onChange({ corners: v })} /></div>
-        <div><div className="small b" style={{ marginBottom: 6 }}>Free kicks</div><Seg small items={(['Balanced', 'Direct', 'Cross'] as const).map((x) => ({ id: x, label: x }))} value={t.freeKicks} onChange={(v) => onChange({ freeKicks: v })} /></div>
+        <div><div className="small b row tight" style={{ marginBottom: 6 }}>Corners <GuideButton k="corners" t={t} /></div><Seg small items={(['Balanced', 'Near Post', 'Far Post', 'Short'] as const).map((x) => ({ id: x, label: x }))} value={t.corners} onChange={(v) => onChange({ corners: v })} /></div>
+        <div><div className="small b row tight" style={{ marginBottom: 6 }}>Free kicks <GuideButton k="freeKicks" t={t} /></div><Seg small items={(['Balanced', 'Direct', 'Cross'] as const).map((x) => ({ id: x, label: x }))} value={t.freeKicks} onChange={(v) => onChange({ freeKicks: v })} /></div>
       </div>
     </div>
   )

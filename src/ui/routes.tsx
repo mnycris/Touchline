@@ -11,6 +11,7 @@ import { PreMatch } from './screens/MatchDay'
 import { SquadHub, SquadStatus, Contracts } from './screens/Squad'
 import { PlayerProfile } from './screens/Player'
 import { Tactics } from './screens/Tactics'
+import { Practice } from './screens/Practice'
 import { TrainingScreen, DevelopmentScreen } from './screens/Training'
 import { SeasonHub, CompScreen, ClubProfile, CalendarScreen } from './screens/Competitions'
 import { TransferHub, Search, Scouting, Negotiation, Renewal, TransferHistory } from './screens/Transfers'
@@ -42,6 +43,7 @@ export const ROUTES: Record<string, ComponentType<any>> = {
   contracts: Contracts,
   player: PlayerProfile,
   tactics: Tactics,
+  practice: Practice,
   training: TrainingScreen,
   development: DevelopmentScreen,
   comp: CompScreen,

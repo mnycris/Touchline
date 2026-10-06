@@ -8,6 +8,7 @@ import { haptic } from '../../store/game'
 import { Seg, Slider } from './layout'
 import { Icon } from '../icons/Icon'
 import { HalfMarkings } from './PitchSurface'
+import { GuideButton, PlayStyleCard } from './TacticsGuide'
 
 type Change = (p: Partial<TeamTactics>) => void
 
@@ -151,7 +152,7 @@ export function TacticsBoard({ t, onChange, base, game }: { t: TeamTactics; onCh
       )}
 
       <div className="card pad-card">
-        <div className="row between"><div className="label">Mentality</div><span className="tiny b" style={{ color: 'var(--t1)' }}>{t.mentality}</span></div>
+        <div className="row between"><div className="label row tight">Mentality <GuideButton k="mentality" t={t} /></div><span className="tiny b" style={{ color: 'var(--t1)' }}>{t.mentality}</span></div>
         <div className="tb-ment" style={{ ['--i' as any]: mi }}>
           <div className="tb-ment-track" />
           {MENTALITIES.map((m, i) => (
@@ -164,28 +165,32 @@ export function TacticsBoard({ t, onChange, base, game }: { t: TeamTactics; onCh
       </div>
 
       <Board title="Out of possession" icon="shield" diagram={<DefDiagram t={t} />} sub={DEF_PRESET[t.defApproach].text}>
+        <div className="tiny b tb-sub row tight">Defensive approach <GuideButton k="defApproach" t={t} /></div>
         <Seg small items={(['Deep', 'Balanced', 'High', 'Aggressive'] as const).map((x) => ({ id: x, label: x }))} value={t.defApproach} onChange={(v) => set({ defApproach: v, lineHeight: DEF_PRESET[v].lineHeight, pressing: DEF_PRESET[v].pressing })} />
-        <Slider label="Line height" value={t.lineHeight} onChange={(v) => onChange({ lineHeight: v })} left="Deep" right="High" />
-        <Slider label="Pressing" value={t.pressing} onChange={(v) => onChange({ pressing: v })} left="Low" right="Relentless" />
-        <button className={`chip ${t.offsideTrap ? 'on' : ''}`} onClick={() => set({ offsideTrap: !t.offsideTrap })}><Icon name="flag" size={14} /> Offside trap</button>
+        <Slider label={<span className="row tight">Line height <GuideButton k="lineHeight" t={t} /></span>} value={t.lineHeight} onChange={(v) => onChange({ lineHeight: v })} left="Deep" right="High" />
+        <Slider label={<span className="row tight">Pressing <GuideButton k="pressing" t={t} /></span>} value={t.pressing} onChange={(v) => onChange({ pressing: v })} left="Low" right="Relentless" />
+        <div className="row tight"><button className={`chip ${t.offsideTrap ? 'on' : ''}`} onClick={() => set({ offsideTrap: !t.offsideTrap })}><Icon name="flag" size={14} /> Offside trap</button><GuideButton k="offsideTrap" t={t} /></div>
       </Board>
 
       <Board title="In possession" icon="ball" diagram={<AttDiagram t={t} />} sub={`${BUILD_TEXT[t.buildUp]} ${CHANCE_TEXT[t.chanceCreation]}`}>
-        <div className="tiny b tb-sub">Build-up</div>
+        <div className="tiny b tb-sub row tight">Build-up <GuideButton k="buildUp" t={t} /></div>
         <Seg small items={(['Balanced', 'Short Passing', 'Counter', 'Long Ball'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '') }))} value={t.buildUp} onChange={(v) => set({ buildUp: v })} />
-        <div className="tiny b tb-sub">Chance creation</div>
+        <div className="tiny b tb-sub row tight">Chance creation <GuideButton k="chanceCreation" t={t} /></div>
         <Seg small items={(['Balanced', 'Possession', 'Direct Passing', 'Forward Runs'] as const).map((x) => ({ id: x, label: x.replace(' Passing', '').replace('Forward ', '') }))} value={t.chanceCreation} onChange={(v) => set({ chanceCreation: v })} />
-        <Slider label="Width" value={t.width} onChange={(v) => onChange({ width: v })} left="Narrow" right="Wide" />
-        <Slider label="Tempo" value={t.tempo} onChange={(v) => onChange({ tempo: v })} left="Patient" right="Fast" />
+        <Slider label={<span className="row tight">Width <GuideButton k="width" t={t} /></span>} value={t.width} onChange={(v) => onChange({ width: v })} left="Narrow" right="Wide" />
+        <Slider label={<span className="row tight">Tempo <GuideButton k="tempo" t={t} /></span>} value={t.tempo} onChange={(v) => onChange({ tempo: v })} left="Patient" right="Fast" />
       </Board>
 
-      <div className="card">
-        <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => set({ timeWasting: !t.timeWasting })}>
+      <div className="card li tb-tw">
+        <button className="grow row" style={{ gap: 12, textAlign: 'left' }} onClick={() => set({ timeWasting: !t.timeWasting })}>
           <Icon name="clock" size={18} />
-          <div className="meta"><div className="t">Time wasting</div><div className="s">Slower restarts when you're ahead. Referees lose patience.</div></div>
+          <div className="meta"><div className="t">Time wasting</div><div className="s">From the hour, while ahead: slower restarts. Referees lose patience.</div></div>
           <span className={`tb-sw ${t.timeWasting ? 'on' : ''}`}><i /></span>
         </button>
+        <GuideButton k="timeWasting" t={t} />
       </div>
+
+      <PlayStyleCard t={t} />
 
       {base && (
         <div className="card pad-card tb-eff">
