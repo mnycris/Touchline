@@ -40,6 +40,8 @@
   --r: 14px;
   --r-sm: 10px;
   --sat: env(safe-area-inset-top, 0px);
+  /* the colour at the very top of the current screen; see the page background below */
+  --band: #06070c;
   --sab: env(safe-area-inset-bottom, 0px);
   --nav-h: 64px;
   --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
@@ -49,9 +51,13 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
-html { background: var(--bg); }
+/* Installed on an iPhone the app sits below an opaque status bar, and iOS paints that strip in the page background
+   colour; the page background is therefore the colour the current screen starts with, so the strip reads as part of
+   the screen rather than an empty bar. Nothing else of the page background is ever visible on a phone. */
+html, body { background-color: var(--band); transition: background-color 0.4s ease; }
+html:has(.menu-screen) { --band: #0c2421; }
+html:has(.match-top) { --band: color-mix(in srgb, rgb(var(--club-rgb)) 26%, #070a10); }
 body {
-  background: var(--bg);
   color: var(--t1);
   font-family: var(--body);
   font-size: 14px;
@@ -68,9 +74,8 @@ img { user-select: none; -webkit-user-drag: none; }
 ::-webkit-scrollbar { display: none; width: 0; height: 0; background: transparent; }
 
 /* ---------- app frame ---------- */
-/* pinned to the web view, so the page behind it never scrolls into view */
 .app {
-  position: fixed; top: 0; left: 0; right: 0;
+  position: relative;
   max-width: 520px;
   height: 100%;
   margin: 0 auto;
