@@ -14,15 +14,34 @@ import { posRating } from '../../domain/ratings'
 import type { MatchContext, SideInput } from './engine'
 import { CLEAN_SHEET, GOAL_W, RGROUP, type RG } from './rating'
 
-const SCORE_W: Record<RG, number> = { GK: 0, CB: 0.3, FB: 0.05, DM: 0.07, CM: 0.14, AM: 0.62, W: 0.48, ST: 1.1 }
 const ASSIST_W: Record<RG, number> = { GK: 0.02, CB: 0.1, FB: 0.45, DM: 0.3, CM: 0.65, AM: 1, W: 0.95, ST: 0.45 }
 const CARD_W: Record<RG, number> = { GK: 0.15, CB: 1.2, FB: 1.1, DM: 1.4, CM: 1, AM: 0.6, W: 0.6, ST: 0.7 }
 const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.1, AM: 0.96, W: 1.05, ST: 0.95 }
-const SHOT_W: Record<RG, number> = { GK: 0, CB: 0.35, FB: 0.12, DM: 0.25, CM: 0.55, AM: 2.8, W: 1.9, ST: 3.2 }
+/**
+ * Shots per 90 and xG per shot by position, as top-flight players (and the action engine) produce them. Shots are
+ * shared out with the first and every goal's scorer is drawn from the first times the second, so a player's goals,
+ * shots and xG tell the same story: strikers get the best chances, centre-backs a few headers, wingers plenty of both.
+ */
+const SHOT90: Record<RG, number> = { GK: 0, CB: 0.55, FB: 0.45, DM: 0.6, CM: 1.0, AM: 2.1, W: 2.0, ST: 2.6 }
+const XG_SHOT: Record<RG, number> = { GK: 0, CB: 0.085, FB: 0.06, DM: 0.055, CM: 0.065, AM: 0.09, W: 0.1, ST: 0.15 }
+/** What a typical player in each position rates for the attributes below (the rates above already carry the position). */
+const K_REF: Record<RG, number> = { GK: 40, CB: 74, FB: 51, DM: 55, CM: 63, AM: 69, W: 66, ST: 72 }
 const PASS_W: Record<RG, number> = { GK: 0.28, CB: 1.25, FB: 1.1, DM: 1.2, CM: 1.45, AM: 1.2, W: 0.95, ST: 0.55 }
 const DEF_W: Record<RG, number> = { GK: 0, CB: 1, FB: 1, DM: 1.3, CM: 1, AM: 0.6, W: 0.65, ST: 0.5 }
 
 interface QP { p: Player; pos: Position; g: RG; side: 0 | 1; mins: number; on: number; off: number; st: MatchPlayerStats }
+
+/** How often a player gets a shot away: his position's rate, sharpened by the attributes that win chances there. */
+function shotW(q: QP): number {
+  const a = q.p.attrs
+  const k = q.g === 'CB' ? a[A.heading] * 0.6 + a[A.jumping] * 0.4 : a[A.finishing] * 0.45 + a[A.positioning] * 0.35 + a[A.longShots] * 0.2
+  return SHOT90[q.g] * Math.pow(Math.max(30, k) / K_REF[q.g], 1.5)
+}
+/** How likely a shot of his goes in: the quality of chance his position gets, and his finishing (or heading). */
+function finishW(q: QP): number {
+  const k = q.g === 'CB' ? q.p.attrs[A.heading] : q.p.attrs[A.finishing] * 0.7 + q.p.attrs[A.composure] * 0.3
+  return XG_SHOT[q.g] * Math.pow(Math.max(30, k) / K_REF[q.g], 1.2)
+}
 
 function poisson(rng: Rng, lambda: number) { return Math.min(9, rng.poisson(Math.max(0.02, lambda))) }
 
@@ -92,19 +111,22 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       const mates = ps.filter((q) => q.side === side && onAt(q, minute))
       const opp = ps.filter((q) => q.side !== side && onAt(q, minute))
       const u = rng.next()
-      if (u < 0.02 && opp.length) {
+      if (u < 0.03 && opp.length) {
         const og = rng.weighted(opp, (q) => (q.g === 'CB' ? 3 : q.g === 'FB' || q.g === 'DM' ? 1.2 : 0.3))
         og.st.ownGoals = (og.st.ownGoals || 0) + 1
         events.push({ min: minute, type: 'owngoal', side, player: og.p.id, text: '', big: true })
         continue
       }
-      if (u < 0.1) {
+      if (u < 0.115) {
         const taker = [...mates].sort((a, b) => b.p.attrs[A.penalties] - a.p.attrs[A.penalties])[0]
         if (taker) { taker.st.goals++; taker.st.shots++; taker.st.sot++; taker.st.xg += 0.76; events.push({ min: minute, type: 'penGoal', side, player: taker.p.id, text: '', xg: 0.76, big: true }); continue }
       }
-      const scorer = rng.weighted(mates, (q) => SCORE_W[q.g] * Math.pow(Math.max(30, q.p.attrs[A.finishing] * 0.6 + q.p.attrs[A.positioning] * 0.4) / 70, 1.5))
+      // the same pick that shares out the shots, weighted by how well each converts them
+      const scorer = rng.weighted(mates, (q) => shotW(q) * finishW(q))
       if (!scorer) continue
       scorer.st.goals++
+      scorer.st.shots++
+      scorer.st.xg += XG_SHOT[scorer.g] * 1.6
       let assister: QP | undefined
       if (rng.next() < 0.72) {
         const pool = mates.filter((q) => q !== scorer)
@@ -219,10 +241,10 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
     const mine = ps.filter((q) => q.side === i && q.mins > 0)
     const ts = stats[i]
     const shotsLeft = Math.max(0, ts.shots - mine.reduce((a, q) => a + q.st.shots, 0))
-    spread(rng, mine, shotsLeft, (q) => SHOT_W[q.g], (q, n) => { q.st.shots += n })
+    spread(rng, mine, shotsLeft, shotW, (q, n) => { q.st.shots += n; q.st.xg += n * XG_SHOT[q.g] })
     for (const q of mine) {
-      q.st.sot = Math.min(q.st.shots, Math.max(q.st.goals, q.st.sot + Math.round(q.st.shots * 0.3 + rng.next() * 0.6)))
-      q.st.xg = Math.round((q.st.xg + q.st.shots * 0.1 + q.st.goals * 0.12) * 100) / 100
+      q.st.sot = Math.min(q.st.shots, q.st.goals + Math.max(0, Math.round((q.st.shots - q.st.goals) * 0.3 + rng.next() - 0.5)))
+      q.st.xg = Math.round(q.st.xg * 100) / 100
     }
     spread(rng, mine, ts.passes, (q) => PASS_W[q.g], (q, n) => { q.st.passes = n; q.st.passesCompleted = Math.round(n * clamp(ts.passAcc / 100 + (q.g === 'CB' ? 0.04 : q.g === 'ST' ? -0.08 : 0) + rng.normal(0, 0.03), 0.5, 0.97)) })
     spread(rng, mine, poisson(rng, 12.5), (q) => DEF_W[q.g], (q, n) => { q.st.tackles += n })
@@ -274,8 +296,11 @@ function spread(rng: Rng, qs: QP[], total: number, w: (q: QP) => number, set: (q
   const ws = qs.map((q) => Math.max(0, w(q)) * (q.mins / 90))
   const sum = ws.reduce((a, b) => a + b, 0)
   if (!sum || total <= 0) { for (const q of qs) set(q, 0); return }
-  const counts = ws.map((x) => Math.floor((x / sum) * total))
+  const exact = ws.map((x) => (x / sum) * total)
+  const counts = exact.map(Math.floor)
+  // the leftovers go by the fractions that were cut off, so small shares (a centre-back's half a shot) are kept on average
+  const frac = exact.map((x, i) => x - counts[i])
   let left = total - counts.reduce((a, b) => a + b, 0)
-  while (left-- > 0) counts[rng.weighted(ws.map((_, i) => i), (i) => ws[i])]++
+  while (left-- > 0) counts[rng.weighted(frac.map((_, i) => i), (i) => frac[i])]++
   qs.forEach((q, i) => set(q, counts[i]))
 }
