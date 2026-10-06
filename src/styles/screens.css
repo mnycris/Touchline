@@ -76,9 +76,10 @@ button.card.cal-strip { display: grid; }
 @keyframes mf3 { 0% { transform: translate(0, 0) scale(.9); } 50% { transform: translate(-34%, -16%) scale(1.26); } 100% { transform: translate(22%, -24%) scale(1); } }
 @keyframes mf4 { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-52%, -20%) scale(1.3); } 100% { transform: translate(-22%, 12%) scale(.82); } }
 @keyframes mfBreath { from { opacity: .62; } to { opacity: .8; } }
-/* installed, the status bar strip above takes the screen's top colour (--band): the glow rises out of it */
+/* installed, the status bar strip above takes the screen's top colour (--band); a short blend softens the edge
+   without dimming the glow */
 @media (display-mode: standalone) {
-  .menu-bg::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 84px; background: linear-gradient(180deg, var(--band), transparent); pointer-events: none; }
+  .menu-bg::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 22px; background: linear-gradient(180deg, var(--band), transparent); pointer-events: none; }
 }
 .menu-lights { position: absolute; inset: -20%; background:
   radial-gradient(22% 18% at 18% 8%, rgba(210, 255, 235, 0.22), transparent 70%),
@@ -169,7 +170,7 @@ button.card.cal-strip { display: grid; }
 .match-screen { position: absolute; inset: 0; display: flex; flex-direction: column; background: #05070c; --home-c: #3ea6ff; --away-c: #ff8a3d; }
 .match-top { padding: calc(var(--sat) + 10px) 12px 8px; background: radial-gradient(120% 100% at 50% 0%, rgba(var(--club-rgb), 0.45), transparent 75%), #070a10; border-bottom: 1px solid var(--line); }
 @media (display-mode: standalone) {
-  .match-top { background: linear-gradient(180deg, var(--band), transparent 46px), radial-gradient(120% 100% at 50% 0%, rgba(var(--club-rgb), 0.45), transparent 75%), #070a10; }
+  .match-top { background: linear-gradient(180deg, var(--band), transparent 16px), radial-gradient(120% 100% at 50% 0%, rgba(var(--club-rgb), 0.45), transparent 75%), #070a10; }
 }
 .scoreboard { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .sb-team { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 32%; }
