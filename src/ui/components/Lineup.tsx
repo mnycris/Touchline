@@ -178,9 +178,14 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
       </div>
       <div className="fl-nm">{p.jersey ? <span className="fl-no">{p.jersey}</span> : null}<span className="ellipsis">{callName(p.name)}</span>{s.captain && <span className="fl-cap">C</span>}</div>
       {(s.subOff != null || s.subOn != null) && <div className="fl-subm">{s.subOn != null && <span className="pos">{s.subOn}'</span>}{s.subOff != null && <span className="neg">{s.subOff}'</span>}</div>}
-      {(mode === 'sheet' || energy) && s.energy != null && s.energy < (energy ? 101 : 85) && <div className="fl-energy"><i style={{ width: `${s.energy}%`, background: s.energy > 70 ? 'var(--pos)' : s.energy > 55 ? 'var(--warn)' : 'var(--neg)' }} /></div>}
+      {(mode === 'sheet' || energy) && s.energy != null && s.energy < (energy ? 101 : 85) && <EnergyBar v={s.energy} />}
     </button>
   )
+}
+
+/** The thin energy bar under a player on the pitch. */
+export function EnergyBar({ v }: { v: number }) {
+  return <div className="fl-energy"><i style={{ width: `${v}%`, background: v > 70 ? 'var(--pos)' : v > 55 ? 'var(--warn)' : 'var(--neg)' }} /></div>
 }
 
 function TeamBar({ s, right, onClick }: { s: LSide; right?: ReactNode; onClick?: () => void }) {

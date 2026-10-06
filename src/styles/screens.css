@@ -1631,7 +1631,7 @@ select.input option { background: #151b27; }
 .sct-meta { display: flex; align-items: center; gap: 6px; padding: 0 12px 12px; margin-top: -4px; }
 .sct-meta .tiny { display: inline-flex; align-items: center; gap: 4px; }
 
-/* ---------- tactics guide (4.1.1) ---------- */
+/* ---------- tactics guide (4.1.2) ---------- */
 .tb-info { width: 24px; height: 24px; margin: -4px 0; display: inline-grid; place-items: center; border-radius: 999px; color: var(--t3); flex: none; transition: color .15s, background .15s; }
 .tb-info:active { background: rgba(255,255,255,.08); color: var(--t1); }
 .tb-sub.row { display: flex; }
@@ -1657,7 +1657,7 @@ select.input option { background: #151b27; }
 .role-tend { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.05); color: var(--t2); line-height: 1.4; }
 .role-tend b { color: var(--t1); margin-right: 4px; }
 
-/* ---------- tactical practice (4.1.1) ---------- */
+/* ---------- tactical practice (4.1.2) ---------- */
 .pr-entry { display: flex !important; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 12px 14px; text-align: left; }
 .pr-entry .meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
 .pr-entry b { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }

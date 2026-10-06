@@ -10,6 +10,7 @@ import { GuideButton } from '../components/TacticsGuide'
 import { roleTendencies } from '../tacticsGuide'
 import { FOCUS_BIAS, ROLE_BIAS } from '../../engine/match/engine'
 import { Pitch } from '../components/Pitch'
+import { EnergyBar } from '../components/Lineup'
 import { DEFAULT_TACTICS, FORMATIONS, formationOf, MENTALITIES, ROLE_GROUP, ROLES, VISION_TACTICS } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
 import { buildSheet, defaultRoles, isAvailable, mainSheet, matchSheetOf, setPieceTakers, sheetFor } from '../../engine/match/selection'
@@ -70,7 +71,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
             <button className="btn sm" onClick={() => setFormOpen(true)}><Icon name="grid" size={16} /> {f.name}</button>
             <div className="row tight tiny"><span className="dim">ATT</span><b>{chem.att}</b><span className="dim">MID</span><b>{chem.mid}</b><span className="dim">DEF</span><b>{chem.def}</b><Ovr v={chem.ovr} size="sm" /></div>
           </div>
-          <Pitch formation={f} render={(i) => {
+          <Pitch formation={f} spaced render={(i) => {
             const p = P(sheet.lineup[i])
             const slot = f.slots[i]
             const st = p ? playerStatus(w, p) : undefined
@@ -80,6 +81,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
                 {p ? <div style={{ position: 'relative' }}><Face p={p} size={42} radius={21} club={club} ring={isSel({ kind: 'slot', i }) ? 'var(--acc)' : r < p.ovr - 5 ? 'var(--warn)' : undefined} />{st && st.key !== 'ok' && <span className="face-badge" style={{ background: st.color }}><Icon name={st.icon} size={9} color="#fff" /></span>}{sheet.captain === p.id && <span className="cap-badge">C</span>}</div> : <div className="empty-slot"><Icon name="plus" size={18} /></div>}
                 <div className="slot-name">{p ? callName(p.name) : slot.label}</div>
                 <div className="slot-sub"><span style={{ color: r >= (p?.ovr || 0) - 1 ? 'var(--pos)' : r >= (p?.ovr || 0) - 6 ? 'var(--warn)' : 'var(--neg)' }}>{p ? r : ''}</span> {slot.label}</div>
+                {p && <EnergyBar v={p.fitness} />}
               </button>
             )
           }} />
