@@ -58,6 +58,17 @@ html, body, #root { height: 100%; margin: 0; }
 html, body { background-color: var(--band); transition: background-color 0.4s ease; }
 html:has(.menu-screen) { --band: #0c2421; }
 html:has(.match-top) { --band: color-mix(in srgb, rgb(var(--club-rgb)) 26%, #070a10); }
+/* Since iOS 26 a Home Screen app gets a Liquid Glass "scroll edge" blur over the top ~40pt of the page, over the
+   header, unless a fixed, full-width box at the top edge paints one solid colour: WebKit then fills the status bar
+   with that colour and drops the blur (LocalFrameView::fixedContainerEdges hit-tests the top edge a few px down and
+   needs a fixed box spanning the width, opaque, over ~10px tall, without backdrop-filter). Every screen here starts with
+   a gradient or a frosted bar, so this cover is that box: the screen's top colour behind the status bar, with the app
+   starting just below it. */
+#status-cover { display: none; }
+@media (display-mode: standalone) {
+  :root { --sat: max(env(safe-area-inset-top, 0px), 12px); }
+  #status-cover { display: block; position: fixed; top: 0; left: 0; right: 0; height: var(--sat); background-color: var(--band); z-index: 2147483000; transition: background-color 0.4s ease; }
+}
 body {
   color: var(--t1);
   font-family: var(--body);
