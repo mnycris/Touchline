@@ -222,6 +222,8 @@ export interface Club {
   managerId: number
   sheets: TeamSheet[]
   activeSheet: string
+  /** team sheets the manager set for one fixture from its match day screen (the main sheet stays as it was) */
+  matchSheets?: Record<string, TeamSheet>
   squadAvg: number
   reputation: number // 1..100
   youthRating: number // 1..10 academy quality

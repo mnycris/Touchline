@@ -209,3 +209,20 @@ export function validateSheet(w: World, club: Club, sheet: TeamSheet, comp?: Com
 }
 
 export { FORMATIONS }
+
+/** The manager's main team sheet: the one chosen in Team Sheet and used unless a match has one of its own. */
+export function mainSheet(club: Club): TeamSheet {
+  return club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
+}
+
+/** The sheet the club plays a fixture with: one set for that match on its match day screen, else the main sheet. */
+export function sheetFor(club: Club, fixtureId?: string): TeamSheet {
+  return (fixtureId && club.matchSheets?.[fixtureId]) || mainSheet(club)
+}
+
+/** The match's own sheet, made from the main sheet the first time the match day screen changes something. */
+export function matchSheetOf(club: Club, fixtureId: string): TeamSheet {
+  const ms = (club.matchSheets ||= {})
+  if (!ms[fixtureId]) ms[fixtureId] = { ...JSON.parse(JSON.stringify(mainSheet(club))), id: `match:${fixtureId}` }
+  return ms[fixtureId]
+}

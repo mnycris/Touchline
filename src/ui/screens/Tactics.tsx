@@ -9,7 +9,7 @@ import { TacticsBoard } from '../components/TacticsBoard'
 import { Pitch } from '../components/Pitch'
 import { DEFAULT_TACTICS, FORMATIONS, formationOf, MENTALITIES, ROLE_GROUP, ROLES, VISION_TACTICS } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
-import { buildSheet, defaultRoles, isAvailable, setPieceTakers } from '../../engine/match/selection'
+import { buildSheet, defaultRoles, isAvailable, mainSheet, matchSheetOf, setPieceTakers, sheetFor } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
 import { callName } from '../../engine/match/commentary'
 import { assignToFormation } from './Match'
@@ -17,11 +17,14 @@ import { playerStatus, userClub } from '../selectors'
 
 type Sel = { kind: 'slot'; i: number } | { kind: 'bench'; id: number } | { kind: 'res'; id: number }
 
-export function Tactics() {
+export function Tactics({ params }: { params?: { fixtureId?: string } }) {
   const w = useWorld()
   const mutate = useGame((s) => s.mutate)
   const club = userClub(w)
-  const sheet = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
+  // opened from a match day screen: everything here is for that match only (its own copy of the sheet)
+  const fx = params?.fixtureId ? w.fixtures[params.fixtureId] : undefined
+  const forMatch = fx && !fx.played ? fx : undefined
+  const sheet = forMatch ? sheetFor(club, forMatch.id) : mainSheet(club)
   const [tab, setTab] = useRemember<'lineup' | 'roles' | 'tactics' | 'setpieces' | 'presets'>('tab', 'lineup')
   const [sel, setSel] = useState<Sel>()
   const [formOpen, setFormOpen] = useState(false)
@@ -32,7 +35,7 @@ export function Tactics() {
   const reserves = squad.filter((p) => !sheet.lineup.includes(p.id) && !sheet.bench.includes(p.id)).sort((a, b) => b.ovr - a.ovr)
   const chem = teamStrength(w, sheet)
 
-  const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { const c = w.clubs[w.userClubId]; const s = c.sheets.find((x) => x.id === c.activeSheet) || c.sheets[0]; fn(s) })
+  const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { const c = w.clubs[w.userClubId]; fn(forMatch ? matchSheetOf(c, forMatch.id) : mainSheet(c)) })
 
   const tap = (t: Sel) => {
     haptic()
@@ -55,8 +58,9 @@ export function Tactics() {
   const isSel = (t: Sel) => !!sel && JSON.stringify(sel) === JSON.stringify(t)
 
   return (
-    <Screen title="Team Sheet" sub={`${sheet.name} · ${f.name}`} back right={<button className="btn xs club" onClick={autoPick}><Icon name="refresh" size={14} /> Auto</button>}>
+    <Screen title="Team Sheet" sub={forMatch ? `This match only · ${f.name}` : `${sheet.name} · ${f.name}`} back right={<button className="btn xs club" onClick={autoPick}><Icon name="refresh" size={14} /> Auto</button>}>
       <Tabs sticky items={[{ id: 'lineup', label: 'Line-up' }, { id: 'roles', label: 'Roles' }, { id: 'tactics', label: 'Tactics' }, { id: 'setpieces', label: 'Set Pieces' }, { id: 'presets', label: 'Sheets' }]} value={tab} onChange={setTab} />
+      {forMatch && <MatchSheetBar w={w} fixtureId={forMatch.id} />}
       {tab === 'lineup' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           <div className="row between">
@@ -114,7 +118,7 @@ export function Tactics() {
       )}
       {tab === 'tactics' && <TacticsPanel t={sheet.tactics} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />}
       {tab === 'setpieces' && <SetPieces w={w} sheet={sheet} edit={edit} />}
-      {tab === 'presets' && <Presets w={w} />}
+      {tab === 'presets' && <Presets w={w} fixtureId={forMatch?.id} />}
 
       <Sheet open={formOpen} onClose={() => setFormOpen(false)} title="Formation">
         <div className="formation-grid">
@@ -280,20 +284,65 @@ function SetPieces({ w, sheet, edit }: { w: World; sheet: TeamSheet; edit: (fn: 
   )
 }
 
-function Presets({ w }: { w: World }) {
+/** On a match day sheet: whose match it is for, and the deliberate ways to keep it or let it go. */
+function MatchSheetBar({ w, fixtureId }: { w: World; fixtureId: string }) {
+  const mutate = useGame((s) => s.mutate)
+  const club = userClub(w)
+  const f = w.fixtures[fixtureId]
+  const opp = w.clubs[f.home === club.id ? f.away : f.home]
+  const own = !!club.matchSheets?.[fixtureId]
+  const main = mainSheet(club)
+  return (
+    <div className="pad" style={{ paddingTop: 12, paddingBottom: 0 }}>
+      <div className="card pad-card match-sheet-bar">
+        <div className="row" style={{ gap: 10 }}>
+          <Icon name="calendar" size={18} color="var(--club2)" />
+          <div className="grow">
+            <div className="small b">For {opp?.short} · {w.competitions[f.compId]?.short} only</div>
+            <div className="tiny dim">{own ? `Changed for this match. Your main sheet (${main.name}) is as you left it.` : `Starts from your main sheet (${main.name}). Changes apply to this match only.`}</div>
+          </div>
+        </div>
+        {own && (
+          <div className="row" style={{ gap: 8, marginTop: 10 }}>
+            <button className="btn xs" onClick={() => { haptic(); mutate((w) => { delete w.clubs[w.userClubId].matchSheets![fixtureId] }); useGame.getState().notify('Back to your main sheet for this match', 'ok') }}><Icon name="refresh" size={13} /> Use main sheet</button>
+            <button className="btn xs club" onClick={() => {
+              haptic('medium')
+              mutate((w) => {
+                const c = w.clubs[w.userClubId]
+                const m = mainSheet(c), ms = c.matchSheets![fixtureId]
+                Object.assign(m, { ...JSON.parse(JSON.stringify(ms)), id: m.id, name: m.name })
+                delete c.matchSheets![fixtureId]
+              })
+              useGame.getState().notify(`Saved as your main sheet (${main.name})`, 'ok')
+            }}><Icon name="check" size={13} /> Make this my main sheet</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Presets({ w, fixtureId }: { w: World; fixtureId?: string }) {
   const mutate = useGame((s) => s.mutate)
   const club = userClub(w)
   const [name, setName] = useState('')
+  // on a match day sheet, picking a saved sheet uses it for this match only
+  const pick = (id: string) => mutate((w) => {
+    const c = w.clubs[w.userClubId]
+    if (!fixtureId) { c.activeSheet = id; return }
+    const s = c.sheets.find((x) => x.id === id)!
+    ;(c.matchSheets ||= {})[fixtureId] = { ...JSON.parse(JSON.stringify(s)), id: `match:${fixtureId}` }
+  })
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
       <div className="card list">
         {club.sheets.map((s) => (
           <div key={s.id} className="li">
-            <button className="grow row" style={{ gap: 10, textAlign: 'left' }} onClick={() => { haptic(); mutate((w) => { w.clubs[w.userClubId].activeSheet = s.id }) }}>
-              <Icon name={club.activeSheet === s.id ? 'check' : 'list'} size={18} color={club.activeSheet === s.id ? 'var(--acc)' : 'var(--t3)'} />
-              <div className="meta"><div className="t small">{s.name}</div><div className="s">{formationOf(s.formation).name} · {s.tactics.mentality}</div></div>
+            <button className="grow row" style={{ gap: 10, textAlign: 'left' }} onClick={() => { haptic(); pick(s.id); if (fixtureId) useGame.getState().notify(`${s.name} for this match`, 'ok') }}>
+              <Icon name={!fixtureId && club.activeSheet === s.id ? 'check' : 'list'} size={18} color={!fixtureId && club.activeSheet === s.id ? 'var(--acc)' : 'var(--t3)'} />
+              <div className="meta"><div className="t small">{s.name}{club.activeSheet === s.id ? <span className="dim"> · main</span> : null}</div><div className="s">{formationOf(s.formation).name} · {s.tactics.mentality}</div></div>
             </button>
-            {club.sheets.length > 1 && <button className="btn xs danger" onClick={() => mutate((w) => { const c = w.clubs[w.userClubId]; c.sheets = c.sheets.filter((x) => x.id !== s.id); if (c.activeSheet === s.id) c.activeSheet = c.sheets[0].id })}><Icon name="trash" size={13} /></button>}
+            {!fixtureId && club.sheets.length > 1 && <button className="btn xs danger" onClick={() => mutate((w) => { const c = w.clubs[w.userClubId]; c.sheets = c.sheets.filter((x) => x.id !== s.id); if (c.activeSheet === s.id) c.activeSheet = c.sheets[0].id })}><Icon name="trash" size={13} /></button>}
           </div>
         ))}
       </div>
@@ -304,16 +353,16 @@ function Presets({ w }: { w: World }) {
           <button className="btn club block" disabled={!name.trim()} onClick={() => {
             mutate((w) => {
               const c = w.clubs[w.userClubId]
-              const base = c.sheets.find((x) => x.id === c.activeSheet) || c.sheets[0]
+              const base = sheetFor(c, fixtureId)
               const id = `sheet${Date.now().toString(36)}`
               c.sheets.push({ ...JSON.parse(JSON.stringify(base)), id, name: name.trim() })
-              c.activeSheet = id
+              if (!fixtureId) c.activeSheet = id
             })
             setName('')
           }}>Duplicate current as new sheet</button>
         </div>
       )}
-      <div className="tiny dim">The active sheet is used for your next match. Unavailable players are replaced automatically at kick-off.</div>
+      <div className="tiny dim">{fixtureId ? 'Picking a sheet here uses it for this match only; saving one keeps it for later.' : 'The active sheet is used for your matches. Unavailable players are replaced automatically at kick-off, for that match only.'}</div>
     </div>
   )
 }

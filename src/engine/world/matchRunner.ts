@@ -4,7 +4,7 @@ import { addDays } from '../../domain/dates'
 import { INJURIES } from '../../domain/constants'
 import { MatchSim, type MatchContext, type SideInput } from '../match/engine'
 import { quickSim } from '../match/quick'
-import { aiMatchSheet, validateSheet } from '../match/selection'
+import { aiMatchSheet, sheetFor, validateSheet } from '../match/selection'
 import { aggregateBefore } from '../competitions/cups'
 import { applyResultToTable } from '../competitions/tables'
 import { rosterOf } from './roster'
@@ -59,9 +59,10 @@ export function matchContext(w: World, f: Fixture, commentary: boolean): MatchCo
   }
 }
 
-export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean, scripted?: { formation: string; lineup: number[]; bench: number[] }): SideInput {
+export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean, scripted?: { formation: string; lineup: number[]; bench: number[] }, fixtureId?: string): SideInput {
   const club = w.clubs[clubId]
-  let sheet = user ? (club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]) : aiMatchSheet(w, club, comp)
+  // the manager's side plays with the sheet set for this match on its match day screen, if there is one
+  let sheet = user ? sheetFor(club, fixtureId) : aiMatchSheet(w, club, comp)
   if (user) sheet = validateSheet(w, club, sheet, comp).sheet
   // Edit Mode line-up for an AI side: the chosen XI in the chosen shape, roles and duties from the AI's own sheet logic
   // (a national side picks from its called-up squad)
@@ -85,8 +86,8 @@ export function createSim(w: World, f: Fixture, userLive: boolean, detail = user
   ctx.assistantSubs = !!w.flags.assistantSubs
   const script = w.scripts?.[f.id]
   if (script) ctx.script = script
-  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId, script?.lineups?.['0'])
-  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId, script?.lineups?.['1'])
+  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId, script?.lineups?.['0'], f.id)
+  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId, script?.lineups?.['1'], f.id)
   return new MatchSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
 }
 

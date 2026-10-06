@@ -54,6 +54,7 @@ export function SeasonHub() {
 /** Where the season stands: league progress, the next match and what is coming up on the calendar. */
 function SeasonOverview({ w }: { w: World }) {
   const go = useGame((s) => s.go)
+  const open = useGame((s) => s.open)
   const me = w.userClubId
   const lg = leagueOf(w, me)
   const all = fixturesOf(w, me).filter((f) => w.competitions[f.compId]?.season === w.season)
@@ -78,7 +79,7 @@ function SeasonOverview({ w }: { w: World }) {
       </div>
       {lg && <div className="so-bar"><i style={{ width: `${Math.max(2, pct * 100)}%` }} /></div>}
       {next && (
-        <button className="so-next" onClick={() => go({ name: 'prematch', params: { id: next.id } })}>
+        <button className="so-next" onClick={() => open({ name: 'prematch', params: { id: next.id } })}>
           <span className="tiny dim">Next</span>
           <Badge club={w.clubs[opponent(next, me)]} size={22} />
           <span className="small b ellipsis">{w.clubs[opponent(next, me)]?.short} ({next.home === me ? 'H' : 'A'})</span>

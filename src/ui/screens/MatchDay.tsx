@@ -12,7 +12,7 @@ import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
 import { fmtDate } from '../../domain/dates'
 import { attendanceFor, createSim, sideInput } from '../../engine/world/matchRunner'
 import { kitColors, kitVars } from '../components/LivePitch'
-import { validateSheet } from '../../engine/match/selection'
+import { matchSheetOf, sheetFor, validateSheet } from '../../engine/match/selection'
 import { userFixtureOn } from '../../engine/world/advance'
 import { compLogoKey, fixturesOf, leagueOf, outcomeFor, playerStatus } from '../selectors'
 import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competitions/tables'
@@ -39,6 +39,8 @@ function seasonLine(p: Player) {
 export function PreMatch({ params }: { params?: { id?: string } }) {
   const w = useWorld()
   const close = useGame((s) => s.close)
+  // back to wherever the preview was opened from: the overlay above the screen, or the screen the tab had pushed
+  const back = useGame((s) => s.back)
   const closeAll = useGame((s) => s.closeAll)
   const open = useGame((s) => s.open)
   const go = useGame((s) => s.go)
@@ -57,13 +59,15 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const watchedId = w.flags.watch as string | undefined
   const watched = f && watchedId && w.fixtures[watchedId] && !w.fixtures[watchedId].played && w.fixtures[watchedId].date === f.date ? w.fixtures[watchedId] : undefined
   const lines = useMemo(() => (f ? storyLines(w, f) : []), [f?.id, w.date])
-  if (!f) return <Screen title="Match Day" back onBack={close} noNav><div className="pad muted">No match today.</div></Screen>
+  if (!f) return <Screen title="Match Day" back onBack={back} noNav><div className="pad muted">No match today.</div></Screen>
 
   const comp = w.competitions[f.compId]
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const us: 0 | 1 = f.home === w.userClubId ? 0 : 1
   const club = w.clubs[w.userClubId]
-  const sheet = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
+  // this match's own sheet if the manager has changed anything for it here, else the main sheet
+  const sheet = sheetFor(club, f.id)
+  const ownSheet = !!club.matchSheets?.[f.id]
   const { sheet: valid, issues } = validateSheet(w, club, sheet, comp)
   const oppId = us === 0 ? f.away : f.home
   const oppSheet = sideInput(w, oppId, comp, false).sheet
@@ -79,11 +83,13 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const pos = (id: number) => { const c = ctxTable || (knockout ? undefined : leagueOf(w, id)); if (!c?.table?.some((r) => r.p)) return undefined; const i = sortTable(w, c).findIndex((r) => r.clubId === id); return i >= 0 ? i + 1 : undefined }
   const pressDone = !!w.flags.pressDone?.[`pre:${f.id}`]
 
-  const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { const c = w.clubs[w.userClubId]; const s = c.sheets.find((x) => x.id === c.activeSheet) || c.sheets[0]; fn(s) })
+  // changes made here are for this match only: they go to its own copy of the sheet, never the main one
+  const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { fn(matchSheetOf(w.clubs[w.userClubId], f.id)) })
 
   const start = (mode: 'live' | 'sim') => {
     haptic('medium')
-    Object.assign(sheet, valid)
+    // the replacements made for unavailable players hold for this match only: the main sheet keeps the first choices
+    if (issues.length) (club.matchSheets ||= {})[f.id] = { ...JSON.parse(JSON.stringify(valid)), id: `match:${f.id}` }
     const sim = createSim(w, f, true)
     if (mode === 'sim') {
       sim.ctx.assistantSubs = true
@@ -108,7 +114,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const view = tab === 'table' && !ctxTable ? (hasBracket ? 'bracket' : 'preview') : tab === 'bracket' && !hasBracket ? (ctxTable ? 'table' : 'preview') : tab
   const colors = kitColors(home, away)
   return (
-    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={close} noNav style={kitVars(colors)}
+    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={back} noNav style={kitVars(colors)}
       right={w.meta.editMode ? <button className={`iconbtn edit-btn ${w.scripts?.[f.id] ? 'on' : ''}`} aria-label="Edit match" onClick={() => { haptic('medium'); useGame.getState().notify('Edit match', 'edit'); setScripting(true) }}><Icon name="edit" size={19} strokeWidth={2.1} /></button> : undefined}
       footer={isToday ? (
         <div className="md-footer">
@@ -136,7 +142,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       </div>
 
       <div className="md-actions">
-        <button className="md-act" onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={20} /><span>Team sheet</span></button>
+        <button className={`md-act ${ownSheet ? 'own' : ''}`} onClick={() => go({ name: 'tactics', params: { fixtureId: f.id } })}><Icon name="tactics" size={20} /><span>{ownSheet ? 'This match’s sheet' : 'Team sheet'}</span></button>
         <button className="md-act" onClick={() => open({ name: 'press', params: { kind: 'pre', fixtureId: f.id } })} disabled={pressDone || !isToday}><Icon name="chat" size={20} /><span>{pressDone ? 'Press done' : isToday ? 'Press' : 'Match day'}</span></button>
         <button className="md-act" onClick={() => go({ name: 'opponent', params: { id: oppId, fixtureId: f.id } })}><Icon name="scout" size={20} /><span>Opponent</span></button>
       </div>

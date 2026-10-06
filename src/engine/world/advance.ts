@@ -61,6 +61,8 @@ export function nextUserFixture(w: World): Fixture | undefined {
 /** Everything that happens after a fixture result is known. */
 export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, full = false) {
   const res = applyMatchResult(w, f, result, rng, full)
+  // a team sheet set for this match only has done its job
+  for (const id of [f.home, f.away]) if (w.clubs[id]?.matchSheets?.[f.id]) delete w.clubs[id].matchSheets![f.id]
   const comp = w.competitions[f.compId]
   const idx = dateIndex(w)
   if (comp) {

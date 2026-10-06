@@ -30,7 +30,7 @@ function outlook(w: World, f: Fixture, side: 0 | 1): Omit<SideOutlook, 'xg'> {
   const id = side ? f.away : f.home
   const club = w.clubs[id]
   const comp = w.competitions[f.compId]
-  const inp = sideInput(w, id, comp, id === w.userClubId, w.scripts?.[f.id]?.lineups?.[String(side) as '0' | '1'])
+  const inp = sideInput(w, id, comp, id === w.userClubId, w.scripts?.[f.id]?.lineups?.[String(side) as '0' | '1'], f.id)
   const slots = formationOf(inp.sheet.formation).slots
   const xiPlayers = inp.sheet.lineup.map((pid) => inp.players[pid]).filter(Boolean)
   const rated = xiPlayers.map((p, i) => posRating(p, slots[i]?.pos || p.positions[0]))

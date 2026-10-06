@@ -9,7 +9,7 @@ import { FORMATIONS, formationOf } from '../../domain/constants'
 import { useGame, haptic } from '../../store/game'
 import { setScript } from '../../engine/world/edit'
 import { sideInput } from '../../engine/world/matchRunner'
-import { validateSheet } from '../../engine/match/selection'
+import { sheetFor, validateSheet } from '../../engine/match/selection'
 import { squadOf } from '../../engine/match/selection'
 import { callName } from '../../engine/match/commentary'
 import { plausibleScore, predictFixture } from '../../engine/match/predict'
@@ -49,7 +49,7 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
     const club = w.clubs[id]
     const user = id === w.userClubId
     const scripted = s.lineups?.[String(i) as '0' | '1']
-    const sheet = user ? validateSheet(w, club, club.sheets.find((x) => x.id === club.activeSheet) || club.sheets[0], comp).sheet : sideInput(w, id, comp, false, scripted).sheet
+    const sheet = user ? validateSheet(w, club, sheetFor(club, f.id), comp).sheet : sideInput(w, id, comp, false, scripted).sheet
     return { id, user, xi: sheet.lineup.map((pid) => w.players[pid]).filter(Boolean), bench: sheet.bench.map((pid) => w.players[pid]).filter(Boolean), formation: sheet.formation }
   }), [s.lineups?.['0'], s.lineups?.['1']])
   const set = (patch: Partial<MatchScript>) => setS((x) => {
