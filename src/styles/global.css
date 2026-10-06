@@ -39,8 +39,7 @@
   --r-lg: 18px;
   --r: 14px;
   --r-sm: 10px;
-  /* the top inset, never less than what an installed app on iOS really loses to the status bar (see ui/viewport.ts) */
-  --sat: max(env(safe-area-inset-top, 0px), var(--sat-min, 0px));
+  --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --nav-h: 64px;
   --display: 'Barlow Condensed', 'Barlow', system-ui, sans-serif;
@@ -69,11 +68,11 @@ img { user-select: none; -webkit-user-drag: none; }
 ::-webkit-scrollbar { display: none; width: 0; height: 0; background: transparent; }
 
 /* ---------- app frame ---------- */
-/* pinned to the screen and sized by ui/viewport.ts when installed (iOS lays installed apps out short), else the page */
+/* pinned to the web view, so the page behind it never scrolls into view */
 .app {
   position: fixed; top: 0; left: 0; right: 0;
   max-width: 520px;
-  height: var(--app-h, 100%);
+  height: 100%;
   margin: 0 auto;
   overflow: hidden;
   background: radial-gradient(120% 60% at 50% -10%, rgba(var(--club-rgb), 0.35), transparent 60%), var(--bg);

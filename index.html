@@ -7,7 +7,9 @@
     <meta name="theme-color" content="#05070c" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- an opaque status bar: with black-translucent, iOS 26+ makes a Home Screen app's web view one status bar short of
+         the screen bottom (WebKit bug 301108) and blurs the top of the page; iOS reads this only when the app is added -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Touchline" />
     <meta name="description" content="Touchline — a mobile football manager career built on real EA SPORTS FC 27 ratings and the real 2026/27 season." />
     <link rel="apple-touch-icon" href="./icons/icon-192.png" />

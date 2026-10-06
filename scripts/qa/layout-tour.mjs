@@ -1,6 +1,6 @@
 // Layout tour: the major screens at a given phone size, top and scrolled to the bottom, to catch clipping under the
-// status bar, the bottom bar or a footer. With --installed it simulates an iOS 26+ Home Screen app (the page laid out
-// short by the top inset, the inset reported as 0). node scripts/qa/layout-tour.mjs <save> <out-dir> [w] [h] [--installed]
+// status bar, the bottom bar or a footer. With --installed it simulates the Home Screen app on iPhone, whose opaque
+// status bar takes the top 47pt off the web view. node scripts/qa/layout-tour.mjs <save> <out-dir> [w] [h] [--installed]
 import fs from 'node:fs'
 import { chromium } from 'playwright'
 const args = process.argv.slice(2)
@@ -10,11 +10,10 @@ fs.mkdirSync(OUT, { recursive: true })
 const width = Number(W), height = Number(H)
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
 const ctx = await browser.newContext({ viewport: { width, height: installed ? height - 47 : height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
-if (installed) await ctx.addInitScript(([sw, sh]) => {
+if (installed) await ctx.addInitScript(() => {
   const mm = window.matchMedia.bind(window)
   window.matchMedia = (q) => (/display-mode: (standalone|fullscreen)/.test(q) ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, onchange: null, dispatchEvent: () => false } : mm(q))
-  Object.defineProperty(screen, 'height', { get: () => sh }); Object.defineProperty(screen, 'width', { get: () => sw })
-}, [width, height])
+})
 const page = await ctx.newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(e.message))
@@ -55,5 +54,5 @@ for (const [label, c] of cases) {
   await page.waitForTimeout(350)
   await page.screenshot({ path: `${OUT}/${tag}b-${label}-bottom.png` })
 }
-console.log(`${cases.length} screens at ${width}x${height}${installed ? ' (installed, simulated)' : ''} · errors: ${errors.length ? errors.join(' | ') : 'none'}`)
+console.log(`${cases.length} screens at ${width}x${height}${installed ? ' (installed, below an opaque status bar)' : ''} · errors: ${errors.length ? errors.join(' | ') : 'none'}`)
 await browser.close()
