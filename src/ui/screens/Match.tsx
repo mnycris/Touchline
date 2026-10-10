@@ -26,6 +26,8 @@ import { syncOthers } from '../../engine/world/liveDay'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
 import { useRemember } from '../memory'
+import { ChangeReports, HalfTimeReport, LiveAnalysis } from '../components/MatchAnalysis'
+import { describeChange } from '../tacticsGuide'
 
 // ============================================================================ helpers
 const EVENT_ICON: Record<string, [string, string]> = {
@@ -153,6 +155,8 @@ export function LiveMatch() {
   spectateRef.current = spectate
   const [manage, setManage] = useState(false)
   const [manageOut, setManageOut] = useState<number>()
+  // the half-time report can be put away for the rest of that break
+  const [htShut, setHtShut] = useState<string>()
   const [moments, setMoments] = useState<Moment[]>([])
   const [panel, setPanel] = useState<{ side: 0 | 1; id: number }>()
   const moment = moments[0]
@@ -372,12 +376,17 @@ export function LiveMatch() {
       <div className="match-body">
         {!pitchOpen && <Presence id={moment?.id}>{moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}</Presence>}
         {brk && !spectator && (
-          <div className="card pad-card" style={{ margin: '12px 16px 0', textAlign: 'center' }}>
-            <div className="kicker">{sim.phase === 'HT' ? 'Half-time' : 'Extra-time break'}</div>
-            <div className="muted small" style={{ marginTop: 6 }}>Make changes now. Substitutions at the break don't use a window.</div>
-            <HalfTimeFacts sim={sim} home={home.short} away={away.short} />
-            <AssistantNotes sim={sim} w={w} side={us} onManage={(id) => { haptic(); setManageOut(id); setManage(true) }} />
-          </div>
+          <Presence id={htShut === `${sim.phase}:${f.id}` ? undefined : `${sim.phase}:${f.id}`}>
+            {htShut !== `${sim.phase}:${f.id}` && (
+              <div className="htr-wrap">
+                <HalfTimeReport sim={sim} w={w} side={us} names={us === 0 ? [home.short, away.short] : [away.short, home.short]} seed={f.id}
+                  onManage={(id) => { haptic(); setManageOut(id); setManage(true) }} onClose={() => setHtShut(`${sim.phase}:${f.id}`)} />
+              </div>
+            )}
+          </Presence>
+        )}
+        {brk && !spectator && htShut === `${sim.phase}:${f.id}` && (
+          <button className="htr-reopen" onClick={() => { haptic(); setHtShut(undefined) }}><Icon name="stats" size={15} /> {sim.phase === 'HT' ? 'Half-time report' : 'Break report'} <Icon name="down" size={14} /></button>
         )}
         {tab === 'feed' && (
           <div className="feed">
@@ -437,54 +446,6 @@ export function LiveMatch() {
           onPlayer={(id) => { setSpectate(undefined); go({ name: 'player', params: { id } }) }} />
       )}
       {!spectator && <ManageSheet open={manage} initialOut={manageOut} onClose={() => { setManage(false); setManageOut(undefined); force() }} sim={sim} side={us} w={w} />}
-    </div>
-  )
-}
-
-function HalfTimeFacts({ sim, home, away }: { sim: MatchSim; home: string; away: string }) {
-  const s = sim.liveStats()
-  const rows: [string, string, string][] = [
-    ['Possession', `${s[0].possession}%`, `${s[1].possession}%`], ['xG', s[0].xg.toFixed(2), s[1].xg.toFixed(2)], ['Shots', String(s[0].shots), String(s[1].shots)],
-  ]
-  return (
-    <div style={{ marginTop: 10 }}>
-      <div className="row between tiny dim"><span>{home}</span><span>{away}</span></div>
-      {rows.map(([l, a, b]) => <div key={l} className="row between small" style={{ marginTop: 4 }}><b className="num">{a}</b><span className="muted">{l}</span><b className="num">{b}</b></div>)}
-    </div>
-  )
-}
-
-/** Assistant manager's read of the game at a break: what the numbers and the players' legs are saying. */
-function AssistantNotes({ sim, w, side, onManage }: { sim: MatchSim; w: World; side: 0 | 1; onManage: (playerId?: number) => void }) {
-  const st = sim.liveStats()
-  const me = st[side], them = st[1 - side]
-  const gf = sim.score[side], ga = sim.score[1 - side]
-  const agg = sim.ctx.aggregate
-  const aggDiff = agg ? (side === 0 ? agg[0] - agg[1] : agg[1] - agg[0]) : 0
-  const lead = gf - ga + aggDiff
-  const t = sim.sideTactics(side)
-  const rs = sim.liveRatings(side).filter((r) => r.on)
-  const notes: { icon: string; text: string; id?: number; tone: 'good' | 'bad' | 'neutral' }[] = []
-  const tired = rs.filter((r) => r.pos !== 'GK' && r.energy < 66).sort((a, b) => a.energy - b.energy)[0]
-  if (tired) notes.push({ icon: 'fitness', tone: 'bad', id: tired.id, text: `${callName(w.players[tired.id].name)} is running on empty (${Math.round(tired.energy)}%). Fresh legs would help.` })
-  const booked = rs.find((r) => r.yellow && ['CB', 'LB', 'RB', 'CDM', 'LWB', 'RWB'].includes(r.pos))
-  if (booked) notes.push({ icon: 'yellow', tone: 'bad', id: booked.id, text: `${callName(w.players[booked.id].name)} is on a yellow. One more rash challenge and we're down to ten.` })
-  const poor = rs.filter((r) => r.rating < 6.0).sort((a, b) => a.rating - b.rating)[0]
-  if (poor && poor.id !== tired?.id) notes.push({ icon: 'formDown', tone: 'bad', id: poor.id, text: `${callName(w.players[poor.id].name)} is struggling (${poor.rating.toFixed(1)}). Think about a change or a role tweak.` })
-  if (them.xg > me.xg + 0.5) notes.push({ icon: 'warning', tone: 'bad', text: `They're creating the better chances (xG ${them.xg.toFixed(2)} v ${me.xg.toFixed(2)}). A deeper line or a holding midfielder would tighten us up.` })
-  else if (me.xg > them.xg + 0.5 && lead <= 0) notes.push({ icon: 'target', tone: 'good', text: `We're the better side on chances (xG ${me.xg.toFixed(2)}). Keep going, the goal will come.` })
-  if (me.possession < 40 && t.buildUp !== 'Counter') notes.push({ icon: 'pitch', tone: 'neutral', text: `Only ${me.possession}% of the ball. Either press higher or commit to a counter-attacking plan.` })
-  if (lead < 0) notes.push({ icon: 'ffwd', tone: 'neutral', text: `We need ${-lead === 1 ? 'a goal' : `${-lead} goals`}. More attacking mentality or an extra forward could turn it.` })
-  if (lead >= 2 && t.mentality !== 'Defensive') notes.push({ icon: 'shield', tone: 'good', text: 'Comfortable lead. We can manage the game and protect legs for the next fixture.' })
-  if (!notes.length) notes.push({ icon: 'check', tone: 'good', text: 'The plan is working. No need to change much.' })
-  return (
-    <div className="asst">
-      <div className="label" style={{ margin: '12px 0 6px', textAlign: 'left' }}>Assistant's notes</div>
-      {notes.slice(0, 3).map((n, i) => (
-        <button key={i} className={`asst-note ${n.tone}`} onClick={() => onManage(n.id)}>
-          <Icon name={n.icon} size={16} /><span className="grow small" style={{ textAlign: 'left' }}>{n.text}</span><Icon name="forward" size={14} />
-        </button>
-      ))}
     </div>
   )
 }
@@ -653,17 +614,24 @@ export function RatingBadge({ v, motm }: { v: number; motm?: boolean }) {
 
 // ---------------------------------------------------------------------------- manage sheet
 function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolean; onClose: () => void; sim: MatchSim; side: 0 | 1; w: World; initialOut?: number }) {
-  const [tab, setTab] = useState<'subs' | 'tactics' | 'formation'>('subs')
+  const [tab, setTab] = useState<'subs' | 'tactics' | 'formation' | 'analysis'>('subs')
   const [out, setOut] = useState<number>()
   const [, force] = useReducer((x: number) => x + 1, 0)
   const waiting = sim.injuredWaiting.filter((x) => x.side === side).map((x) => x.lp.p.id)
   useEffect(() => { if (open && waiting.length) { setTab('subs'); setOut(waiting[0]) } }, [open, waiting.join(',')])
   useEffect(() => { if (open && initialOut) { setTab('subs'); setOut(initialOut) } }, [open, initialOut])
   const t = sim.sideTactics(side)
-  const setT = (p: Partial<TeamTactics>) => { sim.setTactics(side, p); force() }
+  // changes apply at once but quietly: only what the manager settles on is announced, once, when he closes the sheet
+  const setT = (p: Partial<TeamTactics>) => { sim.setTactics(side, p, false); force() }
   // what the tactics were when the sheet opened: the board explains the difference
   const [base, setBase] = useState<TeamTactics>()
-  useEffect(() => { if (open) setBase({ ...sim.sideTactics(side) }) }, [open])
+  const [baseForm, setBaseForm] = useState<string>()
+  useEffect(() => { if (open) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)) } }, [open])
+  const settle = () => {
+    if (!base) return
+    const text = describeChange(base, sim.sideTactics(side), baseForm && formationOf(baseForm).name, formationOf(sim.sideFormation(side)).name)
+    if (text) sim.applyChange(side, text)
+  }
   const ratings = sim.liveRatings(side)
   const onIds = sim.onPitchIds(side)
   const bench = sim.benchIds(side)
@@ -704,8 +672,8 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
   const curForm = formationOf(sim.sideFormation(side))
   const benchSorted = [...bench].sort((a, b) => (outR ? posRating(w.players[b], outR.pos) - posRating(w.players[a], outR.pos) : w.players[b].ovr - w.players[a].ovr))
   return (
-    <Sheet open={open} onClose={() => { if (waiting.length && sim.canSub(side) && bench.length) { useGame.getState().notify('Replace the injured player first', 'err'); return } ; if (waiting.length) sim.autoResolveInjuries(); onClose() }} title="Manage Team">
-      <Seg items={[{ id: 'subs', label: `Subs (${sim.subsLeft(side)})` }, { id: 'tactics', label: 'Tactics' }, { id: 'formation', label: 'Shape' }]} value={tab} onChange={setTab} />
+    <Sheet open={open} onClose={() => { if (waiting.length && sim.canSub(side) && bench.length) { useGame.getState().notify('Replace the injured player first', 'err'); return } ; if (waiting.length) sim.autoResolveInjuries(); settle(); onClose() }} title="Manage Team">
+      <Seg items={[{ id: 'subs', label: `Subs (${sim.subsLeft(side)})` }, { id: 'tactics', label: 'Tactics' }, { id: 'formation', label: 'Shape' }, { id: 'analysis', label: 'Analysis' }]} value={tab} onChange={setTab} />
       {tab === 'subs' && (
         <div style={{ marginTop: 12 }}>
           {waiting.length > 0 && <div className="card pad-card small" style={{ background: 'rgba(255,77,94,.1)', marginBottom: 10 }}><b className="neg">Injury:</b> {waiting.map((id) => w.players[id]?.name).join(', ')} can't continue. Choose a replacement.</div>}
@@ -730,6 +698,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
           <TacticsBoard t={t} onChange={setT} base={base} game={{ score: sim.score, side, minute: sim.minute, reds: [0, 1].map((x) => sim.events.filter((e) => e.side === x && (e.type === 'red' || e.type === 'secondYellow')).length) as [number, number] }} />
         </div>
       )}
+      {tab === 'analysis' && <div style={kitVars(kitColors(w.clubs[sim.home.clubId], w.clubs[sim.away.clubId]))}><LiveAnalysis sim={sim} w={w} side={side} names={[club.short, w.clubs[side === 0 ? sim.away.clubId : sim.home.clubId].short]} /></div>}
       {tab === 'formation' && (
         <div style={{ marginTop: 12 }}>
           <div className="label" style={{ marginBottom: 6 }}>Current: {curForm.name}</div>
@@ -737,7 +706,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
             {FORMATIONS.map((fm) => (
               <button key={fm.id} className={`chip ${fm.id === curForm.id ? 'on' : ''}`} onClick={() => {
                 const players = onIds.map((id) => w.players[id]).filter(Boolean)
-                sim.setFormation(side, fm.id, assignToFormation(players, fm.id))
+                sim.setFormation(side, fm.id, assignToFormation(players, fm.id), false)
                 haptic('medium'); force()
               }}>{fm.name}</button>
             ))}
@@ -877,6 +846,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
             </button>
           )}
           <ReportTimeline w={w} r={r} onGoal={(e) => { haptic('medium'); setReplay(e) }} />
+          {r.changes && r.changes.list.length > 0 && <ChangeReports list={r.changes.list} />}
           {r.mom && r.mom.length > 10 && (
             <div className="card pad-card">
               <div className="label" style={{ marginBottom: 8 }}>Momentum</div>

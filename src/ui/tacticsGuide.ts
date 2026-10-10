@@ -389,3 +389,30 @@ export function presetSettings(t: TeamTactics): { key: keyof TeamTactics; label:
     { key: 'playersInBox', label: 'Players in the box', value: `${t.playersInBox}` },
   ]
 }
+
+/**
+ * What changed between two setups, in a short phrase for the commentary and the Match Report ("attacking mentality,
+ * line higher, 4-4-2"). Small nudges of a slider (under 8) are left out: they are browsing, not a change of plan.
+ */
+export function describeChange(a: TeamTactics, b: TeamTactics, formA?: string, formB?: string): string {
+  const out: string[] = []
+  if (formA && formB && formA !== formB) out.push(formB)
+  if (a.mentality !== b.mentality) out.push(`${b.mentality.toLowerCase()} mentality`)
+  if (a.defApproach !== b.defApproach) out.push(`${b.defApproach === 'Deep' ? 'a deep' : b.defApproach === 'Balanced' ? 'a mid' : b.defApproach === 'High' ? 'a high' : 'an aggressive'} block`)
+  if (a.buildUp !== b.buildUp) out.push(b.buildUp === 'Balanced' ? 'mixed build-up' : b.buildUp === 'Counter' ? 'counter-attacking build-up' : `${b.buildUp.toLowerCase()} build-up`)
+  if (a.chanceCreation !== b.chanceCreation) out.push(b.chanceCreation === 'Balanced' ? 'mixed chance creation' : b.chanceCreation === 'Possession' ? 'patient chance creation' : b.chanceCreation.toLowerCase())
+  const slide = (k: 'lineHeight' | 'pressing' | 'width' | 'tempo', up: string, down: string) => {
+    const d = b[k] - a[k]
+    if (Math.abs(d) >= 8) out.push(d > 0 ? up : down)
+  }
+  slide('lineHeight', 'line higher', 'line deeper')
+  slide('pressing', 'pressing harder', 'pressing less')
+  slide('width', 'wider', 'narrower')
+  slide('tempo', 'quicker tempo', 'slower tempo')
+  if (a.playersInBox !== b.playersInBox) out.push(`${b.playersInBox} in the box`)
+  if (a.offsideTrap !== b.offsideTrap) out.push(b.offsideTrap ? 'offside trap on' : 'offside trap off')
+  if (a.timeWasting !== b.timeWasting) out.push(b.timeWasting ? 'running the clock down' : 'no more time-wasting')
+  if (a.corners !== b.corners) out.push(`${b.corners.toLowerCase()} corners`)
+  if (a.freeKicks !== b.freeKicks) out.push(`${b.freeKicks.toLowerCase()} free kicks`)
+  return out.join(', ')
+}

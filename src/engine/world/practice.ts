@@ -5,6 +5,7 @@
 import type { Competition, Fixture, TeamMatchStats, TeamTactics, World } from '../../domain/types'
 import { MatchSim, type SideInput } from '../match/engine'
 import { viewOf } from '../match/ledger'
+import { chanceLabel } from '../match/analysis'
 import { matchContext, sideInput } from './matchRunner'
 
 /** The manager's current league competition, for the match rules and the choice of sparring sides. */
@@ -98,11 +99,7 @@ export interface PracticeReport {
   notes: string[]
 }
 
-const HOW: Record<string, string> = {
-  pass: 'Build-up play', through: 'Through balls', cross: 'Crosses', cutback: 'Cut-backs', solo: 'Dribbles and cut-ins', counter: 'Counter-attacks',
-  box: 'Loose balls in the box', long: 'Long shots', corner: 'Corners', freekick: 'Free kicks', throw: 'Long throws', rebound: 'Rebounds', error: 'Mistakes', pen: 'Penalties',
-}
-export const howLabel = (h: string) => HOW[h] || 'Other'
+export const howLabel = chanceLabel
 
 const SHOTS = new Set(['goal', 'penGoal', 'save', 'miss', 'woodwork', 'chance', 'penMiss'])
 const STAT_KEYS = ['possession', 'shots', 'sot', 'xg', 'passes', 'passAcc', 'corners', 'fouls', 'offsides', 'crosses', 'tackles', 'interceptions'] as const

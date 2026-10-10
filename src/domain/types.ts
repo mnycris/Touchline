@@ -473,6 +473,33 @@ export interface MatchResult {
   formations?: [string, string] // starting formations
   captains?: [number, number]
   mom?: [number, number][] // per simulated minute: [minute + added/100, momentum -1 (away) .. 1 (home)]
+  /** the user's tactical changes during the match, with what the side did before and after each (Match Report) */
+  changes?: { side: 0 | 1; list: ChangeReport[] }
+}
+
+/** One figure either side of a tactical change, per 90 minutes (shares as they are). */
+export interface ChangeRow {
+  key: string
+  label: string
+  fmt: 'pct' | 'n1' | 'n2'
+  /** 1 more is better for the side, -1 fewer is, 0 neither */
+  good: 1 | -1 | 0
+  before: number
+  after: number
+  /** the difference is bigger than the two stretches' lengths make likely by chance */
+  clear: boolean
+}
+export interface ChangeReport {
+  min: number
+  add: number
+  text: string
+  minsBefore: number
+  minsAfter: number
+  rows: ChangeRow[]
+  /** what else happened after the change that muddies the comparison, and the sample size */
+  notes: string[]
+  /** one plain line on what moved clearly, if anything */
+  read: string
 }
 
 export interface Fixture {

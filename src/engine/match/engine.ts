@@ -22,6 +22,7 @@ import { type Pt, type RoleShift, type ShapeInput, type ShotContext, BLOCK, role
 import { computeRating, GAIN, GOAL_W, PAR, RGROUP, RP, type RG } from './rating'
 import { keeperQuality, takePenalty, takerQuality } from './penalty'
 import { cloneLedger, emptyLedger, lane, third, type Ledger } from './ledger'
+import { changeReports } from './analysis'
 
 export type Phase = 'pre' | '1H' | 'HT' | '2H' | 'ET1' | 'ETHT' | 'ET2' | 'PENS' | 'FT'
 
@@ -599,7 +600,7 @@ export class MatchSim {
   }
 
   /** Move players between formation slots (formation change or re-ordering). */
-  setFormation(side: 0 | 1, formationId: string, slotOrder?: number[]) {
+  setFormation(side: 0 | 1, formationId: string, slotOrder?: number[], announce = true) {
     const s = this.sides[side]
     const f = formationOf(formationId)
     s.formation = f.id
@@ -613,7 +614,7 @@ export class MatchSim {
       this.placed(lp)
     })
     this.reshape(s)
-    if (this.phase !== 'pre' && this.ctx.commentary) this.push({ min: this.displayMinute(), type: 'tactic', side, text: line(this.crng, 'tactic', { t: s.name, x: f.name }) })
+    if (announce && this.phase !== 'pre' && this.ctx.commentary) this.push({ min: this.displayMinute(), type: 'tactic', side, text: line(this.crng, 'tactic', { t: s.name, x: f.name }) })
   }
 
   /** Swap the positions of two players on the pitch (keeps every other slot untouched). */
@@ -861,6 +862,18 @@ export class MatchSim {
     else this.stall++
     if (this.ps !== this.spellPs) { this.sides[this.ps].led.spells++; this.spellPs = this.ps }
     return dt
+  }
+
+  /**
+   * What a manager settled on in one visit to the touchline (the sheet is changed silently while he browses): announced
+   * once in the commentary and marked for the before/after comparison in the Match Report.
+   */
+  applyChange(side: 0 | 1, text: string) {
+    if (!text || this.phase === 'pre' || this.phase === 'FT') return
+    // (made at a break, it belongs to the break, not to the last minute of stoppage time)
+    const brk = this.phase === 'HT' ? 45 : this.phase === 'ETHT' ? 105 : 0
+    if (this.ctx.commentary) this.push({ min: brk || this.displayMinute(), add: brk ? undefined : this.added || undefined, type: 'tactic', side, text: line(this.crng, 'tactic', { t: this.sides[side].name, x: text }) })
+    this.noteChange(side, text)
   }
 
   /** A manager's tactical change (applied, not just browsed): marked so the report can compare before and after. */
@@ -3406,7 +3419,16 @@ export class MatchSim {
       formations: [this.sides[0].input.sheet.formation, this.sides[1].input.sheet.formation],
       captains: [this.sides[0].input.sheet.captain, this.sides[1].input.sheet.captain],
       mom: this.timeline.map((f) => [f.m + f.add / 100, f.mom] as [number, number]),
+      changes: this.changeSummary(),
     }
+  }
+
+  /** The managed side's tactical changes, each with what the side did before and after it (for the Match Report). */
+  private changeSummary(): MatchResult['changes'] {
+    if (!this.changes.length || !this.ledgerFrames.length) return undefined
+    const side = this.changes[0].side
+    const list = changeReports(this.ledgerFrames, this.changes, side, this.events)
+    return list.length ? { side, list } : undefined
   }
 
   // =========================================================== UI helpers
