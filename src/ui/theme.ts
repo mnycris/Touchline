@@ -91,3 +91,9 @@ export function underWhite(hex?: string): string {
   const k = l > 200 ? 0.62 : l > 150 ? 0.42 : l > 100 ? 0.2 : 0
   return k ? mix(hex, [26, 32, 48], k) : hex
 }
+
+/** A club colour that reads on the dark pitch: very dark kits are lifted toward white. */
+export function onDark(hex?: string): string {
+  if (!hex) return '#9aa4b2'
+  return luminance(hex) < 70 ? mix(hex, [235, 238, 242], 0.55) : hex
+}

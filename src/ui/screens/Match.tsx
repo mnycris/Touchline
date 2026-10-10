@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { ShotMap } from '../components/ShotMap'
-import { GoalReplay } from '../components/GoalReplay'
+import { GoalReplay, PenaltyReplay } from '../components/GoalReplay'
 import { movedText } from '../moved'
 import { DEFAULT_SPEEDS, useGame, useWorld, haptic } from '../../store/game'
 import { fmtSpeed } from '../components/SpeedEditor'
@@ -14,8 +14,8 @@ import { fmtDate } from '../../domain/dates'
 import type { MatchSim } from '../../engine/match/engine'
 import { compLogoKey, outcomeFor, scoreLine } from '../selectors'
 import { callName } from '../../engine/match/commentary'
-import { posRating } from '../../domain/ratings'
-import { Ball, BenchRowFM, Boot, Boots, MatchLineup, MissedPen, RatingPill, ratingColor, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
+import { posRating, suitability } from '../../domain/ratings'
+import { Ball, Balls, BenchRowFM, Boot, Boots, MatchLineup, MissedPen, RatingPill, ratingColor, RedCards, sideFromResult, sideFromSim, TeamLineup, type LineupTap } from '../components/Lineup'
 import { kitColors, kitVars, LivePitch, MomentumGraph } from '../components/LivePitch'
 import { PlayerMatchPanel } from '../components/PlayerMatchPanel'
 import { underWhite } from '../theme'
@@ -39,6 +39,8 @@ const EVENT_ICON: Record<string, [string, string]> = {
 }
 const KEY_EVENTS = new Set(['goal', 'penGoal', 'owngoal', 'penMiss', 'red', 'secondYellow', 'yellow', 'injury', 'sub', 'var', 'woodwork', 'ht', 'ft', 'pens', 'et', 'penalty'])
 export const isGoal = (e: MatchEvent) => e.type === 'goal' || e.type === 'penGoal' || e.type === 'owngoal'
+/** Players a side has had sent off. */
+export const redsOf = (events: MatchEvent[], side: 0 | 1) => events.filter((e) => e.side === side && (e.type === 'red' || e.type === 'secondYellow')).length
 const minLabel = (e: MatchEvent) => `${e.min}${e.add ? `+${e.add}` : ''}'`
 
 export function clock(sim: MatchSim) {
@@ -51,15 +53,17 @@ export function clock(sim: MatchSim) {
 }
 
 function goalScorers(w: World, r: Pick<MatchResult, 'events'>, side: 0 | 1) {
-  const map = new Map<number, string[]>()
+  const map = new Map<number, { mins: string[]; own: boolean }>()
   for (const e of r.events) {
     if (!isGoal(e) || e.side !== side) continue
     const id = e.player!
-    const arr = map.get(id) || []
-    arr.push(`${minLabel(e)}${e.type === 'penGoal' ? ' (P)' : e.type === 'owngoal' ? ' (OG)' : ''}`)
-    map.set(id, arr)
+    const row = map.get(id) || { mins: [], own: true }
+    row.mins.push(`${minLabel(e)}${e.type === 'penGoal' ? ' (P)' : e.type === 'owngoal' ? ' (OG)' : ''}`)
+    // drawn with the red ball only when every goal on the line went in his own net
+    row.own &&= e.type === 'owngoal'
+    map.set(id, row)
   }
-  return [...map.entries()].map(([id, mins]) => `${callName(w.players[id]?.name || '')} ${mins.join(', ')}`)
+  return [...map.entries()].map(([id, x]) => ({ text: `${callName(w.players[id]?.name || '')} ${x.mins.join(', ')}`, own: x.own }))
 }
 
 export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: number }) {
@@ -345,18 +349,18 @@ export function LiveMatch() {
           <button className="tiny dim row tight" onClick={togglePitch}><Icon name="pitch" size={14} /> {pitchOpen ? 'Hide pitch' : 'Show pitch'}</button>
         </div>
         <div className="scoreboard">
-          <div className="sb-team"><Badge club={home} size={44} /><div className="sb-name">{home.short}</div></div>
+          <div className="sb-team"><span className="badge-rc"><Badge club={home} size={44} /><RedCards n={redsOf(sim.events, 0)} size={15} /></span><div className="sb-name">{home.short}</div></div>
           <div className="col center" style={{ minWidth: 118 }}>
             <div className="sb-score num"><span key={`h${scoreNow[0]}`} className="pop">{scoreNow[0]}</span><span className="sb-sep">–</span><span key={`a${scoreNow[1]}`} className="pop">{scoreNow[1]}</span></div>
             <div className={`sb-clock ${live.running && !sim.finished && !moment ? 'live' : ''}`}>{clock(sim)}</div>
             {sim.pens && reveal >= 0 && <div className="tiny b" style={{ marginTop: 3 }}>Pens {penScore[0]}–{penScore[1]}</div>}
             {agg && <div className="tiny dim" style={{ marginTop: 2 }}>Agg {sim.score[0] + agg[0]}–{sim.score[1] + agg[1]}</div>}
           </div>
-          <div className="sb-team"><Badge club={away} size={44} /><div className="sb-name">{away.short}</div></div>
+          <div className="sb-team"><span className="badge-rc"><Badge club={away} size={44} /><RedCards n={redsOf(sim.events, 1)} size={15} /></span><div className="sb-name">{away.short}</div></div>
         </div>
         <div className="row between tiny" style={{ padding: '0 6px', minHeight: 14, alignItems: 'flex-start' }}>
-          <div className="scorers">{goalScorers(w, sim, 0).map((s) => <div key={s} className="ellipsis">{s}</div>)}</div>
-          <div className="scorers r">{goalScorers(w, sim, 1).map((s) => <div key={s} className="ellipsis">{s}</div>)}</div>
+          <div className="scorers">{goalScorers(w, sim, 0).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
+          <div className="scorers r">{goalScorers(w, sim, 1).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
         </div>
         {elsewhere && <button key={elsewhere.id} className="elsewhere tiny" onClick={() => { haptic(); setTab('matches') }}><Ball size={10} /><span className="dim">Elsewhere</span><span className="ellipsis b">{elsewhere.text}</span></button>}
       </div>
@@ -400,7 +404,12 @@ export function LiveMatch() {
             <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>Live ratings. Tap any player for match stats and heat map.</div>
           </div>
         )}
-        {tab === 'stats' && <StatsPanel stats={stats} homeId={home.id} awayId={away.id} w={w} />}
+        {tab === 'stats' && (
+          <>
+            {sim.events.some((e) => e.shot) && <div className="pad" style={{ paddingTop: 12 }}><ShotMap w={w} events={sim.events} home={home.id} away={away.id} colors={colors} live={!sim.finished} /></div>}
+            <StatsPanel stats={stats} homeId={home.id} awayId={away.id} w={w} />
+          </>
+        )}
         {tab === 'matches' && <MatchesTab w={w} others={others} compId={f.compId} pip={live.pip} onOpen={openOther} onPin={setPip} />}
       </div>
 
@@ -480,7 +489,7 @@ function GoalCard({ e, w, sim, onClose }: { e: MatchEvent; w: World; sim: MatchS
         <span className="gc-min">{minLabel(e)}</span>
       </div>
       <div className="gc-body">
-        {p && <div className="gc-face"><Face p={p} size={64} radius={32} club={e.type === 'owngoal' ? w.clubs[p.clubId] : club} />{goal && <Ball size={22} className="gc-ball" />}{!goal && e.type !== 'penMiss' && <span className="gc-redcard" />}</div>}
+        {p && <div className="gc-face"><Face p={p} size={64} radius={32} club={e.type === 'owngoal' ? w.clubs[p.clubId] : club} />{goal && <Ball size={22} className="gc-ball" own={e.type === 'owngoal'} />}{!goal && e.type !== 'penMiss' && <span className="gc-redcard" />}</div>}
         <div className="grow" style={{ minWidth: 0, textAlign: 'left' }}>
           <div className="gc-name ellipsis">{p?.name}</div>
           <div className="gc-sub ellipsis">{a ? `Assist: ${a.name}` : goal ? (e.type === 'penGoal' ? 'From the spot' : e.type === 'owngoal' ? `For ${club?.short}` : 'Unassisted') : e.type === 'penMiss' ? 'Chance gone' : `${club?.short} down to ${11 - reds} men`}{e.xg && goal ? ` · xG ${e.xg.toFixed(2)}` : ''}</div>
@@ -525,7 +534,7 @@ export function FeedItem({ e, w, home, away }: { e: MatchEvent; w: World; home: 
     return (
       <div className="feed-item goal big fade-up" style={club ? { ['--gc' as any]: underWhite(club.kit?.[0]) } : undefined}>
         <div className="feed-min">{minLabel(e)}</div>
-        <div className="feed-ic"><Ball size={18} /></div>
+        <div className="feed-ic"><Ball size={18} own={e.type === 'owngoal'} /></div>
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="row tight" style={{ marginBottom: 4 }}>{club && <Badge club={club} size={18} />}<span className="display" style={{ fontSize: 18 }}>{e.type === 'owngoal' ? 'Own goal' : e.type === 'penGoal' ? 'Penalty goal' : 'Goal'}{e.score ? ` · ${e.score[0]}–${e.score[1]}` : ''}</span></div>
           <div className="b" style={{ color: 'var(--t1)' }}>{e.text}</div>
@@ -622,16 +631,38 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
   useEffect(() => { if (open && initialOut) { setTab('subs'); setOut(initialOut) } }, [open, initialOut])
   const t = sim.sideTactics(side)
   // changes apply at once but quietly: only what the manager settles on is announced, once, when he closes the sheet
-  const setT = (p: Partial<TeamTactics>) => { sim.setTactics(side, p, false); force() }
+  // each edit keeps the setup it replaced, so Undo can step back through them
+  const [undo, setUndo] = useState<{ t: TeamTactics; f: string }[]>([])
+  const snap = () => ({ t: { ...sim.sideTactics(side) }, f: sim.sideFormation(side) })
+  const setT = (p: Partial<TeamTactics>) => { setUndo((u) => [...u, snap()]); sim.setTactics(side, p, false); force() }
   // what the tactics were when the sheet opened: the board explains the difference
   const [base, setBase] = useState<TeamTactics>()
   const [baseForm, setBaseForm] = useState<string>()
-  useEffect(() => { if (open) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)) } }, [open])
+  useEffect(() => { if (open) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)); setUndo([]) } }, [open])
+  const restore = (x: { t: TeamTactics; f: string }) => {
+    if (x.f !== sim.sideFormation(side)) sim.setFormation(side, x.f, assignToFormation(onIds.map((id) => w.players[id]).filter(Boolean), x.f), false)
+    sim.setTactics(side, x.t, false)
+  }
+  const stepBack = () => { const last = undo[undo.length - 1]; if (!last) return; haptic(); restore(last); setUndo(undo.slice(0, -1)); force() }
+  const revert = () => { if (!base || !baseForm) return; haptic(); restore({ t: base, f: baseForm }); setUndo([]); force() }
   const settle = () => {
     if (!base) return
     const text = describeChange(base, sim.sideTactics(side), baseForm && formationOf(baseForm).name, formationOf(sim.sideFormation(side)).name)
-    if (text) sim.applyChange(side, text)
+    if (text) sim.applyChange(side, text, { tactics: base, formation: baseForm || sim.sideFormation(side) })
   }
+  const lastApplied = sim.lastApplied(side)
+  const undoBar = undo.length > 0 ? (
+    <div className="undo-bar">
+      <span className="tiny dim grow">{undo.length === 1 ? '1 change' : `${undo.length} changes`} · applied when you close</span>
+      <button className="btn xs" onClick={stepBack}><Icon name="undo" size={14} /> Undo</button>
+      <button className="btn xs ghost" onClick={revert}>Revert all</button>
+    </div>
+  ) : lastApplied ? (
+    <div className="undo-bar">
+      <span className="tiny dim grow clamp2">Last change {lastApplied.min}': {lastApplied.text}</span>
+      <button className="btn xs" onClick={() => { haptic('medium'); if (sim.undoChange(side)) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)); useGame.getState().notify('Back to the previous plan', 'ok') } force() }}><Icon name="undo" size={14} /> Undo it</button>
+    </div>
+  ) : null
   const ratings = sim.liveRatings(side)
   const onIds = sim.onPitchIds(side)
   const bench = sim.benchIds(side)
@@ -653,7 +684,8 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
     if (vacantSlot(tp.slot)) {
       if (!out) { useGame.getState().notify('Tap a player first, then the empty position', 'info'); return }
       if (sim.moveToSlot(side, out, tp.slot!)) {
-        useGame.getState().notify(`${callName(w.players[out].name)} moves to ${curForm.slots[tp.slot!]?.label || 'the gap'}`, 'ok')
+        const su = suitability(w.players[out], curForm.slots[tp.slot!].pos)
+        useGame.getState().notify(`${callName(w.players[out].name)} moves to ${curForm.slots[tp.slot!]?.label || 'the gap'}${su.level ? ` · ${su.label.toLowerCase()}` : ''}`, su.level >= 2 ? 'info' : 'ok')
         setOut(undefined)
         force()
       }
@@ -664,7 +696,13 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
     if (out === tp.id) { if (!waiting.includes(out)) setOut(undefined); return }
     // two players on the pitch: swap their positions
     if (sim.swapPositions(side, out, tp.id)) {
-      useGame.getState().notify(`${callName(w.players[out].name)} ⇄ ${callName(w.players[tp.id].name)}`, 'ok')
+      // say so when the swap puts either of them somewhere he doesn't belong
+      const now = sim.liveRatings(side)
+      const both = [out, tp.id].map((id) => ({ id, su: suitability(w.players[id], now.find((r) => r.id === id)!.pos) }))
+      const off = both.filter((x) => x.su.level > 0).sort((a, b) => b.su.level - a.su.level)
+      const say = off.length === 2 && off[0].su.level === off[1].su.level ? ` · both ${off[0].su.label.toLowerCase()}`
+        : off.map((x) => ` · ${callName(w.players[x.id].name)} ${x.su.label.toLowerCase()}`).join('')
+      useGame.getState().notify(`${callName(w.players[out].name)} ⇄ ${callName(w.players[tp.id].name)}${say}`, off[0]?.su.level >= 2 ? 'info' : 'ok')
       setOut(undefined)
       force()
     }
@@ -678,14 +716,14 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
         <div style={{ marginTop: 12 }}>
           {waiting.length > 0 && <div className="card pad-card small" style={{ background: 'rgba(255,77,94,.1)', marginBottom: 10 }}><b className="neg">Injury:</b> {waiting.map((id) => w.players[id]?.name).join(', ')} can't continue. Choose a replacement.</div>}
           <TeamLineup w={w} side={lineup} onTap={onPitchTap} sel={out} mode="live" energy />
-          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span>{lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? <span className="dim"> · or tap the empty position</span> : null}</> : lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? 'Tap a player, then a substitute, a team-mate to swap with, or the empty position to fill it.' : 'Tap a player on the pitch, then a substitute. Tap two players to swap their positions.'}</div>
+          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span>{lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? <span className="dim"> · or tap the empty position</span> : null}{(() => { const x = lineup.xi.find((q) => q?.id === out); return x?.suit ? <div className={`suit-note s${x.suit}`}>{x.suitNote}</div> : null })()}</> : lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? 'Tap a player, then a substitute, a team-mate to swap with, or the empty position to fill it.' : 'Tap a player on the pitch, then a substitute. Tap two players to swap their positions.'}</div>
           <div className="card list">
             {benchSorted.map((id) => {
               const p = w.players[id]
               const fit = outR ? posRating(p, outR.pos) : p.ovr
               return (
                 <BenchRowFM key={id} w={w} s={{ id, pos: p.positions.join(' / ') }} club={club} onTap={out ? () => doSub(id) : undefined}
-                  right={<div className="col" style={{ alignItems: 'flex-end' }}><Ovr v={fit} size="sm" /><span className="tiny dim">{outR ? `at ${outR.pos}` : `${Math.round(p.fitness)}%`}</span></div>} />
+                  right={<div className="col" style={{ alignItems: 'flex-end' }}><Ovr v={fit} size="sm" />{outR ? <SuitTag p={p} pos={outR.pos} /> : <span className="tiny dim">{Math.round(p.fitness)}%</span>}</div>} />
               )
             })}
             {!bench.length && <div className="li muted small">No substitutes available.</div>}
@@ -695,17 +733,20 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
       )}
       {tab === 'tactics' && (
         <div style={{ marginTop: 12 }}>
+          {undoBar}
           <TacticsBoard t={t} onChange={setT} base={base} game={{ score: sim.score, side, minute: sim.minute, reds: [0, 1].map((x) => sim.events.filter((e) => e.side === x && (e.type === 'red' || e.type === 'secondYellow')).length) as [number, number] }} />
         </div>
       )}
       {tab === 'analysis' && <div style={kitVars(kitColors(w.clubs[sim.home.clubId], w.clubs[sim.away.clubId]))}><LiveAnalysis sim={sim} w={w} side={side} names={[club.short, w.clubs[side === 0 ? sim.away.clubId : sim.home.clubId].short]} /></div>}
       {tab === 'formation' && (
         <div style={{ marginTop: 12 }}>
+          {undoBar}
           <div className="label" style={{ marginBottom: 6 }}>Current: {curForm.name}</div>
           <div className="row wrap" style={{ gap: 7 }}>
             {FORMATIONS.map((fm) => (
               <button key={fm.id} className={`chip ${fm.id === curForm.id ? 'on' : ''}`} onClick={() => {
                 const players = onIds.map((id) => w.players[id]).filter(Boolean)
+                setUndo((u) => [...u, snap()])
                 sim.setFormation(side, fm.id, assignToFormation(players, fm.id), false)
                 haptic('medium'); force()
               }}>{fm.name}</button>
@@ -723,6 +764,12 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
       )}
     </Sheet>
   )
+}
+
+/** How well a position suits a player, as a short coloured word (its note explains why). */
+export function SuitTag({ p, pos, role }: { p: Player; pos: import('../../domain/types').Position; role?: string }) {
+  const su = suitability(p, pos, role)
+  return <span className={`suit-l s${su.level}`} title={su.note}>{su.level === 0 ? `at ${pos}` : su.label}</span>
 }
 
 /** Best assignment of the players on the pitch to the slots of a new formation. */
@@ -754,7 +801,10 @@ export function PostMatch({ params }: { params: { id: string } }) {
   const press = !w.flags.pressDone?.[`post:${f.id}`]
   return (
     <Screen title="Full-time" back onBack={closeAll} noNav
-      footer={<div className="md-footer">{press && <button className="btn" onClick={() => open({ name: 'press', params: { kind: 'post', fixtureId: f.id } })}><Icon name="chat" size={18} /> Press</button>}<button className="btn primary grow" onClick={() => closeAll()}><Icon name="check" size={18} /> Continue</button></div>}>
+      footer={<div className="md-footer">{press
+        // the press conference waits: it is the main action, so it isn't skipped by habit; Continue stays to hand
+        ? <><button className="btn" onClick={() => closeAll()}>Continue</button><button className="btn primary grow" onClick={() => open({ name: 'press', params: { kind: 'post', fixtureId: f.id } })}><Icon name="chat" size={18} /> Press conference</button></>
+        : <button className="btn primary grow" onClick={() => closeAll()}><Icon name="check" size={18} /> Continue</button>}</div>}>
       <MatchReportBody w={w} f={f} />
       {others.length > 0 && (
         <>
@@ -781,7 +831,7 @@ export function FixtureReport({ params }: { params: { id: string } }) {
 export function GoalsAssists({ st, mins = true }: { st: { goals: number; assists: number; mins: number }; mins?: boolean }) {
   return (
     <div className="ga-line tiny dim">
-      {st.goals > 0 && <span className="ga"><b>{st.goals}</b><Ball size={12} /></span>}
+      {st.goals > 0 && <span className="ga"><Balls n={st.goals} size={12} /></span>}
       {st.assists > 0 && <span className="ga"><Boots n={st.assists} size={14} /></span>}
       {mins && <span>{st.mins}'</span>}
     </div>
@@ -809,17 +859,17 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
       <div className="md-head rp-head">
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span></div>
         <div className="md-teams">
-          <button className="md-team" onClick={() => go({ name: 'club', params: { id: home.id } })}><Badge club={home} size={58} /><b>{home.short}</b></button>
+          <button className="md-team" onClick={() => go({ name: 'club', params: { id: home.id } })}><span className="badge-rc"><Badge club={home} size={58} /><RedCards n={redsOf(r.events, 0)} size={17} /></span><b>{home.short}</b></button>
           <div className="col center" style={{ minWidth: 100 }}>
             <div className="display num rp-score">{r.score[0]} – {r.score[1]}</div>
             <div className="tiny dim" style={{ marginTop: 4 }}>{r.pens ? `${r.pens[0]}–${r.pens[1]} on penalties` : r.et ? 'After extra time' : 'Full-time'}</div>
             {f.edited && <div className="tiny row tight" style={{ marginTop: 4, color: 'var(--gold)', justifyContent: 'center' }}><Icon name="edit" size={11} /> Edited match</div>}
           </div>
-          <button className="md-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><Badge club={away} size={58} /><b>{away.short}</b></button>
+          <button className="md-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><span className="badge-rc"><Badge club={away} size={58} /><RedCards n={redsOf(r.events, 1)} size={17} /></span><b>{away.short}</b></button>
         </div>
         <div className="rp-scorers tiny">
-          <div>{goalScorers(w, r, 0).map((s) => <div key={s} className="row tight" style={{ gap: 4 }}><Ball size={10} />{s}</div>)}</div>
-          <div style={{ textAlign: 'right' }}>{goalScorers(w, r, 1).map((s) => <div key={s} className="row tight" style={{ gap: 4, justifyContent: 'flex-end' }}>{s}<Ball size={10} /></div>)}</div>
+          <div>{goalScorers(w, r, 0).map((s) => <div key={s.text} className="row tight" style={{ gap: 4 }}><Ball size={10} own={s.own} />{s.text}</div>)}</div>
+          <div style={{ textAlign: 'right' }}>{goalScorers(w, r, 1).map((s) => <div key={s.text} className="row tight" style={{ gap: 4, justifyContent: 'flex-end' }}>{s.text}<Ball size={10} own={s.own} /></div>)}</div>
         </div>
         <div className="tiny dim rp-venue"><Icon name="stadium" size={12} />{f.venue || (f.neutral ? 'Neutral venue' : home.stadium)} · {r.attendance.toLocaleString()} · {fmtDate(f.date, 'long')}</div>
       </div>
@@ -871,7 +921,9 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
         <PlayerMatchPanel w={w} st={panelSt} club={panel.side === 0 ? home : away} events={r.events} motm={r.motm === panel.id}
           onClose={() => setPanel(undefined)} onProfile={() => { setPanel(undefined); go({ name: 'player', params: { id: panel.id } }) }} />
       )}
-      {replay && <GoalReplay w={w} e={replay} colors={colors} home={f.home} away={f.away} onClose={() => setReplay(undefined)} />}
+      {replay && (replay.type === 'penGoal' && replay.pen && !replay.chain?.length
+        ? <PenaltyReplay w={w} e={replay} home={f.home} away={f.away} onClose={() => setReplay(undefined)} />
+        : <GoalReplay w={w} e={replay} colors={colors} home={f.home} away={f.away} onClose={() => setReplay(undefined)} />)}
     </div>
   )
 }
@@ -900,13 +952,13 @@ function ReportTimeline({ w, r, onGoal }: { w: World; r: MatchResult; onGoal: (e
         const p2 = e.player2 ? w.players[e.player2] : undefined
         const left = e.side === 0
         const goal = isGoal(e)
-        const canReplay = goal && !!e.chain?.length
+        const canReplay = goal && (!!e.chain?.length || (e.type === 'penGoal' && !!e.pen))
         const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : e.type === 'penMiss' ? ' (pen missed)' : ''}`
         const sub = e.type === 'sub' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{callName(p2?.name || '')}</span>
           : goal && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : e.type === 'injury' ? 'Injured' : ''
         const content = (
           <div className="rp-side">
-            <span className="rp-ic">{goal ? <Ball size={17} /> : <Icon name={ic} size={16} color={col} />}{canReplay && <span className="rp-play" aria-hidden><Icon name="play" size={8} strokeWidth={3} /></span>}</span>
+            <span className="rp-ic">{goal ? <Ball size={17} own={e.type === 'owngoal'} /> : <Icon name={ic} size={16} color={col} />}{canReplay && <span className="rp-play" aria-hidden><Icon name="play" size={8} strokeWidth={3} /></span>}</span>
             <div className="rp-txt">
               <div className={`small b rp-line ${goal ? 'rp-scorer' : ''}`}>{e.type === 'sub' ? <Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} /> : null}<span className="ellipsis">{main}</span>{goal && e.score && <span className="rp-sc">{e.score[0]}–{e.score[1]}</span>}</div>
               {sub && <div className="tiny dim ellipsis rp-sub">{sub}</div>}

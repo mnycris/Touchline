@@ -131,3 +131,32 @@ export function ovrColor(ovr: number): string {
   if (ovr >= 65) return '#C9905A'
   return '#9A7457'
 }
+
+/**
+ * How well a position suits a player, in four steps, from what the match engine actually does with it: his rating
+ * there (his qualities weighed for that position, less the familiarity cost of a position he doesn't play), his
+ * experience of it (the positions he is listed for) and, if a role is asked of him, whether he has its key qualities.
+ * The engine takes familiarity off his reading of the game (decisions, positioning, anticipation), so the note says so.
+ */
+export interface Suitability { level: 0 | 1 | 2 | 3; label: string; rating: number; best: number; note: string }
+export const SUIT_LABEL = ['Comfortable', 'Somewhat suitable', 'Out of position', 'Unsuited'] as const
+export function suitability(p: Player, pos: Position, role?: string): Suitability {
+  const best = posRating(p, bestPosition(p))
+  const r = posRating(p, pos)
+  const listed = p.positions.indexOf(pos)
+  const gap = best - r
+  const keeper = (pos === 'GK') !== (p.positions[0] === 'GK')
+  let level: 0 | 1 | 2 | 3 = keeper ? 3 : listed === 0 ? 0 : listed > 0 ? (gap <= 3 ? 0 : 1) : gap <= 4 && similarity(p.positions[0], pos) >= 0.7 ? 1 : gap <= 10 ? 2 : 3
+  // a role he lacks the key qualities for costs a step (a slow full-back asked to be an attacking wing-back)
+  const weakRole = !!role && roleFit(p, pos, role).score < 0.42
+  if (weakRole && level < 3) level = (level + 1) as 0 | 1 | 2 | 3
+  // the engine's familiarity factor on the mental side of his game (see MatchSim: fam, famF)
+  const fam = Math.max(0.6, Math.min(1.02, r / Math.max(40, p.ovr)))
+  const dull = Math.round((1 - (0.82 + 0.18 * fam)) * 100)
+  const note = keeper ? `Not a goalkeeper's position for him: ${r} here.`
+    : listed === 0 && !weakRole ? 'His own position.'
+      : listed > 0 && level <= 1 ? `A position he plays: ${r} here, ${best} at his best.`
+        : level === 1 ? `Not his usual position, but he has the qualities for it: ${r} here, ${best} at his best.`
+          : `${r} here against ${best} at his best${dull > 0 ? `; his reading of the game (decisions, positioning) is about ${dull}% duller` : ''}.`
+  return { level, label: SUIT_LABEL[level], rating: r, best, note: weakRole ? `${note} He also lacks the key qualities of the ${role} role.` : note }
+}

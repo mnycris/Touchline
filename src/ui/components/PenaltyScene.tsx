@@ -2,6 +2,7 @@
 // him. Where the ball goes, which way the keeper dives and how it ends all come from the simulation (PenaltyKick);
 // this only choreographs them: run-up, strike, flight, dive, and the net, glove or post that answers.
 // Everything is drawn through one camera projection, so the ball shrinks as it flies away and the net bulges back.
+import { BallG } from './Glyphs'
 import { useEffect, useRef, useState } from 'react'
 import type { Club, PenaltyKick, Player } from '../../domain/types'
 import { knownFace } from '../../services/assets'
@@ -395,7 +396,11 @@ export function PenaltyScene({ pen, taker, keeper, takerClub, keeperClub, eventI
       const settle = mix(m(T_FOLLOW), m(T_STAND), easeOut(seg(t, HIT + 0.3, HIT + 0.6)))
       pose = mix(settle, goal ? T_JOY : T_WOE, easeOut(r))
       legBehind = seg(t, HIT + 0.3, HIT + 0.5) < 0.5 ? (pl.right ? 'R' : 'L') : undefined
-      if (goal) { bob = Math.max(0, Math.sin((t - TA - 0.5) * 9)) * 0.06 * r; X += dir * -0.9 * easeInOut(seg(t, TA + 0.6, END)) }
+      if (goal) {
+        // he wheels away from the corner he picked, so the ball sitting in the net stays in view behind him
+        const away = Math.abs(pl.tx) > 0.6 ? -Math.sign(pl.tx) : -dir
+        bob = Math.max(0, Math.sin((t - TA - 0.5) * 9)) * 0.06 * r; X += away * 0.9 * easeInOut(seg(t, TA + 0.6, END))
+      }
       else d -= 0.4 * easeOut(seg(t, TA + 0.4, TA + 1.2))
     }
     const sT = F / d, H = 1.8 * sT
@@ -434,12 +439,8 @@ export function PenaltyScene({ pen, taker, keeper, takerClub, keeperClub, eventI
   const ballEl = (
     <g opacity={1 - ((ball as { fade?: number }).fade || 0)}>
       {trail.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={br * (0.85 - i * 0.2)} fill="#fff" opacity={0.18 - i * 0.07} />)}
-      <circle cx={B.x} cy={B.y} r={br} fill={`url(#${uid}ball)`} stroke="rgba(0,0,0,.45)" strokeWidth={br * 0.12} />
-      <g transform={`rotate(${ball.spin} ${B.x} ${B.y})`} fill="#1a1d22" opacity=".85">
-        <circle cx={B.x} cy={B.y - br * 0.05} r={br * 0.3} />
-        <circle cx={B.x + br * 0.62} cy={B.y + br * 0.42} r={br * 0.22} />
-        <circle cx={B.x - br * 0.64} cy={B.y + br * 0.38} r={br * 0.22} />
-      </g>
+      {/* the match ball (the one design used everywhere), spinning as it flies */}
+      <g transform={`rotate(${ball.spin} ${B.x} ${B.y})`}><BallG cx={B.x} cy={B.y} r={br} /></g>
     </g>
   )
   const ballShadow = <ellipse cx={Bs.x} cy={Bs.y} rx={br * 1.15} ry={br * 0.38} fill="#000" opacity={Math.max(0, 0.42 - (ball.h - 0.11) * 0.12)} />
@@ -457,7 +458,6 @@ export function PenaltyScene({ pen, taker, keeper, takerClub, keeperClub, eventI
     <svg className="pk-svg" viewBox={`0 0 ${VW} ${VH}`} preserveAspectRatio="xMidYMid slice" aria-hidden>
       <defs>
         <linearGradient id={`${uid}shade`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".16" /><stop offset=".45" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".3" /></linearGradient>
-        <radialGradient id={`${uid}ball`} cx=".38" cy=".32" r=".75"><stop offset="0" stopColor="#fff" /><stop offset=".7" stopColor="#e3e8ee" /><stop offset="1" stopColor="#9aa3ae" /></radialGradient>
         <radialGradient id={`${uid}glare`}><stop offset="0" stopColor="#fff" stopOpacity=".22" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></radialGradient>
         <linearGradient id={`${uid}stand`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#06080b" /><stop offset="1" stopColor="#121820" /></linearGradient>
         <linearGradient id={`${uid}grass`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#123a22" /><stop offset="1" stopColor="#1d5532" /></linearGradient>

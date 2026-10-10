@@ -8,11 +8,13 @@ import { Badge, Face, Flag } from './atoms'
 import { POS_NAME } from '../../domain/constants'
 import { ageOf } from '../selectors'
 import { Sheet } from './layout'
-import { Ball, Boots, MissedPen, RatingPill } from './Lineup'
+import { Balls, Boots, MissedPen, RatingPill } from './Lineup'
 import { Icon } from '../icons/Icon'
 import { PitchSurface } from './PitchSurface'
+import { PlayerShots } from './ShotMap'
+import { onDark } from '../theme'
 
-type Row = [label: string, value: ReactNode, strong?: boolean]
+type Row = [label: string, value: ReactNode]
 
 /** Position names that fit a third of the panel. */
 const POS_SHORT: Record<string, string> = {
@@ -86,13 +88,58 @@ const HEAT_LUT: [number, number, number, number][] = Array.from({ length: 256 },
   return [Math.round(m(a[1], b[1])), Math.round(m(a[2], b[2])), Math.round(m(a[3], b[3])), Math.round(m(a[4], b[4]) * 255)]
 })
 
-function Section({ title, rows }: { title: string; rows: Row[] }) {
+/**
+ * Which figures stand out, for better or worse. Only what a match report would single out: a striker's two goals, a
+ * keeper's seven saves, a full-back skinned four times. Ordinary numbers are left plain, so the highlights mean
+ * something.
+ */
+type Tone = 'good' | 'bad' | undefined
+const ok = (a = 0, b = 0) => (b ? a / b : 0)
+function toneOf(label: string, st: MatchPlayerStats): Tone {
+  const prevented = n(st.xgotFaced) - n(st.conceded)
+  switch (label) {
+    case 'Goals': return st.goals > 0 ? 'good' : undefined
+    case 'Assists': return st.assists > 0 ? 'good' : undefined
+    case 'Expected goals (xG)': return n(st.xg) >= 0.8 ? 'good' : undefined
+    case 'Expected assists (xA)': return n(st.xa) >= 0.5 ? 'good' : undefined
+    case 'Chances created': return st.keyPasses >= 3 ? 'good' : undefined
+    case 'Big chances created': return n(st.bcc) >= 2 ? 'good' : undefined
+    case 'Big chances missed': return n(st.bcm) >= 1 ? 'bad' : undefined
+    case 'Successful dribbles': return n(st.dribblesOk) >= 4 && ok(st.dribblesOk, st.dribbles) >= 0.6 ? 'good' : undefined
+    case 'Touches in opposition box': return n(st.boxTouches) >= 8 ? 'good' : undefined
+    case 'Accurate passes': return st.passes >= 40 && ok(st.passesCompleted, st.passes) >= 0.92 ? 'good' : st.passes >= 20 && ok(st.passesCompleted, st.passes) < 0.68 ? 'bad' : undefined
+    case 'Accurate crosses': return n(st.crossesOk) >= 3 ? 'good' : undefined
+    case 'Accurate long balls': return n(st.longBallsOk) >= 5 && ok(st.longBallsOk, st.longBalls) >= 0.7 ? 'good' : undefined
+    case 'Tackles won': return st.tackles >= 4 ? 'good' : undefined
+    case 'Interceptions': return st.interceptions >= 3 ? 'good' : undefined
+    case 'Clearances': return n(st.clearances) >= 8 ? 'good' : undefined
+    case 'Blocked shots': return n(st.blocks) >= 2 ? 'good' : undefined
+    case 'Recoveries': return n(st.recoveries) >= 9 ? 'good' : undefined
+    case 'Duels won': return n(st.duels) >= 10 && ok(st.duelsWon, st.duels) >= 0.65 ? 'good' : n(st.duels) >= 8 && ok(st.duelsWon, st.duels) <= 0.3 ? 'bad' : undefined
+    case 'Aerial duels won': return n(st.aerials) >= 5 && ok(st.aerialsWon, st.aerials) >= 0.75 ? 'good' : undefined
+    case 'Was fouled': return n(st.foulsWon) >= 4 ? 'good' : undefined
+    case 'Fouls committed': return st.fouls >= 4 ? 'bad' : undefined
+    case 'Dribbled past': return n(st.dribbledPast) >= 4 ? 'bad' : undefined
+    case 'Possession lost': return n(st.possLost) >= 22 ? 'bad' : undefined
+    case 'Dispossessed': return n(st.dispossessed) >= 4 ? 'bad' : undefined
+    case 'Offsides': return n(st.offsides) >= 4 ? 'bad' : undefined
+    case 'Errors leading to a shot': case 'Penalties conceded': case 'Penalties missed': return 'bad'
+    case 'Penalties won': return 'good'
+    case 'Saves': return n(st.saves) >= 5 ? 'good' : undefined
+    case 'Goals prevented': return prevented >= 0.5 ? 'good' : prevented <= -0.7 ? 'bad' : undefined
+    case 'Goals conceded': return st.pos === 'GK' && n(st.conceded) >= 4 ? 'bad' : undefined
+    case 'High claims': return n(st.claims) >= 3 ? 'good' : undefined
+  }
+  return undefined
+}
+
+function Section({ title, rows, st }: { title: string; rows: Row[]; st: MatchPlayerStats }) {
   const shown = rows.filter(Boolean)
   if (!shown.length) return null
   return (
     <div className="pmp-sec">
       <div className="pmp-h">{title}</div>
-      {shown.map(([l, v, strong]) => <div key={l} className="pmp-row"><span>{l}</span><span className={strong ? 'b' : ''}>{v}</span></div>)}
+      {shown.map(([l, v]) => { const t = toneOf(l, st); return <div key={l} className="pmp-row"><span>{l}</span><span className={t ? `pmp-tone ${t}` : ''}>{v}</span></div> })}
     </div>
   )
 }
@@ -124,19 +171,19 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
 
   const top: Row[] = [
     ['Minutes played', `${st.mins}'`],
-    ...(gk ? [['Saves', n(st.saves), true], ['Goals conceded', n(st.conceded)], ['Goals prevented', `${prevented >= 0 ? '+' : ''}${prevented.toFixed(2)}`, true]] as Row[] : []),
-    ...(!gk ? [['Goals', st.goals, st.goals > 0], ['Assists', st.assists, st.assists > 0]] as Row[] : []),
+    ...(gk ? [['Saves', n(st.saves)], ['Goals conceded', n(st.conceded)], ['Goals prevented', `${prevented >= 0 ? '+' : ''}${prevented.toFixed(2)}`]] as Row[] : []),
+    ...(!gk ? [['Goals', st.goals], ['Assists', st.assists]] as Row[] : []),
     ...(!gk && !def ? [['Expected goals (xG)', x2(st.xg)], ['Expected assists (xA)', x2(st.xa)]] as Row[] : []),
     ['Touches', n(st.touches)],
     ['Accurate passes', frac(st.passesCompleted, st.passes)],
-    ...(!gk ? [['Chances created', st.keyPasses, st.keyPasses >= 3]] as Row[] : []),
+    ...(!gk ? [['Chances created', st.keyPasses]] as Row[] : []),
     ...(def && !gk ? [['Tackles won', st.tackles], ['Interceptions', st.interceptions]] as Row[] : []),
   ]
   const attack: Row[] = [
     ['Shots', st.shots], ['Shots on target', st.sot], ['Expected goals (xG)', x2(st.xg)], ['xG on target (xGOT)', x2(st.xgot)],
-    ['Big chances missed', bigMissed, bigMissed > 0], ['Successful dribbles', frac(st.dribblesOk, st.dribbles)], ['Touches in opposition box', n(st.boxTouches)],
+    ['Big chances missed', bigMissed], ['Successful dribbles', frac(st.dribblesOk, st.dribbles)], ['Touches in opposition box', n(st.boxTouches)],
     ...(n(st.offsides) ? [['Offsides', n(st.offsides)]] as Row[] : []),
-    ...(missed ? [['Penalties missed', missed, true]] as Row[] : []),
+    ...(missed ? [['Penalties missed', missed]] as Row[] : []),
   ]
   const passing: Row[] = [
     ['Accurate passes', frac(st.passesCompleted, st.passes)], ['Chances created', st.keyPasses], ['Big chances created', n(st.bcc)], ['Expected assists (xA)', x2(st.xa)],
@@ -146,16 +193,16 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
   const defending: Row[] = [
     ['Tackles won', st.tackles], ['Interceptions', st.interceptions], ['Clearances', n(st.clearances)], ['Blocked shots', n(st.blocks)], ['Recoveries', n(st.recoveries)],
     ['Dribbled past', n(st.dribbledPast)],
-    ...(n(st.errors) ? [['Errors leading to a shot', n(st.errors), true]] as Row[] : []),
-    ...(n(st.penConceded) ? [['Penalties conceded', n(st.penConceded), true]] as Row[] : []),
+    ...(n(st.errors) ? [['Errors leading to a shot', n(st.errors)]] as Row[] : []),
+    ...(n(st.penConceded) ? [['Penalties conceded', n(st.penConceded)]] as Row[] : []),
   ]
   const duels: Row[] = [
     ['Duels won', frac(st.duelsWon, st.duels)], ['Aerial duels won', frac(st.aerialsWon, st.aerials)], ['Fouls committed', st.fouls], ['Was fouled', n(st.foulsWon)],
     ['Possession lost', n(st.possLost)], ['Dispossessed', n(st.dispossessed)],
-    ...(n(st.penWon) ? [['Penalties won', n(st.penWon), true]] as Row[] : []),
+    ...(n(st.penWon) ? [['Penalties won', n(st.penWon)]] as Row[] : []),
   ]
   const keeping: Row[] = [
-    ['Saves', n(st.saves)], ['Goals conceded', n(st.conceded)], ['xGOT faced', x2(st.xgotFaced)], ['Goals prevented', `${prevented >= 0 ? '+' : ''}${prevented.toFixed(2)}`, prevented > 0.5],
+    ['Saves', n(st.saves)], ['Goals conceded', n(st.conceded)], ['xGOT faced', x2(st.xgotFaced)], ['Goals prevented', `${prevented >= 0 ? '+' : ''}${prevented.toFixed(2)}`],
     ['High claims', n(st.claims)], ['Punches', n(st.punches)], ['Sweeper actions', n(st.sweeps)], ['Accurate long balls', frac(st.longBallsOk, st.longBalls)],
   ]
   const order: [string, Row[]][] = gk
@@ -168,7 +215,7 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
   // results kept in summary form (deep-simulated leagues) carry only the core numbers
   const ext = st.touches !== undefined
   const basic: Row[] = [
-    ['Minutes played', `${st.mins}'`], ['Goals', st.goals, st.goals > 0], ['Assists', st.assists, st.assists > 0],
+    ['Minutes played', `${st.mins}'`], ['Goals', st.goals], ['Assists', st.assists],
     ...(gk ? [['Saves', n(st.saves)]] as Row[] : [['Shots', `${st.shots} (${st.sot} on target)`], ['Expected goals (xG)', x2(st.xg)]] as Row[]),
     ['Accurate passes', frac(st.passesCompleted, st.passes)], ['Chances created', st.keyPasses], ['Tackles won', st.tackles], ['Interceptions', st.interceptions], ['Fouls committed', st.fouls],
   ]
@@ -186,7 +233,7 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
           <div className="pmp-sub tiny">{!played ? 'Unused substitute' : motm ? 'Player of the match' : live ? 'Live rating' : 'Match rating'}</div>
           {(st.goals > 0 || st.assists > 0 || missed > 0 || yellow || red || st.subOn != null || st.subOff != null || st.injured) && (
             <div className="pmp-evs">
-              {Array.from({ length: st.goals }, (_, i) => <Ball key={`g${i}`} size={15} />)}
+              <Balls n={st.goals} size={15} />
               <Boots n={st.assists} size={16} />
               {Array.from({ length: missed }, (_, i) => <MissedPen key={`m${i}`} size={14} />)}
               {yellow && <span className="card-y" />}{red && <span className="card-r" />}
@@ -208,13 +255,14 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
               <div className="pmp-hh"><span>Heatmap</span><span className="pmp-hh-n">Touches <b>{n(st.touches)}</b></span></div>
               <HeatMap heat={st.heat} />
             </div>
-            <Section title="Top stats" rows={top} />
-            {order.map(([t, rows]) => <Section key={t} title={t} rows={rows.filter((r) => !topLabels.has(r[0]))} />)}
+            {st.shots > 0 && <PlayerShots w={w} events={events} player={st.id} color={onDark(club?.kit?.[0])} />}
+            <Section title="Top stats" rows={top} st={st} />
+            {order.map(([t, rows]) => <Section key={t} title={t} rows={rows.filter((r) => !topLabels.has(r[0]))} st={st} />)}
           </>
         )}
         {played && !ext && (
           <>
-            <Section title="Match stats" rows={basic} />
+            <Section title="Match stats" rows={basic} st={st} />
             <div className="tiny dim" style={{ marginTop: 8 }}>Summary stats only: the full breakdown and heat map are kept for matches you play or watch.</div>
           </>
         )}

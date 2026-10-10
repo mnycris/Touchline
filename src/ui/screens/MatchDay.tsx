@@ -18,13 +18,13 @@ import { compLogoKey, fixturesOf, leagueOf, outcomeFor, playerStatus } from '../
 import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competitions/tables'
 import { aggregateBefore } from '../../engine/competitions/cups'
 import { callName } from '../../engine/match/commentary'
-import { posRating } from '../../domain/ratings'
+import { posRating, suitability } from '../../domain/ratings'
 import { MatchLineup, sideFromSheet, type LineupTap, RatingPill } from '../components/Lineup'
 import { buildSheet, setPieceTakers } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
 import { storyLines } from '../../engine/world/storylines'
 import { Bracket, TableView } from './Competitions'
-import { FixtureRow, assignToFormation } from './Match'
+import { FixtureRow, SuitTag, assignToFormation } from './Match'
 import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
 import { useRemember } from '../memory'
@@ -514,8 +514,9 @@ function PickSheet({ w, t, sheet, onClose, edit, comp }: { w: World; t?: LineupT
           <div className="tiny dim">{p.positions.join(' / ')} · {Math.round(p.fitness)}% energy · morale {Math.round(p.morale)}</div>
           {st.key !== 'ok' && <div className="tiny" style={{ color: st.color, marginTop: 2 }}>{st.label}</div>}
         </div>
-        <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><Ovr v={slotPos ? posRating(p, slotPos) : p.ovr} size="sm" /><span className="tiny dim">at {slotPos}</span></div>
+        <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><Ovr v={slotPos ? posRating(p, slotPos) : p.ovr} size="sm" />{slotPos ? <SuitTag p={p} pos={slotPos} /> : null}</div>
       </div>
+      {inXI && slotPos && (() => { const su = suitability(p, slotPos); return su.level ? <div className={`suit-note s${su.level}`}>{su.label}. {su.note}</div> : null })()}
       {inXI && (
         <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
           <button className={`chip ${sheet.captain === p.id ? 'on' : ''}`} onClick={() => duty('captain')}><Icon name="captain" size={14} /> Captain</button>
@@ -535,7 +536,7 @@ function PickSheet({ w, t, sheet, onClose, edit, comp }: { w: World; t?: LineupT
               <div className="s" style={{ color: st.key !== 'ok' && st.key !== 'listed' ? st.color : undefined }}>{where} · {q.positions.join('/')} · {st.key !== 'ok' && st.key !== 'listed' ? st.label : `${Math.round(q.fitness)}%`}</div>
             </div>
             <PosChip pos={q.positions[0]} />
-            <div className="col" style={{ alignItems: 'flex-end' }}><Ovr v={fit} size="sm" /><span className="tiny dim">{slotPos}</span></div>
+            <div className="col" style={{ alignItems: 'flex-end' }}><Ovr v={fit} size="sm" />{slotPos ? <SuitTag p={q} pos={slotPos} /> : null}</div>
           </button>
         ))}
       </div>

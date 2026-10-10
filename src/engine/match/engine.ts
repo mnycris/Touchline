@@ -868,13 +868,40 @@ export class MatchSim {
    * What a manager settled on in one visit to the touchline (the sheet is changed silently while he browses): announced
    * once in the commentary and marked for the before/after comparison in the Match Report.
    */
-  applyChange(side: 0 | 1, text: string) {
+  applyChange(side: 0 | 1, text: string, before?: { tactics: TeamTactics; formation: string }) {
     if (!text || this.phase === 'pre' || this.phase === 'FT') return
+    if (before) this.applied.push({ side, text, min: this.phase === 'HT' ? 45 : this.phase === 'ETHT' ? 105 : this.minute, tactics: { ...before.tactics }, formation: before.formation, order: this.slotOrder(side) })
     // (made at a break, it belongs to the break, not to the last minute of stoppage time)
     const brk = this.phase === 'HT' ? 45 : this.phase === 'ETHT' ? 105 : 0
     if (this.ctx.commentary) this.push({ min: brk || this.displayMinute(), add: brk ? undefined : this.added || undefined, type: 'tactic', side, text: line(this.crng, 'tactic', { t: this.sides[side].name, x: text }) })
     this.noteChange(side, text)
   }
+
+  /** The changes a manager has applied this match, with the setup each replaced (newest last), for Undo. */
+  private applied: { side: 0 | 1; text: string; min: number; tactics: TeamTactics; formation: string; order: number[] }[] = []
+  /** The last applied change of `side`, if it can still be undone. */
+  lastApplied(side: 0 | 1): { text: string; min: number } | undefined {
+    const a = [...this.applied].reverse().find((x) => x.side === side)
+    return a ? { text: a.text, min: a.min } : undefined
+  }
+  /** Put back the setup from before the last applied change (announced, and marked as a change of its own). */
+  undoChange(side: 0 | 1): boolean {
+    let i = -1
+    for (let k = this.applied.length - 1; k >= 0; k--) if (this.applied[k].side === side) { i = k; break }
+    if (i < 0 || this.phase === 'FT') return false
+    const a = this.applied.splice(i, 1)[0]
+    if (a.formation !== this.sides[side].formation) {
+      // the same men back in their old slots where they are all still on; otherwise slot order as it stands
+      const on = new Set(this.sides[side].on.map((l) => l.p.id))
+      this.setFormation(side, a.formation, a.order.every((id) => on.has(id)) ? a.order : undefined, false)
+    }
+    this.setTactics(side, a.tactics, false)
+    const brk = this.phase === 'HT' ? 45 : this.phase === 'ETHT' ? 105 : 0
+    if (this.ctx.commentary) this.push({ min: brk || this.displayMinute(), add: brk ? undefined : this.added || undefined, type: 'tactic', side, text: `${this.sides[side].name} go back to the previous plan.` })
+    this.noteChange(side, `back to the plan before ${a.min}'`)
+    return true
+  }
+  private slotOrder(side: 0 | 1): number[] { return [...this.sides[side].on].sort((x, y) => x.slot - y.slot).map((l) => l.p.id) }
 
   /** A manager's tactical change (applied, not just browsed): marked so the report can compare before and after. */
   noteChange(side: 0 | 1, text: string) {

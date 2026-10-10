@@ -1,33 +1,59 @@
-// Small colour match glyphs: the football (goals) and the boot (assists), drawn in one black-and-white language.
+// Small colour match glyphs: the football (goals), the boot (assists) and the own goal, drawn in one black-and-white
+// language with the same dark keyline.
 import { useId } from 'react'
 
-/** A proper black-and-white football (truncated icosahedron look), not a glowing dot. */
-export function Ball({ size = 12, style, className }: { size?: number; style?: React.CSSProperties; className?: string }) {
+/**
+ * The football: one design everywhere (goal marks, shot maps, replays, the spinning ball). White with the same dark
+ * keyline as the boot, turned a little so it reads as a sphere: a central panel, five panels foreshortened toward the
+ * rim and fine seams, shaded from the top left. At badge sizes the seams drop out and the centre panel grows.
+ */
+const BALL_CENTRE = 'M10.76 7.85Q12.82 8.47 14.56 9.71Q14.62 11.85 13.98 13.9Q11.95 14.61 9.81 14.63Q8.51 12.93 7.82 10.9Q9.04 9.13 10.76 7.85Z'
+const BALL_RIM = [
+  'M10.88 5.63Q9.15 5.33 7.71 4.62Q7.79 3.28 8.38 1.97Q10.13 1.41 11.97 1.34Q12.97 2.37 13.51 3.6Q12.4 4.76 10.88 5.63Z',
+  'M17.71 8.96Q17.46 7.23 17.69 5.64Q18.99 5.31 20.42 5.46Q21.5 6.95 22.13 8.68Q21.46 9.95 20.46 10.84Q19.01 10.14 17.71 8.96Z',
+  'M16.65 16.49Q18.23 15.72 19.81 15.44Q20.53 16.58 20.82 17.99Q19.74 19.47 18.29 20.61Q16.87 20.36 15.71 19.69Q15.93 18.09 16.65 16.49Z',
+  'M9.16 17.81Q10.39 19.07 11.14 20.49Q10.28 21.52 9.03 22.24Q7.29 21.67 5.76 20.64Q5.55 19.22 5.84 17.91Q7.42 17.62 9.16 17.81Z',
+  'M5.59 11.1Q4.78 12.65 3.66 13.8Q2.41 13.31 1.34 12.34Q1.35 10.5 1.85 8.73Q3.14 8.1 4.48 7.97Q5.24 9.38 5.59 11.1Z',
+]
+const BALL_SEAMS = 'M10.76 7.85L10.88 5.63M14.56 9.71L17.71 8.96M13.98 13.9L16.65 16.49M9.81 14.63L9.16 17.81M7.82 10.9L5.59 11.1M13.51 3.6L17.69 5.64M20.46 10.84L19.81 15.44M15.71 19.69L11.14 20.49M5.84 17.91L3.66 13.8M4.48 7.97L7.71 4.62'
+export function Ball({ size = 12, style, className, own }: { size?: number; style?: React.CSSProperties; className?: string; own?: boolean }) {
   const id = useId().replace(/:/g, '')
-  // at badge sizes the seams turn to noise: drop them, grow the patches, darken the rim
   const small = size <= 13
+  // an own goal is the same ball with red panels and keyline: the right ball, the wrong net
+  const ink = own ? '#e5484d' : '#16191d'
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
       <defs>
-        <clipPath id={`bc${id}`}><circle cx="12" cy="12" r={small ? 9.2 : size <= 16 ? 9.9 : 11} /></clipPath>
-        <radialGradient id={`bg${id}`} cx="38%" cy="32%" r="75%"><stop offset="0" stopColor="#fff" /><stop offset=".75" stopColor="#e9ecef" /><stop offset="1" stopColor="#b8bec6" /></radialGradient>
+        <clipPath id={`bc${id}`}><circle cx="12" cy="12" r="10.4" /></clipPath>
+        <radialGradient id={`bg${id}`} cx="35%" cy="28%" r="80%"><stop offset="0" stopColor="#fff" /><stop offset=".6" stopColor="#eef0f3" /><stop offset="1" stopColor="#bcc3cc" /></radialGradient>
       </defs>
-      <circle cx="12" cy="12" r="11" fill={`url(#bg${id})`} />
-      <g clipPath={`url(#bc${id})`} fill="#15181c">
-        <path d="M12 7.3l4.2 3.05-1.6 4.95H9.4l-1.6-4.95z" transform={small ? 'translate(12 11.4) scale(1.28) translate(-12 -11.4)' : undefined} />
-        <path d="M9.4 -0.6h5.2l.9 3.4-3.5 2.2-3.5-2.2z" />
-        <path d="M23.8 8.1l.2 5.4-3.2 1.2-2.4-3 1.6-4.1z" />
-        <path d="M19.9 21.6l-4.5 2.6-2-2.8 1.8-3.6 3.8.3z" />
-        <path d="M4.1 21.6l4.5 2.6 2-2.8-1.8-3.6-3.8.3z" />
-        <path d="M.2 8.1L0 13.5l3.2 1.2 2.4-3-1.6-4.1z" />
+      <circle cx="12" cy="12" r="10.6" fill={`url(#bg${id})`} />
+      <g clipPath={`url(#bc${id})`} fill={ink}>
+        <path d={BALL_CENTRE} transform={small ? 'translate(11.6 11.4) scale(1.25) translate(-11.6 -11.4)' : undefined} />
+        {BALL_RIM.map((d) => <path key={d} d={d} />)}
       </g>
-      {!small && (
-        <g stroke="#15181c" strokeWidth=".9" fill="none" clipPath={`url(#bc${id})`}>
-          <path d="M12 7.3V5M16.2 10.35l2.8-1M14.6 15.3l1.2 2.5M9.4 15.3l-1.2 2.5M7.8 10.35l-2.8-1" />
-        </g>
-      )}
-      <circle cx="12" cy="12" r="11" fill="none" stroke="rgba(0,0,0,.35)" strokeWidth=".8" />
+      {!small && <path d={BALL_SEAMS} clipPath={`url(#bc${id})`} stroke={ink} strokeWidth=".75" strokeLinecap="round" fill="none" />}
+      <circle cx="12" cy="12" r="10.6" fill="none" stroke={ink} strokeWidth={small ? 1.8 : 1.3} />
     </svg>
+  )
+}
+
+/** The same ball drawn inside another SVG (shot maps, replays): centred on cx, cy with radius r, in its units. */
+export function BallG({ cx, cy, r, own, className }: { cx: number; cy: number; r: number; own?: boolean; className?: string }) {
+  const id = useId().replace(/:/g, '')
+  const ink = own ? '#e5484d' : '#16191d'
+  const k = r / 10.6
+  return (
+    <g className={className} transform={`translate(${cx} ${cy}) scale(${k}) translate(-12 -12)`}>
+      <defs>
+        <clipPath id={`gc${id}`}><circle cx="12" cy="12" r="10.4" /></clipPath>
+        <radialGradient id={`gg${id}`} cx="35%" cy="28%" r="80%"><stop offset="0" stopColor="#fff" /><stop offset=".6" stopColor="#eef0f3" /><stop offset="1" stopColor="#bcc3cc" /></radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r="10.6" fill={`url(#gg${id})`} />
+      <g clipPath={`url(#gc${id})`} fill={ink}><path d={BALL_CENTRE} />{BALL_RIM.map((d) => <path key={d} d={d} />)}</g>
+      <path d={BALL_SEAMS} clipPath={`url(#gc${id})`} stroke={ink} strokeWidth=".75" strokeLinecap="round" fill="none" />
+      <circle cx="12" cy="12" r="10.6" fill="none" stroke={ink} strokeWidth="1.5" />
+    </g>
   )
 }
 
@@ -44,28 +70,45 @@ export function Boot({ size = 12, style, className }: { size?: number; style?: R
   const shape = <><path d={BOOT_UPPER} /><path d={BOOT_PLATE} />{BOOT_STUDS.map((d) => <path key={d} d={d} />)}</>
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
-      <g transform="translate(24 0) scale(-1 1) rotate(14 12 12) translate(0 .2)">
+      {/* tipped toe-down to the left, as if striking the ball */}
+      <g transform="translate(24 0) scale(-1 1) rotate(22 12 12) translate(0 .2)">
         <g fill="#15181c" stroke="#15181c" strokeWidth={small ? 2.6 : 2.1} strokeLinejoin="round">{shape}</g>
         <g fill="#f6f7f9">{shape}</g>
         <path d="M1.9 15.75h20.4" stroke="#15181c" strokeWidth={small ? 1.2 : 0.95} />
-        <path d="M4.4 12.4c3.3 0 6.6-.9 9.4-2.6" stroke="var(--acc, #1fd67a)" strokeWidth={small ? 2.2 : 1.8} strokeLinecap="round" fill="none" />
+        {/* the accent: a solid stripe while it is tiny, a tapering swoosh once there is room for one */}
+        {small ? <path d="M4.4 12.4c3.3 0 6.6-.9 9.4-2.6" stroke="var(--acc, #1fd67a)" strokeWidth="2.2" strokeLinecap="round" fill="none" />
+          : <path d="M3.9 11.9C7.6 12.1 11.1 10.9 14.3 9.1C11.5 11.6 8.1 13.4 4.2 13.6Z" fill="var(--acc, #1fd67a)" />}
         {!small && <path d="M11.9 8.6l-.8 1.2M14 9.7l-.7 1.2M16.1 10.6l-.6 1.1" stroke="#15181c" strokeWidth=".85" strokeLinecap="round" />}
       </g>
     </svg>
   )
 }
 
-/** Several assists: that many boots overlapping, the first one in front (FotMob style), never "boot ×2". */
-export function Boots({ n, size = 12, max = 4 }: { n: number; size?: number; max?: number }) {
+/**
+ * A count of goals or assists: up to three marks overlapping, the first in front (FotMob style); beyond that the
+ * overlap stops saying anything, so it becomes one mark with the number beside it.
+ */
+function Stack({ n, size, mark, label }: { n: number; size: number; mark: (i: number) => React.ReactNode; label: string }) {
   if (n <= 0) return null
-  const k = Math.min(n, max)
+  if (n > 3) return <span className="mk-count" aria-label={label}>{mark(0)}<b style={{ fontSize: Math.max(9, size * 0.72) }}>{n}</b></span>
   return (
-    <span className="boots" style={{ ['--bo' as any]: `${-Math.round(size * 0.42)}px` }} aria-label={`${n} assist${n > 1 ? 's' : ''}`}>
-      {/* laid out right to left so the first boot is drawn last, on top */}
-      {n > max && <b className="boots-more">+{n - max}</b>}
-      {Array.from({ length: k }, (_, i) => <Boot key={i} size={size} />)}
+    <span className="boots" style={{ ['--bo' as any]: `${-Math.round(size * (n === 3 ? 0.5 : 0.42))}px` }} aria-label={label}>
+      {/* laid out right to left so the first mark is drawn last, on top */}
+      {Array.from({ length: n }, (_, i) => mark(i))}
     </span>
   )
+}
+export function Boots({ n, size = 12 }: { n: number; size?: number; max?: number }) {
+  return <Stack n={n} size={size} label={`${n} assist${n > 1 ? 's' : ''}`} mark={(i) => <Boot key={i} size={size} />} />
+}
+export function Balls({ n, size = 12, own }: { n: number; size?: number; own?: boolean }) {
+  return <Stack n={n} size={size} label={`${n} ${own ? 'own goal' : 'goal'}${n > 1 ? 's' : ''}`} mark={(i) => <Ball key={i} size={size} own={own} />} />
+}
+
+/** Sent off: a red card, with how many when there was more than one. */
+export function RedCards({ n, size = 12 }: { n: number; size?: number }) {
+  if (n <= 0) return null
+  return <span className="rc-mark" style={{ width: size * 0.72, height: size }} aria-label={`${n} sent off`}>{n > 1 && <b>{n}</b>}</span>
 }
 
 /** A missed penalty: the ball with a small red cross. */

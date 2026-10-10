@@ -9,7 +9,7 @@ import { Icon } from '../icons/Icon'
 import { callName } from '../../engine/match/commentary'
 import type { MatchSim } from '../../engine/match/engine'
 import { playerStatus } from '../selectors'
-import { posRating } from '../../domain/ratings'
+import { posRating, suitability } from '../../domain/ratings'
 
 export function ratingColor(v: number) {
   return v >= 9 ? '#2f80ed' : v >= 8 ? '#0db36b' : v >= 7 ? '#3cc26a' : v >= 6 ? '#f29b1d' : v >= 5 ? '#ef6b2c' : '#e5484d'
@@ -19,9 +19,9 @@ export function RatingPill({ v, motm, size = 'md' }: { v: number; motm?: boolean
   return <span className={`rt-pill ${size}`} style={{ background: motm ? '#2f80ed' : ratingColor(v) }}>{motm && <Icon name="star" size={size === 'sm' ? 8 : 10} strokeWidth={2.6} />}{v.toFixed(1)}</span>
 }
 
-export { Ball, Boot, Boots, MissedPen } from './Glyphs'
+export { Ball, Balls, Boot, Boots, MissedPen, RedCards } from './Glyphs'
 import { PitchSurface } from './PitchSurface'
-import { Ball, Boots, MissedPen } from './Glyphs'
+import { Balls, Boots, MissedPen } from './Glyphs'
 
 // ---------------------------------------------------------------------------- data model
 export interface LPl {
@@ -41,6 +41,9 @@ export interface LPl {
   status?: { icon: string; color: string; label: string }
   energy?: number
   fit?: number // rating at the slot (team selection)
+  /** how well the slot suits him: 0 comfortable … 3 unsuited (see suitability) */
+  suit?: 0 | 1 | 2 | 3
+  suitNote?: string
   pos?: string
 }
 export interface LSide {
@@ -52,6 +55,8 @@ export interface LSide {
   note?: string
   unavailable?: { id: number; reason: string; icon: string; color: string }[]
   avg?: number
+  /** the starting XI's average match rating (during and after a match) */
+  rating?: number
   title?: string // replaces the club name in the header (e.g. Team of the Week)
   logo?: ReactNode // replaces the club badge in the header
 }
@@ -69,9 +74,10 @@ export function sideFromSheet(w: World, clubId: number, sheet: Pick<TeamSheet, '
     const p = w.players[id]
     if (!p) return undefined
     const st = playerStatus(w, p, comp)
+    const su = slot != null ? suitability(p, f.slots[slot].pos) : undefined
     return {
       id, captain: sheet.captain === id, energy: p.fitness,
-      fit: slot != null ? posRating(p, f.slots[slot].pos) : undefined, pos: slot != null ? f.slots[slot].label : p.positions[0],
+      fit: slot != null ? posRating(p, f.slots[slot].pos) : undefined, pos: slot != null ? f.slots[slot].label : p.positions[0], suit: su?.level, suitNote: su ? `${su.label}. ${su.note}` : undefined,
       status: st.key !== 'ok' && st.key !== 'listed' ? { icon: st.icon, color: st.color, label: st.label } : undefined,
     }
   }
@@ -91,17 +97,26 @@ export function sideFromSim(w: World, sim: MatchSim, side: 0 | 1): LSide {
   const cap = sim.captain(side)
   const og = new Map<number, number>()
   for (const e of sim.events) if (e.type === 'owngoal' && e.player && e.side !== side) og.set(e.player, (og.get(e.player) || 0) + 1)
-  const mk = (r: (typeof rs)[number]): LPl => ({
-    id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, assists: r.assists, penMissed: r.penMissed, og: og.get(r.id), yellow: r.yellow, red: r.red, subOn: r.subOn, subOff: r.red ? undefined : r.subOff,
-    captain: r.id === cap, injured: r.injured, energy: r.energy, pos: r.pos,
-  })
+  const mk = (r: (typeof rs)[number]): LPl => {
+    const p = w.players[r.id]
+    const su = p && r.on ? suitability(p, r.pos, r.role) : undefined
+    return {
+      id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, assists: r.assists, penMissed: r.penMissed, og: og.get(r.id), yellow: r.yellow, red: r.red, subOn: r.subOn, subOff: r.red ? undefined : r.subOff,
+      captain: r.id === cap, injured: r.injured, energy: r.energy, pos: r.pos, suit: su?.level, suitNote: su ? `${su.label}. ${su.note}` : undefined,
+    }
+  }
   const xi: (LPl | undefined)[] = f.slots.map((_, i) => {
     const r = rs.find((x) => x.on && x.slot === i) || rs.find((x) => x.red && x.slot === i && !rs.some((y) => y.on && y.slot === i))
     return r ? mk(r) : undefined
   })
   const onXi = new Set(xi.filter(Boolean).map((x) => x!.id))
   const bench = rs.filter((r) => !onXi.has(r.id)).sort((a, b) => (b.played ? 1 : 0) - (a.played ? 1 : 0) || (a.subOn ?? a.subOff ?? 999) - (b.subOn ?? b.subOff ?? 999)).map(mk)
-  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId) }
+  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId), rating: xiRating(rs.filter((r) => r.played && (r.subOn == null || r.subOn === 0) && r.rating > 0).map((r) => r.rating)) }
+}
+
+/** The average match rating of the players who started (only once there are ratings to average). */
+function xiRating(rs: number[]): number | undefined {
+  return rs.length >= 7 ? Math.round((rs.reduce((a, b) => a + b, 0) / rs.length) * 10) / 10 : undefined
 }
 
 export function sideFromResult(w: World, fx: Fixture, side: 0 | 1): LSide | undefined {
@@ -120,7 +135,7 @@ export function sideFromResult(w: World, fx: Fixture, side: 0 | 1): LSide | unde
   }
   const xi = r.lineups[side].map(mk)
   const bench = [...stats.values()].filter((s) => !s.started).sort((a, b) => (a.subOn ?? 0) - (b.subOn ?? 0)).map((s) => mk(s.id)!).filter(Boolean)
-  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId) }
+  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId), rating: xiRating([...stats.values()].filter((s) => s.started && s.rating > 0).map((s) => s.rating)) }
 }
 
 // ---------------------------------------------------------------------------- layout
@@ -164,15 +179,15 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
         {(s.yellow || s.red) && <span className="fl-cards">{s.yellow && <i className="y" />}{s.red && <i className="r" />}</span>}
         {(goals > 0 || !!s.og || s.penMissed) && (
           <span className="fl-goals">
-            {Array.from({ length: Math.min(goals, 3) }, (_, i) => <Ball key={i} size={13} />)}
-            {goals > 3 && <b>×{goals}</b>}
-            {!!s.og && <span className="og"><Ball size={12} /></span>}
+            <Balls n={goals} size={13} />
+            {!!s.og && <Balls n={s.og} size={13} own />}
             {s.penMissed && <MissedPen size={12} />}
           </span>
         )}
         {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
+        {(mode === 'sheet' || energy) && !!s.suit && <span className={`fl-suit s${s.suit}`} title={s.suitNote} aria-label={s.suitNote} />}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
         {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
@@ -196,7 +211,8 @@ function TeamBar({ s, right, onClick }: { s: LSide; right?: ReactNode; onClick?:
       {s.note && <span className="fl-note">{s.note}</span>}
       <span className="grow" />
       {right}
-      {s.avg != null && <span className="tiny dim">Avg {s.avg}</span>}
+      {s.rating != null ? <span className="fl-avg rt" style={{ background: ratingColor(s.rating) }} title="Average rating of the starting XI">{s.rating.toFixed(1)}</span>
+        : s.avg != null ? <span className="fl-avg" title="Average overall of the starting XI">{s.avg}</span> : null}
       <span className="fl-form">{s.formation.name.replace(/ \(.*\)/, '')}</span>
     </div>
   )
@@ -251,7 +267,8 @@ export function BenchRowFM({ w, s, club, onTap, sel, right }: { w: World; s: LPl
           {s.subOn != null && <><Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} />{s.subOn}'</>}
           {s.subOff != null && <><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{s.subOff}'</>}
           {s.subOn == null && s.subOff == null && <span>{s.pos || p.positions[0]}</span>}
-          {Array.from({ length: Math.min(s.goals || 0, 3) }, (_, i) => <Ball key={i} size={11} />)}
+          <Balls n={s.goals || 0} size={11} />
+          {!!s.og && <Balls n={s.og} size={11} own />}
           <Boots n={s.assists || 0} size={12} />
           {s.penMissed && <MissedPen size={11} />}
           {s.yellow && <span className="card-y" />}{s.red && <span className="card-r" />}
