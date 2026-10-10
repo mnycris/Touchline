@@ -160,6 +160,7 @@ const T: Record<string, string[]> = {
   sub: ['{t} make a change: {p} replaces {q}.', 'Substitution for {t} — {p} on, {q} off.'],
   subInjury: ['Enforced change for {t}: {p} comes on for the injured {q}.'],
   tactic: ['Tactical change from {t}: {x}.', '{t} switch to {x}.'],
+  redShuffle: ['{t} reshuffle after the red card: {p} drops into the back line.', 'Down to ten, {t} fill the gap: {p} slots in at the back.'],
   ht: ['HALF-TIME: {home} {hs}-{as} {away}.', 'The referee blows for half-time. {home} {hs}-{as} {away}.'],
   ft: ['FULL-TIME: {home} {hs}-{as} {away}.', "It's all over! {home} {hs}-{as} {away}."],
   ftDraw: ['FULL-TIME: The points are shared. {home} {hs}-{as} {away}.'],

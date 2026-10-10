@@ -26,8 +26,16 @@ export function ageOn(dob: ISODate, on: ISODate): number {
   return a
 }
 /** Days since epoch for an ISO date (fast, allocation-light). */
+// scheduling compares dates millions of times over a season: parse each one once
+const DAY_CACHE = new Map<string, number>()
 export function dayNum(d: ISODate): number {
-  return Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / MS)
+  let n = DAY_CACHE.get(d)
+  if (n === undefined) {
+    n = Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / MS)
+    if (DAY_CACHE.size > 20000) DAY_CACHE.clear()
+    DAY_CACHE.set(d, n)
+  }
+  return n
 }
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']

@@ -5,6 +5,7 @@ import { createWorld } from '../../src/data/createWorld'
 import type { RawDb } from '../../src/data/rawTypes'
 import { Rng } from '../../src/domain/rng'
 import { applyMatchResult, createSim, simulateFixture } from '../../src/engine/world/matchRunner'
+import { MatchSim } from '../../src/engine/match/engine'
 import { sortTable } from '../../src/engine/competitions/tables'
 
 const raw: RawDb = JSON.parse(fs.readFileSync('public/data/world.json', 'utf8'))
@@ -79,7 +80,7 @@ for (const id of comp.fixtures) {
   ogs += r.events.filter((e) => e.type === 'owngoal').length
   const k = `${Math.min(h, 5)}-${Math.min(a, 5)}`
   scoreDist[k] = (scoreDist[k] || 0) + 1
-  for (const pid of r.players.map((x) => x.id)) { const p = w.players[pid]; p.fitness = Math.min(100, p.fitness + 30); if (p.injury && Math.random() < 0.3) p.injury = undefined }
+  for (const pid of r.players.map((x) => x.id)) { const p = w.players[pid]; p.fitness = Math.min(100, p.fitness + 30); if (p.injury && rng.next() < 0.3) p.injury = undefined }
 }
 const dt = Date.now() - t1
 const per = (k: string) => (sum[k] / n / 2).toFixed(1)

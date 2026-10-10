@@ -264,17 +264,23 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
     spread(rng, mine, poisson(rng, 9), (q) => DEF_W[q.g] * (q.g === 'CB' || q.g === 'DM' ? 1.4 : 1), (q, n) => { q.st.interceptions += n })
     spread(rng, mine, Math.max(0, poisson(rng, lam[i] * 7) - mine.reduce((a, q) => a + q.st.keyPasses, 0)), (q) => ASSIST_W[q.g], (q, n) => { q.st.keyPasses += n })
     const gk = mine.find((q) => q.g === 'GK')
-    if (gk) gk.st.saves = stats[i].saves
     const conceded = score[1 - i]
+    if (gk) {
+      gk.st.saves = stats[i].saves
+      // how hard the shots he faced were (on-target xG), so his rating answers whether he kept out what he should have
+      const opp = stats[1 - i]
+      gk.st.xgotFaced = Math.round(Math.max(conceded * 0.7, opp.xg * (0.85 + rng.next() * 0.35)) * 100) / 100
+      gk.st.conceded = conceded
+    }
     const res = won(i)
     for (const q of mine) {
       q.st.mins = q.mins
       const g = q.g
-      let r = 6.58 + rng.normal(0, 0.44) + (str[i] - str[1 - i]) * 0.012 + (g === 'GK' ? 0.18 : g === 'CB' ? 0.16 : g === 'FB' ? 0.2 : g === 'AM' || g === 'ST' ? -0.1 : 0)
+      let r = 6.58 + rng.normal(0, 0.44) + (str[i] - str[1 - i]) * 0.012 + (g === 'GK' ? 0.04 : g === 'CB' ? 0.16 : g === 'FB' ? 0.2 : g === 'AM' || g === 'ST' ? -0.1 : 0)
       r += q.st.goals * (0.95 * GOAL_W[g] + 0.05) + q.st.assists * 0.5 + q.st.keyPasses * 0.06 + (q.st.shots - q.st.goals) * 0.01
       r += (q.st.tackles + q.st.interceptions) * 0.06
       if (conceded === 0) r += CLEAN_SHEET[g] * Math.min(1, q.mins / 90) * (q.mins >= 60 ? 1 : 0.4)
-      if (g === 'GK') r += q.st.saves * 0.12 - conceded * 0.2
+      if (g === 'GK') r += ((q.st.xgotFaced || 0) - conceded) * 0.55 + q.st.saves * 0.04
       else if (g === 'CB' || g === 'FB') r -= conceded * 0.06
       r += (res > 0 ? 0.16 : res < 0 ? -0.1 : 0.02) * Math.min(1, q.mins / 90)
       if (q.st.yellow) r -= 0.2

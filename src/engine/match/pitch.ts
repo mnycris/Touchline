@@ -66,7 +66,7 @@ export interface ShotContext { header?: boolean; oneOnOne?: boolean; counter?: b
 
 export function chanceXg(p: Pt, c: ShotContext): number {
   let xg = baseXg(p)
-  if (c.header) xg *= c.setPiece ? 0.42 : 0.5
+  if (c.header) xg *= c.setPiece ? 0.52 : 0.5
   if (c.volley) xg *= 0.75
   if (c.cutback) xg *= 1.25
   if (c.rebound) xg *= 1.2
@@ -83,7 +83,12 @@ export interface ShapeInput {
   width: number // 0..100
   mentality: number // -2..2
   pressing: number
+  /** defensive approach: -1 deep block, 0 balanced, 0.6 high, 1 aggressive (stepping out to win it) */
+  block?: number
 }
+
+/** How the defensive approach shapes the block (see playerSpot). */
+export const BLOCK: Record<string, number> = { Deep: -1, Balanced: 0, High: 0.6, Aggressive: 1 }
 
 /** Rest-shape depth of a formation slot (team frame, before shifting with the ball). */
 export function slotDepth(slotY: number, pos: string): number {
@@ -115,6 +120,9 @@ function roleShiftRaw(role: string, pos: string): RoleShift {
     case 'Shadow Striker': r.dx = 5; break
     case 'Classic 10': r.dxDef = 4; break
     case 'Box-to-Box': r.dx = 4; break
+    case 'Playmaker': r.dx = 2; break
+    case 'Half-Winger': r.dx = 3; r.dy = -5; break
+    case 'Wide Half': r.dx = -2; r.dy = -6; break
     case 'Holding': r.dx = -5; r.dxDef = -3; break
     case 'Deep-Lying Playmaker': r.dx = -4; break
     case 'Wingback': r.dx = 10; r.widthMul = 1.08; break
@@ -162,10 +170,31 @@ export function playerSpot(slotX: number, slotY: number, pos: string, role: stri
   } else {
     // ball given in our own frame; the opponent attacks toward our goal (x → 0). Line height matters most when the
     // ball is far away; once it is near our box everybody defends the box. The last line never drops onto the goal line.
-    const reach = clamp(ball.x / 50, 0.3, 1)
-    const anchor = Math.max(ball.x < 18 ? 6.5 : 10.5, ball.x * 0.52 + ((s.lineHeight - 50) / 4 + s.mentality * 1.5) * reach - 1)
-    x = anchor + rel * 0.78 + rs.dxDef
-    y = 50 + (slotX - 50) * 0.78 + (ball.y - 50) * 0.3
+    const deep = Math.max(0, -(s.block ?? 0)) + Math.max(0, -s.mentality - 0.25) * 0.4
+    const reach = clamp((ball.x - 15) / 40, 0.1, 1)
+    // a back line holds the edge of its box until the ball is almost there (only then does it drop toward its goal)
+    const floor = clamp(6.5 + (ball.x - 12) * 0.55, 6.5, 14.5)
+    const anchor = Math.max(floor, ball.x * 0.52 + ((s.lineHeight - 50) / 4 + s.mentality * 1.5) * reach - 1)
+    // the line height places the back line; the midfield and forwards follow the ball and how high the side engages
+    // it, so a high line with a mid block leaves room behind it and a deep line with one leaves room between the lines
+    const anchorM = Math.max(floor, ball.x * 0.52 + ((s.lineHeight - 50) / 4 * 0.35 + s.mentality * 1.5) * reach - 1)
+    // a deep block squeezes the room between its lines; every block keeps its lines within reach of each other
+    const vc = 0.78 - deep * 0.12
+    x = (rel > 5 ? Math.max(anchorM + rel * vc, anchor + rel * 0.3) : anchor + rel * vc) + rs.dxDef
+    // and stays goal-side of the ball as it comes on: the central and wide midfielders drop in front of their back line,
+    // the #10 screens just ahead of them, wingers track back to the ball's line and the strikers stay up as the outlet
+    // (the deeper the side defends, the more of them get behind the ball)
+    if (rel > 5 && pos !== 'CB' && pos !== 'LB' && pos !== 'RB' && pos !== 'LWB' && pos !== 'RWB') {
+      const mid = pos === 'CM' || pos === 'CDM' || pos === 'LM' || pos === 'RM'
+      const lim = mid ? ball.x - 3 + (rel - 12) * 0.12
+        : pos === 'CAM' ? ball.x + 2 - deep * 5
+          : pos === 'LW' || pos === 'RW' ? ball.x + 8 - deep * 6
+            : ball.x + 15 - deep * 9
+      if (x > lim) x = Math.max(anchor + rel * (mid ? 0.28 : 0.45), lim)
+    }
+    // a deep block also closes the middle: narrower, and shifted harder to the ball side
+    const wc = 0.78 - deep * 0.1
+    y = 50 + (slotX - 50) * wc + (ball.y - 50) * (0.3 + deep * 0.06)
   }
   o.x = clamp(x + jx, 1.5, 97)
   o.y = clamp(y + jy, 2, 98)

@@ -1,7 +1,7 @@
 import type { Club, Competition, Player, Position, SlotRole, TeamSheet, TeamTactics, World } from '../../domain/types'
-import { DEFAULT_TACTICS, FORMATIONS, POS_GROUP, VISION_TACTICS, formationOf } from '../../domain/constants'
+import { DEFAULT_TACTICS, FORMATIONS, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
 import { A } from '../../domain/types'
-import { bestRole, posRating } from '../../domain/ratings'
+import { bestRole, posRating, roleFit } from '../../domain/ratings'
 import { rosterOf } from '../world/roster'
 import { nationalSquad } from '../world/international'
 
@@ -28,6 +28,9 @@ export function isAvailable(w: World, p: Player, comp?: Competition): boolean {
 
 function selectionScore(w: World, p: Player, pos: Position, rotate: number): number {
   let r = posRating(p, pos)
+  // managers trust a player where he has played: his main position first, a listed one nearly as much, and somewhere
+  // he has never played only when he is clearly the better option (the rating already counts the attribute mismatch)
+  if (p.positions[0] !== pos) r -= p.positions.includes(pos) ? 0.6 : 2.5
   const fit = p.fitness
   // a player who starts short of full fitness fades badly late on: freshness is worth real rating points
   if (fit < 95) r -= (95 - fit) * (0.24 + rotate * 0.2)
@@ -35,66 +38,60 @@ function selectionScore(w: World, p: Player, pos: Position, rotate: number): num
   return r
 }
 
-/** Greedy + local-swap optimisation of a formation's XI. */
+/**
+ * The best XI for a formation: keeper by himself, then the ten outfield slots filled by an optimal assignment (the
+ * Hungarian method) so that no swap or chain of moves between positions would make the side stronger.
+ */
 export function pickXI(w: World, players: Player[], formationId: string, rotate = 0): number[] {
   const f = formationOf(formationId)
   const slots = f.slots
-  // score every player once per distinct slot position
-  const idx = new Map(players.map((p, i) => [p.id, i]))
-  const table = new Map<Position, Float64Array>()
-  for (const s of slots) {
-    if (table.has(s.pos)) continue
-    const arr = new Float64Array(players.length)
-    players.forEach((p, i) => { arr[i] = (s.pos === 'GK') !== (p.positions[0] === 'GK') ? -1e9 : selectionScore(w, p, s.pos, rotate) })
-    table.set(s.pos, arr)
-  }
-  const sc = (id: number, pos: Position) => table.get(pos)![idx.get(id)!]
-  const order = slots.map((s, i) => i).sort((a, b) => priority(slots[a].pos) - priority(slots[b].pos))
-  const used = new Set<number>()
   const xi: number[] = new Array(slots.length).fill(0)
-  for (const i of order) {
-    const arr = table.get(slots[i].pos)!
-    let best = -1, bs = -1e8
-    for (let k = 0; k < players.length; k++) {
-      if (arr[k] > bs && !used.has(players[k].id)) { bs = arr[k]; best = k }
-    }
-    if (best >= 0) { xi[i] = players[best].id; used.add(players[best].id) }
-  }
-  // local improvement by swapping pairs of outfield slots
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 1; i < slots.length; i++) {
-      for (let j = i + 1; j < slots.length; j++) {
-        const a = xi[i], b = xi[j]
-        if (!a || !b) continue
-        const cur = sc(a, slots[i].pos) + sc(b, slots[j].pos)
-        const sw = sc(a, slots[j].pos) + sc(b, slots[i].pos)
-        if (sw > cur + 0.5) { xi[i] = b; xi[j] = a }
-      }
-    }
-    // try bench players into each slot
-    const inXI = new Set(xi)
-    for (let i = 1; i < slots.length; i++) {
-      const cur = xi[i]
-      const arr = table.get(slots[i].pos)!
-      const curS = cur ? arr[idx.get(cur)!] : -1e9
-      for (let k = 0; k < players.length; k++) {
-        const p = players[k]
-        if (inXI.has(p.id) || p.positions[0] === 'GK') continue
-        if (arr[k] > curS + 0.5) {
-          inXI.delete(cur)
-          xi[i] = p.id
-          inXI.add(p.id)
-          break
-        }
-      }
-    }
-  }
+  const gks = players.filter((p) => p.positions[0] === 'GK')
+  const out = players.filter((p) => p.positions[0] !== 'GK')
+  const gi = slots.findIndex((s) => s.pos === 'GK')
+  if (gi >= 0 && gks.length) xi[gi] = gks.reduce((a, b) => (selectionScore(w, b, 'GK', rotate) > selectionScore(w, a, 'GK', rotate) ? b : a)).id
+  const rows = slots.map((s, i) => i).filter((i) => slots[i].pos !== 'GK')
+  if (!out.length) return xi
+  // one score per distinct slot position
+  const byPos = new Map<Position, number[]>()
+  for (const i of rows) if (!byPos.has(slots[i].pos)) byPos.set(slots[i].pos, out.map((p) => selectionScore(w, p, slots[i].pos, rotate)))
+  const n = Math.min(rows.length, out.length)
+  const cost = (r: number, c: number) => -byPos.get(slots[rows[r]].pos)![c]
+  const asg = assign(n, out.length, cost)
+  for (let r = 0; r < n; r++) if (asg[r] >= 0) xi[rows[r]] = out[asg[r]].id
   return xi
 }
 
-function priority(pos: Position) {
-  const pr: Record<string, number> = { GK: 0, CB: 1, ST: 2, CDM: 3, RB: 4, LB: 4, CM: 5, CAM: 6, RW: 7, LW: 7, RM: 8, LM: 8, RWB: 4, LWB: 4, CF: 3 }
-  return pr[pos] ?? 9
+/** Minimum-cost assignment of n rows to distinct columns of m ≥ n (Hungarian method with potentials, O(n²m)). */
+function assign(n: number, m: number, cost: (r: number, c: number) => number): number[] {
+  const INF = 1e18
+  const u = new Float64Array(n + 1), v = new Float64Array(m + 1)
+  const p = new Int32Array(m + 1), way = new Int32Array(m + 1)
+  for (let i = 1; i <= n; i++) {
+    p[0] = i
+    let j0 = 0
+    const minv = new Float64Array(m + 1).fill(INF)
+    const used = new Uint8Array(m + 1)
+    do {
+      used[j0] = 1
+      const i0 = p[j0]
+      let delta = INF, j1 = 0
+      for (let j = 1; j <= m; j++) {
+        if (used[j]) continue
+        const cur = cost(i0 - 1, j - 1) - u[i0] - v[j]
+        if (cur < minv[j]) { minv[j] = cur; way[j] = j0 }
+        if (minv[j] < delta) { delta = minv[j]; j1 = j }
+      }
+      for (let j = 0; j <= m; j++) {
+        if (used[j]) { u[p[j]] += delta; v[j] -= delta } else minv[j] -= delta
+      }
+      j0 = j1
+    } while (p[j0] !== 0)
+    do { const j1 = way[j0]; p[j0] = p[j1]; j0 = j1 } while (j0)
+  }
+  const res = new Array(n).fill(-1)
+  for (let j = 1; j <= m; j++) if (p[j]) res[p[j] - 1] = j - 1
+  return res
 }
 
 export function pickBench(w: World, players: Player[], xi: number[], size = 9): number[] {
@@ -111,13 +108,48 @@ export function pickBench(w: World, players: Player[], xi: number[], size = 9): 
   return bench
 }
 
+/** Which unit a slot belongs to when roles are balanced against each other. */
+const UNIT: Partial<Record<Position, string>> = { CB: 'CB', CDM: 'MID', CM: 'MID', CAM: 'AM', ST: 'FWD', CF: 'FWD', RM: 'WIDE', LM: 'WIDE', RW: 'WIDE', LW: 'WIDE' }
+/** Roles a unit should not double up on (two holding men, two false nines, three stoppers ...). */
+const SOLO = new Set(['Deep-Lying Playmaker', 'Holding', 'Centre-Half', 'False 9', 'Stopper', 'Classic 10', 'Target Forward'])
+const DEEP = new Set(['Deep-Lying Playmaker', 'Holding', 'Centre-Half', 'Wide Half'])
+const GOES = new Set(['Box-to-Box', 'Playmaker', 'Half-Winger'])
+
+/**
+ * Roles the way a manager hands them out: each player's best fit, balanced across his unit, so a midfield has one man
+ * sitting and one going, a back three has one stopper, and two forwards are not both dropping off.
+ */
 export function defaultRoles(w: World, formationId: string, xi: number[]): SlotRole[] {
   const f = formationOf(formationId)
-  return f.slots.map((s, i) => {
-    const p = w.players[xi[i]]
-    const role = p ? bestRole(p, s.pos) : ''
-    return { role, focus: defaultFocus(role), instructions: {} }
-  })
+  const roles: string[] = f.slots.map((s, i) => { const p = w.players[xi[i]]; return p ? bestRole(p, s.pos) : '' })
+  const units = new Map<string, number[]>()
+  f.slots.forEach((s, i) => { const u = UNIT[s.pos]; if (u && w.players[xi[i]]) { if (!units.has(u)) units.set(u, []); units.get(u)!.push(i) } })
+  const hasAM = units.has('AM')
+  for (const [u, idx] of units) {
+    if (idx.length < 2) continue
+    const opts = idx.map((i) => (ROLES[ROLE_GROUP[f.slots[i].pos]] || []).map((d) => ({ name: d.name, fit: roleFit(w.players[xi[i]], f.slots[i].pos, d.name).score })))
+    let best: string[] = idx.map((i) => roles[i]), bs = -1e9
+    const pick: string[] = []
+    const walk = (k: number, sum: number) => {
+      if (k === idx.length) {
+        let pen = 0
+        const count: Record<string, number> = {}
+        for (const r of pick) count[r] = (count[r] || 0) + 1
+        for (const [r, n] of Object.entries(count)) if (n > 1) pen += (SOLO.has(r) ? 0.3 : 0.06) * (n - 1)
+        if (u === 'MID') {
+          const deep = pick.filter((r) => DEEP.has(r)).length, goes = pick.filter((r) => GOES.has(r)).length
+          if (deep === pick.length) pen += 0.25
+          if (!hasAM && pick.length >= 2 && goes === 0) pen += 0.2
+        }
+        if (sum - pen > bs) { bs = sum - pen; best = [...pick] }
+        return
+      }
+      for (const o of opts[k]) { pick.push(o.name); walk(k + 1, sum + o.fit); pick.pop() }
+    }
+    walk(0, 0)
+    idx.forEach((i, k) => { roles[i] = best[k] })
+  }
+  return f.slots.map((s, i) => ({ role: roles[i], focus: defaultFocus(roles[i]), instructions: {} }))
 }
 
 function defaultFocus(role: string) {
@@ -151,8 +183,33 @@ export function tacticsForManager(vision: string, formation: string): TeamTactic
   return base
 }
 
-export function buildSheet(w: World, club: Club, formationId: string, tactics: TeamTactics, opts: { comp?: Competition; rotate?: number; id?: string; name?: string } = {}): TeamSheet {
+/** How strong an XI is in a formation: the summed selection scores of its players in their slots. */
+function xiScore(w: World, xi: number[], formationId: string, rotate: number): number {
+  const f = formationOf(formationId)
+  let t = 0
+  xi.forEach((id, i) => { const p = w.players[id]; if (p && f.slots[i]) t += selectionScore(w, p, f.slots[i].pos, rotate) })
+  return t
+}
+
+/**
+ * The shape an AI manager actually sends out: his preferred formation, unless a variant of it (4-2-3-1 wide or narrow,
+ * the 4-3-3s ...) clearly suits the players he has available better (a narrow 4-2-3-1 is no use with his best player a
+ * right winger).
+ */
+export function aiFormation(w: World, squad: Player[], preferred: string, rotate = 0): string {
+  const pref = formationOf(preferred)
+  let best = pref.id, bs = -1e9
+  for (const f of FORMATIONS) {
+    if (f.family !== pref.family) continue
+    const sc = xiScore(w, pickXI(w, squad, f.id, rotate), f.id, rotate) + (f.id === pref.id ? 4 : 0)
+    if (sc > bs) { bs = sc; best = f.id }
+  }
+  return best
+}
+
+export function buildSheet(w: World, club: Club, formationId: string, tactics: TeamTactics, opts: { comp?: Competition; rotate?: number; id?: string; name?: string; flexible?: boolean } = {}): TeamSheet {
   const squad = squadOf(w, club.id).filter((p) => isAvailable(w, p, opts.comp))
+  if (opts.flexible) formationId = aiFormation(w, squad, formationId, opts.rotate || 0)
   const xi = pickXI(w, squad, formationId, opts.rotate || 0)
   const bench = pickBench(w, squad, xi)
   const sp = setPieceTakers(w, xi)
@@ -169,7 +226,7 @@ export function aiMatchSheet(w: World, club: Club, comp?: Competition): TeamShee
   const base = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
   const tactics = base?.tactics || tacticsForManager(mgr?.vision || 'Balanced', formation)
   const rotate = comp && (comp.format === 'cup' && comp.key !== 'FACUP' ? 1 : comp.format === 'cup' ? 0.6 : 0)
-  return buildSheet(w, club, formation, tactics, { comp, rotate: rotate || 0 })
+  return buildSheet(w, club, formation, tactics, { comp, rotate: rotate || 0, flexible: true })
 }
 
 /** Validate a user sheet against current availability; auto-fill gaps with the best alternative. */
