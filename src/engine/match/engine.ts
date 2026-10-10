@@ -23,6 +23,7 @@ import { computeRating, GAIN, GOAL_W, PAR, RGROUP, RP, type RG } from './rating'
 import { keeperQuality, takePenalty, takerQuality } from './penalty'
 import { cloneLedger, emptyLedger, lane, third, type Ledger } from './ledger'
 import { changeReports } from './analysis'
+import { PS_KEYS, psBonus, type PB } from './skills'
 
 export type Phase = 'pre' | '1H' | 'HT' | '2H' | 'ET1' | 'ETHT' | 'ET2' | 'PENS' | 'FT'
 
@@ -223,26 +224,6 @@ export const FOCUS_BIAS: Record<string, Partial<Bias>> = {
   'Build-Up': { pf: 0.1, rw: 0.1 },
   Roaming: { ca: 0.1, dr: 0.1, rw: 0.05 },
   Aggressive: { dw: 0.25 },
-}
-
-const PS_KEYS = ['Chip shot', 'Power shot', 'Precision header', 'Acrobatic', 'Gamechanger', 'Enforcer', 'Finesse shot', 'Low driven shot', 'Rapid', 'First touch',
-  'Incisive pass', 'Inventive', 'Quick step', 'Long ball pass', 'Tiki taka', 'Intercept', 'Technical', 'Press proven', 'Slide tackle', 'Relentless', 'Injury prone',
-  'Whipped pass', 'Aerial fortress', 'Bruiser', 'Trickster', 'Far throw', 'Far reach', 'Jockey', 'Block', 'Pinged pass', 'Anticipate', 'Long throw', 'Dead ball',
-  'Deflector', 'Footwork', 'Rush out', 'Cross claimer']
-
-/** PlayStyle bonuses per composite skill, in attribute points (PlayStyle = 3, PlayStyle+ = 6). */
-interface PB { passS: number; passL: number; thru: number; crs: number; ctrl: number; secure: number; drib: number; pace: number; tackle: number; jockey: number; intc: number; aer: number; press: number; fin: number; lsh: number; hfin: number; vol: number; fk: number; gkStop: number; gkClaim: number; gkSweep: number; chip: number; block: number; deflect: number; relentless: number }
-function psBonus(ps: Record<string, number>): PB {
-  const g = (k: string) => ps[k] || 0
-  return {
-    passS: g('Tiki taka'), passL: Math.max(g('Long ball pass'), g('Pinged pass')), thru: g('Incisive pass') + g('Inventive') * 0.5, crs: g('Whipped pass'),
-    ctrl: g('First touch'), secure: g('Press proven') + g('Enforcer') * 0.5, drib: Math.max(g('Technical'), g('Trickster'), g('Quick step') * 0.7),
-    pace: g('Rapid') + g('Quick step') * 0.5, tackle: Math.max(g('Slide tackle'), g('Anticipate')) + g('Bruiser') * 0.4, jockey: g('Jockey') + g('Anticipate') * 0.5,
-    intc: g('Intercept') + g('Anticipate') * 0.5, aer: g('Aerial fortress'), press: g('Relentless') * 0.5,
-    fin: Math.max(g('Low driven shot'), g('Finesse shot') * 0.7), lsh: Math.max(g('Power shot'), g('Finesse shot'), g('Gamechanger') * 0.7),
-    hfin: g('Precision header'), vol: g('Acrobatic'), fk: g('Dead ball'), gkStop: g('Far reach') + g('Footwork') * 0.7, gkClaim: g('Cross claimer'), gkSweep: g('Rush out'),
-    chip: g('Chip shot'), block: g('Block'), deflect: g('Deflector'), relentless: g('Relentless'),
-  }
 }
 
 function emptyExt(): Ext {

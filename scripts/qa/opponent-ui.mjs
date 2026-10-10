@@ -14,8 +14,12 @@ await scroll(280); await shot('preview-pred', 400)
 await scroll(0)
 await page.locator('.md-act', { hasText: 'Opponent' }).click()
 await shot('report', 900)
-for (const y of [650, 1300, 2000, 2700, 3400]) { await scroll(y); await shot(`report-${y}`, 350) }
+for (const y of [650, 1300, 2000, 2700, 3400, 4100, 4800, 5500]) { await scroll(y); await shot(`report-${y}`, 350) }
 await page.evaluate(() => window.__game.getState().back())
 await shot('back', 600)
+// head-to-head
+await page.evaluate(() => [...document.querySelectorAll('.tabs button, [role=tab]')].find((b) => /H2H/.test(b.textContent))?.click())
+await shot('h2h', 600)
+for (const y of [650, 1300, 1950]) { await scroll(y); await shot(`h2h-${y}`, 350) }
 console.log(JSON.stringify({ errors }))
 await browser.close()

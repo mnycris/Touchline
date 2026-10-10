@@ -9,17 +9,19 @@ import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
-import { fmtDate } from '../../domain/dates'
+import { fmtDate, seasonLabel } from '../../domain/dates'
 import { attendanceFor, createSim, sideInput } from '../../engine/world/matchRunner'
-import { kitColors, kitVars } from '../components/LivePitch'
+import { inkOn, kitColors, kitVars } from '../components/LivePitch'
+import { onDark } from '../theme'
 import { matchSheetOf, sheetFor, validateSheet } from '../../engine/match/selection'
 import { userFixtureOn } from '../../engine/world/advance'
 import { compLogoKey, fixturesOf, leagueOf, outcomeFor, playerStatus } from '../selectors'
 import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competitions/tables'
 import { aggregateBefore } from '../../engine/competitions/cups'
+import { headToHead } from '../../engine/world/h2h'
 import { callName } from '../../engine/match/commentary'
 import { posRating, suitability } from '../../domain/ratings'
-import { MatchLineup, sideFromSheet, type LineupTap, RatingPill } from '../components/Lineup'
+import { Ball, MatchLineup, sideFromSheet, type LineupTap, RatingPill } from '../components/Lineup'
 import { buildSheet, setPieceTakers } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
 import { storyLines } from '../../engine/world/storylines'
@@ -461,21 +463,97 @@ function SeasonCompare({ w, a, b }: { w: World; a: number; b: number }) {
   )
 }
 
+/** Head to head: who has the better of it, the recent meetings at a glance, then the detail. */
 function H2H({ w, f }: { w: World; f: Fixture }) {
-  const games = fixturesOf(w, f.home).filter((x) => x.played && x.result && (x.home === f.away || x.away === f.away)).reverse()
-  let hw = 0, d = 0, aw = 0
-  for (const x of games) { const o = outcomeFor(x, f.home); if (o === 'W') hw++; else if (o === 'D') d++; else aw++ }
+  const go = useGame((s) => s.go)
+  const h = useMemo(() => headToHead(w, f.home, f.away), [f.id, w.date])
   const home = w.clubs[f.home], away = w.clubs[f.away]
+  const n = h.meetings.length
+  const P = (id: number) => w.players[id]
+  // both colours lifted to read on the card (a black kit would vanish), with the ink that reads on each
+  const [ca, cb] = kitColors(home, away).map((x) => onDark(x))
+  const vars = { ['--h2h-a' as any]: ca, ['--h2h-b' as any]: cb, ['--h2h-a-ink' as any]: inkOn(ca), ['--h2h-b-ink' as any]: inkOn(cb) }
+  const bigTxt = (m: typeof h.a.big, a: boolean) => (m ? `${a ? `${m.a}–${m.b}` : `${m.b}–${m.a}`} · ${fmtDate(m.f.date, 'month').replace(/^(\w{3})\w*/, '$1')}` : '—')
+  const bySeason = new Map<number, typeof h.meetings>()
+  for (const m of h.meetings) bySeason.set(m.season, [...(bySeason.get(m.season) || []), m])
   return (
-    <div className="pad stack" style={{ marginTop: 12 }}>
-      <div className="card pad-card">
-        <div className="row between">
-          <div className="col center" style={{ gap: 6 }}><Badge club={home} size={40} /><b className="display" style={{ fontSize: 26 }}>{hw}</b><span className="tiny dim">Wins</span></div>
-          <div className="col center" style={{ gap: 6 }}><span style={{ height: 40 }} /><b className="display" style={{ fontSize: 26 }}>{d}</b><span className="tiny dim">Draws</span></div>
-          <div className="col center" style={{ gap: 6 }}><Badge club={away} size={40} /><b className="display" style={{ fontSize: 26 }}>{aw}</b><span className="tiny dim">Wins</span></div>
+    <div className="pad stack" style={{ marginTop: 12, ...vars }}>
+      <div className="card pad-card h2h-sum">
+        <div className="h2h-teams">
+          <button className="h2h-team" onClick={() => go({ name: 'club', params: { id: home.id } })}><Badge club={home} size={40} /><b className="small ellipsis">{home.short}</b></button>
+          <span className="tiny dim">{n ? `${n} ${n === 1 ? 'meeting' : 'meetings'}` : 'No meetings yet'}</span>
+          <button className="h2h-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><Badge club={away} size={40} /><b className="small ellipsis">{away.short}</b></button>
         </div>
+        {n > 0 ? (
+          <>
+            <div className="h2h-nums">
+              <div><b className="display">{h.a.w}</b><span className="tiny dim">Wins</span></div>
+              <div><b className="display">{h.d}</b><span className="tiny dim">Draws</span></div>
+              <div><b className="display">{h.b.w}</b><span className="tiny dim">Wins</span></div>
+            </div>
+            <div className="h2h-bar" role="img" aria-label={`${home.short} ${h.a.w} wins, ${h.d} draws, ${away.short} ${h.b.w} wins`}>
+              {h.a.w > 0 && <i style={{ flex: h.a.w, background: 'var(--h2h-a)' }} />}
+              {h.d > 0 && <i style={{ flex: h.d, background: 'var(--s4)' }} />}
+              {h.b.w > 0 && <i style={{ flex: h.b.w, background: 'var(--h2h-b)' }} />}
+            </div>
+            <div className="h2h-goals">
+              <div className="cmp-row"><span className={`cmp-v ${h.a.gf > h.b.gf ? 'on h2a' : ''}`}>{h.a.gf}</span><span className="small muted">Goals</span><span className={`cmp-v ${h.b.gf > h.a.gf ? 'on h2b' : ''}`}>{h.b.gf}</span></div>
+              <div className="cmp-row"><span className="cmp-v small">{bigTxt(h.a.big, true)}</span><span className="small muted">Biggest win</span><span className="cmp-v small">{bigTxt(h.b.big, false)}</span></div>
+            </div>
+            <div className="tiny dim" style={{ textAlign: 'center', marginTop: 8 }}>Meetings during your career</div>
+          </>
+        ) : <div className="small muted" style={{ textAlign: 'center', marginTop: 10 }}>These sides haven't met in your career yet. Meetings from your time in charge will build up here.</div>}
       </div>
-      {games.length ? <div className="card list">{games.slice(0, 10).map((x) => <FixtureRow key={x.id} w={w} f={x} />)}</div> : <div className="card pad-card small muted">These sides haven't met during your career yet.</div>}
+
+      {n > 0 && (
+        <div className="card pad-card">
+          <div className="row between" style={{ marginBottom: 10 }}><span className="label">Recent meetings</span><span className="tiny dim">latest first</span></div>
+          <div className="h2h-recent">
+            {h.meetings.slice(0, 6).map((m) => (
+              <button key={m.f.id} className={`h2h-chip ${m.res}`} onClick={() => go({ name: 'fixture', params: { id: m.f.id } })}>
+                <span className="h2h-chip-sc num">{m.f.result!.score[0]}–{m.f.result!.score[1]}</span>
+                <span className="h2h-chip-at"><Badge club={w.clubs[m.f.home]} size={14} /><span className="tiny dim">{fmtDate(m.f.date, 'short').replace(/^\d+ /, '')}</span></span>
+              </button>
+            ))}
+          </div>
+          {h.notes.length > 0 && <div className="h2h-notes">{h.notes.map((x) => <div key={x} className="h2h-note small"><i />{x}</div>)}</div>}
+        </div>
+      )}
+
+      {h.scorers.length > 0 && (
+        <div className="card pad-card">
+          <div className="label" style={{ marginBottom: 10 }}>Scorers in this fixture</div>
+          <div className="h2h-scorers">
+            {h.scorers.map((x) => P(x.id) && (
+              <button key={x.id} className="h2h-scorer" onClick={() => go({ name: 'player', params: { id: x.id } })}>
+                <Face p={P(x.id)} size={36} radius={18} club={w.clubs[P(x.id).clubId]} />
+                <div className="grow" style={{ minWidth: 0 }}><div className="small b ellipsis">{callName(P(x.id).name)}</div><div className="tiny dim ellipsis">{P(x.id).clubId === f.home || P(x.id).clubId === f.away ? w.clubs[P(x.id).clubId]?.short : `now at ${w.clubs[P(x.id).clubId]?.short || 'no club'}`}</div></div>
+                <span className="row tight" style={{ gap: 4 }}><b className="num">{x.goals}</b><Ball size={12} /></span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {h.seasons.length > 0 && (
+        <div className="card pad-card">
+          <div className="label" style={{ marginBottom: 8 }}>League finishes</div>
+          {h.seasons.map((s) => (
+            <div key={s.season} className="h2h-season">
+              <div className="col" style={{ minWidth: 0 }}><b className="small">{s.label}</b><span className="tiny dim ellipsis">{s.league}</span></div>
+              <span className={`h2h-pos ${s.a < s.b ? 'on h' : ''}`}><Badge club={home} size={16} />{ordinal(s.a)}<span className="tiny dim">{s.aPts} pts</span></span>
+              <span className={`h2h-pos ${s.b < s.a ? 'on a' : ''}`}><Badge club={away} size={16} />{ordinal(s.b)}<span className="tiny dim">{s.bPts} pts</span></span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {[...bySeason.entries()].map(([season, list]) => (
+        <div key={season}>
+          <div className="label h2h-sh">{seasonLabel(season)}</div>
+          <div className="card list">{list.map((m) => <FixtureRow key={m.f.id} w={w} f={m.f} />)}</div>
+        </div>
+      ))}
     </div>
   )
 }
