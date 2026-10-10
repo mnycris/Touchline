@@ -4,6 +4,7 @@
 // The report afterwards is read off what actually happened in that simulation.
 import type { Competition, Fixture, TeamMatchStats, TeamTactics, World } from '../../domain/types'
 import { MatchSim, type SideInput } from '../match/engine'
+import { viewOf } from '../match/ledger'
 import { matchContext, sideInput } from './matchRunner'
 
 /** The manager's current league competition, for the match rules and the choice of sparring sides. */
@@ -205,4 +206,156 @@ function observations(r: PracticeReport): string[] {
   if (S.offsides >= 4) out.push(`Caught offside ${S.offsides} times${pm}: runs in behind against their line.`)
   if (r.energy <= 60) out.push(`Your starters finished with ${r.energy}% energy: this way of playing is tiring.`)
   return out.slice(0, 6)
+}
+
+// ============================================================================ the shape view
+
+/** Moments the shape view can show, as the ball position in our frame (0 own goal → 100 theirs). */
+export const SHAPE_PHASES: { id: string; inPoss: boolean; label: string; ball: { x: number; y: number } }[] = [
+  { id: 'build', inPoss: true, label: 'Building up', ball: { x: 20, y: 40 } },
+  { id: 'mid', inPoss: true, label: 'Through midfield', ball: { x: 50, y: 58 } },
+  { id: 'final', inPoss: true, label: 'In their third', ball: { x: 76, y: 30 } },
+  { id: 'press', inPoss: false, label: 'Their build-up', ball: { x: 80, y: 58 } },
+  { id: 'block', inPoss: false, label: 'Ball in midfield', ball: { x: 52, y: 42 } },
+  { id: 'box', inPoss: false, label: 'Near our box', ball: { x: 24, y: 66 } },
+]
+
+export interface ShapeDot { side: 0 | 1; id: number; pos: string; gk: boolean; x: number; y: number }
+
+/** Where both sides stand at a moment, from the match engine's own layout (our side is 0, attacking left to right). */
+export function practiceShape(w: World, tactics: TeamTactics, opponent: number, style: PracticeStyle, phase: string): { dots: ShapeDot[]; ball: { x: number; y: number }; inPoss: boolean } {
+  const ph = SHAPE_PHASES.find((p) => p.id === phase) || SHAPE_PHASES[1]
+  const { sim } = createPractice(w, tactics, opponent, style, 1)
+  return { dots: sim.shapeAt(0, ph.inPoss, ph.ball), ball: ph.ball, inPoss: ph.inPoss }
+}
+
+/** Plain measurements of a shape, in metres. */
+export function shapeFacts(dots: ShapeDot[], ball: { x: number; y: number }, inPoss: boolean): { label: string; value: string }[] {
+  const us = dots.filter((d) => d.side === 0 && !d.gk)
+  if (!us.length) return []
+  const ys = us.map((d) => d.y), xs = us.map((d) => d.x).sort((a, b) => a - b)
+  const width = Math.round((Math.max(...ys) - Math.min(...ys)) * 0.68)
+  const back = xs[0], front = xs[xs.length - 1]
+  if (inPoss) {
+    const ahead = us.filter((d) => d.x > ball.x + 2).length
+    const behind = us.filter((d) => d.x < ball.x - 10).length
+    // their back line (the four deepest) and the line in front of it (the next three or four), in our frame
+    const them = dots.filter((d) => d.side === 1 && !d.gk).map((d) => d.x).sort((a, b) => b - a)
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length)
+    const lineB = avg(them.slice(0, 4)), lineM = avg(them.slice(4, 8))
+    const pocket = us.filter((d) => d.x > lineM + 1 && d.x < lineB - 1).length
+    const out = [{ label: 'Width', value: `${width}m` }, { label: 'Ahead of the ball', value: `${ahead}` }, { label: 'Between their lines', value: `${pocket}` }]
+    if (ball.x > 60) out.push({ label: 'Staying back', value: `${behind}` })
+    return out
+  }
+  // the gap between the back line and the next line up (the deepest four, then the next three)
+  const mids = xs.slice(4, 7)
+  const gap = mids.length ? Math.round((mids.reduce((a, b) => a + b, 0) / mids.length - xs.slice(0, 4).reduce((a, b) => a + b, 0) / Math.min(4, xs.length)) * 1.05) : 0
+  const behind = us.filter((d) => d.x < ball.x).length
+  return [
+    { label: 'Line from goal', value: `${Math.round(back * 1.05)}m` },
+    { label: 'Between the lines', value: `${Math.max(0, gap)}m` },
+    { label: 'Block depth', value: `${Math.round((front - back) * 1.05)}m` },
+    { label: 'Goal-side of the ball', value: `${behind}` },
+  ]
+}
+
+// ============================================================================ comparing two setups
+
+/** One practice match, as the numbers a comparison is made on (ours unless it says against). */
+export interface PracticeSample {
+  pts: number; gf: number; ga: number; xg: number; xga: number; shots: number; shotsA: number; sot: number; poss: number; passAcc: number; spell: number
+  entries: number; box: number; wonHigh: number; counters: number; countersA: number; bigA: number; energy: number
+  by: Record<string, [number, number]>; byA: Record<string, [number, number]>
+}
+
+export function practiceSample(sim: MatchSim, us: 0 | 1 = 0): PracticeSample {
+  const res = sim.result()
+  const them = (1 - us) as 0 | 1
+  const v = viewOf(sim.ledger(us), sim.ledger(them), 90), o = viewOf(sim.ledger(them), sim.ledger(us), 90)
+  const S = res.stats[us], T = res.stats[them]
+  const st = res.players.filter((p) => p.side === us && p.started && p.pos !== 'GK')
+  const gf = res.score[us], ga = res.score[them]
+  return {
+    pts: gf > ga ? 3 : gf === ga ? 1 : 0, gf, ga, xg: S.xg, xga: T.xg, shots: S.shots, shotsA: T.shots, sot: S.sot, poss: S.possession, passAcc: S.passAcc,
+    spell: v.spell, entries: v.entries, box: v.boxEntries, wonHigh: v.wonHigh, counters: v.by.counter?.[0] || 0, countersA: o.by.counter?.[0] || 0,
+    bigA: T.bigChances || 0, energy: st.length ? st.reduce((a, p) => a + (p.energy ?? 100), 0) / st.length : 100, by: v.by, byA: o.by,
+  }
+}
+
+export type Verdict = 'clear' | 'slight' | 'noise'
+export interface CompareRow { key: keyof PracticeSample; label: string; a: number; b: number; diff: number; verdict: Verdict; good?: boolean; fmt: (x: number) => string }
+
+const f0 = (x: number) => `${Math.round(x)}`, f1 = (x: number) => (Math.round(x * 10) / 10).toFixed(1), f2 = (x: number) => x.toFixed(2), pc = (x: number) => `${Math.round(x)}%`
+/** What is compared, and which way is better for us (undefined: neither, it is a matter of style). */
+export const COMPARE: { key: keyof PracticeSample; label: string; fmt: (x: number) => string; better?: 1 | -1 }[] = [
+  { key: 'pts', label: 'Points a match', fmt: f2, better: 1 },
+  { key: 'gf', label: 'Goals for', fmt: f1, better: 1 },
+  { key: 'ga', label: 'Goals against', fmt: f1, better: -1 },
+  { key: 'xg', label: 'Expected goals', fmt: f2, better: 1 },
+  { key: 'xga', label: 'Expected goals against', fmt: f2, better: -1 },
+  { key: 'shots', label: 'Shots', fmt: f1, better: 1 },
+  { key: 'shotsA', label: 'Shots against', fmt: f1, better: -1 },
+  { key: 'poss', label: 'Possession', fmt: pc },
+  { key: 'passAcc', label: 'Pass accuracy', fmt: pc },
+  { key: 'spell', label: 'Passes a spell', fmt: f1 },
+  { key: 'entries', label: 'Moves into the final third', fmt: f1, better: 1 },
+  { key: 'box', label: 'Entries into the box', fmt: f1, better: 1 },
+  { key: 'wonHigh', label: 'Ball won in their third', fmt: f1 },
+  { key: 'countersA', label: 'Counter-attack shots against', fmt: f1, better: -1 },
+  { key: 'energy', label: 'Energy at the end', fmt: pc, better: 1 },
+]
+
+/**
+ * A against B over paired matches (match i of each was played with the same seed against the same side, so the
+ * difference is the tactics plus what they changed). A difference counts as clear when it is at least twice its
+ * standard error, slight at once; anything smaller is what ten different games would show anyway.
+ */
+export function compareSetups(A: PracticeSample[], B: PracticeSample[]): CompareRow[] {
+  const n = Math.min(A.length, B.length)
+  return COMPARE.map(({ key, label, fmt, better }) => {
+    const a = A.slice(0, n).map((s) => s[key] as number), b = B.slice(0, n).map((s) => s[key] as number)
+    const d = b.map((x, i) => x - a[i])
+    const mean = (xs: number[]) => xs.reduce((s, x) => s + x, 0) / Math.max(1, xs.length)
+    const md = mean(d)
+    const sd = Math.sqrt(d.reduce((s, x) => s + (x - md) ** 2, 0) / Math.max(1, n - 1))
+    const se = sd / Math.sqrt(Math.max(1, n))
+    const verdict: Verdict = n < 3 ? 'noise' : Math.abs(md) >= 2 * se && Math.abs(md) > 1e-9 ? 'clear' : Math.abs(md) >= se && Math.abs(md) > 1e-9 ? 'slight' : 'noise'
+    return { key, label, a: mean(a), b: mean(b), diff: md, verdict, good: better ? md * better > 0 : undefined, fmt }
+  })
+}
+
+/** Where the chances came from in each setup, per match, for the sources that mattered. */
+export function compareSources(A: PracticeSample[], B: PracticeSample[], against = false): { how: string; a: [number, number]; b: [number, number] }[] {
+  const sum = (xs: PracticeSample[]) => {
+    const t: Record<string, [number, number]> = {}
+    for (const s of xs) for (const [k, [n, x]] of Object.entries(against ? s.byA : s.by)) { const e = (t[k] ||= [0, 0]); e[0] += n / xs.length; e[1] += x / xs.length }
+    return t
+  }
+  const a = sum(A), b = sum(B)
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].map((how) => ({ how, a: a[how] || [0, 0], b: b[how] || [0, 0] }))
+    .filter((r) => r.a[1] + r.b[1] >= 0.06).sort((x, y) => Math.max(y.a[1], y.b[1]) - Math.max(x.a[1], x.b[1])).slice(0, 6)
+}
+
+/** What changed, in a few plain lines, only from differences that cleared the noise. */
+export function compareNotes(rows: CompareRow[], src: ReturnType<typeof compareSources>, srcA: ReturnType<typeof compareSources>): string[] {
+  const out: string[] = []
+  const r = (k: keyof PracticeSample) => rows.find((x) => x.key === k)!
+  const clear = (k: keyof PracticeSample) => r(k).verdict === 'clear'
+  const up = (k: keyof PracticeSample) => r(k).diff > 0
+  if (clear('xg') && clear('xga') && up('xg') === up('xga')) out.push(up('xg') ? 'B opens the game up: more chances at both ends.' : 'B closes the game down: fewer chances at both ends.')
+  else {
+    if (clear('xg')) out.push(`B ${up('xg') ? 'creates more' : 'creates less'}: ${r('xg').fmt(r('xg').a)} → ${r('xg').fmt(r('xg').b)} xG a match.`)
+    if (clear('xga')) out.push(`B ${up('xga') ? 'concedes more' : 'concedes less'}: ${r('xga').fmt(r('xga').a)} → ${r('xga').fmt(r('xga').b)} xG against.`)
+  }
+  if (clear('poss')) out.push(`${up('poss') ? 'More' : 'Less'} of the ball with B (${pc(r('poss').a)} → ${pc(r('poss').b)}).`)
+  if (clear('wonHigh')) out.push(`B wins the ball back in their third ${up('wonHigh') ? 'more' : 'less'} often.`)
+  if (clear('countersA')) out.push(`B ${up('countersA') ? 'leaves you more exposed' : 'is less exposed'} on the break.`)
+  if (clear('energy') && !up('energy')) out.push('B is more tiring.')
+  const grew = src.map((s) => ({ s, d: s.b[1] - s.a[1] })).sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0]
+  if (grew && Math.abs(grew.d) >= 0.12) out.push(`The biggest change in your chances: ${howLabel(grew.s.how).toLowerCase()} (${grew.s.a[1].toFixed(2)} → ${grew.s.b[1].toFixed(2)} xG).`)
+  const grewA = srcA.map((s) => ({ s, d: s.b[1] - s.a[1] })).sort((x, y) => Math.abs(y.d) - Math.abs(x.d))[0]
+  if (grewA && Math.abs(grewA.d) >= 0.12) out.push(`And in theirs: ${howLabel(grewA.s.how).toLowerCase()} (${grewA.s.a[1].toFixed(2)} → ${grewA.s.b[1].toFixed(2)} xG).`)
+  if (!out.length) out.push('No difference cleared the noise of these matches: the two setups play out much the same against this side.')
+  return out.slice(0, 5)
 }

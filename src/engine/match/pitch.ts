@@ -177,7 +177,8 @@ export function playerSpot(slotX: number, slotY: number, pos: string, role: stri
     const anchor = Math.max(floor, ball.x * 0.52 + ((s.lineHeight - 50) / 4 + s.mentality * 1.5) * reach - 1)
     // the line height places the back line; the midfield and forwards follow the ball and how high the side engages
     // it, so a high line with a mid block leaves room behind it and a deep line with one leaves room between the lines
-    const anchorM = Math.max(floor, ball.x * 0.52 + ((s.lineHeight - 50) / 4 * 0.35 + s.mentality * 1.5) * reach - 1)
+    // (a side set up to defend deep drops as a unit)
+    const anchorM = Math.max(floor, ball.x * 0.52 + ((s.lineHeight - 50) / 4 * Math.min(0.9, 0.35 + deep * 0.45) + s.mentality * 1.5) * reach - 1)
     // a deep block squeezes the room between its lines; every block keeps its lines within reach of each other
     const vc = 0.78 - deep * 0.12
     x = (rel > 5 ? Math.max(anchorM + rel * vc, anchor + rel * 0.3) : anchor + rel * vc) + rs.dxDef

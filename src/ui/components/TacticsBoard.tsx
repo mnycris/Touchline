@@ -13,14 +13,14 @@ import { GuideButton, PlayStyleCard } from './TacticsGuide'
 type Change = (p: Partial<TeamTactics>) => void
 
 const MENT_TEXT: Record<string, string> = {
-  'Ultra Defensive': 'Men behind the ball. Very few bodies forward; clear it when in doubt.',
+  'Ultra Defensive': 'Everyone behind the ball in a deep, compact block; cleared when in doubt. Hard to break down, rarely dangerous.',
   Defensive: 'Solid first. Full-backs hold, attacks are picked carefully.',
   Balanced: 'Measured risk both ways.',
   Attacking: 'More runners beyond the ball and braver passes into the final third.',
   'Ultra Attacking': 'Everyone forward. Chances flow at both ends.',
 }
 const DEF_PRESET: Record<TeamTactics['defApproach'], { lineHeight: number; pressing: number; text: string }> = {
-  Deep: { lineHeight: 30, pressing: 30, text: 'Drop off and protect the box. Little space in behind, but they will have the ball.' },
+  Deep: { lineHeight: 30, pressing: 30, text: 'Drop off as a unit and protect the box. Little space anywhere, but they will have the ball.' },
   Balanced: { lineHeight: 50, pressing: 50, text: 'Press in the middle third, hold a mid block.' },
   High: { lineHeight: 68, pressing: 68, text: 'Squeeze up and win it back in their half. Space behind your line.' },
   Aggressive: { lineHeight: 75, pressing: 85, text: 'Hunt the ball everywhere. More fouls, more ball won high, legs go sooner.' },
@@ -49,10 +49,10 @@ function effects(a: TeamTactics, b: TeamTactics): { text: string; tone: 'pos' | 
   if (dm > 0) out.push({ text: 'More bodies in attack: more chances, more exposed on the break', tone: 'neu' })
   if (dm < 0) out.push({ text: 'Fewer men forward: harder to break down, fewer chances', tone: 'neu' })
   const dl = b.lineHeight - a.lineHeight
-  if (dl >= 8) out.push({ text: 'Higher line: more offsides and a shorter pitch, but space in behind', tone: 'neu' })
-  if (dl <= -8) out.push({ text: 'Deeper line: less space behind, more pressure on your box', tone: 'neu' })
+  if (dl >= 8) out.push({ text: 'Higher line: more offsides and a shorter pitch, but space in behind for balls over the top', tone: 'neu' })
+  if (dl <= -8) out.push({ text: b.defApproach === 'Deep' ? 'Deeper line: less space behind, the block sits nearer your box' : 'Deeper line: less space behind, more room between your lines', tone: 'neu' })
   const dp = b.pressing - a.pressing
-  if (dp >= 8) out.push({ text: 'Press harder: win it higher, tire faster', tone: 'neu' })
+  if (dp >= 8) out.push({ text: 'Press harder: win it higher, tire faster, gaps when the press is beaten', tone: 'neu' })
   if (dp <= -8) out.push({ text: 'Press less: save legs, concede territory', tone: 'neu' })
   const dw = b.width - a.width
   if (dw >= 10) out.push({ text: 'Wider: more crosses and switches, stretched shape', tone: 'neu' })
@@ -128,7 +128,7 @@ const PLANS: { id: string; label: string; icon: string; text: string; set: Parti
   { id: 'chase', label: 'Chase the game', icon: 'up', text: 'Attacking, high press, fast and wide', set: { mentality: 'Attacking', defApproach: 'High', lineHeight: 66, pressing: 72, tempo: 72, width: 64, chanceCreation: 'Forward Runs', timeWasting: false } },
 ]
 
-export function TacticsBoard({ t, onChange, base, game }: { t: TeamTactics; onChange: Change; base?: TeamTactics; game?: GameState }) {
+export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTactics; onChange: Change; base?: TeamTactics; game?: GameState; baseLabel?: string }) {
   const mi = MENTALITIES.indexOf(t.mentality)
   const set: Change = (p) => { haptic(); onChange(p) }
   const eff = base ? effects(base, t) : []
@@ -194,9 +194,9 @@ export function TacticsBoard({ t, onChange, base, game }: { t: TeamTactics; onCh
 
       {base && (
         <div className="card pad-card tb-eff">
-          <div className="label" style={{ marginBottom: 6 }}>What this changes{eff.length ? ` · ${eff.length}` : ''}</div>
+          <div className="label" style={{ marginBottom: 6 }}>{baseLabel ? `Against setup ${baseLabel}` : 'What this changes'}{eff.length ? ` · ${eff.length}` : ''}</div>
           {eff.length ? eff.map((e) => <div key={e.text} className={`tb-eff-row ${e.tone}`}><Icon name={e.tone === 'neg' ? 'down' : e.tone === 'pos' ? 'up' : 'forward'} size={12} strokeWidth={2.4} />{e.text}</div>)
-            : <div className="tiny dim">No changes yet. Everything you change applies from the next minute.</div>}
+            : <div className="tiny dim">{baseLabel ? 'No differences.' : 'No changes yet. Everything you change applies from the next minute.'}</div>}
         </div>
       )}
     </div>

@@ -868,6 +868,36 @@ export class MatchSim {
   /** The ledger of one side so far (live). */
   ledger(side: 0 | 1): Ledger { return this.sides[side].led }
 
+  /**
+   * Where everyone stands at one moment, straight from the layout the match itself uses (shape, roles, the pocket,
+   * marking, the press stepping out): `side` on the ball at `ball`, or defending with the opposition on it there. The
+   * ball is given in `side`'s frame and so are the positions returned. It moves players and the ball, so the tactics
+   * screens run it on a simulation made for the purpose, never on a match being played.
+   */
+  shapeAt(side: 0 | 1, inPoss: boolean, ball: Pt): { side: 0 | 1; id: number; pos: string; gk: boolean; x: number; y: number }[] {
+    const X = inPoss ? side : ((1 - side) as 0 | 1)
+    this.ps = X
+    this.dis = 0
+    this.counter = false
+    this.yBallSide = -1
+    this.n = 1
+    this.b = X === side ? { x: ball.x, y: ball.y } : flip(ball)
+    this.car = null
+    this.rng = new Rng(0x5eed)
+    this.layout()
+    this.car = this.nearest(this.sides[X].on.filter((l) => l.pos !== 'GK'), this.b).l || null
+    this.yBallSide = -1
+    this.rng = new Rng(0x5eed)
+    this.layout()
+    const out: { side: 0 | 1; id: number; pos: string; gk: boolean; x: number; y: number }[] = []
+    // every position is held in the frame of the side on the ball
+    for (const S of this.sides) for (const l of S.on) {
+      const p = X === side ? l.at : flip(l.at)
+      out.push({ side: S.idx, id: l.p.id, pos: l.pos, gk: l.pos === 'GK', x: p.x, y: p.y })
+    }
+    return out
+  }
+
   // =========================================================== edit mode scripts
   private forceShot?: 'goal'
   private forceCard?: 'none' | 'yellow' | 'red'

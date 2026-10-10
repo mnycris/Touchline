@@ -1,6 +1,6 @@
 // What the tactical controls really do, written from the match engine (engine.ts, pitch.ts) and checked against
-// measured runs (scripts/qa/tactic-effects.ts). Each control gets a short line for every setting, a few bullets on what
-// changes in the engine, and the tendencies it moves. No ratings and no invented numbers: tendencies only.
+// measured runs (scripts/qa/engine-lab.ts tactics / formations). Each control gets a short line for every setting, what it
+// gives and costs, a few bullets on what changes in the engine, and the tendencies it moves. Tendencies only, no ratings.
 import type { TeamTactics } from '../domain/types'
 import { MENTALITIES } from '../domain/constants'
 
@@ -12,6 +12,9 @@ export interface Guide {
   what: string
   /** what each setting does (for sliders: the low end, the middle, the high end) */
   options: { id: string; label: string; text: string }[]
+  /** what pushing it toward the high / right-hand setting gives, and what it costs */
+  gives: string[]
+  costs: string[]
   /** how the engine uses it */
   engine: string[]
   /** tendencies it moves: [tendency, direction toward the "high" / right-hand setting] */
@@ -21,67 +24,74 @@ export interface Guide {
 export const GUIDES: Record<TacticKey, Guide> = {
   mentality: {
     title: 'Mentality',
-    what: 'How much risk the team takes: how many players commit forward and how bravely the ball is played.',
+    what: 'How much risk the team takes: how many players commit forward, how deep it defends and how readily it shoots.',
     options: [
-      { id: 'Ultra Defensive', label: 'Ultra Defensive', text: 'Players hold their positions and recycle the ball rather than commit forward. You can keep a lot of the ball, but little of it goes anywhere, and few shots follow.' },
-      { id: 'Defensive', label: 'Defensive', text: 'A deeper block without the ball, safer passes with it, fewer men breaking forward.' },
-      { id: 'Balanced', label: 'Balanced', text: 'The default: measured risk both ways.' },
-      { id: 'Attacking', label: 'Attacking', text: 'The whole shape pushes up, midfielders arrive in the box more, players shoot more readily.' },
-      { id: 'Ultra Attacking', label: 'Ultra Attacking', text: 'Everyone forward: many more shots, but you give the ball away more and more of your players are caught upfield when you do.' },
+      { id: 'Ultra Defensive', label: 'Ultra Defensive', text: 'Everyone behind the ball in a deep, compact block, cleared rather than played out under pressure. Chances against become harder to make, but you will rarely have a good one yourself.' },
+      { id: 'Defensive', label: 'Defensive', text: 'A deeper, tighter block and fewer men breaking forward.' },
+      { id: 'Balanced', label: 'Balanced', text: 'Measured risk both ways.' },
+      { id: 'Attacking', label: 'Attacking', text: 'The shape pushes up, midfielders arrive in the box more and players shoot more readily.' },
+      { id: 'Ultra Attacking', label: 'Ultra Attacking', text: 'Everyone forward: many more chances, but more of your players are caught upfield when you lose the ball, and they take longer to get back.' },
     ],
+    gives: ['More bodies in and around the box, more shots, braver passes forward.'],
+    costs: ['More players caught upfield when an attack breaks down; counter-attacks against grow quickly at the top end.'],
     engine: [
-      'Moves the whole team up or down the pitch, with and without the ball.',
+      'Moves the whole team up or down the pitch, with and without the ball; the defensive settings also make the block deeper and narrower.',
       'Raises or lowers how often players pick the forward pass and how readily they shoot.',
-      'Midfielders\' late runs into the box get longer as it goes up.',
-      'Losing the ball with an attacking mentality leaves you more exposed to counter-attacks.',
-      'The match situation adds to it: sides chasing a game push on, sides protecting a lead sit in.',
+      'With a defensive mentality, defenders under pressure near their goal clear it more often instead of playing out.',
+      'With an attacking one, the side takes longer to recover its shape after losing the ball.',
+      'The match situation adds to it: sides chasing a game push on, sides protecting a lead sit in, sides three up stop forcing it.',
     ],
-    moves: [['Chances created', 'up'], ['Exposure on the break', 'up'], ['Keeping the ball', 'down']],
+    moves: [['Chances created', 'up'], ['Exposure on the break', 'up']],
   },
   defApproach: {
     title: 'Defensive approach',
-    what: 'Where and how hard you try to win the ball back. Picking one also sets the line height and pressing sliders to match.',
+    what: 'How the block defends: how high it engages and how hard it goes in. Picking one also sets the line height and pressing sliders to match.',
     options: [
-      { id: 'Deep', label: 'Deep', text: 'Drop off and protect your box. The press in their half is much weaker, while it gets tighter near your own goal.' },
-      { id: 'Balanced', label: 'Balanced', text: 'Press in the middle third and hold a mid block.' },
-      { id: 'High', label: 'High', text: 'Press their defenders and keeper hard; their keeper plays it short less often.' },
-      { id: 'Aggressive', label: 'Aggressive', text: 'As High, and players go to ground more: more tackles attempted, about a fifth more fouls (and bookings).' },
+      { id: 'Deep', label: 'Deep', text: 'Drop off as a unit and protect the box: compact between the lines, narrow, with little pressing in their half. They will have the ball, but chances through a crowded box are worse ones.' },
+      { id: 'Balanced', label: 'Balanced', text: 'A mid block that engages from halfway.' },
+      { id: 'High', label: 'High', text: 'Engage higher up and close down their build-up; their keeper plays it short less often.' },
+      { id: 'Aggressive', label: 'Aggressive', text: 'As High, and players step out harder and go to ground more: more tackles, about a fifth more fouls (and bookings).' },
     ],
+    gives: ['Toward Aggressive: the ball won higher up and more often, and their keeper forced long.'],
+    costs: ['Toward Aggressive: more fouls and cards, and the men who step out leave gaps behind them. Toward Deep: territory and the ball conceded.'],
     engine: [
-      'Changes how close and how hard your players press in each third of the pitch.',
-      'High and Aggressive make the opposition keeper play long more often.',
-      'Aggressive adds more challenges and more fouls.',
+      'Sets the shape of the block: a deep one squeezes the space between its lines and closes the middle.',
+      'Sets how readily the nearest players step out to close the ball down near your own box.',
+      'High and Aggressive make the opposition keeper play long more often; Aggressive adds challenges and fouls.',
     ],
     moves: [['Ball won high up', 'up'], ['Fouls', 'up']],
   },
   lineHeight: {
     title: 'Line height',
-    what: 'How far up the pitch your back line holds, and with it the rest of the team.',
+    what: 'How far up the pitch your back line holds. The midfield follows the ball and your defensive approach, so the line also decides how much room there is behind and between the lines.',
     options: [
-      { id: 'low', label: 'Deep', text: 'A deep line leaves little space behind you and few offsides, but lets the opposition into shooting range more often. With the ball the team also starts deeper, so it passes safely at the back.' },
+      { id: 'low', label: 'Deep', text: 'Little space behind you and few offsides. With a mid block in front it leaves room between your lines; with a deep block the whole team sits low and compact.' },
       { id: 'mid', label: 'Middle', text: 'A mid-height line.' },
-      { id: 'high', label: 'High', text: 'A high line squeezes the pitch: the opposition is caught offside more and gets into your box less, but a through ball is easier to complete against it and there is space behind.' },
+      { id: 'high', label: 'High', text: 'Squeezes the pitch: the opposition is caught offside more and struggles to get through a compressed midfield, but there is space behind for balls over the top, and runners who win the race are through on goal.' },
     ],
+    gives: ['Higher: a shorter pitch, more offsides, fewer chances against from patient build-up.'],
+    costs: ['Higher: balls in behind and one-on-ones; quick forwards against slow defenders are the danger.'],
     engine: [
-      'Positions the defence and the team behind the ball, most strongly when the ball is far away.',
-      'The higher the line, the more often runners are caught offside.',
-      'Against a high line, through balls are easier to complete and runners have more room in behind.',
-      'Losing the ball with a high line leaves you more exposed.',
+      'Positions the back line, most strongly when the ball is far from your goal; near your box every line holds its edge.',
+      'The higher the line, the more often runners are caught offside, and the more room an opponent sees behind it, so balls in behind are tried more often.',
+      'A ball in behind is a race between the runner and the covering defender; a beaten line is chasing back for several seconds.',
     ],
-    moves: [['Offsides you catch', 'up'], ['Space behind you', 'up'], ['Keeping the ball', 'down']],
+    moves: [['Offsides you catch', 'up'], ['Space behind you', 'up'], ['Chances against from build-up', 'down']],
   },
   pressing: {
     title: 'Pressing',
-    what: 'How intensely your players close down the man on the ball.',
+    what: 'How hard and how high your players close down the man on the ball.',
     options: [
-      { id: 'low', label: 'Low', text: 'Hold shape and save legs: the opposition passes under little pressure.' },
-      { id: 'mid', label: 'Medium', text: 'Press when the moment is right.' },
-      { id: 'high', label: 'Relentless', text: 'Constant pressure: their passes go astray more and you challenge for the ball more often, but it is the most tiring setting in the game.' },
+      { id: 'low', label: 'Low', text: 'Hold the shape and save legs: their defenders and midfielders have time on the ball.' },
+      { id: 'mid', label: 'Medium', text: 'The nearest man steps out in midfield.' },
+      { id: 'high', label: 'Relentless', text: 'The nearest man goes after the ball everywhere, a second one joins in, and straight after losing it you counter-press. Their passing suffers; your legs go sooner.' },
     ],
+    gives: ['Pressure on their passing, the ball won back higher up, mistakes forced from players who are poor under pressure.'],
+    costs: ['Energy: the biggest drain in the game. A beaten press leaves the men who stepped out behind the ball.'],
     engine: [
-      'Pressure on the ball makes passes less accurate and challenges more frequent.',
-      'Strongest in the opposition half; your own third is defended tightly whatever you choose.',
-      'The biggest single drain on energy: at full pressing players tire over a third faster than at medium.',
+      'Decides how far and how often the nearest players step toward the ball in each third; at high settings a second man presses too.',
+      'Pressure on the ball makes passes less accurate and challenges more frequent, less so against composed, technical players.',
+      'Tired players press less.',
       'A high press makes the opposition keeper play long more often.',
     ],
     moves: [['Energy use', 'up'], ['Ball won high up', 'up'], ['Pressure on their passing', 'up']],
@@ -93,7 +103,9 @@ export const GUIDES: Record<TacticKey, Guide> = {
       { id: 'off', label: 'Off', text: 'The line holds its height normally.' },
       { id: 'on', label: 'On', text: 'Runners in behind are caught offside about 70% more often. It works far better with a high line; with a deep one there is little to catch.' },
     ],
-    engine: ['Multiplies the chance that passes played in behind are flagged offside, scaled by your line height.'],
+    gives: ['More balls in behind flagged before they become chances.'],
+    costs: ['Nothing changes when the timing is right; the runs it fails to catch are still the same runs.'],
+    engine: ['Multiplies the chance that a pass played in behind, or to a man on the shoulder of the line, is flagged offside; line height scales it.'],
     moves: [['Offsides you catch', 'up']],
   },
   buildUp: {
@@ -101,14 +113,16 @@ export const GUIDES: Record<TacticKey, Guide> = {
     what: 'How you move the ball out from the back and through the middle.',
     options: [
       { id: 'Balanced', label: 'Balanced', text: 'Short when it is on, long when it is not; the keeper mixes it.' },
-      { id: 'Short Passing', label: 'Short', text: 'Play out through the lines: the keeper plays it short most of the time and long balls are rare. Keeps the ball well, but slower to get forward.' },
+      { id: 'Short Passing', label: 'Short', text: 'Play out through the lines: the keeper plays it short most of the time, long balls are rare and passers are more patient. Keeps the ball well; needs composed players against a press.' },
       { id: 'Counter', label: 'Counter', text: 'When you win it back you break at once: counters start much more often, with longer, earlier passes.' },
       { id: 'Long Ball', label: 'Long', text: 'Go long early to the front line: the keeper kicks long, short passes at the back are avoided and defenders clear it under pressure. Target men and runners matter; you will see less of the ball.' },
     ],
+    gives: ['Toward Long: the press bypassed, the ball forward quickly, aerial strength and runners used.'],
+    costs: ['Toward Long: less of the ball and more passes lost. Short needs composure under pressure, or the ball is lost close to your own goal.'],
     engine: [
       'Sets how attractive long passes are, and from how far.',
       'Decides how often your keeper plays it short.',
-      'Counter makes winning the ball turn into a fast break more often; Short Passing does the opposite.',
+      'Counter makes winning the ball turn into a fast break more often; Short Passing does the opposite and makes passers more patient.',
       'Part of the team\'s directness, with chance creation and tempo.',
     ],
     moves: [['Directness', 'mixed'], ['Keeping the ball', 'mixed']],
@@ -118,13 +132,15 @@ export const GUIDES: Record<TacticKey, Guide> = {
     what: 'How you try to turn possession in the final third into chances.',
     options: [
       { id: 'Balanced', label: 'Balanced', text: 'Take what the game gives.' },
-      { id: 'Possession', label: 'Possession', text: 'Work the ball until a clear chance appears: half-chances are passed up, good ones are taken, receivers in the final third find a little more space and final-third passes are completed more often. Fewer, better shots.' },
-      { id: 'Direct Passing', label: 'Direct', text: 'Look for the killer pass early: through balls are tried half as often again, and players shoot a little sooner. More shots, more offsides.' },
-      { id: 'Forward Runs', label: 'Runs', text: 'Players drive forward with the ball and run beyond it: more carries, more through balls, more counters. More shots, but the ball changes hands more often.' },
+      { id: 'Possession', label: 'Possession', text: 'Work the ball until a clear chance appears: passers avoid the risky ball, half-chances are passed up and good ones taken, and the patient circulation finds receivers a little more space. It needs players who can keep the ball; without them it goes round and round.' },
+      { id: 'Direct Passing', label: 'Direct', text: 'Look for the killer pass early: through balls are tried more often, passers accept more risk, and players shoot a little sooner. More shots, more offsides.' },
+      { id: 'Forward Runs', label: 'Runs', text: 'Players drive forward with the ball and run beyond it: more carries, more balls in behind, more counters. More shots, but the ball changes hands more often.' },
     ],
+    gives: ['Possession: fewer, better shots and more control. Direct and Runs: more shots and more pace in the attack.'],
+    costs: ['Possession: few shots if the players cannot find the gap. Direct and Runs: more ball lost and more offsides.'],
     engine: [
-      'Changes how often through balls are played and how picky players are about shooting.',
-      'Possession gives patient sides more space and accuracy in the final third.',
+      'Changes how much weight passers give to a pass arriving, how often balls in behind are played and how picky players are about shooting.',
+      'Possession sides wait longer before forcing it forward when a move is going nowhere; direct sides hardly wait at all.',
       'Forward Runs makes players carry the ball forward more.',
     ],
     moves: [['Chances created', 'mixed'], ['Directness', 'mixed']],
@@ -135,8 +151,10 @@ export const GUIDES: Record<TacticKey, Guide> = {
     options: [
       { id: 'low', label: 'Narrow', text: 'Players stay closer together across the pitch: fewer switches of play and fewer crosses, more of the game through the middle. A little less exposed when you lose the ball.' },
       { id: 'mid', label: 'Balanced', text: 'A normal spread.' },
-      { id: 'high', label: 'Wide', text: 'Players spread to the touchlines: switches of play and crosses become more likely. Slightly more exposed when you lose the ball.' },
+      { id: 'high', label: 'Wide', text: 'Players spread to the touchlines: switches of play and crosses become more likely, and a shifting block is pulled across. Slightly more exposed when you lose the ball.' },
     ],
+    gives: ['Wider: switches that catch the block shifting, more crosses.'],
+    costs: ['Wider: a stretched shape when the ball is lost.'],
     engine: [
       'Spreads or squeezes your shape in possession only; without the ball the team keeps its normal width.',
       'Makes switches of play and crosses more or less likely.',
@@ -148,13 +166,15 @@ export const GUIDES: Record<TacticKey, Guide> = {
     title: 'Tempo',
     what: 'How quickly your players move the ball on.',
     options: [
-      { id: 'low', label: 'Patient', text: 'Take time on the ball: more accurate passing and more of the ball, less forward urgency. Easier on the legs.' },
+      { id: 'low', label: 'Patient', text: 'Take time on the ball: more accurate, more careful passing and more of the ball, less forward urgency. Easier on the legs.' },
       { id: 'mid', label: 'Measured', text: 'A normal speed of play.' },
-      { id: 'high', label: 'Fast', text: 'Quicker decisions and more forward passes: attacks develop faster, but more passes go astray and you keep the ball less. More tiring.' },
+      { id: 'high', label: 'Fast', text: 'Quicker decisions and more forward passes: attacks develop before the block is set, but more passes go astray and you keep the ball less. More tiring.' },
     ],
+    gives: ['Faster: attacks that arrive before the defence has shifted, more play per minute.'],
+    costs: ['Faster: more passes lost, less of the ball, more tiring.'],
     engine: [
-      'Changes how long each action takes, so a fast side gets through more play per minute.',
-      'Faster tempo means more forward passes and lower pass accuracy.',
+      'Changes how long each action takes, so a fast side gets through more play per minute and the defending block has less time to shift across.',
+      'Faster tempo means more forward passes, more accepted risk and lower pass accuracy.',
       'Adds to energy use, though less than pressing does.',
     ],
     moves: [['Directness', 'up'], ['Keeping the ball', 'down'], ['Energy use', 'up']],
@@ -166,6 +186,8 @@ export const GUIDES: Record<TacticKey, Guide> = {
       { id: 'low', label: 'Few', text: 'Wide players cross less often and keep the move going instead.' },
       { id: 'high', label: 'Many', text: 'Wide players look to cross more often.' },
     ],
+    gives: ['More crosses into the box.'],
+    costs: ['Crosses into a crowded box are often headed clear.'],
     engine: ['Raises or lowers how often wide players choose to cross. Who actually arrives in the box comes from your shape and roles.'],
     moves: [['Crosses and switches', 'up']],
   },
@@ -178,6 +200,8 @@ export const GUIDES: Record<TacticKey, Guide> = {
       { id: 'Far Post', label: 'Far post', text: 'Aimed beyond the far post.' },
       { id: 'Short', label: 'Short', text: 'Most corners are played short and worked, so fewer headers.' },
     ],
+    gives: [],
+    costs: [],
     engine: ['Sets the delivery spot (and so who is likely to meet it); Short skips the cross most of the time.'],
     moves: [],
   },
@@ -189,6 +213,8 @@ export const GUIDES: Record<TacticKey, Guide> = {
       { id: 'Direct', label: 'Direct', text: 'Shoot from almost every free kick in range.' },
       { id: 'Cross', label: 'Cross', text: 'Mostly cross it in for the big men instead.' },
     ],
+    gives: [],
+    costs: [],
     engine: ['Sets how often a free kick in range is a direct shot rather than a ball into the box.'],
     moves: [],
   },
@@ -196,6 +222,8 @@ export const GUIDES: Record<TacticKey, Guide> = {
     title: 'Time wasting',
     what: 'Slowing the game down when you are winning.',
     options: [{ id: 'on', label: 'On', text: 'Only from the hour mark and only while you lead: slower restarts and slower play. Referees book players for it more often.' }],
+    gives: ['Fewer minutes for them to come back.'],
+    costs: ['Bookings, and more stoppage time.'],
     engine: ['From 60\' while ahead: longer dead-ball time, a slower tempo, and a higher chance of a booking for time-wasting.'],
     moves: [],
   },
@@ -203,8 +231,11 @@ export const GUIDES: Record<TacticKey, Guide> = {
     title: 'Roles and duties',
     what: 'Each player\'s role and duty shift what he does on the ball and where he stands.',
     options: [],
+    gives: [],
+    costs: [],
     engine: [
       'A role leans a player toward shooting, carrying, dribbling, crossing, forward passing, getting on the ball, getting into the box, or defensive work.',
+      'Creative roles (Playmaker, Classic 10, Half-Winger, Box-to-Box, Wide Playmaker, False 9) take up the pocket between the opposition\'s lines in the build-up; that is where a side without a number 10 finds its way forward.',
       'Duties add to it: Attack gets into the box and shoots more but tracks back less; Defend does the opposite; Build-Up plays more forward passes; Roaming carries and dribbles more; Aggressive presses and fouls more.',
       'Some roles also move the player: a Wingback pushes on, an Inside Forward or a Falseback comes inside, a False 9 or a Holding midfielder drops deeper.',
     ],
@@ -265,9 +296,10 @@ export function tendencies(t: TeamTactics): Tendency[] {
 export function combos(t: TeamTactics): { title: string; text: string }[] {
   const out: { title: string; text: string }[] = []
   const m = MI(t)
-  if (m <= -1 && (t.buildUp === 'Short Passing' || t.chanceCreation === 'Possession')) out.push({ title: 'Safe circulation', text: 'A defensive mentality with short, patient passing: players stop committing forward, so the ball goes round the back. You can keep a lot of it, but expect few chances.' })
+  if (m <= -1 && (t.buildUp === 'Short Passing' || t.chanceCreation === 'Possession')) out.push({ title: 'Patient but cautious', text: 'Short, patient passing with few men committing forward: there are not many options ahead of the ball, so moves take a long time to get anywhere. Expect few chances.' })
   if (t.buildUp === 'Long Ball' && t.chanceCreation === 'Possession') out.push({ title: 'Long, then patient', text: 'The build-up goes long early, then the final third asks for patience: possession comes in short bursts and the long balls make it hard to settle.' })
-  if (t.lineHeight >= 65 && t.pressing <= 40) out.push({ title: 'High line, no pressure', text: 'A high line without pressure on the ball: their passers have time, and a through ball against a high line is easier to complete. Pressing is what usually protects a high line.' })
+  if (t.lineHeight >= 65 && t.pressing <= 40) out.push({ title: 'High line, no pressure', text: 'A high line without pressure on the ball: their passers have time to pick the ball over the top into the space behind. Pressing is what usually protects a high line.' })
+  if (t.lineHeight <= 38 && t.defApproach !== 'Deep' && MI(t) >= 0) out.push({ title: 'Deep line, mid block', text: 'A deep back line with the midfield engaging higher up leaves room between your lines, where their creative players can receive and turn. Either drop as a unit (a Deep approach) or bring the line up.' })
   if (t.offsideTrap && t.lineHeight <= 40) out.push({ title: 'Trap with a deep line', text: 'The offside trap catches runners against your line; with a deep line there are few to catch, so it does little.' })
   if (t.pressing >= 70 && t.tempo >= 70) out.push({ title: 'Full intensity', text: 'Relentless pressing with a fast tempo is the most tiring way to play: expect tired legs from the hour and plan your substitutions.' })
   if (t.width >= 70 && t.playersInBox <= 3) out.push({ title: 'Wide, few crosses', text: 'Wide positions with few players set to attack the box: wide players will cross less often, so the width mostly turns into switches of play and carries.' })
@@ -292,4 +324,67 @@ export function roleTendencies(bias: Record<string, number> | undefined, focus: 
   const sum: Record<string, number> = {}
   for (const b of [bias, focus]) for (const [k, v] of Object.entries(b || {})) sum[k] = (sum[k] || 0) + v
   return Object.entries(sum).filter(([, v]) => Math.abs(v) >= 0.08).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 4).map(([k, v]) => BIAS_WORDS[k]?.[v > 0 ? 0 : 1]).filter(Boolean) as string[]
+}
+
+// ---------------------------------------------------------------- presets
+
+/** What each preset is for, in the match engine's terms: its identity, what it asks of the players, what it risks. */
+export const PRESET_INFO: Record<string, { tag: string; identity: string; needs: string; risk: string }> = {
+  Possession: {
+    tag: 'Keep it, wear them down',
+    identity: 'A high block that presses to win the ball back, short build-up from the keeper and a patient final third: the ball goes round until a clear chance appears.',
+    needs: 'Composed, technical passers who keep the ball under pressure. Without them the circulation goes nowhere.',
+    risk: 'Fewer shots than your possession suggests, and space behind the line when the press is beaten.',
+  },
+  Gegenpress: {
+    tag: 'Win it back high, at once',
+    identity: 'An aggressive press and a high line squeeze the game into their half; runners break forward the moment the ball is won.',
+    needs: 'Fit, aggressive pressers, quick defenders to cover the space behind.',
+    risk: 'The most tiring way to play, and a ball over the top of the line is always the danger.',
+  },
+  'Counter-Attack': {
+    tag: 'Let them come, then break',
+    identity: 'A deep, compact block, then quick, direct passing into the space they leave the moment you win it.',
+    needs: 'Pace up front and players who pick the right pass early.',
+    risk: 'You will defend for long spells and see less of the ball.',
+  },
+  'Park the Bus': {
+    tag: 'Protect the box above all',
+    identity: 'Deep and narrow with few men forward; long balls relieve the pressure. Shots against go up, but most come from distance through a crowded box.',
+    needs: 'Concentration, aerial strength at the back and a target up front.',
+    risk: 'Chances of your own are rare, and a goal against changes nothing about how hard it is to score.',
+  },
+  Balanced: {
+    tag: 'The neutral base',
+    identity: 'A mid block, mixed passing and measured risk: a starting point to adjust from.',
+    needs: 'Nothing in particular.',
+    risk: 'Nothing extreme either way.',
+  },
+  Direct: {
+    tag: 'Forward early',
+    identity: 'Long balls to the front line at a high tempo, through balls looked for early and plenty of bodies attacking crosses.',
+    needs: 'A strong target forward and runners who win second balls.',
+    risk: 'Less of the ball, more aerial contests, and more passes that go astray.',
+  },
+  'Wing Play': {
+    tag: 'Stretch them wide',
+    identity: 'A very wide shape, runners beyond the ball and players set to attack the box: the game is played through the flanks and crosses.',
+    needs: 'Wingers or wing-backs who cross well and strikers who attack the ball.',
+    risk: 'A stretched shape leaves gaps in the middle when the ball is lost.',
+  },
+}
+
+/** The settings a preset sets, in words, for showing what it actually is. */
+export function presetSettings(t: TeamTactics): { key: keyof TeamTactics; label: string; value: string }[] {
+  const lvl = (v: number, lo: string, mid: string, hi: string) => `${v <= 35 ? lo : v >= 65 ? hi : mid} · ${v}`
+  return [
+    { key: 'defApproach', label: 'Defensive approach', value: t.defApproach },
+    { key: 'lineHeight', label: 'Line height', value: lvl(t.lineHeight, 'Deep', 'Middle', 'High') },
+    { key: 'pressing', label: 'Pressing', value: lvl(t.pressing, 'Low', 'Medium', 'Relentless') },
+    { key: 'buildUp', label: 'Build-up', value: t.buildUp },
+    { key: 'chanceCreation', label: 'Chance creation', value: t.chanceCreation },
+    { key: 'width', label: 'Width', value: lvl(t.width, 'Narrow', 'Balanced', 'Wide') },
+    { key: 'tempo', label: 'Tempo', value: lvl(t.tempo, 'Patient', 'Measured', 'Fast') },
+    { key: 'playersInBox', label: 'Players in the box', value: `${t.playersInBox}` },
+  ]
 }

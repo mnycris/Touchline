@@ -4,14 +4,15 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, TeamSheet, TeamTactics, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Face, Ovr, PosChip } from '../components/atoms'
-import { Screen, Seg, Sheet, Slider, Tabs, Toggle } from '../components/layout'
+import { Screen, Seg, Sheet, Slider, Tabs } from '../components/layout'
 import { TacticsBoard } from '../components/TacticsBoard'
+import { PresetPicker } from '../components/TacticsPresets'
 import { GuideButton } from '../components/TacticsGuide'
 import { roleTendencies } from '../tacticsGuide'
 import { FOCUS_BIAS, ROLE_BIAS } from '../../engine/match/engine'
 import { Pitch } from '../components/Pitch'
 import { EnergyBar } from '../components/Lineup'
-import { DEFAULT_TACTICS, FORMATIONS, formationOf, MENTALITIES, ROLE_GROUP, ROLES, VISION_TACTICS } from '../../domain/constants'
+import { FORMATIONS, formationOf, ROLE_GROUP, ROLES } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
 import { buildSheet, defaultRoles, isAvailable, mainSheet, matchSheetOf, setPieceTakers, sheetFor } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
@@ -127,7 +128,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
           <div className="pad" style={{ marginTop: 12 }}>
             <button className="card tap pr-entry" style={{ marginTop: 0 }} onClick={() => { haptic(); useGame.getState().open({ name: 'practice', params: forMatch ? { fixtureId: forMatch.id } : undefined }) }}>
               <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
-              <span className="meta"><b>Test in a practice match</b><span className="tiny dim">See how these tactics play before a real game</span></span>
+              <span className="meta"><b>Tactics Lab</b><span className="tiny dim">See your shape, test a change and compare two setups</span></span>
               <Icon name="forward" size={16} color="var(--t3)" />
             </button>
           </div>
@@ -252,12 +253,7 @@ function RolePicker({ w, p, pos, cur, onPick }: { w: World; p?: Player; pos: any
 export function TacticsPanel({ t, onChange }: { t: TeamTactics; onChange: (p: Partial<TeamTactics>) => void }) {
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
-      <div className="card pad-card stack" style={{ gap: 12 }}>
-        <div className="label">Presets</div>
-        <div className="row wrap" style={{ gap: 7 }}>
-          {Object.keys(VISION_TACTICS).map((v) => <button key={v} className="chip" onClick={() => { haptic('medium'); onChange({ ...DEFAULT_TACTICS, ...VISION_TACTICS[v], mentality: t.mentality }) }}>{v}</button>)}
-        </div>
-      </div>
+      <PresetPicker t={t} onApply={(p) => onChange(p)} />
       <TacticsBoard t={t} onChange={onChange} />
       <div className="card pad-card"><Slider label={<span className="row tight">Players in the box <GuideButton k="playersInBox" t={t} /></span>} value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} fmt={(v) => `${v}`} /><div className="tiny dim">How much you play for crosses: higher, and wide players cross more often.</div></div>
       <div className="card pad-card stack" style={{ gap: 12 }}>

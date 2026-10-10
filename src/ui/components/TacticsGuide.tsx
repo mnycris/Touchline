@@ -38,6 +38,12 @@ function GuideBody({ k, t }: { k: TacticKey; t?: TeamTactics }) {
           ))}
         </div>
       )}
+      {(g.gives.length > 0 || g.costs.length > 0) && (
+        <div className="guide-gc">
+          {g.gives.length > 0 && <div><div className="tiny b" style={{ color: 'var(--pos)' }}>Gives you</div>{g.gives.map((x) => <div key={x} className="tiny muted">{x}</div>)}</div>}
+          {g.costs.length > 0 && <div><div className="tiny b" style={{ color: 'var(--warn)' }}>Costs you</div>{g.costs.map((x) => <div key={x} className="tiny muted">{x}</div>)}</div>}
+        </div>
+      )}
       <div>
         <div className="label" style={{ marginBottom: 6 }}>In the match engine</div>
         <ul className="guide-list">{g.engine.map((x) => <li key={x} className="tiny">{x}</li>)}</ul>
