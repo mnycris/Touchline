@@ -56,7 +56,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
     costs: ['Toward Aggressive: more fouls and cards, and the men who step out leave gaps behind them. Toward Deep: territory and the ball conceded.'],
     engine: [
       'Sets the shape of the block: a deep one squeezes the space between its lines and closes the middle.',
-      'Sets how readily the nearest players step out to close the ball down near your own box.',
+      'Sets how readily the nearest players step out to close the ball down near your own box: a deep block has the bodies right there and closes down hardest of all in its own third.',
       'High and Aggressive make the opposition keeper play long more often; Aggressive adds challenges and fouls.',
     ],
     moves: [['Ball won high up', 'up'], ['Fouls', 'up']],
@@ -67,12 +67,13 @@ export const GUIDES: Record<TacticKey, Guide> = {
     options: [
       { id: 'low', label: 'Deep', text: 'Little space behind you and few offsides. With a mid block in front it leaves room between your lines; with a deep block the whole team sits low and compact.' },
       { id: 'mid', label: 'Middle', text: 'A mid-height line.' },
-      { id: 'high', label: 'High', text: 'Squeezes the pitch: the opposition is caught offside more and struggles to get through a compressed midfield, but there is space behind for balls over the top, and runners who win the race are through on goal.' },
+      { id: 'high', label: 'High', text: 'Squeezes the pitch while the ball is being pressed: the opposition is caught offside more and struggles to get through a compressed midfield. When their passer has time, the line has to drop off, and the space behind is there for balls over the top.' },
     ],
     gives: ['Higher: a shorter pitch, more offsides, fewer chances against from patient build-up.'],
     costs: ['Higher: balls in behind and one-on-ones; quick forwards against slow defenders are the danger.'],
     engine: [
       'Positions the back line, most strongly when the ball is far from your goal; near your box every line holds its edge.',
+      'A high line holds only while the man on the ball is under pressure. When he has time to look up, the back line drops off toward a mid block, and steps up again once the press is back on him, so pressing is what keeps a high line high.',
       'The higher the line, the more often runners are caught offside, and the more room an opponent sees behind it, so balls in behind are tried more often.',
       'A ball in behind is a race between the runner and the covering defender; a beaten line is chasing back for several seconds.',
     ],
@@ -298,7 +299,7 @@ export function combos(t: TeamTactics): { title: string; text: string }[] {
   const m = MI(t)
   if (m <= -1 && (t.buildUp === 'Short Passing' || t.chanceCreation === 'Possession')) out.push({ title: 'Patient but cautious', text: 'Short, patient passing with few men committing forward: there are not many options ahead of the ball, so moves take a long time to get anywhere. Expect few chances.' })
   if (t.buildUp === 'Long Ball' && t.chanceCreation === 'Possession') out.push({ title: 'Long, then patient', text: 'The build-up goes long early, then the final third asks for patience: possession comes in short bursts and the long balls make it hard to settle.' })
-  if (t.lineHeight >= 65 && t.pressing <= 40) out.push({ title: 'High line, no pressure', text: 'A high line without pressure on the ball: their passers have time to pick the ball over the top into the space behind. Pressing is what usually protects a high line.' })
+  if (t.lineHeight >= 65 && t.pressing <= 40) out.push({ title: 'High line, no pressure', text: 'A high line without pressure on the ball: their passers have time, so the line keeps dropping off and spends much of the game deeper than you set it, and when it does hold, the ball over the top is on. Pressing is what keeps a high line high.' })
   if (t.lineHeight <= 38 && t.defApproach !== 'Deep' && MI(t) >= 0) out.push({ title: 'Deep line, mid block', text: 'A deep back line with the midfield engaging higher up leaves room between your lines, where their creative players can receive and turn. Either drop as a unit (a Deep approach) or bring the line up.' })
   if (t.offsideTrap && t.lineHeight <= 40) out.push({ title: 'Trap with a deep line', text: 'The offside trap catches runners against your line; with a deep line there are few to catch, so it does little.' })
   if (t.pressing >= 70 && t.tempo >= 70) out.push({ title: 'Full intensity', text: 'Relentless pressing with a fast tempo is the most tiring way to play: expect tired legs from the hour and plan your substitutions.' })

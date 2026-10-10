@@ -117,7 +117,7 @@ const GOES = new Set(['Box-to-Box', 'Playmaker', 'Half-Winger'])
 
 /**
  * Roles the way a manager hands them out: each player's best fit, balanced across his unit, so a midfield has one man
- * sitting and one going, a back three has one stopper, and two forwards are not both dropping off.
+ * sitting and the others going, a back three has one stopper, and two forwards are not both dropping off.
  */
 export function defaultRoles(w: World, formationId: string, xi: number[]): SlotRole[] {
   const f = formationOf(formationId)
@@ -139,6 +139,8 @@ export function defaultRoles(w: World, formationId: string, xi: number[]): SlotR
         if (u === 'MID') {
           const deep = pick.filter((r) => DEEP.has(r)).length, goes = pick.filter((r) => GOES.has(r)).length
           if (deep === pick.length) pen += 0.25
+          // a midfield three has one man sitting: a second holding role leaves nobody to carry it forward
+          if (pick.length >= 3 && deep > 1) pen += 0.3 * (deep - 1)
           if (!hasAM && pick.length >= 2 && goes === 0) pen += 0.2
         }
         if (sum - pen > bs) { bs = sum - pen; best = [...pick] }

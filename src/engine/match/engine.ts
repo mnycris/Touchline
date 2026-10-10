@@ -281,6 +281,8 @@ class Side {
   boost = 1
   home = 0
   shape!: ShapeInput
+  shapeD!: ShapeInput
+  drop = 0
   /** how directly the side plays: + long, fast and forward; − patient and short */
   dir = 0
   /** natural game-state shift in attitude (leading teams manage the game, trailing teams chase) */
@@ -358,6 +360,8 @@ export class MatchSim {
   private spellPs: 0 | 1 | -1 = -1
   /** actions this possession since it last gained ground, and the furthest point it has reached */
   private stall = 0
+  /** how pressed the last man on the ball was (a high line drops off when nobody is on him) */
+  private prLast = 0.3
   private stallMax = 0
   private dbgSp = -1
   private dbgMax = 0
@@ -486,6 +490,7 @@ export class MatchSim {
       + (t.chanceCreation === 'Direct Passing' ? 0.6 : t.chanceCreation === 'Forward Runs' ? 0.35 : t.chanceCreation === 'Possession' ? -0.6 : 0)
       + (t.tempo - 50) / 45
     s.shape = { formation: formationOf(s.formation), lineHeight: t.lineHeight, width: t.width, mentality: clamp(s.ment, -2.5, 2.5), pressing: t.pressing, block: BLOCK[t.defApproach] ?? 0 }
+    s.shapeD = { ...s.shape }
   }
 
   // =========================================================== attribute composites (effective points)
@@ -1089,6 +1094,15 @@ export class MatchSim {
     }
     const bf = this.yBall
     const d = this.dis
+    // a high line holds only while the ball is pressed: when the man on it has time to pick a pass in behind, the back
+    // line drops off toward a mid block (and steps up again once the press is back on him)
+    let ysh = Y.shape
+    if (Y.shape.lineHeight > 50) {
+      const free = this.prLast < 0.35 && b.x > 30 && b.x < 72 ? (0.35 - this.prLast) / 0.35 : 0
+      Y.drop += (free - Y.drop) * (1 - Math.exp(-this.lastDt / 2))
+      ysh = Y.shapeD
+      ysh.lineHeight = Y.shape.lineHeight - Y.drop * (Y.shape.lineHeight - 50) * 1.3
+    }
     const jit = (this.n & 1) === 0
     for (const l of Y.on) {
       if (jit) {
@@ -1096,7 +1110,7 @@ export class MatchSim {
         l.jy = l.jy * 0.55 + (r.next() - 0.5) * 3.4
       }
       const sl = Y.slots[l.slot] || Y.slots[0]
-      const p = playerSpot(sl.x, sl.y, l.pos, l.rs, Y.shape, false, bf, l.jx, l.jy, l.q1)
+      const p = playerSpot(sl.x, sl.y, l.pos, l.rs, ysh, false, bf, l.jx, l.jy, l.q1)
       if (d > 0.05 && l.pos !== 'GK') {
         const q = playerSpot(sl.x, sl.y, l.pos, l.rs, Y.shape, true, this.lossBall, l.jx, l.jy, l.q2)
         p.x += (q.x - p.x) * d
@@ -1223,7 +1237,8 @@ export class MatchSim {
     const press = t.pressing / 100
     const trig = b.x < 33 ? clamp((press - 0.3) * 1.6 + Math.max(0, blk) * 0.2, 0, 1)
       : b.x < 66 ? clamp(0.15 + press * 0.75 + blk * 0.1, 0, 1)
-        : clamp(0.1 + press * 0.4 * 0.5 + blk * 0.15, 0, 1)
+        // (in its own third every block closes the ball down: a deep one has the bodies right there to do it)
+        : clamp(0.1 + press * 0.4 * 0.5 + blk * 0.15 + Math.max(0, -blk) * 0.3, 0, 1)
     if (trig <= 0.02) return
     let p1: LP | undefined, p2: LP | undefined, d1 = 1e9, d2 = 1e9
     for (const l of Y.on) {
@@ -1454,13 +1469,14 @@ export class MatchSim {
     c.at = { x: b.x, y: b.y }
     this.touch(c)
     const tf = this.tempoF(X)
-    // the side that lost the ball gets back into shape
-    // (sides with men committed forward take longer about it)
-    this.dis *= 0.7 + (this.counter ? 0.1 : 0) + clamp(Y.ment, 0, 2) * 0.05
+    // the side that lost the ball gets back into shape: the nearest men drop in behind the ball within a couple of
+    // touches (sides with men committed forward take longer about it, and a quick break gives them less time)
+    this.dis *= 0.65 + (this.counter ? 0.08 : 0) + clamp(Y.ment, 0, 2) * 0.05
     if (this.dis < 0.15) { this.dis = 0; this.counter = false }
     if (c === X.gk) return this.gkDistribute(c, tf)
     const nd = this.presser(Y, b)
     const pr = this.pressure(nd.d, Y, b, nd.l)
+    this.prLast = pr
     const dwell = (0.35 + (1 - pr) * 0.85) * tf
     // --- pressed off the ball
     if (nd.l && pr > 0.3) {
@@ -1486,7 +1502,7 @@ export class MatchSim {
       if (xg0 >= 0.012) {
         const inside = inBox(b)
         const crowd = this.crowd(Y, b)
-        let a = (inside ? -0.98 : -0.8) + 1.5 * Math.log(xg0 / 0.1) + SHOOT[c.g] * (inside ? 1 : 0.6)
+        let a = (inside ? -1.08 : -0.92) + 1.5 * Math.log(xg0 / 0.1) + SHOOT[c.g] * (inside ? 1 : 0.6)
         a += inside ? (this.fin(c) - this.ref) / 70 : (this.lsh(c) - this.ref) / 34
         // patient sides pass up half-chances and work the ball into better ones
         a += c.bias.sh + X.ment * 0.12 + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.06 ? -0.1 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
@@ -1590,7 +1606,7 @@ export class MatchSim {
     // patience runs out: a side that has moved the ball about without getting anywhere starts looking forward and in
     // behind (a short-passing, patient side waits longer; a quick one hardly at all)
     const wait = 5 + Math.max(0, -dir) * 3 + (t.chanceCreation === 'Possession' ? 1 : 0) - (t.tempo - 50) / 25
-    const urge = clamp((this.stall - wait) / 6, 0, 1) * (b.x < 66 ? 1 : 0.4) * 1
+    const urge = clamp((this.stall - wait) / 6, 0, 1) * (b.x < 66 ? 1 : 0.4)
     const fp = (b.x < 40 ? 0.024 : b.x < 70 ? 0.032 : 0.022) * clamp(1 + 0.25 * dir, 0.85, 1.4) * (this.counter ? 1.3 : 1) + ment * 0.006
       + c.bias.pf * 0.03 + (X.state < 0 ? X.state * (X.state <= -0.9 ? 0.016 : 0.01) : X.state * 0.004) + urge * 0.012
     const longPref = (t.buildUp === 'Long Ball' ? 2.3 : t.buildUp === 'Counter' ? 1.4 : t.buildUp === 'Short Passing' ? 0.45 : 1) * (this.passL(c) / this.ref)
@@ -1620,9 +1636,6 @@ export class MatchSim {
       const d = metres(b, r.at)
       if (d < 5) continue
       const fwd = r.at.x - b.x
-      let kind = 'short'
-      let to: Pt = r.at
-      let lw: number
       // nearest opponent and how crowded it is around him, in one pass
       let nd2 = 1e12, crowdR = 0
       for (const l of Y.on) {
@@ -1633,8 +1646,15 @@ export class MatchSim {
       }
       const oppR = Math.sqrt(nd2)
       // patient circulation pulls the block about: possession sides find a free man in the final third more often
-      let open = clamp((oppR - 0.4) / 6 + (r.at.x > 60 ? patience : 0), 0.08, 1)
-      if (fwd > 8 && r.at.x > lineX - 7 && d < 50 && r.g !== 'CB' && r.g !== 'DM' && lineX < 94) {
+      const open0 = clamp((oppR - 0.4) / 6 + (r.at.x > 60 ? patience : 0), 0.08, 1)
+      // a man on the last line can be found in behind or to feet, holding it up with his back to goal: both are looked at
+      const inBehind = fwd > 8 && r.at.x > lineX - 7 && d < 50 && r.g !== 'CB' && r.g !== 'DM' && lineX < 94
+      for (let opt = inBehind ? 0 : 1; opt < 2; opt++) {
+      let kind = 'short'
+      let to: Pt = r.at
+      let lw: number
+      let open = open0
+      if (opt === 0) {
         kind = 'through'
         const behind = 100 - lineX
         to = { x: Math.min(95, lineX + 3 + behind * 0.32 + this.rng.next() * 5), y: clamp(r.at.y + (50 - r.at.y) * 0.2, 8, 92) }
@@ -1657,6 +1677,12 @@ export class MatchSim {
         lw = -z * z
         if (lbShort) lw += kind === 'back' ? -0.8 : -0.6
         if (kind === 'back') lw += backF
+      }
+      // (to feet on the last line: he comes off his man to take it in front of him, back to goal; it is the harder ball
+      // to want, marked as he is, so it is played when he is the obvious option and not on every move)
+      if (opt === 1 && inBehind) {
+        if (kind !== 'switch') to = { x: Math.min(r.at.x, lineX - 3), y: r.at.y }
+        lw -= 2.5
       }
       // the passer's read of whether it will arrive (the same terms the pass itself is decided by, without the lane)
       if (risk > 0) {
@@ -1683,6 +1709,7 @@ export class MatchSim {
       cR[nc] = r; cW[nc] = w; cK[nc] = kind; cT[nc] = to; cO[nc] = open
       nc++
       wPassSum += w
+      }
     }
     // other options
     const wide = b.y < 24 || b.y > 76
