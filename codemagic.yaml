@@ -24,6 +24,35 @@ workflows:
           set -e
           npm run build
           npx cap add ios
+
+          # Replace only the generated native iOS app icon, not the game or PWA assets.
+          # The source is Touchline's existing public/icons/maskable-512.png.
+          ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
+          test -f "$ICON_DIR/AppIcon-512@2x.png"
+          test -f public/icons/maskable-512.png
+          node --input-type=module <<'NODE'
+          import sharp from 'sharp'
+          import { readFileSync } from 'node:fs'
+
+          const dir = 'ios/App/App/Assets.xcassets/AppIcon.appiconset'
+          const contents = JSON.parse(readFileSync(`${dir}/Contents.json`, 'utf8'))
+          if (!contents.images.some(image => image.filename === 'AppIcon-512@2x.png')) {
+            throw new Error('The generated iOS icon catalog no longer references AppIcon-512@2x.png')
+          }
+
+          await sharp('public/icons/maskable-512.png')
+            .resize(1024, 1024)
+            .flatten({ background: '#05070c' })
+            .removeAlpha()
+            .png()
+            .toFile(`${dir}/Touchline-icon-new.png`)
+
+          // Atomic replacement only after the PNG is successfully generated.
+          const { renameSync } = await import('node:fs')
+          renameSync(`${dir}/Touchline-icon-new.png`, `${dir}/AppIcon-512@2x.png`)
+          console.log('Touchline native iOS icon configured')
+          NODE
+
           cd ios/App
           pod install
 
