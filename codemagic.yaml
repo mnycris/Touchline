@@ -8,7 +8,7 @@ workflows:
     max_build_duration: 120
     environment:
       node: lts
-      xcode: latest
+      xcode: 26.3
       cocoapods: default
     scripts:
       - name: Install Touchline dependencies
