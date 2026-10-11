@@ -1,0 +1,64 @@
+# Builds the GitHub web version of Touchline as an unsigned iPhone IPA for
+# installation/signing with AltStore Classic. No Apple Developer credentials needed.
+# The native iOS wrapper is generated in the macOS build; no Mac required locally.
+workflows:
+  ios-altstore-unsigned:
+    name: Touchline - IPA for AltStore Classic
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      node: lts
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install Touchline dependencies
+        script: npm ci
+
+      - name: Install Capacitor iOS build tools
+        script: |
+          # Keep the existing web-app package.json and lockfile unchanged.
+          npm install --no-save --package-lock=false @capacitor/core@7 @capacitor/cli@7 @capacitor/ios@7
+
+      - name: Build the web app and generate the iOS project
+        script: |
+          set -e
+          npm run build
+          npx cap add ios
+          cd ios/App
+          pod install
+
+      - name: Compile an unsigned app for physical iPhones
+        script: |
+          set -e
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$CM_BUILD_DIR/ios-derived" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package the unsigned IPA for AltStore
+        script: |
+          set -e
+          APP="$CM_BUILD_DIR/ios-derived/Build/Products/Release-iphoneos/App.app"
+          test -d "$APP"
+          mkdir -p "$CM_BUILD_DIR/artifacts/Payload"
+          cp -R "$APP" "$CM_BUILD_DIR/artifacts/Payload/App.app"
+          # Signing is handled by AltStore Classic on the user's device.
+          rm -rf "$CM_BUILD_DIR/artifacts/Payload/App.app/_CodeSignature"
+          rm -f "$CM_BUILD_DIR/artifacts/Payload/App.app/embedded.mobileprovision"
+          cd "$CM_BUILD_DIR/artifacts"
+          export COPYFILE_DISABLE=1
+          zip -qry -y "Touchline-AltStore-unsigned.ipa" Payload
+          unzip -tqq "Touchline-AltStore-unsigned.ipa"
+          test -s "Touchline-AltStore-unsigned.ipa"
+          echo "IPA ready: $CM_BUILD_DIR/artifacts/Touchline-AltStore-unsigned.ipa"
+
+    artifacts:
+      - artifacts/*.ipa
+      - /tmp/xcodebuild_logs/*.log
