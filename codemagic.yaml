@@ -26,10 +26,10 @@ workflows:
           npx cap add ios
 
           # Replace only the generated native iOS app icon, not the game or PWA assets.
-          # The source is Touchline's existing public/icons/maskable-512.png.
+          # The source is Touchline's existing public/icons/icon-512.png.
           ICON_DIR="ios/App/App/Assets.xcassets/AppIcon.appiconset"
           test -f "$ICON_DIR/AppIcon-512@2x.png"
-          test -f public/icons/maskable-512.png
+          test -f public/icons/icon-512.png
           node --input-type=module <<'NODE'
           import sharp from 'sharp'
           import { readFileSync } from 'node:fs'
@@ -40,7 +40,7 @@ workflows:
             throw new Error('The generated iOS icon catalog no longer references AppIcon-512@2x.png')
           }
 
-          await sharp('public/icons/maskable-512.png')
+          await sharp('public/icons/icon-512.png')
             .resize(1024, 1024)
             .flatten({ background: '#05070c' })
             .removeAlpha()
