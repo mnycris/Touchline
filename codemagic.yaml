@@ -60,5 +60,5 @@ workflows:
           echo "IPA ready: $CM_BUILD_DIR/artifacts/Touchline-AltStore-unsigned.ipa"
 
     artifacts:
-      - artifacts/*.ipa
+      - $CM_BUILD_DIR/artifacts/*.ipa
       - /tmp/xcodebuild_logs/*.log
