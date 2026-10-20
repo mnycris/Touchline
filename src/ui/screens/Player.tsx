@@ -10,6 +10,7 @@ import { A } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, Flag, ImgChain, Ovr, PosChip, Radar, Ring, Sparkline, StatRow, Stars } from '../components/atoms'
 import { Confirm, Screen, Sheet, Tabs } from '../components/layout'
+import { FollowBtn } from '../components/Follow'
 import { ATTR_GROUPS, ATTR_LABEL, DEV_PLANS, GK_GROUPS, PLAYSTYLE_INFO, POS_GROUP, POS_NAME, POSITIONS, ROLE_GROUP, ROLES, SQUAD_ROLES, TRAINING_PLANS } from '../../domain/constants'
 import { faceStats, formLabel, formValue, moraleLevel, posRating, roleFit, moraleColor, moraleIcon } from '../../domain/ratings'
 import { fmtMoney } from '../../domain/finance'
@@ -40,7 +41,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
   const fs = faceStats(p)
   const age = ageOf(w, p)
   return (
-    <Screen title={p.name} sub={club ? club.name : 'Free agent'} back right={<div className="row tight">{!mine && <ShortlistBtn w={w} p={p} />}<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit player" /></div>}>
+    <Screen title={p.name} sub={club ? club.name : 'Free agent'} back right={<div className="row tight"><FollowBtn w={w} kind="player" id={p.id} name={p.name} />{!mine && <ShortlistBtn w={w} p={p} />}<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit player" /></div>}>
       <div className="pad">
         <div className="player-hero" style={{ ['--pc' as any]: underWhite(club?.theme) }}>
           <div className="player-hero-bg" />

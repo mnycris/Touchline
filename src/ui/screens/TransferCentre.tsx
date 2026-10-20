@@ -5,6 +5,8 @@ import type { Player, StoryStage, TransferOffer, TransferStory, World } from '..
 import { Icon } from '../icons/Icon'
 import { Badge, Empty, Face, Ovr, PosChip } from '../components/atoms'
 import { Chips, Confirm, Screen, Seg, Sheet, Stepper, Toggle } from '../components/layout'
+import { FollowBtn } from '../components/Follow'
+import { followSets } from '../../engine/world/follow'
 import { DealFlow, Reliability, StageTrack, STAGE_BANNER, STAGE_TONE, TransferCard, TransferRow } from '../components/TransferCard'
 import { OUTLETS, STAGE_LABEL, editStartStory, editStory, editUserDeal, isOpen, moveAppeal, notable, offerStory, reverseDeal, stageOfOffer, story as findStory, type StoryPatch, type UserDealPatch } from '../../engine/world/market'
 import { editClub } from '../../engine/world/edit'
@@ -73,14 +75,16 @@ export function TransferCentre({ w }: { w: World }) {
   const mine = useMemo(() => userDeals(w), [w.date, useGame.getState().v])
   // the scope first (whose stories), then the stage; the chips count what each stage holds within the scope
   const inScope = useMemo(() => {
-    const followed = new Set(w.transfers.shortlist)
+    // what he follows: the players on his shortlist and the ones he follows, clubs he follows, the stories themselves
+    const fs = followSets(w)
+    const followed = new Set([...w.transfers.shortlist, ...fs.player])
     return [...(w.market?.stories || []), ...mine.map((x) => x.s)].filter((s) => {
       const p = w.players[s.playerId]
       if (!p) return false
       if (scope === 'world' && s.stage === 'done' && !notable(w, p, s.from, s.to, s.fee || 0)) return false
       if (scope === 'league' && !(w.clubs[s.from]?.leagueId === lg || w.clubs[s.to]?.leagueId === lg)) return false
       if (scope === 'club' && s.from !== me && s.to !== me) return false
-      if (scope === 'watch' && !followed.has(s.playerId) && s.from !== me && s.to !== me) return false
+      if (scope === 'watch' && !followed.has(s.playerId) && !fs.club.has(s.from) && !fs.club.has(s.to) && !fs.story.has(s.id) && s.from !== me && s.to !== me) return false
       return true
     })
   }, [w.date, scope, mine, useGame.getState().v])
@@ -137,7 +141,7 @@ export function TransferCentre({ w }: { w: World }) {
           <Chips items={([['all', 'All'], ['rumour', 'Rumours'], ['active', 'Talks'], ['done', 'Done'], ['failed', 'Failed']] as const).map(([id, l]) => ({ id, label: <>{l}<span className="chip-n">{counts[id]}</span></> }))} value={stage} onChange={(v) => { haptic(); setStage(v as StageFilter); setMore(1) }} />
         </div>
         <div className="row between tc-sort">
-          <span className="tiny dim">{scope === 'watch' ? 'Your shortlist and your own business' : scope === 'club' ? `${w.clubs[me]?.short}'s business` : scope === 'league' ? `In the ${w.leagues[lg]?.short || 'league'}` : 'The notable moves everywhere'}</span>
+          <span className="tiny dim">{scope === 'watch' ? 'What you follow, your shortlist and your own business' : scope === 'club' ? `${w.clubs[me]?.short}'s business` : scope === 'league' ? `In the ${w.leagues[lg]?.short || 'league'}` : 'The notable moves everywhere'}</span>
           <span className="tc-sort-t" role="group" aria-label="Sort">
             {(['latest', 'biggest'] as const).map((k) => <button key={k} className={sort === k ? 'on' : ''} onClick={() => { haptic(); setSort(k); setMore(1) }}>{k === 'latest' ? 'Latest' : 'Biggest'}</button>)}
           </span>
@@ -183,7 +187,7 @@ export function TransferStoryScreen({ params }: { params: { id: number } }) {
     ['Nation', p.nation],
   ] : []
   return (
-    <Screen title={p ? callName(p.name) : 'Transfer'} sub={`${STAGE_BANNER[s.stage]} · ${from?.short || 'Free agent'} → ${to?.short}`} back>
+    <Screen title={p ? callName(p.name) : 'Transfer'} sub={`${STAGE_BANNER[s.stage]} · ${from?.short || 'Free agent'} → ${to?.short}`} back right={p ? <FollowBtn w={w} kind="story" id={s.id} name={`${callName(p.name)} to ${to?.short}`} /> : undefined}>
       <div className="pad">
         <div className={`ts-hero ${tone}`}>
           <span className="tc-glow" aria-hidden />

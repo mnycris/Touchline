@@ -12,8 +12,11 @@ import { Ball } from '../components/Glyphs'
 import { useRemember } from '../memory'
 import { StoryCard, STORY, storyType, dayLabel } from '../components/NewsCards'
 import { underWhite } from '../theme'
+import { FollowingView } from '../components/FollowingFeed'
+import { StarGlyph } from '../components/Follow'
+import { followingUnseen } from '../../engine/world/follow'
 
-const FILTERS = ['Top', 'My Club', 'World', 'Transfers', 'Results', 'Awards'] as const
+const FILTERS = ['Top', 'Following', 'My Club', 'World', 'Transfers', 'Results', 'Awards'] as const
 type Filter = (typeof FILTERS)[number]
 
 /** The manager's own press lines: part of the story of the club, not top news. */
@@ -27,13 +30,15 @@ function matches(w: World, n: NewsItem, f: Filter) {
     case 'Transfers': return n.kind === 'transfer' || n.kind === 'contract' || n.kind === 'rumour'
     case 'Results': return n.kind === 'result' || n.kind === 'title' || n.kind === 'relegation' || n.kind === 'milestone' || n.kind === 'record'
     case 'Awards': return n.kind === 'award'
+    case 'Following': return false
   }
 }
 
-export function News() {
+export function News({ params }: { params?: { f?: Filter } }) {
   const w = useWorld()
-  const [f, setF] = useRemember<Filter>('f', 'Top')
-  const list = useMemo(() => w.news.filter((n) => matches(w, n, f)).slice(0, 120), [w.news.length, w.news[0]?.id, f])
+  const [f, setF] = useRemember<Filter>('f', params?.f || 'Top')
+  const list = useMemo(() => (f === 'Following' ? [] : w.news.filter((n) => matches(w, n, f)).slice(0, 120)), [w.news.length, w.news[0]?.id, f])
+  const unseen = useMemo(() => (f === 'Following' ? 0 : followingUnseen(w)), [w.date, f])
   // stories grouped by day, newest first; the first story of the feed leads
   const days = useMemo(() => {
     const out: { d: string; items: NewsItem[] }[] = []
@@ -42,8 +47,9 @@ export function News() {
   }, [list])
   return (
     <Screen title="News" back>
-      <Chips items={FILTERS.map((c) => ({ id: c, label: c }))} value={f} onChange={(v) => setF(v as Filter)} />
-      {!list.length && <Empty icon="news" title="No stories yet" text={f === 'World' ? 'Stories from the leagues you follow appear here as the season unfolds.' : undefined} />}
+      <Chips items={FILTERS.map((c) => ({ id: c, label: c === 'Following' ? <><StarGlyph on={false} size={12} />Following{unseen > 0 && <span className="chip-dot">{unseen > 9 ? '9+' : unseen}</span>}</> : c }))} value={f} onChange={(v) => setF(v as Filter)} />
+      {f === 'Following' && <FollowingView w={w} />}
+      {f !== 'Following' && !list.length && <Empty icon="news" title="No stories yet" text={f === 'World' ? 'Stories from the leagues you follow appear here as the season unfolds.' : undefined} />}
       <div className="ns-feed" key={f}>
         {days.map((g, gi) => (
           <section key={g.d} className="ns-day">

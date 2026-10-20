@@ -19,6 +19,24 @@ export function leagueOf(w: World, clubId: number): Competition | undefined {
   return Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(clubId))
 }
 
+/**
+ * Where a club stands in its league: this season's place once it has played, otherwise where it finished last season
+ * (a fresh table in pre-season is just alphabetical order).
+ */
+export function standing(w: World, clubId: number): { pos: number; league: string; lastSeason?: boolean; comp?: Competition } | undefined {
+  const lg = leagueOf(w, clubId)
+  const row = lg?.table?.find((r) => r.clubId === clubId)
+  if (lg && row && row.p > 0) return { pos: positionOf(w, lg, clubId), league: lg.short, comp: lg }
+  const a = w.archive[w.archive.length - 1]
+  if (!a) return undefined
+  for (const [key, t] of Object.entries(a.tables)) {
+    if (!/^L\d+$/.test(key)) continue
+    const i = t.findIndex((r) => r.clubId === clubId)
+    if (i >= 0) return { pos: i + 1, league: Object.values(w.competitions).find((c) => c.key === key)?.short || w.leagues[Number(key.slice(1))]?.short || '', lastSeason: true, comp: lg }
+  }
+  return undefined
+}
+
 export function leaguePos(w: World, clubId: number): number | undefined {
   const c = leagueOf(w, clubId)
   return c ? positionOf(w, c, clubId) : undefined

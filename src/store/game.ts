@@ -14,6 +14,7 @@ import { clearMemory } from '../ui/memory'
 import { SAVE_SCHEMA, migrateSave } from '../engine/world/migrate'
 import { sendInbox } from '../engine/world/messages'
 import { APP_VERSION } from '../ui/components/brand'
+import { followSets, newsFollowRef } from '../engine/world/follow'
 
 export type Tab = 'central' | 'squad' | 'transfers' | 'academy' | 'season'
 export interface Route { name: string; params?: any }
@@ -129,6 +130,10 @@ interface GameState {
   checkNews: () => void
   clearNewsDrop: () => void
   setPrefs: (p: Partial<AppPrefs>) => void
+  /** universal search, over whatever screen is showing */
+  searchOpen: boolean
+  openSearch: () => void
+  closeSearch: () => void
 }
 
 const emptyStacks = (): Record<Tab, Route[]> => ({ central: [], squad: [], transfers: [], academy: [], season: [] })
@@ -153,6 +158,7 @@ export const useGame = create<GameState>((set, get) => ({
   prefs: { haptics: true, matchSpeed: 1, speeds: DEFAULT_SPEEDS, sound: false, reduceMotion: false, assistantSubs: false, stopOn: { offers: true, injuries: true, scouting: false, conversations: true, news: false } },
   stopRequested: false,
   saves: [],
+  searchOpen: false,
 
   async loadDb() {
     if (get().raw) return get().raw
@@ -298,7 +304,7 @@ export const useGame = create<GameState>((set, get) => ({
   },
 
   exitToMenu() {
-    set({ world: undefined, saveId: undefined, live: undefined, overlay: [], stacks: emptyStacks(), tab: 'central' })
+    set({ world: undefined, saveId: undefined, live: undefined, overlay: [], stacks: emptyStacks(), tab: 'central', searchOpen: false })
     get().refreshSaves()
   },
 
@@ -476,7 +482,10 @@ export const useGame = create<GameState>((set, get) => ({
     const fresh = w.news.filter((n) => num(n.id) > seen)
     if (w.news[0]) w.flags.newsSeen = num(w.news[0].id)
     const own = (n: (typeof fresh)[number]) => !!n.quote && n.quote.clubId === w.userClubId && n.kind === 'manager'
-    const pickd = fresh.filter((n) => n.importance >= 3 && !own(n)).sort((a, b) => b.importance - a.importance || num(b.id) - num(a.id)).slice(0, 3)
+    // what he follows counts for a little more: its real developments make the drop-in, the small stuff stays in the feed
+    const sets = followSets(w)
+    const weight = (n: (typeof fresh)[number]) => n.importance + (n.importance >= 2 && newsFollowRef(w, n, sets) ? 1 : 0)
+    const pickd = fresh.filter((n) => weight(n) >= 3 && !own(n)).sort((a, b) => weight(b) - weight(a) || num(b.id) - num(a.id)).slice(0, 3)
     if (!seen || !pickd.length) return
     set({ newsDrop: { ids: pickd.map((n) => n.id), nonce: Date.now() } })
   },
@@ -487,6 +496,9 @@ export const useGame = create<GameState>((set, get) => ({
     set({ toast: { id, text, kind } })
     window.setTimeout(() => { if (get().toast?.id === id) set({ toast: undefined }) }, 2600)
   },
+
+  openSearch() { if (!get().searchOpen) { set({ searchOpen: true }); haptic() } },
+  closeSearch() { if (get().searchOpen) set({ searchOpen: false }) },
 
   setPrefs(p) {
     set({ prefs: { ...get().prefs, ...p, stopOn: { ...get().prefs.stopOn, ...(p.stopOn || {}) } } })

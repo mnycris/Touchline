@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { TransferStoryScreen } from './screens/TransferCentre'
 import { OpponentReport } from './screens/OpponentReport'
 import { FifaRanking } from './screens/FifaRanking'
+import { CoachProfile } from './screens/Coach'
 import type { Tab } from '../store/game'
 import { Hub } from './screens/Hub'
 import { Inbox, Message, ConversationScreen, PressConference, SellNegotiation } from './screens/Comms'
@@ -63,4 +64,5 @@ export const ROUTES: Record<string, ComponentType<any>> = {
   story: TransferStoryScreen,
   opponent: OpponentReport,
   fifa: FifaRanking,
+  coach: CoachProfile,
 }

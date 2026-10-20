@@ -4,10 +4,13 @@ import { rememberedScroll, saveScroll, ViewKey } from '../memory'
 import { Icon } from '../icons/Icon'
 import { haptic, useGame } from '../../store/game'
 import { unreadCount } from '../../engine/world/messages'
+import { openSpotlight } from '../spot'
 
 /** Scrollable screen body with an optional sticky top bar. */
-export function Screen({ title, sub, children, back, right, noNav, noTop, className, onBack, scrollKey, footer, style }: {
+export function Screen({ title, sub, children, back, right, noNav, noTop, className, onBack, scrollKey, footer, style, search }: {
   title?: ReactNode; sub?: ReactNode; children: ReactNode; back?: boolean; right?: ReactNode; noNav?: boolean; noTop?: boolean; className?: string; onBack?: () => void; scrollKey?: string; footer?: ReactNode; style?: React.CSSProperties
+  /** the search button at the top right (on by default for screens you go back from) */
+  search?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const vk = useContext(ViewKey)
@@ -28,15 +31,18 @@ export function Screen({ title, sub, children, back, right, noNav, noTop, classN
   }, [vk])
   return (
     <>
-      {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} />}
+      {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} search={search} />}
       <div ref={ref} style={style} className={`screen ${noNav ? 'no-nav' : ''} ${noTop ? 'no-top' : ''} ${footer ? 'has-footer' : ''} ${className || ''}`}>{children}</div>
       {footer}
     </>
   )
 }
 
-export function TopBar({ title, sub, back, right, onBack }: { title?: ReactNode; sub?: ReactNode; back?: boolean; right?: ReactNode; onBack?: () => void }) {
+export function TopBar({ title, sub, back, right, onBack, search }: { title?: ReactNode; sub?: ReactNode; back?: boolean; right?: ReactNode; onBack?: () => void; search?: boolean }) {
   const goBack = useGame((s) => s.back)
+  // not over match day, negotiations and the other full-screen moments, which have their own way out
+  const canSearch = useGame((s) => !!s.world && !s.overlay.length)
+  const withSearch = (search ?? !!back) && canSearch
   return (
     <div className="topbar">
       {back && (
@@ -45,11 +51,20 @@ export function TopBar({ title, sub, back, right, onBack }: { title?: ReactNode;
         </button>
       )}
       <div className="grow" style={{ minWidth: 0 }}>
-        {typeof title === 'string' ? <div className="title ellipsis">{title}</div> : title}
+        {typeof title === 'string' ? <div className={`title ellipsis ${title.length > 21 ? 'xlong' : title.length > 15 ? 'long' : ''}`}>{title}</div> : title}
         {sub && <div className="tiny dim ellipsis" style={{ marginTop: 1 }}>{sub}</div>}
       </div>
-      {right}
+      {withSearch ? <div className="topbar-r">{right}<SearchBtn /></div> : right}
     </div>
+  )
+}
+
+/** Universal search, one tap from almost anywhere. */
+export function SearchBtn() {
+  return (
+    <button className="iconbtn search-btn" aria-label="Search" onClick={() => openSpotlight()}>
+      <Icon name="search" size={20} strokeWidth={2} />
+    </button>
   )
 }
 
@@ -62,6 +77,7 @@ export function HubActions() {
   return (
     <div className="row tight">
       {w?.meta.editMode && <span className="edit-flag" title="Edit Mode career" aria-label="Edit Mode career"><Icon name="edit" size={13} strokeWidth={2.2} /></span>}
+      <SearchBtn />
       <button className="iconbtn" aria-label="Inbox" onClick={() => go({ name: 'inbox' })}>
         <Icon name="inbox" size={21} />
         {n > 0 && <span className="dot">{n > 99 ? '99+' : n}</span>}

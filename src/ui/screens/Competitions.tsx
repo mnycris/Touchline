@@ -6,10 +6,11 @@ import type { Club, Competition, Fixture, Player, World } from '../../domain/typ
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, Ovr, PosChip, Stars } from '../components/atoms'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
+import { FollowBtn } from '../components/Follow'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
-import { compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps } from '../selectors'
+import { compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
 import { FixtureRow } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
@@ -281,7 +282,7 @@ export function CompScreen({ params }: { params: { id: string } }) {
     { id: 'stats' as const, label: 'Stats' },
   ]
   return (
-    <Screen title={c.short} sub={`${c.name} · ${seasonLabel(c.season)}`} back right={<div style={{ width: 40 }}><CompLogo k={compLogoKey(c)} size={32} name={c.name} /></div>}>
+    <Screen title={<div className="row" style={{ gap: 10, minWidth: 0 }}><CompLogo k={compLogoKey(c)} size={30} name={c.name} /><div style={{ minWidth: 0 }}><div className="title ellipsis">{c.short}</div><div className="tiny dim ellipsis" style={{ marginTop: 1 }}>{c.name !== c.short ? `${c.name} · ` : ''}{seasonLabel(c.season)}</div></div></div>} back right={<FollowBtn w={w} kind="comp" id={c.key} name={c.name} />}>
       <Tabs sticky items={items} value={tab} onChange={setTab} />
       {tab === 'table' && (groups ? <GroupTables w={w} c={c} /> : <TableView w={w} c={c} />)}
       {tab === 'fixtures' && <CompFixtures w={w} c={c} />}
@@ -513,14 +514,14 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   if (c.national) return <NationProfile w={w} c={c} />
   const squad = [...rosterOf(w, c.id)].sort((a, b) => POS_ORDER[a.positions[0]] - POS_ORDER[b.positions[0]] || b.ovr - a.ovr)
   const lg = leagueOf(w, c.id)
-  const pos = lg ? sortTable(w, lg).findIndex((r) => r.clubId === c.id) + 1 : 0
+  const st = standing(w, c.id)
   const mgr = w.managers[c.managerId]
   const top = [...squad].sort((a, b) => b.ovr - a.ovr)
   const avg = top.slice(0, 16).reduce((a, p) => a + p.ovr, 0) / Math.max(1, Math.min(16, top.length))
   const trophies = new Map<string, number>()
   for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
   return (
-    <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back right={<EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit club" />}>
+    <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back right={<div className="row tight"><FollowBtn w={w} kind="club" id={c.id} name={c.name} /><EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit club" /></div>}>
       {editing && <div className="pad" style={{ marginBottom: 10 }}><ClubEditor w={w} club={c} onClose={() => setEditing(false)} /></div>}
       <div className="pad">
         <div className="hero" style={{ padding: 16, background: `linear-gradient(140deg, ${c.theme}, #06080d 85%)` }}>
@@ -528,14 +529,14 @@ export function ClubProfile({ params }: { params: { id: number } }) {
             <Badge club={c} size={80} />
             <div className="grow">
               <div className="h2">{c.name}</div>
-              <div className="row tight small" style={{ marginTop: 6, opacity: 0.9 }}>{lg && <CompLogo k={compLogoKey(lg)} size={16} name={lg.name} />}{pos ? `${ordinal(pos)} in ${lg!.short}` : c.country}</div>
+              <div className="row tight small" style={{ marginTop: 6, opacity: 0.9 }}>{lg && <CompLogo k={compLogoKey(lg)} size={16} name={lg.name} />}{st ? (st.lastSeason ? `${ordinal(st.pos)} in the ${st.league} last season` : `${ordinal(st.pos)} in ${st.league}`) : lg ? lg.short : c.country}</div>
               <div style={{ marginTop: 6 }}><Stars n={starRating(avg)} size={13} /></div>
             </div>
           </div>
         </div>
       </div>
       <div className="pad grid3" style={{ marginTop: 10 }}>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Manager</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></div>
+        <button className="card pad-card tap" style={{ padding: 10, textAlign: 'left' }} disabled={c.id !== w.userClubId && !mgr} onClick={() => go(c.id === w.userClubId ? { name: 'manager' } : { name: 'coach', params: { id: mgr!.id } })}><div className="tiny dim">Manager</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></button>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Stadium</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium || '—'}</div></div>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Budget</div><div className="b small" style={{ marginTop: 3 }}>{fmtMoney(c.finance.transferBudget, { short: true })}</div></div>
       </div>
@@ -597,7 +598,7 @@ function NationProfile({ w, c }: { w: World; c: Club }) {
     groups.set(g, [...(groups.get(g) || []), p])
   }
   return (
-    <Screen title={c.short} sub={`${c.confed || 'FIFA'} · National team`} back>
+    <Screen title={c.short} sub={`${c.confed || 'FIFA'} · National team`} back right={<FollowBtn w={w} kind="club" id={c.id} name={c.name} />}>
       <div className="pad">
         <div className="hero" style={{ padding: 16, background: `linear-gradient(140deg, ${c.kit[0] === '#f4f6f8' ? c.kit[1] : c.kit[0]}, #06080d 85%)` }}>
           <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>

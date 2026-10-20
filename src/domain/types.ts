@@ -875,7 +875,18 @@ export interface World {
   pendingMatchId?: string // user fixture awaiting play
   lastUserResult?: string // fixture id
   flags: Record<string, any>
+  /** what the manager follows across the football world, newest first */
+  follows?: Follow[]
+  /** what he opened from search, newest first */
+  recentSearch?: SearchRef[]
 }
+
+// ---------------------------------------------------------------- following and search
+export type FollowKind = 'player' | 'club' | 'manager' | 'comp' | 'story'
+/** a followed player, club, manager, competition (by its key, across seasons) or transfer story */
+export interface Follow { kind: FollowKind; id: number | string; since: ISODate }
+export type SearchKind = FollowKind | 'news' | 'career' | 'message'
+export interface SearchRef { kind: SearchKind; id: number | string }
 
 // ---------------------------------------------------------------- transfer centre
 export type StoryStage = 'rumour' | 'talks' | 'negotiating' | 'close' | 'done' | 'failed'

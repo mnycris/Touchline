@@ -9,6 +9,7 @@ import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 import { initNavFx, useEnterClass } from './ui/navFx'
 import { Presence } from './ui/components/Presence'
+import { Spotlight } from './ui/components/Spotlight'
 
 initNavFx()
 
@@ -51,7 +52,8 @@ export default function App() {
   useEffect(() => {
     const onPop = () => {
       const s = useGame.getState()
-      if (s.world && (s.overlay.length || s.stacks[s.tab].length)) s.back()
+      if (s.searchOpen) s.closeSearch()
+      else if (s.world && (s.overlay.length || s.stacks[s.tab].length)) s.back()
       history.pushState(null, '', location.href)
     }
     history.pushState(null, '', location.href)
@@ -94,6 +96,7 @@ function Career() {
       </div>
       <BottomNav />
       <NewsDrop />
+      <Spotlight />
       {Ov && (
         <div className={`overlay ${ovIn}`} key={ovKey}>
           <ViewKey.Provider value={viewKeyFor('ov', overlay.length, ov.name, ov.params)}>
