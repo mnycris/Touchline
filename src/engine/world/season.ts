@@ -14,7 +14,7 @@ import { seasonAwards } from './awards'
 import { isRetiring, seasonAging } from './development'
 import { postNews, sendInbox, staffNames } from './messages'
 import { rosterOf, touchRoster, setPlayerClub } from './roster'
-import { closeCareerEntry, contractDemand, roleForBuyer } from './transfers'
+import { closeCareerEntry, completeLoanPurchase, contractDemand, roleForBuyer } from './transfers'
 import { pickName, displayName } from '../../domain/names'
 import { generateProspect } from './scouting'
 
@@ -167,8 +167,8 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     // loans return
     if (p.loan) {
       const back = p.loan.fromClubId
-      if (p.loan.obligation && p.loan.optionFee) {
-        p.loan = undefined
+      if ((p.loan.obligation || p.loan.exercised) && p.loan.optionFee) {
+        completeLoanPurchase(w, p)
       } else {
         setPlayerClub(w, p, back)
         p.loan = undefined

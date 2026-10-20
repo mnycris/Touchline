@@ -50,11 +50,13 @@ export interface Contract {
 export interface LoanInfo {
   fromClubId: number
   until: ISODate
-  wageSplit: number // % paid by loaning club
+  wageSplit: number // % of his wage paid by the borrowing club (his parent club pays the rest)
   optionFee?: number
   obligation?: boolean
   recallable?: boolean
   expectation?: SquadRole
+  /** the borrowing club has taken up its option: the move completes when the loan ends */
+  exercised?: boolean
 }
 
 export interface StatLine {
@@ -113,6 +115,8 @@ export interface Player {
   transferListed?: boolean
   loanListed?: boolean
   loan?: LoanInfo
+  /** a sell-on clause from the move that brought him here: the club named gets this share of his next transfer fee */
+  sellOn?: { clubId: number; pct: number }
   untouchable?: boolean
   joinedDate?: ISODate
   trainingPlan: TrainingPlan
@@ -905,6 +909,13 @@ export interface TransferStory {
   undo?: TransferUndo
   /** a real negotiation the AI is running (drives the stage) */
   ai?: { interest: number; nextStep: ISODate; round: number; cap?: number }
+  /** the manager's club is the buyer or the seller: the story follows a real offer (or real interest) and never
+   *  advances on its own */
+  user?: 'buy' | 'sell'
+  /** the offer this story follows (the manager's bids, and clubs' bids for his players) */
+  offerId?: string
+  /** Edit Mode: the player's mind made up, whatever his weighing-up says */
+  mood?: 'keen' | 'against'
 }
 export interface TransferUndo {
   date: ISODate
@@ -928,6 +939,9 @@ export interface TransferUndo {
   fromBudgetAdded: number
   toBudgetSpent: number
   signingBonus: number
+  /** his sell-on clause before the move, and what the move paid out under it */
+  sellOn?: { clubId: number; pct: number }
+  sellOnPaid?: { clubId: number; amount: number; budget?: number }
   /** stories and messages the move produced */
   newsIds: string[]
   inboxIds: string[]

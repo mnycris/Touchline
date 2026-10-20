@@ -6,6 +6,7 @@ import { squadPlan } from '../../engine/world/squadPlan'
 import { callName } from '../../engine/match/commentary'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Fx } from '../components/Fx'
+import { WageImpact, WageSheet } from '../components/Wages'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
@@ -29,6 +30,7 @@ export function TransferHub() {
   const go = useGame((s) => s.go)
   const open = useGame((s) => s.open)
   const [tab, setTab] = useRemember<'centre' | 'hub' | 'shortlist'>('tab', 'centre')
+  const [wages, setWages] = useState(false)
   const club = userClub(w)
   if (w.flags.unemployed) return <Screen title="Transfers" right={<HubActions />}><Empty icon="transfers" title="No club" text="You need a club to do business." /></Screen>
   const win = currentWindow(w)
@@ -38,6 +40,7 @@ export function TransferHub() {
   const deadline = win && diffDays(win.close, w.date) === 0
   return (
     <Screen title="Transfers" sub={windowLabel(w)} right={<HubActions />}>
+      <WageSheet w={w} open={wages} onClose={() => setWages(false)} />
       <div className="pad">
         <div className={`hero budget-hero ${deadline ? 'deadline' : ''}`}>
           <Fx kind="mesh" />
@@ -45,7 +48,7 @@ export function TransferHub() {
             {deadline && <div className="deadline-banner"><Icon name="deadline" size={16} /> DEADLINE DAY · window closes tonight</div>}
             <div className="row between" style={{ alignItems: 'flex-end' }}>
               <div><div className="label" style={{ color: 'rgba(255,255,255,.75)' }}>Transfer budget</div><div className="display" style={{ fontSize: 34, marginTop: 4 }}><CountUp value={club.finance.transferBudget} format={(v) => fmtMoney(v)} /></div></div>
-              <div style={{ textAlign: 'right' }}><div className="label" style={{ color: 'rgba(255,255,255,.75)' }}>Wage room</div><div className="display" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(Math.max(0, wageRoom(w)))}<span className="tiny">/wk</span></div></div>
+              <button className="hero-wage" onClick={() => { haptic(); setWages(true) }} aria-label="How wages work"><div className="label" style={{ color: 'rgba(255,255,255,.75)' }}>Wage room <Icon name="info" size={12} /></div><div className="display" style={{ fontSize: 22, marginTop: 4 }}>{wageRoom(w) < 0 ? '−' : ''}{fmtMoney(Math.abs(wageRoom(w)))}<span className="tiny">/wk</span></div><div className="tiny" style={{ opacity: 0.7 }}>of {fmtMoney(club.finance.wageBudget)}</div></button>
             </div>
             <div className="row tight tiny" style={{ marginTop: 10, opacity: 0.85 }}><Icon name={win ? 'transfers' : 'lock'} size={14} />{win ? `${win.name} window · ${diffDays(win.close, w.date)} days left` : 'Window closed — deals agreed now complete when it reopens'}</div>
           </div>
@@ -190,12 +193,12 @@ function nextStep(o: TransferOffer, incoming?: boolean): string {
   if (incoming) return o.status === 'Awaiting Window' ? 'Leaves when window opens' : o.respondBy ? `Reply by ${fmtDate(o.respondBy, 'dm')}` : 'Awaiting your reply'
   switch (o.status) {
     case 'Offer Submitted': return o.respondBy ? `Answer by ${fmtDate(o.respondBy, 'dm')}` : 'Awaiting reply'
-    case 'Counter Offer': return 'Respond to counter'
+    case 'Counter Offer': { const d = o.history[o.history.length - 1]?.date; return d ? `Respond by ${fmtDate(addDays(d, 10), 'dm')}` : 'Respond to counter' }
     case 'Offer Accepted': return 'Agree personal terms'
     case 'Contract Negotiation': case 'Contract Offered': return 'In contract talks'
     case 'Awaiting Window': return 'Joins when window opens'
     case 'Pre-Contract': return 'Joins in the summer'
-    case 'Offer Rejected': return 'Improve or walk away'
+    case 'Offer Rejected': { const d = o.history[o.history.length - 1]?.date; return d ? `Improve by ${fmtDate(addDays(d, 10), 'dm')}` : 'Improve or walk away' }
     default: return ''
   }
 }
@@ -600,7 +603,7 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
                 <div className="row between"><span className="label">Transfer fee</span><span className="tiny dim">{offer?.counterFee ? `They want ${fmtMoney(offer.counterFee, { short: true })}` : `Valuation ~${fmtMoney(ask, { short: true })}`}{p.contract.releaseClause ? ` · RC ${fmtMoney(p.contract.releaseClause, { short: true })}` : ''}</span></div>
                 <Stepper value={fee} min={0} max={Math.max(club.finance.transferBudget, fee)} step={step(fee)} onChange={setFee} fmt={(v) => fmtMoney(v)} />
                 <div className="row wrap" style={{ gap: 6 }}>{[0.75, 0.85, 0.95, 1].map((m) => <button key={m} className="chip" onClick={() => setFee(Math.min(club.finance.transferBudget, roundValue(ask * m)))}>{Math.round(m * 100)}%</button>)}{p.contract.releaseClause > 0 && <button className="chip" onClick={() => setFee(p.contract.releaseClause)}>Release clause</button>}</div>
-                <div><div className="label" style={{ marginBottom: 6 }}>Sell-on clause</div><Seg small items={[0, 10, 15, 20, 25].map((x) => ({ id: x, label: x ? `${x}%` : 'None' }))} value={sellOn} onChange={setSellOn} /></div>
+                <div><div className="label" style={{ marginBottom: 6 }}>Sell-on clause</div><Seg small items={[0, 10, 15, 20, 25].map((x) => ({ id: x, label: x ? `${x}%` : 'None' }))} value={sellOn} onChange={setSellOn} />{sellOn > 0 && <div className="tiny dim" style={{ marginTop: 6 }}>{w.clubs[p.clubId]?.short} would get {sellOn}% of the fee whenever you sell him on. It makes a lower fee easier for them to accept.</div>}</div>
                 <div className="field"><label className="label">Player exchange</label><select className="input" value={swap || ''} onChange={(e) => setSwap(e.target.value ? Number(e.target.value) : undefined)}><option value="">None</option>{swaps.map((q) => <option key={q.id} value={q.id}>{q.name} ({q.ovr}, {fmtMoney(q.value, { short: true })})</option>)}</select></div>
               </>
             ) : (
@@ -610,6 +613,19 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
                 <div className="tiny dim">Loans run until {fmtDate(`${w.season + 1}-06-30`, 'long')}. Clubs loan out players who aren't key to their plans.</div>
               </>
             )}
+            {(() => {
+              // can the club afford it: the fee against the transfer budget, his likely wage against the wage room
+              const demand = contractDemand(w, p, club.id, roleForBuyer(w, p, club.id))
+              const wageCost = isLoan ? Math.round((p.contract.wage || p.wage) * split / 100) : demand.wage
+              const room = wageRoom(w)
+              const left = club.finance.transferBudget - (isLoan ? 0 : fee)
+              return (
+                <div className="bid-money tiny">
+                  {!isLoan && <div className={left < 0 ? 'neg' : ''}><Icon name="money" size={13} /><span>{left < 0 ? `${fmtMoney(-left)} more than your transfer budget (${fmtMoney(club.finance.transferBudget)})` : `Leaves ${fmtMoney(left)} of your ${fmtMoney(club.finance.transferBudget)} transfer budget`}</span></div>}
+                  <div className={wageCost > room ? 'neg' : ''}><Icon name="contract" size={13} /><span>{isLoan ? `Your share of his wage: ${fmtMoney(wageCost)}/wk` : `He is likely to ask about ${fmtMoney(wageCost)}/wk`}; {wageCost > room ? `that is ${fmtMoney(wageCost - Math.max(0, room))}/wk more than your wage room, so the terms couldn't be agreed until you free some` : `your wage room is ${fmtMoney(room)}/wk`}</span></div>
+                </div>
+              )
+            })()}
             <div className="row">
               <button className="btn grow" onClick={() => setDelOpen(true)}><Icon name="manager" size={16} /> Delegate</button>
               <button className="btn primary grow" onClick={bid} disabled={chat.busy || (!stance.willing && !p.contract.releaseClause) || (!isLoan && fee > club.finance.transferBudget)}>Submit offer</button>
@@ -645,6 +661,9 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
               <div className="row wrap" style={{ gap: 6 }}>{[0, 1.5, 2, 3, 5].map((m) => <button key={m} className={`chip ${c.releaseClause === (m ? roundValue(p.value * m) : 0) ? 'on' : ''}`} onClick={() => setC({ ...c, releaseClause: m ? roundValue(p.value * m) : 0 })}>{m ? `${fmtMoney(roundValue(p.value * m), { short: true })}` : 'None'}</button>)}</div>
               <div className="row tight tiny dim">Performance bonuses: goal {fmtMoney(c.bonusGoal)}, clean sheet {fmtMoney(c.bonusCleanSheet)}, appearance {fmtMoney(c.bonusApp)}</div>
             </>}
+            {offer?.type.startsWith('loan')
+              ? <WageImpact w={w} wage={p.contract.wage || p.wage} share={offer.loanWageSplit ?? 50} />
+              : <WageImpact w={w} wage={c.wage} bonus={c.signingBonus} years={c.years} />}
             <button className="btn primary block" onClick={propose} disabled={chat.busy}>{offer?.type.startsWith('loan') ? 'Agree loan terms' : 'Offer contract'}</button>
           </div>
         )}
@@ -722,6 +741,7 @@ export function Renewal({ params }: { params: { id: number } }) {
             <Stepper value={c.signingBonus} min={0} max={Math.max(c.signingBonus, (agentAsk?.signingBonus || 1e6) * 4)} step={c.signingBonus >= 5e6 ? 5e5 : 1e5} onChange={(v) => setC({ ...c, signingBonus: v })} fmt={(v) => fmtMoney(v)} />
             <div className="label">Release clause</div>
             <div className="row wrap" style={{ gap: 6 }}>{[0, 1.5, 2, 3, 5].map((m) => <button key={m} className={`chip ${c.releaseClause === (m ? roundValue(p.value * m) : 0) ? 'on' : ''}`} onClick={() => setC({ ...c, releaseClause: m ? roundValue(p.value * m) : 0 })}>{m ? fmtMoney(roundValue(p.value * m), { short: true }) : 'None'}</button>)}</div>
+            <WageImpact w={w} wage={c.wage} current={p.contract.wage} bonus={c.signingBonus} years={c.years} />
             <button className="btn primary block" disabled={chat.busy} onClick={() => {
               haptic('medium')
               let r: any

@@ -3,7 +3,7 @@ import { Rng, clamp } from '../../domain/rng'
 import { ageOn } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { positionOf } from '../competitions/tables'
-import { rosterOf } from './roster'
+import { rosterOf, wageBill } from './roster'
 
 const PRIORITY_W: Record<Priority, number> = { Critical: 3, 'Very High': 2.3, High: 1.7, Medium: 1.2, Low: 0.8 }
 export const CATEGORY_W: Record<ObjectiveCategory, number> = { 'Domestic Success': 0.38, 'Continental Success': 0.18, Financial: 0.18, 'Brand Exposure': 0.12, 'Youth Development': 0.14 }
@@ -106,7 +106,8 @@ export function evaluateObjective(w: World, o: Objective): number {
       return clamp((idx + 1) / (o.target + 1), 0, 1)
     }
     case 'wageBudget': {
-      const bill = rosterOf(w, club.id).reduce((a, p) => a + p.contract.wage, 0)
+      // the same bill the manager sees: loans at the share the club pays
+      const bill = wageBill(w, club.id)
       return bill <= club.finance.wageBudget ? 1 : clamp(1 - (bill - club.finance.wageBudget) / club.finance.wageBudget * 4, 0, 1)
     }
     case 'balance': return clamp(club.finance.balance / Math.max(1, o.target), 0, 1)

@@ -25,7 +25,7 @@ import { aiManagerReview, userJobSecurity } from './managers'
 import { advancePlayoff, createPlayoffs, leagueFinished, seasonRollover } from './season'
 import { postNews, sendInbox, staffNames } from './messages'
 import { rollInjury } from './matchRunner'
-import { rosterOf } from './roster'
+import { rosterOf, wageBill } from './roster'
 import { processPendingDeals } from './userActions'
 import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
 
@@ -328,7 +328,8 @@ function internationalDuty(w: World, rng: Rng) {
 function weeklyFinances(w: World) {
   const club = w.clubs[w.userClubId]
   if (!club) return
-  const wages = rosterOf(w, club.id).reduce((a, p) => a + (p.loan && p.loan.fromClubId !== club.id ? p.contract.wage * (1 - (p.loan.wageSplit ?? 50) / 100) : p.contract.wage), 0)
+  // his squad, his share of loanees' wages, and his share of the players he has loaned out
+  const wages = wageBill(w, club.id)
   club.finance.balance -= wages
   club.finance.expensesSeason += wages
   club.finance.ledger.push({ date: w.date, label: 'Player wages', amount: -wages, kind: 'wages' })

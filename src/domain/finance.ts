@@ -50,6 +50,8 @@ export function marketWage(p: Player, club: Club, league: LeagueDef | undefined,
   let w = 105_000 * Math.pow(1.12, p.ovr - 80) * lf * cf * (roleF[role] || 1)
   if (age <= 21) w *= 0.82 + Math.max(0, p.pot - p.ovr) * 0.008
   if (age >= 32) w *= 0.9
+  // goalkeepers are paid well below outfield players of the same standing
+  if (p.positions[0] === 'GK') w *= 0.72
   return Math.max(500, w)
 }
 
@@ -62,6 +64,8 @@ export function wageDemand(p: Player, club: Club, league: LeagueDef | undefined,
   if (cur > 0) {
     const raise = p.clubId === club.id ? 1.06 : 1.12
     w = Math.max(market, Math.min(cur * raise, Math.max(market * 1.5, cur * 0.75)))
+    // staying, even a player who is badly underpaid asks for at most double what he earns
+    if (p.clubId === club.id) w = Math.min(w, Math.max(cur * 2, cur * raise))
   }
   return roundWage(Math.max(500, w))
 }

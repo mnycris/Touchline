@@ -1120,6 +1120,7 @@ select.input option { background: #151b27; }
 .ed-v { text-align: right; font-weight: 800; font-size: 14px; }
 .ed-v.up { color: var(--pos); } .ed-v.down { color: var(--neg); }
 .ed-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; }
+.ed-chips-x { margin: 0 -14px; padding: 2px 14px; flex-wrap: nowrap; }
 .ed-step { display: inline-flex; align-items: center; gap: 2px; border-radius: 10px; background: var(--s3); padding: 2px; }
 .ed-step button { width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--t1); }
 .ed-step button:active { background: var(--s4); }
@@ -1990,3 +1991,38 @@ select.input option { background: #151b27; }
 .h2h-goals .cmp-v.small { font-family: inherit; font-size: 12.5px; font-weight: 600; color: var(--t2); }
 .h2h-goals .cmp-v.on.h2a { background: var(--h2h-a); color: var(--h2h-a-ink); } .h2h-goals .cmp-v.on.h2b { background: var(--h2h-b); color: var(--h2h-b-ink); }
 .h2h-sh { margin: 4px 4px 8px; }
+
+/* transfer centre: scope description and sort */
+.tc-sort { margin-top: 10px; gap: 8px; }
+.tc-sort-t { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--s2); flex: none; }
+.tc-sort-t button { height: 26px; padding: 0 10px; border-radius: 7px; font-size: 11.5px; font-weight: 700; color: var(--t3); }
+.tc-sort-t button.on { background: var(--s4); color: var(--t1); }
+.chip .chip-n { margin-left: -2px; font-size: 10.5px; font-weight: 700; opacity: .55; font-variant-numeric: tabular-nums; }
+
+/* wages: the bill against the budget, an offer on top */
+.hero-wage { text-align: right; color: inherit; }
+.wi { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--s2); }
+.wi-bar { position: relative; height: 8px; border-radius: 4px; background: var(--s4); overflow: visible; }
+.wi-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
+.wi-bill { left: 0; background: var(--t3); }
+.wi-add { background: var(--acc); border-radius: 0 4px 4px 0 !important; transition: width .3s ease, left .3s ease; }
+.wi.over .wi-add { background: var(--neg); }
+.wi-bar b { position: absolute; top: -4px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--t1); }
+.wi-line { display: flex; justify-content: space-between; gap: 8px; }
+.wi-plus { color: var(--acc); font-weight: 700; }
+.wi.over .wi-plus { color: var(--neg); }
+.wi-verdict { font-weight: 700; }
+.wi-how { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; color: var(--t2); padding: 2px 0; }
+.ws-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ws-nums > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; background: var(--s2); }
+.ws-nums b { font-family: var(--display); font-size: 18px; }
+.ws-nums .neg b { color: var(--neg); }
+.ws-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.ws-row + .ws-row { border-top: 1px solid var(--line); }
+.ws-facts { display: flex; flex-direction: column; gap: 10px; }
+.ws-facts > div { display: flex; gap: 10px; align-items: flex-start; }
+.ws-facts svg { flex: none; margin-top: 2px; color: var(--t2); }
+.bid-money { display: flex; flex-direction: column; gap: 6px; padding: 9px 11px; border-radius: 11px; background: var(--s2); color: var(--t2); }
+.bid-money > div { display: flex; gap: 7px; align-items: flex-start; }
+.bid-money svg { flex: none; margin-top: 1px; }
+.bid-money .neg { color: var(--neg); }

@@ -1,15 +1,15 @@
 // The transfer centre: every notable move in the world as a story that develops over days, the way the real window
 // does. Rumour → talks → negotiating → close (fee agreed, terms and medical) → done deal, or collapsed at any point
 // for a reason. Players (and their agents) decide on their careers: a fee the clubs agree is not a move the player wants.
-import type { Club, ISODate, Player, StoryStage, TransferStory, TransferUndo, World } from '../../domain/types'
+import type { Club, ISODate, Player, StoryStage, TransferOffer, TransferStory, TransferUndo, World } from '../../domain/types'
 import { Rng, clamp, hashString } from '../../domain/rng'
 import { addDays, ageOn, diffDays, fmtDate } from '../../domain/dates'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { positionOf } from '../competitions/tables'
 import { postNews } from './messages'
-import { rosterOf, setPlayerClub, touchRoster } from './roster'
-import { askingPrice, contractDemand, daysSinceMove, executeTransfer, makeOffer, roleForBuyer, sellerStance, settlingIn, SETTLE_DAYS } from './transfers'
+import { rosterOf, setPlayerClub, touchRoster, wageBill } from './roster'
+import { aiBidForUserPlayer, askingPrice, contractDemand, daysSinceMove, executeTransfer, makeOffer, roleForBuyer, sellerStance, settlingIn, SETTLE_DAYS, slotsInLine, rivalry } from './transfers'
 import { finStyle } from './squadPlan'
 import { callName } from '../match/commentary'
 
@@ -36,6 +36,7 @@ export const isOpen = (s: TransferStory) => OPEN.includes(s.stage)
 
 // ---------------------------------------------------------------- the player's decision
 export interface Appeal { score: number; reasons: { v: number; text: string }[] }
+const POS_WORD: Record<string, string> = { RW: 'winger', LW: 'winger', RM: 'wide midfielder', LM: 'wide midfielder', RWB: 'wing-back', LWB: 'wing-back', CAM: 'No. 10', CDM: 'holding midfielder', CF: 'second striker', ST: 'striker', RB: 'full-back', LB: 'full-back' }
 
 const uclCache = new WeakMap<World, { date: string; set: Set<number> }>()
 function inUcl(w: World, clubId: number) {
@@ -62,9 +63,19 @@ export function moveAppeal(w: World, p: Player, toId: number): Appeal {
   const add = (v: number, text: string) => { if (Math.abs(v) >= 1) reasons.push({ v: Math.round(v), text }) }
   if (!to) return { score: -100, reasons: [{ v: -100, text: 'no such club' }] }
   const age = ageOn(p.dob, w.date)
-  // stature: reputation and squad quality
-  const rep = clamp((to.reputation - (from?.reputation ?? 30)) * 0.85 + (to.squadAvg - (from?.squadAvg ?? to.squadAvg - 4)) * 0.6, -32, 30)
-  add(rep, rep > 0 ? `${to.short} are a step up` : `${to.short} would be a step down`)
+  // where he is in his career changes what weighs most: minutes when young, stature in his prime, money and minutes late on
+  const stage = age <= 21 ? 0.7 : age <= 29 ? 1.1 : 0.8
+  // stature: reputation and squad quality; a free agent measures a club against the level his own game is at
+  const rep = from
+    ? clamp(((to.reputation - from.reputation) * 0.85 + (to.squadAvg - from.squadAvg) * 0.6) * stage, -32, 30)
+    : clamp((to.squadAvg - (p.ovr - 6)) * 1.4 * stage, -32, 18)
+  add(rep, rep > 0 ? `${to.short} are a step up` : `${to.short} would be a step down${from ? '' : ' for a player of his level'}`)
+  // a free agent still without a club weeks into the window lowers his sights
+  if (!from) {
+    const left = w.transfers.history.find((h) => h.playerId === p.id && h.to === 0)
+    const out = left ? diffDays(w.date, left.date) : 0
+    if (out > 21) add(Math.min(16, out / 4), `he has been without a club for ${Math.round(out / 7)} weeks`)
+  }
   const lgTo = w.leagues[to.leagueId], lgFrom = w.leagues[from?.leagueId ?? -1]
   const lg = clamp(((lgTo?.prestige ?? 3) - (lgFrom?.prestige ?? 3)) * 3, -15, 15)
   add(lg, lg > 0 ? `a stronger league (${lgTo?.short})` : `a weaker league than the ${lgFrom?.short || 'one he plays in'}`)
@@ -76,6 +87,11 @@ export function moveAppeal(w: World, p: Player, toId: number): Appeal {
   const mins = p.recentMins?.length ? p.recentMins.reduce((a, b) => a + b, 0) / (p.recentMins.length * 90) : 0.5
   const role = roleForBuyer(w, p, to.id)
   const willStart = role === 'Crucial' || role === 'Important'
+  // their system: no place for his position in it
+  if (slotsInLine(w, to.id, p.positions[0]) === 0) add(-10, `${to.short}'s system has no place for a ${POS_WORD[p.positions[0]] || p.positions[0]}`)
+  // a contender in his prime years: the chance to win things
+  const tp0 = leaguePos(w, to), fp0 = from ? leaguePos(w, from) : undefined
+  if (age >= 24 && age <= 31 && tp0 && tp0.pos <= 2 && !(fp0 && fp0.pos <= 3)) add(6, `${to.short} are challenging for the title`)
   if (from && mins < 0.35 && willStart) add(18, 'he would play regularly')
   else if (from && mins < 0.35) add(8, `he barely plays at ${from.short}`)
   if (from && mins > 0.7 && !willStart) add(-20, `a regular at ${from.short}, he would be a squad player`)
@@ -112,7 +128,8 @@ export function moveAppeal(w: World, p: Player, toId: number): Appeal {
   if (to.country === homeCountry && from && from.country !== homeCountry) add(6 + (age >= 28 ? 5 : 0), `a return home to ${to.country}`)
   else if (from && to.country !== from.country && to.country !== homeCountry && p.hidden.adaptability < 45) add(-6, 'he has struggled to settle abroad before')
   // rivals
-  if (from?.rivals.some((r) => r[0] === to.id)) add(-26 - p.hidden.loyalty * 0.15, `${to.short} are ${from.short}'s rivals`)
+  const riv = from ? rivalry(w, from.id, to.id) : 0
+  if (riv) add(-(8 + 7 * riv) - p.hidden.loyalty * 0.15, `${to.short} are ${from!.short}'s rivals`)
   // what nobody outside knows: family, a manager he likes, the agent's cut
   const h = (hashString(`${p.id}:${to.id}:${w.season}`) % 13) - 6
   add(h, h > 0 ? 'personal reasons' : 'personal reasons')
@@ -188,14 +205,15 @@ function rumourNews(w: World, s: TransferStory) {
 
 /** Paper talk: a link that may or may not have anything behind it. */
 export function paperTalk(w: World, rng: Rng) {
-  // the papers don't link a player with a move weeks after he signed
-  const pool = Object.values(w.players).filter((p) => p.ovr >= 77 && p.clubId && !p.academy && !p.loan && settlingIn(w, p) === undefined)
+  // the papers don't link a player with a move weeks after he signed; the manager's own players and his own club
+  // only appear in stories with real interest behind them (aiInterestInUserPlayer, userInterestRumour)
+  const pool = Object.values(w.players).filter((p) => p.ovr >= 77 && p.clubId && p.clubId !== w.userClubId && !p.academy && !p.loan && settlingIn(w, p) === undefined)
   if (!pool.length) return
   const p = rng.pick(pool)
   const from = w.clubs[p.clubId]
   if (!from) return
   if (storiesFor(w, (s) => s.playerId === p.id && isOpen(s)).length >= 3) return
-  const clubs = Object.values(w.clubs).filter((c) => !c.national && c.id !== p.clubId && c.leagueId && c.reputation >= from.reputation - 6 && c.finance.transferBudget > p.value * 0.5)
+  const clubs = Object.values(w.clubs).filter((c) => !c.national && c.id !== p.clubId && c.id !== w.userClubId && c.leagueId && c.reputation >= from.reputation - 6 && c.finance.transferBudget > p.value * 0.5)
   if (!clubs.length) return
   const to = rng.pick(clubs)
   if (storiesFor(w, (s) => s.playerId === p.id && s.to === to.id && isOpen(s)).length) return
@@ -211,7 +229,8 @@ export function paperTalk(w: World, rng: Rng) {
 
 /** A completed move becomes (or updates) its done-deal story, with what's needed to undo it. */
 export function recordDone(w: World, x: { p: Player; from: number; to: number; fee: number; kind: TransferStory['kind']; undo: TransferUndo; storyId?: number; wage?: number; years?: number }) {
-  const existing = x.storyId ? story(w, x.storyId) : undefined
+  // the deal's own story, or the open link between this player and his new club that it grew out of
+  const existing = (x.storyId ? story(w, x.storyId) : undefined) || storiesFor(w, (s) => s.playerId === x.p.id && s.to === x.to && isOpen(s))[0]
   // anyone else chasing him is out of luck
   for (const s of storiesFor(w, (s) => s.playerId === x.p.id && isOpen(s) && s !== existing)) step(w, s, 'failed', `${callName(x.p.name)} joined ${w.clubs[x.to]?.short} instead.`)
   const note = `${w.clubs[x.to]?.short} complete the ${x.kind === 'loan' ? 'loan' : x.kind === 'free' ? 'free signing' : 'signing'} of ${callName(x.p.name)}${x.fee ? ` for ${fmtMoney(x.fee)}` : ''}.`
@@ -238,6 +257,14 @@ export function marketDaily(w: World, rng: Rng) {
     // he moved somewhere else in the meantime
     if (s.from && p.clubId !== s.from && s.stage !== 'rumour') { step(w, s, 'failed', `${callName(p.name)} is no longer at ${w.clubs[s.from]?.short}.`); continue }
     if (s.stage === 'rumour' && s.expires && w.date >= s.expires) { m.stories.splice(m.stories.indexOf(s), 1); continue }
+    // the manager's club: a story follows his offers (or a club's real bid for his player), never the AI's own talks
+    // (an older save may hold an AI-run story that involves him: it is taken over the same way)
+    if (!s.user && (s.to === w.userClubId || s.from === w.userClubId) && s.ai) s.user = s.from === w.userClubId ? 'sell' : 'buy'
+    if (s.user) {
+      if (s.user === 'sell' && !s.offerId && s.ai && s.ai.round !== -99 && w.date >= s.ai.nextStep) bidFromRumour(w, s, p, rng)
+      else if (s.user === 'buy' && !s.offerId && s.ai) { s.ai = undefined; if (s.stage !== 'rumour') step(w, s, 'failed', 'Nothing came of it: the talks never went beyond the papers.') }
+      continue
+    }
     if (!s.ai) continue
     // the window shut (a deal set up by hand waits for the next one instead)
     if (!win && s.kind !== 'free' && s.stage !== 'rumour') {
@@ -249,6 +276,8 @@ export function marketDaily(w: World, rng: Rng) {
   }
   // clear out what has had its time in the feed
   m.stories = m.stories.filter((s) => !s.expires || w.date <= s.expires || s.stage === 'rumour')
+  // the papers pick up the manager's own interest now and then (more often while the window is open)
+  if (rng.next() < (win ? 0.07 : 0.025)) userInterestRumour(w, rng)
   if (m.stories.length > 700) m.stories.length = 700
 }
 
@@ -279,7 +308,7 @@ function advanceStory(w: World, s: TransferStory, p: Player, rng: Rng, deadline:
       const appeal = moveAppeal(w, p, buyer.id)
       s.ai!.interest = appeal.score
       s.why = appeal.reasons.slice(0, 6)
-      if (appeal.score < -12) { step(w, s, 'failed', `${callName(p.name)} isn’t interested: ${appeal.reasons.find((r) => r.v < 0)?.text || 'he wants to stay'}.`); return }
+      if ((appeal.score < -12 && s.mood !== 'keen') || s.mood === 'against') { step(w, s, 'failed', `${callName(p.name)} isn’t interested: ${appeal.reasons.find((r) => r.v < 0)?.text || 'he wants to stay'}.`); return }
       step(w, s, 'negotiating', seller ? `${seller.short} are willing to listen. Clubs negotiating a fee.` : `Personal terms under discussion.`, rng.int(1, 3) * quick, rng)
       return
     }
@@ -312,7 +341,7 @@ function advanceStory(w: World, s: TransferStory, p: Player, rng: Rng, deadline:
       const appeal = moveAppeal(w, p, buyer.id)
       s.why = appeal.reasons.slice(0, 6)
       const noise = rng.normal(0, 5)
-      if (appeal.score + noise < -2) {
+      if ((appeal.score + noise < -2 && s.mood !== 'keen') || s.mood === 'against') {
         const why = appeal.reasons.find((r) => r.v < 0)?.text
         step(w, s, 'failed', `${callName(p.name)} turns down ${buyer.short}${why ? `: ${why}` : ''}.`)
         return
@@ -322,7 +351,7 @@ function advanceStory(w: World, s: TransferStory, p: Player, rng: Rng, deadline:
       const role = roleForBuyer(w, p, buyer.id)
       const demand = contractDemand(w, p, buyer.id, role)
       // personal terms: the wage he wants against what the club pays its squad
-      const bill = rosterOf(w, buyer.id).reduce((a, q) => a + (q.contract.wage || 0), 0)
+      const bill = wageBill(w, buyer.id)
       const room = buyer.finance.wageBudget * (finStyle(w, buyer) === 'Ambitious' ? 1.15 : 1.05) - bill
       if (demand.wage > room && rng.next() < 0.6) { step(w, s, 'failed', `Personal terms: ${callName(p.name)} wants ${fmtMoney(demand.wage)} a week, more than ${buyer.short} will pay.`); return }
       const o = makeOffer(w, { playerId: p.id, fee: s.fee || 0, type: s.kind === 'loan' ? 'loan' : p.clubId ? 'transfer' : 'free', fromClubId: buyer.id })
@@ -331,6 +360,124 @@ function advanceStory(w: World, s: TransferStory, p: Player, rng: Rng, deadline:
       return
     }
   }
+}
+
+// ---------------------------------------------------------------- the manager's own business
+/** The story that follows an offer. */
+export function offerStory(w: World, o: Pick<TransferOffer, 'id'>) {
+  return mk(w).stories.find((s) => s.offerId === o.id)
+}
+
+/** Where an offer stands, as a stage of its story. */
+export function stageOfOffer(o: TransferOffer): StoryStage {
+  switch (o.status) {
+    case 'Completed': return 'done'
+    case 'Negotiations Failed': return 'failed'
+    case 'Offer Accepted': case 'Contract Negotiation': case 'Contract Offered': case 'Awaiting Window': case 'Pre-Contract': return 'close'
+    // a bid he turned down is over (a club that comes back does so with a new bid); one turned down for him is still
+    // his to improve until it lapses
+    case 'Offer Rejected': return o.userIsSeller ? 'failed' : 'negotiating'
+    case 'Counter Offer': return 'negotiating'
+    default: return o.history.filter((h) => h.by === 'buyer').length > 1 ? 'negotiating' : 'talks'
+  }
+}
+
+/** What the offer's latest turn means, told the way the feed tells everyone else's deals. */
+function offerNote(w: World, o: TransferOffer): string {
+  const p = w.players[o.playerId]
+  const buyer = w.clubs[o.fromClubId]?.short || 'They', seller = w.clubs[o.toClubId]?.short || 'his club'
+  const name = p ? callName(p.name) : 'the player'
+  const fee = fmtMoney(o.fee), loan = o.type.startsWith('loan')
+  const last = o.history[o.history.length - 1]
+  switch (o.status) {
+    case 'Offer Submitted':
+      if (o.history.filter((h) => h.by === 'buyer').length > 1) return loan ? `${buyer} revise their loan proposal for ${name}.` : `${buyer} improve their offer to ${fee}.`
+      return loan ? `${buyer} propose a loan for ${name}.` : o.type === 'free' || o.type === 'pre-contract' ? `${buyer} open talks with the free agent ${name}.` : `${buyer} bid ${fee} for ${name}.`
+    case 'Counter Offer': return o.userIsSeller ? `${seller} hold out for more; ${buyer} are at ${fee}.` : `${seller} want ${fmtMoney(o.counterFee || o.fee)}; ${buyer} have offered ${fee}.`
+    case 'Offer Rejected': return o.userIsSeller ? `${seller} turn down ${buyer}'s ${loan ? 'loan proposal' : `${fee} bid`}.` : `${seller} reject ${buyer}'s ${loan ? 'loan proposal' : `${fee} bid`}.`
+    case 'Offer Accepted': return loan ? `Loan agreed in principle. Terms with ${name} to come.` : `Fee agreed: ${fee}. Personal terms to come.`
+    case 'Contract Negotiation': case 'Contract Offered': return `${name}'s representatives in talks over personal terms with ${buyer}.`
+    case 'Awaiting Window': return `Deal agreed: ${name} joins ${buyer} when the window opens.`
+    case 'Pre-Contract': return `${name} agrees a pre-contract with ${buyer}.`
+    case 'Negotiations Failed': return last?.by === 'player' ? `${name} turns down personal terms with ${buyer}.` : `Talks between ${buyer} and ${seller} collapse.`
+    default: return last?.text || ''
+  }
+}
+
+/**
+ * Bring an offer's story up to date (creating it, or carrying on the rumour or earlier bid it grew out of). Called
+ * after every change to one of the manager's offers or a club's bid for his players; the deal itself is recorded by
+ * executeTransfer, which completes this same story.
+ */
+export function syncOfferStory(w: World, o: TransferOffer, note?: string, carryOn?: TransferStory): TransferStory | undefined {
+  const p = w.players[o.playerId]
+  if (!p || (!o.userIsBuyer && !o.userIsSeller)) return undefined
+  let stage = stageOfOffer(o)
+  if (stage === 'done') return offerStory(w, o)
+  const kind: TransferStory['kind'] = o.type.startsWith('loan') ? 'loan' : o.type === 'free' || o.type === 'pre-contract' ? 'free' : 'transfer'
+  const fee = o.status === 'Counter Offer' && o.counterFee && o.userIsBuyer ? o.counterFee : o.fee
+  const text = note || offerNote(w, o)
+  // the story it grows out of: its own, the one named, or an open link between the same player and clubs
+  const s = offerStory(w, o) || carryOn || mk(w).stories.find((x) => x.playerId === p.id && x.to === o.fromClubId && isOpen(x) && !x.offerId)
+  // a new bid in talks already under way (or a club coming back after a no) carries the negotiation on
+  if (s && stage === 'talks' && s.stage !== 'rumour' && (s.stage !== 'talks' || !!carryOn)) stage = 'negotiating'
+  if (!s) return newStory(w, { playerId: p.id, from: o.toClubId, to: o.fromClubId, stage, kind, fee: kind === 'free' ? 0 : fee, user: o.userIsBuyer ? 'buy' : 'sell', offerId: o.id, note: text })
+  s.offerId = o.id
+  s.user = o.userIsBuyer ? 'buy' : 'sell'
+  s.kind = kind
+  s.fee = kind === 'free' ? 0 : fee
+  s.ai = undefined
+  s.expires = undefined
+  if (s.stage !== stage) step(w, s, stage, text)
+  else if (s.log[s.log.length - 1]?.note !== text) { s.updated = w.date; s.log.push({ date: w.date, stage, note: text }) }
+  return s
+}
+
+/** A club's interest in one of the manager's players goes public before the bid: a report first, the bid days later. */
+export function aiInterestInUserPlayer(w: World, buyer: Club, p: Player, fee: number, rng: Rng): TransferStory | undefined {
+  if (storiesFor(w, (s) => s.playerId === p.id && s.to === buyer.id && isOpen(s)).length) return undefined
+  const o = outlet(w, rng, w.clubs[p.clubId]?.country || buyer.country, 3, 5)
+  const st = newStory(w, {
+    playerId: p.id, from: p.clubId, to: buyer.id, stage: 'rumour', kind: 'transfer', fee: roundValue(fee * (0.95 + rng.next() * 0.2)), source: o.name, reliability: o.rel, user: 'sell',
+    note: `${o.name}: ${buyer.short} are preparing a bid for ${callName(p.name)}.`,
+    ai: { interest: moveAppeal(w, p, buyer.id).score, nextStep: addDays(w.date, rng.int(2, 5)), round: 0, cap: fee },
+  })
+  p.interestedClubs = [...new Set([...(p.interestedClubs || []), buyer.id])].slice(-4)
+  rumourNews(w, st)
+  return st
+}
+
+/** The reported bid arrives (or the interest quietly fades: the player moved, became untouchable, the money went). */
+function bidFromRumour(w: World, s: TransferStory, p: Player, rng: Rng) {
+  const buyer = w.clubs[s.to]
+  const fee = s.ai?.cap || s.fee || p.value
+  if (!buyer || p.clubId !== w.userClubId || p.untouchable || !isWindowOpen(w) || buyer.finance.transferBudget < fee * 0.9) {
+    step(w, s, 'failed', `${buyer?.short || 'The club'} cool their interest in ${callName(p.name)}.`)
+    return
+  }
+  aiBidForUserPlayer(w, buyer, p, rng, s, fee)
+}
+
+/** The manager's real interest gets out: a player he has shortlisted, is scouting or has asked about. */
+export function userInterestRumour(w: World, rng: Rng) {
+  const me = w.clubs[w.userClubId]
+  if (!me || w.flags.unemployed) return
+  const t = w.transfers.targets
+  const pool = [...new Set([...w.transfers.shortlist, ...Object.values(t).filter((x) => x.status === 'Scouting' || x.status === 'Club Approached' || x.status === 'Report Available').map((x) => x.playerId)])]
+    .map((id) => w.players[id]).filter((p): p is Player => !!p && p.clubId !== me.id && p.ovr >= 70)
+    .filter((p) => !storiesFor(w, (s) => s.playerId === p.id && s.to === me.id && (isOpen(s) || diffDays(w.date, s.updated) < 30)).length)
+  if (!pool.length) return
+  const p = rng.pick(pool)
+  // how close to the truth it is depends on how far the interest has gone
+  const st = t[p.id]?.status
+  const [lo, hi] = st === 'Club Approached' ? [3, 4] : st === 'Scouting' || st === 'Report Available' ? [2, 3] : [1, 2]
+  const o = outlet(w, rng, w.clubs[p.clubId]?.country || me.country, lo, hi)
+  const verb = st === 'Club Approached' ? 'have made an approach for' : st ? 'have had scouts watching' : 'are keeping tabs on'
+  const s = newStory(w, {
+    playerId: p.id, from: p.clubId, to: me.id, stage: 'rumour', kind: p.clubId ? 'transfer' : 'free', fee: p.clubId ? roundValue(p.value * (0.95 + rng.next() * 0.35)) : 0, source: o.name, reliability: o.rel, user: 'buy',
+    note: `${o.name}: ${me.short} ${verb} ${callName(p.name)}.`, expires: addDays(w.date, rng.int(14, 24)),
+  })
+  if (p.ovr >= 78) rumourNews(w, s)
 }
 
 /** Window closing: whatever isn't finished collapses. */
@@ -361,6 +508,13 @@ export function reverseDeal(w: World, storyId: number): { ok: boolean; text: str
     from.finance.ledger = from.finance.ledger.filter((l) => !(l.date === u.date && l.label === `Sale of ${p.name}`))
     if (from.transferPolicy?.lost) from.transferPolicy.lost = from.transferPolicy.lost.filter((l) => l.id !== p.id)
   }
+  // a sell-on paid out of this fee goes back, and his old clause with it
+  if (u.sellOnPaid) {
+    const ben = w.clubs[u.sellOnPaid.clubId]
+    if (ben) { ben.finance.balance -= u.sellOnPaid.amount; ben.finance.transferBudget = Math.max(0, ben.finance.transferBudget - (u.sellOnPaid.budget || 0)); ben.finance.ledger = ben.finance.ledger.filter((l) => !(l.date === u.date && l.label === `Sell-on: ${p.name}`)) }
+    if (from) { from.finance.balance += u.sellOnPaid.amount; from.finance.ledger = from.finance.ledger.filter((l) => !(l.date === u.date && l.label.startsWith('Sell-on to '))) }
+  }
+  p.sellOn = u.sellOn ? { ...u.sellOn } : undefined
   // the player: back where he was, on his old terms
   if (to) for (const sh of to.sheets) { sh.lineup = sh.lineup.map((id) => (id === p.id ? 0 : id)); sh.bench = sh.bench.filter((id) => id !== p.id) }
   setPlayerClub(w, p, u.fromClub)
@@ -428,14 +582,40 @@ export function editStartStory(w: World, d: StoryDraft): { ok: boolean; text: st
   return { ok: true, text: `${STAGE_LABEL[d.stage]} started.`, id: st.id }
 }
 
+export interface StoryPatch {
+  stage?: StoryStage; fee?: number; reliability?: number; freeze?: boolean; reason?: string
+  /** a rumour: who reports it (their usual reliability with it), and whether there is real interest behind it */
+  source?: string; real?: boolean
+  /** talks: the most the buying club will pay, the player's own mind, when the next step comes, or take it now */
+  cap?: number; mood?: 'keen' | 'against' | null; nextIn?: number; advanceNow?: boolean
+}
+
 /** Change a live story: its stage, the fee, the source; freeze or unfreeze it; force it through or kill it. */
-export function editStory(w: World, id: number, patch: { stage?: StoryStage; fee?: number; reliability?: number; freeze?: boolean; reason?: string }): { ok: boolean; text: string } {
+export function editStory(w: World, id: number, patch: StoryPatch): { ok: boolean; text: string } {
   const s = story(w, id)
   if (!s) return { ok: false, text: 'Story not found.' }
   if (s.stage === 'done') return { ok: false, text: 'A done deal can only be reversed.' }
+  // the manager's own deals follow their offer: they are edited there (editUserDeal)
+  if (s.offerId && (patch.stage || patch.advanceNow || patch.nextIn != null || patch.cap != null)) return { ok: false, text: 'This deal follows a real offer: change the offer instead.' }
   s.edited = true
   if (patch.fee != null) s.fee = roundValue(patch.fee)
+  if (patch.source) { const o = OUTLETS.find((x) => x.name === patch.source); if (o) { s.source = o.name; if (patch.reliability == null) s.reliability = o.rel } }
   if (patch.reliability != null) s.reliability = patch.reliability
+  if (patch.real != null && s.stage === 'rumour') { s.ai ||= { interest: 0, nextStep: addDays(w.date, 3), round: 0 }; s.ai.round = patch.real ? 0 : -1; if (!patch.real) s.expires ||= addDays(w.date, 14) }
+  if (patch.cap != null) { s.ai ||= { interest: 0, nextStep: addDays(w.date, 1), round: 0 }; s.ai.cap = roundValue(patch.cap) }
+  if (patch.mood !== undefined) s.mood = patch.mood || undefined
+  if (patch.nextIn != null && s.ai) s.ai.nextStep = addDays(w.date, Math.max(0, Math.round(patch.nextIn)))
+  if (patch.advanceNow) {
+    const p = w.players[s.playerId]
+    if (!p) return { ok: false, text: 'The player is gone.' }
+    s.ai ||= { interest: 0, nextStep: w.date, round: 0 }
+    if (s.ai.round === -99) s.ai.round = 0
+    const rng = new Rng(w.rng)
+    advanceStory(w, s, p, rng, false)
+    w.rng = rng.state
+    touchRoster(w)
+    return { ok: true, text: `${STAGE_LABEL[s.stage]}: ${s.log[s.log.length - 1]?.note || ''}` }
+  }
   if (patch.freeze != null) { s.ai ||= { interest: 0, nextStep: addDays(w.date, 1), round: 0 }; s.ai.round = patch.freeze ? -99 : Math.max(0, s.ai.round) }
   if (patch.stage && patch.stage !== s.stage) {
     if (patch.stage === 'done') {
@@ -454,6 +634,43 @@ export function editStory(w: World, id: number, patch: { stage?: StoryStage; fee
     step(w, s, patch.stage, `${STAGE_LABEL[patch.stage]} (Edit Mode).`, 1)
   }
   return { ok: true, text: 'Story updated.' }
+}
+
+export interface UserDealPatch {
+  /** his bid: the selling club agrees, counters at a price, or turns it down */
+  answer?: 'accept' | 'reject'; counter?: number
+  /** a club's bid for his player: what they offer, how long he has to answer, or they pull out */
+  fee?: number; replyIn?: number; withdraw?: boolean
+}
+
+/** Edit Mode on one of the manager's own deals: the offer itself changes, and its story follows. */
+export function editUserDeal(w: World, storyId: number, patch: UserDealPatch): { ok: boolean; text: string } {
+  const s = story(w, storyId)
+  const o = s?.offerId ? w.transfers.offers[s.offerId] : undefined
+  if (!s || !o) return { ok: false, text: 'No offer behind this story.' }
+  const p = w.players[o.playerId]
+  if (!p) return { ok: false, text: 'The player is gone.' }
+  const seller = w.clubs[o.toClubId]?.short || 'They', buyer = w.clubs[o.fromClubId]?.short || 'They'
+  const t = w.transfers.targets[p.id]
+  if (o.userIsBuyer) {
+    if (patch.answer === 'accept') { o.status = 'Offer Accepted'; o.history.push({ date: w.date, by: 'seller', text: `${seller} accept ${fmtMoney(o.fee)}.`, fee: o.fee }) }
+    else if (patch.answer === 'reject') { o.status = 'Offer Rejected'; o.history.push({ date: w.date, by: 'seller', text: `${seller} reject the offer.` }) }
+    else if (patch.counter != null) { o.counterFee = roundValue(patch.counter); o.status = 'Counter Offer'; o.history.push({ date: w.date, by: 'seller', text: `${seller} want ${fmtMoney(o.counterFee)}.`, fee: o.counterFee }) }
+    else return { ok: false, text: 'Nothing to change.' }
+    if (t) t.status = o.status
+  } else {
+    if (patch.withdraw) { o.status = 'Negotiations Failed'; o.history.push({ date: w.date, by: 'buyer', text: `${buyer} withdraw their offer.` }) }
+    else {
+      if (patch.fee != null) { o.fee = roundValue(patch.fee); o.history.push({ date: w.date, by: 'buyer', text: `${buyer} offer ${fmtMoney(o.fee)}.`, fee: o.fee }) }
+      if (patch.replyIn != null) o.respondBy = addDays(w.date, Math.max(0, Math.round(patch.replyIn)))
+      if (o.status === 'Offer Rejected') o.status = 'Offer Submitted'
+    }
+    // the messages about it say what it is now
+    for (const m of w.inbox) if (m.actions.some((a) => a.payload === o.id)) { if (patch.withdraw) { m.resolved = true; m.read = true } else if (o.respondBy) m.expires = o.respondBy }
+  }
+  s.edited = true
+  syncOfferStory(w, o, patch.withdraw ? `${buyer} withdraw their offer for ${callName(p.name)}.` : undefined)
+  return { ok: true, text: `${STAGE_LABEL[s.stage]}: ${s.log[s.log.length - 1]?.note || ''}` }
 }
 
 /** Ids of players in any open story (for badges on player profiles and lists). */

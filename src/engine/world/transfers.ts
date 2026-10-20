@@ -1,17 +1,18 @@
 import type { Club, ContractOffer, Player, SquadRole, TransferOffer, TransferRecord, World } from '../../domain/types'
 import { Rng, clamp, hashString } from '../../domain/rng'
 import { addDays, ageOn, diffDays, fmtDate } from '../../domain/dates'
-import { POS_GROUP } from '../../domain/constants'
+import { formationOf, POS_GROUP } from '../../domain/constants'
 import { dynamicValue, fmtMoney, roundValue, wageDemand } from '../../domain/finance'
 import { allPlayers, rosterOf, setPlayerClub, touchRoster } from './roster'
 import { postNews, sendInbox, staffNames } from './messages'
-import { isWindowOpen } from '../competitions/calendar'
+import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { emptyLine } from './matchRunner'
 import { bidBlock, clubLine, clubRelation, adjustRelation, sellerFloor, snubPenalty } from './negotiation'
 import { callName } from '../match/commentary'
 import { posRating } from '../../domain/ratings'
 import { finStyle, planRole, squadPlan, STYLE_REINVEST, type FinStyle, type PlanNeed, type SquadPlan } from './squadPlan'
-import { isOpen, moveAppeal, notable, paperTalk, recordDone, startPursuit, storiesFor } from './market'
+import { aiInterestInUserPlayer, isOpen, moveAppeal, notable, offerStory, paperTalk, recordDone, startPursuit, storiesFor, syncOfferStory } from './market'
+import type { TransferStory } from '../../domain/types'
 
 // how much above market value a club asks for a player, by his importance to them
 const ROLE_MULT: Record<SquadRole, number> = { Crucial: 1.35, Important: 1.2, Rotation: 1.05, Sparingly: 0.9, Prospect: 1.15 }
@@ -31,7 +32,8 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
   if (yl === 2) v *= 0.92
   else if (yl >= 4) v *= 1.05
   if (p.transferListed) v *= 0.82
-  if (buyerId && club.rivals.some((r) => r[0] === buyerId)) v *= 1.15
+  // a rival pays more, the more bitter the rivalry
+  if (buyerId) v *= 1 + 0.08 * rivalry(w, club.id, buyerId)
   v *= 0.95 + club.prestige.intl * 0.012
   if (settlingIn(w, p) !== undefined) v *= 1.25
   if (buyerId) v *= 1 - clubRelation(w, club.id) / 500
@@ -42,6 +44,27 @@ export function askingPrice(w: World, p: Player, buyerId?: number): number {
   else if (club.market?.sell === 1) v *= 0.85
   if (p.contract.releaseClause && v > p.contract.releaseClause) v = p.contract.releaseClause
   return roundValue(v)
+}
+
+/** How bitter a rivalry is between two clubs (0 none, 3 the fiercest derbies), from either side's list. */
+export function rivalry(w: World, a: number, b: number): number {
+  const x = w.clubs[a]?.rivals.find((r) => r[0] === b)?.[2] || 0
+  const y = w.clubs[b]?.rivals.find((r) => r[0] === a)?.[2] || 0
+  return Math.max(x, y)
+}
+
+/**
+ * Selling to a rival: the fiercest rivals don't do business over players who matter, unless something forces it (a
+ * release clause, money trouble, a player who wants out, or a recent history of deals between the two). Squad players
+ * can still go, at a premium (askingPrice).
+ */
+function rivalResistance(w: World, p: Player, sellerId: number, buyerId: number): number {
+  const riv = rivalry(w, sellerId, buyerId)
+  if (!riv || p.transferListed || p.contract.releaseClause) return 0
+  const seller = w.clubs[sellerId]
+  const important = p.contract.role === 'Crucial' || p.contract.role === 'Important'
+  const dealings = w.transfers.history.filter((h) => h.season >= w.season - 3 && h.type === 'transfer' && ((h.from === sellerId && h.to === buyerId) || (h.from === buyerId && h.to === sellerId))).length
+  return riv * (important ? 2 : 1) - Math.min(2, dealings) - (seller.finance.balance < 0 ? 2 : 0) - (p.morale < 35 ? 1.5 : 0)
 }
 
 /** Days a signing needs before he can be sold on: clubs don't turn a new signing round within six months. */
@@ -91,6 +114,7 @@ export function sellerStance(w: World, p: Player, buyerId: number): { willing: b
   const settled = settledOn(w, p)
   if (settled && !p.transferListed) return { willing: false, reason: `${p.name} only joined ${club.short} on ${fmtDate(addDays(settled, -SETTLE_DAYS), 'dm')}. They won't consider selling him before ${fmtDate(settled, 'dm')}.` }
   const buyer = w.clubs[buyerId]
+  if (club.id !== w.userClubId && buyer && rivalResistance(w, p, club.id, buyerId) >= 4) return { willing: false, reason: `${club.short} won't sell ${p.name} to ${buyer.short}, of all clubs.` }
   const squad = rosterOf(w, club.id)
   const samePos = squad.filter((q) => POS_GROUP[q.positions[0]] === POS_GROUP[p.positions[0]] && q.id !== p.id).length
   if (samePos < 3 && p.contract.role === 'Crucial') return { willing: false, reason: `${club.short} have no cover for ${p.name}.` }
@@ -108,14 +132,37 @@ export function playerInterest(w: World, p: Player, clubId: number): number {
   return clamp(Math.round(s), 0, 100)
 }
 
+/** The shape a club plays: the manager's own sheet for his club, the AI manager's formation for the rest. */
+export function clubFormation(w: World, clubId: number): string {
+  const club = w.clubs[clubId]
+  if (clubId === w.userClubId && club?.sheets?.[0]?.formation) return club.sheets[0].formation
+  return w.managers[club?.managerId]?.formation || club?.sheets?.[0]?.formation || '4-3-3 Holding'
+}
+
+/** How many places a club's system has in a player's line (wingers, full-backs, strikers...). */
+export function slotsInLine(w: World, clubId: number, pos: string): number {
+  const line = LINE_OF(pos)
+  return formationOf(clubFormation(w, clubId)).slots.filter((s) => LINE_OF(s.pos) === line).length
+}
+
+/**
+ * The role a club would give a player: where he'd stand in his own line, in the shape the club plays (a second
+ * striker in a one-striker system is a squad player however good he is), with the squad's few best players crucial.
+ */
 export function roleForBuyer(w: World, p: Player, clubId: number): SquadRole {
-  const squad = rosterOf(w, clubId).filter((q) => q.id !== p.id).sort((a, b) => b.ovr - a.ovr)
+  const squad = rosterOf(w, clubId).filter((q) => q.id !== p.id && !q.academy)
   const rank = squad.filter((q) => q.ovr > p.ovr).length
   const age = ageOn(p.dob, w.date)
   if (age <= 20 && p.pot - p.ovr >= 8 && rank > 8) return 'Prospect'
-  if (rank < 3) return 'Crucial'
-  if (rank < 9) return 'Important'
-  if (rank < 16) return 'Rotation'
+  const pos = p.positions[0]
+  const line = LINE_OF(pos)
+  const slots = slotsInLine(w, clubId, pos)
+  const mine = posRating(p, pos)
+  const ahead = squad.filter((q) => q.positions.some((x) => LINE_OF(x) === line) && posRating(q, pos) > mine).length
+  // no place for his line in their system: he'd be fitted in elsewhere, at best rotating
+  if (slots === 0) return rank < 6 ? 'Rotation' : 'Sparingly'
+  if (ahead < slots) return rank < 3 ? 'Crucial' : 'Important'
+  if (ahead < slots + 1) return 'Rotation'
   return 'Sparingly'
 }
 
@@ -272,6 +319,7 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
     transferListed: p.transferListed, loanListed: p.loanListed, untouchable: p.untouchable, morale: p.morale,
     season: JSON.parse(JSON.stringify(p.season)), careerLen: p.career.length,
     fromBudget: from?.finance.transferBudget ?? 0, toBudget: to.finance.transferBudget, news: w.nextIds.news, msg: w.nextIds.msg, toBalance: to.finance.balance,
+    sellOn: p.sellOn ? { ...p.sellOn } : undefined,
   }
   if (from && !isLoan) noteDeparture(w, p)
   if (from) {
@@ -282,6 +330,8 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
   to.finance.balance -= fee
   to.finance.transferBudget = Math.max(0, to.finance.transferBudget - fee)
   if (to.id === w.userClubId && fee) to.finance.ledger.push({ date: w.date, label: `Signing of ${p.name}`, amount: -fee, kind: 'transfer' })
+  // a sell-on clause from the move that brought him to the selling club: its share of this fee goes to that club
+  const sellOnPaid = !isLoan && fee > 0 && from ? paySellOn(w, p, from, to.id, fee) : undefined
   // swap player
   if (o.swapPlayerId && from) {
     const sp = w.players[o.swapPlayerId]
@@ -313,6 +363,8 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
   }
   setPlayerClub(w, p, to.id)
   p.joinedDate = w.date
+  // a clause agreed in this deal follows him to his new club (one from before has been paid or lapses with the move)
+  if (!isLoan) p.sellOn = o.sellOn && fee > 0 && from ? { clubId: from.id, pct: o.sellOn } : undefined
   p.transferListed = false
   p.loanListed = false
   p.untouchable = false
@@ -351,20 +403,74 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
   }
   const range = (a: number, b: number, pre: string) => Array.from({ length: Math.max(0, b - a) }, (_, i) => `${pre}${a + i}`)
   recordDone(w, {
-    p, from: prevClub, to: to.id, fee, kind: isLoan ? 'loan' : prevClub ? 'transfer' : 'free', storyId, wage: p.wage, years: isLoan ? undefined : p.contract.until - w.season,
+    p, from: prevClub, to: to.id, fee, kind: isLoan ? 'loan' : prevClub ? 'transfer' : 'free', storyId: storyId ?? offerStory(w, o)?.id, wage: p.wage, years: isLoan ? undefined : p.contract.until - w.season,
     undo: {
       date: w.date, fee, fromClub: prevClub, toClub: to.id, type: isLoan ? 'loan' : prevClub ? 'transfer' : 'free',
       contract: before.contract, wage: before.wage, jersey: before.jersey, loan: before.loan, joinedDate: before.joinedDate,
       transferListed: before.transferListed, loanListed: before.loanListed, untouchable: before.untouchable, morale: before.morale,
       season: before.season, careerLen: before.careerLen,
       fromBudgetAdded: from ? from.finance.transferBudget - before.fromBudget : 0, toBudgetSpent: before.toBudget - to.finance.transferBudget,
+      sellOn: before.sellOn, sellOnPaid,
       signingBonus: Math.max(0, before.toBalance - to.finance.balance - fee),
       newsIds: range(before.news, w.nextIds.news, 'n'), inboxIds: range(before.msg, w.nextIds.msg, 'm'), swap: !!o.swapPlayerId,
     },
   })
 }
 
-function boardReinvest(w: World) {
+/** Pay a player's sell-on clause out of the fee his club has just received for him. */
+function paySellOn(w: World, p: Player, seller: Club, buyerId: number, fee: number): { clubId: number; amount: number; budget: number } | undefined {
+  const c = p.sellOn
+  if (!c || c.clubId === seller.id) return undefined
+  const ben = w.clubs[c.clubId]
+  if (!ben) return undefined
+  const amount = roundValue(fee * c.pct / 100)
+  if (!amount) return undefined
+  seller.finance.balance -= amount
+  seller.finance.transferBudget = Math.max(0, seller.finance.transferBudget - amount)
+  ben.finance.balance += amount
+  const budget = Math.round(amount * (ben.id === w.userClubId ? boardReinvest(w) : STYLE_REINVEST[finStyle(w, ben)]))
+  ben.finance.transferBudget += budget
+  if (seller.id === w.userClubId) seller.finance.ledger.push({ date: w.date, label: `Sell-on to ${ben.short}: ${p.name}`, amount: -amount, kind: 'transfer' })
+  if (ben.id === w.userClubId) {
+    ben.finance.ledger.push({ date: w.date, label: `Sell-on: ${p.name}`, amount, kind: 'transfer' })
+    sendInbox(w, { from: staffNames(w).director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Sell-on payment: ${p.name}`, body: `${p.name} has joined ${w.clubs[buyerId]?.name} from ${seller.name} for ${fmtMoney(fee)}. Our ${c.pct}% sell-on clause brings us ${fmtMoney(amount)}.`, actions: [], playerId: p.id, image: { kind: 'player', id: p.id } })
+  }
+  return { clubId: ben.id, amount, budget }
+}
+
+/**
+ * A loan becomes a permanent move: the obligation at the end of the loan, or an option the borrowing club has taken
+ * up. The fee goes to the parent club, he stays on his contract, now with the borrowing club.
+ */
+export function completeLoanPurchase(w: World, p: Player) {
+  const l = p.loan
+  if (!l || !l.optionFee) return
+  const buyer = w.clubs[p.clubId], parent = w.clubs[l.fromClubId]
+  const fee = l.optionFee
+  if (buyer) {
+    buyer.finance.balance -= fee
+    buyer.finance.transferBudget = Math.max(0, buyer.finance.transferBudget - fee)
+    if (buyer.id === w.userClubId) buyer.finance.ledger.push({ date: w.date, label: `${l.obligation && !l.exercised ? 'Loan obligation' : 'Option to buy'}: ${p.name}`, amount: -fee, kind: 'transfer' })
+  }
+  if (parent) {
+    parent.finance.balance += fee
+    parent.finance.transferBudget += Math.round(fee * (parent.id === w.userClubId ? boardReinvest(w) : STYLE_REINVEST[finStyle(w, parent)]))
+    if (parent.id === w.userClubId) parent.finance.ledger.push({ date: w.date, label: `Sale of ${p.name} (loan made permanent)`, amount: fee, kind: 'transfer' })
+  }
+  recordHistory(w, p, l.fromClubId, p.clubId, fee, 'loan-buy')
+  p.loan = undefined
+  if (buyer) p.contract = { ...p.contract, role: l.expectation || roleForBuyer(w, p, buyer.id), signedOn: w.date }
+  p.joinedDate = w.date
+  if (buyer && (fee >= 8e6 || buyer.id === w.userClubId || parent?.id === w.userClubId)) postNews(w, {
+    headline: `${p.name}'s move to ${buyer.short} made permanent`,
+    body: `${buyer.name} have ${l.exercised || !l.obligation ? 'taken up their option to sign' : 'completed the agreed purchase of'} ${p.name} from ${parent?.name || 'his parent club'} for ${fmtMoney(fee)} at the end of his loan.`,
+    kind: 'transfer', playerIds: [p.id], clubIds: [buyer.id, ...(parent ? [parent.id] : [])], fee, importance: fee >= 25e6 ? 4 : 3, userRelated: buyer.id === w.userClubId || parent?.id === w.userClubId,
+  })
+  touchRoster(w)
+}
+
+/** Share of a sale fee the board adds to the manager's transfer budget (by difficulty). */
+export function boardReinvest(w: World) {
   const d = w.settings.difficulty
   return d === 'Beginner' || d === 'Amateur' ? 1 : d === 'Legendary' || d === 'Ultimate' ? 0.6 : 0.8
 }
@@ -575,7 +681,17 @@ function aiClubDay(w: World, club: Club, rng: Rng, windowOpen: boolean) {
   let target: Player | undefined
   let fee = 0
   for (const cand of list) {
-    if (cand.clubId === w.userClubId) { if (need.priority >= 3 && rng.next() < 0.5) { aiBidForUserPlayer(w, club, cand, rng); return } continue }
+    if (cand.clubId === w.userClubId) {
+      if (need.priority >= 3 && rng.next() < 0.5 && !cand.untouchable) {
+        const fee = roundValue(askingPrice(w, cand, club.id) * (0.75 + rng.next() * 0.3))
+        if (fee <= club.finance.transferBudget * 1.1) {
+          if (rng.next() < 0.6) aiInterestInUserPlayer(w, club, cand, fee, rng)
+          else aiBidForUserPlayer(w, club, cand, rng, undefined, fee)
+        }
+        return
+      }
+      continue
+    }
     if (cand.clubId) {
       const terms = aiSellerTerms(w, cand, club)
       if (!terms.ok) { miss('seller refuses'); continue }
@@ -648,19 +764,64 @@ export function aiTransferDay(w: World, rng: Rng) {
   for (const c of picks) aiClubDay(w, c, rng, true)
   // paper talk
   for (let k = rng.next() < 0.5 ? 2 : 1; k > 0; k--) if (rng.next() < 0.6 * intensity) paperTalk(w, rng)
+  // now and then a club with the money, the standing and a real need comes in for one of the manager's players
+  if (rng.next() < (deadline ? 0.15 : win.name === 'Summer' ? 0.05 : 0.03)) interestInUserSquad(w, rng)
 }
 
-function aiBidForUserPlayer(w: World, club: Club, p: Player, rng: Rng) {
+/**
+ * Real interest in the manager's players: a club that could afford him, is of a standing he'd consider, and has a
+ * need in his line that he would fill. Unhappy players, expiring contracts and the listed are looked at first. The
+ * interest is reported before the bid more often than not.
+ */
+function interestInUserSquad(w: World, rng: Rng) {
+  const me = w.clubs[w.userClubId]
+  if (!me || w.flags.unemployed) return
+  const squad = rosterOf(w, me.id).filter((p) => !p.untouchable && !p.loan && !p.academy && p.ovr >= me.squadAvg - 6 && settlingIn(w, p) === undefined)
+  if (!squad.length) return
+  const p = rng.weighted(squad, (q) => (q.morale < 40 ? 3 : 1) * (yearsLeft(w, q) <= 1 ? 2 : 1) * (q.transferListed ? 3 : 1) * Math.max(0.2, (q.ovr - me.squadAvg + 8) / 8))
+  if (Object.values(w.transfers.offers).some((o) => o.playerId === p.id && o.userIsSeller && ['Offer Submitted', 'Counter Offer'].includes(o.status))) return
+  if (storiesFor(w, (s) => s.playerId === p.id && isOpen(s)).length) return
+  const line = LINE_OF(p.positions[0])
+  // (one pursuit of his players at a time per club)
+  const busy = new Set(storiesFor(w, (s) => s.from === me.id && isOpen(s)).map((s) => s.to))
+  const clubs = Object.values(w.clubs).filter((c) => c.id !== me.id && !busy.has(c.id) && !c.national && c.leagueId && c.market?.buy !== -2 && c.reputation >= me.reputation - 10 && c.finance.transferBudget >= p.value * 1.1)
+  if (!clubs.length) return
+  // a handful of them looked at closely: a need in his line he would fill
+  const look = Array.from({ length: Math.min(10, clubs.length) }, () => rng.pick(clubs))
+  const fits = [...new Set(look)].filter((c) => squadPlan(w, c).needs.some((n) => LINE_OF(n.pos) === line && posRating(p, n.pos) >= n.minRating))
+  if (!fits.length) return
+  const buyer = rng.pick(fits)
+  // a move he wouldn't entertain doesn't get as far as a bid (or a story)
+  if (moveAppeal(w, p, buyer.id).score < -6) return
+  const fee = roundValue(askingPrice(w, p, buyer.id) * (0.78 + rng.next() * 0.25))
+  if (fee > buyer.finance.transferBudget) return
+  if (rng.next() < 0.65) aiInterestInUserPlayer(w, buyer, p, fee, rng)
+  else aiBidForUserPlayer(w, buyer, p, rng, undefined, fee)
+}
+
+/**
+ * How long the manager has to answer a bid: a week, or until the window shuts if that is sooner (on deadline day,
+ * the same day). Advancing a day without opening the message does not lose it.
+ */
+export function replyBy(w: World): string {
+  const win = currentWindow(w)
+  const days = win ? Math.max(0, Math.min(7, diffDays(win.close, w.date))) : 7
+  return addDays(w.date, days)
+}
+
+/** An AI club bids for one of the manager's players (following the report of its interest, if there was one). */
+export function aiBidForUserPlayer(w: World, club: Club, p: Player, rng: Rng, story?: TransferStory, feeHint?: number) {
   if (Object.values(w.transfers.offers).some((o) => o.playerId === p.id && o.userIsSeller && ['Offer Submitted', 'Counter Offer'].includes(o.status))) return
   if (p.untouchable) return
   const ask = askingPrice(w, p, club.id)
-  const fee = roundValue(ask * (0.75 + rng.next() * 0.3))
+  const fee = roundValue(feeHint ? feeHint * (0.97 + rng.next() * 0.06) : ask * (0.75 + rng.next() * 0.3))
   if (fee > club.finance.transferBudget * 1.1) return
   const o = makeOffer(w, { playerId: p.id, fee, type: 'transfer', fromClubId: club.id })
   o.userIsBuyer = false
   o.userIsSeller = true
   o.status = 'Offer Submitted'
-  o.respondBy = addDays(w.date, 3)
+  o.respondBy = replyBy(w)
+  syncOfferStory(w, o, undefined, story)
   const staff = staffNames(w)
   sendInbox(w, {
     from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Offer received for ${p.name}`,
@@ -688,6 +849,7 @@ export function processOffers(w: World, rng: Rng) {
         ? [{ label: 'Negotiate Contract', action: 'openContract', payload: o.id, primary: true }]
         : res === 'counter' ? [{ label: `Accept ${fmtMoney(o.counterFee!)}`, action: 'acceptCounter', payload: o.id, primary: true }, { label: 'Revise Offer', action: 'openOffer', payload: p.id }]
           : res === 'reject' ? [{ label: 'Revise Offer', action: 'openOffer', payload: p.id, primary: true }] : []
+      syncOfferStory(w, o)
       sendInbox(w, {
         from: staff.director, fromRole: 'Sporting Director', category: 'Transfers',
         subject: res === 'accept' ? `${seller.short} accept offer for ${p.name}` : res === 'counter' ? `${seller.short} counter-offer for ${p.name}` : res === 'walk' ? `${seller.short} end talks for ${p.name}` : `${seller.short} reject offer for ${p.name}`,
@@ -695,9 +857,27 @@ export function processOffers(w: World, rng: Rng) {
         actions, playerId: p.id, clubId: seller.id, urgent: res === 'accept' || res === 'counter', image: { kind: 'player', id: p.id },
       })
     }
-    // AI bids expiring for user players
-    if (o.userIsSeller && o.status === 'Offer Submitted' && o.respondBy && w.date > o.respondBy) {
+    // a club's bid for one of the manager's players that he never answered: they withdraw it, and say so
+    if (o.userIsSeller && (o.status === 'Offer Submitted' || o.status === 'Counter Offer') && o.respondBy && w.date > o.respondBy) {
+      const p = w.players[o.playerId], buyer = w.clubs[o.fromClubId]
       o.status = 'Negotiations Failed'
+      o.history.push({ date: w.date, by: 'buyer', text: `${buyer?.short} withdraw their offer: no reply came.` })
+      for (const m of w.inbox) if (m.actions.some((a) => a.payload === o.id)) { m.resolved = true; m.read = true }
+      if (p && buyer) {
+        syncOfferStory(w, o, `${buyer.short} withdraw their ${fmtMoney(o.fee)} bid for ${callName(p.name)} after getting no reply.`)
+        sendInbox(w, { from: staffNames(w).director, fromRole: 'Sporting Director', category: 'Transfers', subject: `${buyer.short} withdraw their offer for ${p.name}`, body: `We didn't answer ${buyer.name}'s ${fmtMoney(o.fee)} offer for ${p.name} by ${fmtDate(o.respondBy, 'dm')}, so they have withdrawn it.`, actions: [], playerId: p.id, clubId: buyer.id, image: { kind: 'club', id: buyer.id } })
+      }
+    }
+    // the manager's own bid, turned down or countered, that he never followed up: the selling club moves on
+    if (o.userIsBuyer && (o.status === 'Offer Rejected' || o.status === 'Counter Offer')) {
+      const last = o.history[o.history.length - 1]
+      if (last && diffDays(w.date, last.date) >= 10) {
+        const seller = w.clubs[o.toClubId], p = w.players[o.playerId]
+        o.status = 'Negotiations Failed'
+        o.history.push({ date: w.date, by: 'seller', text: `${seller?.short || 'They'} have moved on: no improved offer came.` })
+        const t = p && w.transfers.targets[p.id]; if (t) t.status = 'Negotiations Failed'
+        if (p) syncOfferStory(w, o, `Talks go cold: ${w.clubs[o.fromClubId]?.short} never came back with an improved offer for ${callName(p.name)}.`)
+      }
     }
   }
 }

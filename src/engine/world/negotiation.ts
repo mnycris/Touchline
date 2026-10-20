@@ -7,6 +7,7 @@ import { POS_GROUP } from '../../domain/constants'
 import { fmtMoney, roundValue, roundWage } from '../../domain/finance'
 import { contractDemand, playerInterest, roleForBuyer } from './transfers'
 import { postNews, sendInbox } from './messages'
+import { syncOfferStory } from './market'
 import { callName } from '../match/commentary'
 import { finStyle } from './squadPlan'
 
@@ -470,7 +471,9 @@ export function respondToContract(w: World, t: Talks, c: ContractOffer, rng: Rng
         // alternative structure: shift part of the wage into a signing-on fee or a longer deal
         if (rng.next() < 0.55 || age >= 30) {
           const altWage = roundWage(t.floor * 1.01)
-          const altBonus = roundValue((t.ask.wage - altWage) * 52 * t.ask.years * 0.9)
+          // part of the wage gap paid up front: at most two seasons of it, and never more than 60% of a year's wages
+          // (the whole gap over a five-year deal in one payment was a demand no club would see)
+          const altBonus = roundValue(Math.min((t.ask.wage - altWage) * 52 * Math.min(2, t.ask.years) * 0.85, t.ask.wage * 52 * 0.6))
           t.suggest = { wage: altWage, bonus: altBonus, years: Math.min(c.years, t.ask.years) }
           say('alt', { altWage: fmtMoney(altWage), altBonus: fmtMoney(altBonus) }, 'good')
         } else {
@@ -506,7 +509,7 @@ function applyWalkout(w: World, t: Talks, rng: Rng) {
   if (t.kind === 'sign') {
     if (t.offerId) {
       const o = w.transfers.offers[t.offerId]
-      if (o) { o.status = 'Negotiations Failed'; o.history.push({ date: w.date, by: 'player', text: `${p.name} rejected personal terms.` }) }
+      if (o) { o.status = 'Negotiations Failed'; o.history.push({ date: w.date, by: 'player', text: `${p.name} rejected personal terms.` }); syncOfferStory(w, o) }
     }
     const tg = w.transfers.targets[p.id]; if (tg) tg.status = 'Negotiations Failed'
     if (p.ovr >= 76) postNews(w, { headline: `${p.name} talks with ${club.short} collapse`, body: `${p.name}'s representatives have ended contract discussions with ${club.name}, sources close to the player say. The two sides were unable to agree personal terms.`, kind: 'transfer', playerIds: [p.id], clubIds: [club.id], importance: 2, userRelated: true })

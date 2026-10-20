@@ -18,7 +18,7 @@ import { ageOf, avgRating, compLogoKey, playerStatus, totals } from '../selector
 import { playStyleIcon } from '../../services/assets'
 import { attrsVisible, knowledge, potRange, scoutPlayer } from '../../engine/world/scouting'
 import { askingPrice, playerInterest, sellerStance, yearsLeft } from '../../engine/world/transfers'
-import { recallLoan, releaseCost, releaseUserPlayer, setJersey, setLoanListed, setSquadRole, setTransferListed, setUntouchable } from '../../engine/world/userActions'
+import { recallLoan, exerciseLoanOption, releaseCost, releaseUserPlayer, setJersey, setLoanListed, setSquadRole, setTransferListed, setUntouchable } from '../../engine/world/userActions'
 import { rosterOf } from '../../engine/world/roster'
 import { RatingBadge } from './Match'
 import { Balls, Boots } from '../components/Lineup'
@@ -178,7 +178,10 @@ function PlayerActions({ w, p, mine }: { w: World; p: Player; mine: boolean }) {
           <div className="li"><Icon name="contract" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Contract until 30 June {p.contract.until + 1}</div><div className="s">{fmtMoney(p.contract.wage)}/wk{p.contract.releaseClause ? ` · Release clause ${fmtMoney(p.contract.releaseClause)}` : ''}</div></div>{!loanedOut && !p.loan && <button className="btn xs club" onClick={() => open({ name: 'renewal', params: { id: p.id } })}>Renew</button>}</div>
           {!loanedOut && <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setRoleOpen(true)}><Icon name="squad" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Squad role</div><div className="s">{p.contract.role}</div></div><Icon name="forward" size={16} color="var(--t3)" /></button>}
           {!loanedOut && <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setNumOpen(true)}><Icon name="squad" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Shirt number</div><div className="s">#{p.jersey}</div></div><Icon name="forward" size={16} color="var(--t3)" /></button>}
-          {p.loan && !loanedOut && <div className="li"><Icon name="loan" size={18} color="var(--info)" /><div className="meta"><div className="t small">On loan from {w.clubs[p.loan.fromClubId]?.name}</div><div className="s">Until {fmtDate(p.loan.until, 'long')} · {p.loan.wageSplit}% wages paid by parent club{p.loan.optionFee ? ` · option ${fmtMoney(p.loan.optionFee)}` : ''}</div></div></div>}
+          {p.loan && !loanedOut && <div className="li"><Icon name="loan" size={18} color="var(--info)" /><div className="meta"><div className="t small">On loan from {w.clubs[p.loan.fromClubId]?.name}</div><div className="s">Until {fmtDate(p.loan.until, 'long')} · you pay {p.loan.wageSplit ?? 50}% of his wages{p.loan.optionFee ? ` · ${p.loan.obligation ? 'obligation to buy' : p.loan.exercised ? 'option taken up' : 'option to buy'} ${fmtMoney(p.loan.optionFee)}` : ''}</div></div>
+            {p.loan.optionFee && !p.loan.obligation && !p.loan.exercised && <button className="btn xs club" onClick={() => { haptic('medium'); let r = { ok: false, text: '' }; mutate((w) => { r = exerciseLoanOption(w, w.players[p.id]) }, { roster: true }); notify(r.text, r.ok ? 'ok' : 'err') }}>Buy</button>}
+          </div>}
+          {p.sellOn && w.clubs[p.sellOn.clubId] && <div className="li"><Icon name="money" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Sell-on clause</div><div className="s">{w.clubs[p.sellOn.clubId].name} get {p.sellOn.pct}% of the fee when he is sold</div></div></div>}
           {loanedOut && <div className="li"><Icon name="loan" size={18} color="var(--info)" /><div className="meta"><div className="t small">On loan at {w.clubs[p.clubId]?.name}</div><div className="s">Until {fmtDate(p.loan!.until, 'long')}</div></div><button className="btn xs" onClick={() => { let r = { ok: false, text: '' }; mutate((w) => { r = recallLoan(w, p) }, { roster: true }); notify(r.text, r.ok ? 'ok' : 'err') }}>Recall</button></div>}
         </div>
         {!loanedOut && !p.loan && (

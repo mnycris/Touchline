@@ -5,8 +5,10 @@ import type { ContractOffer, Player, SquadRole, TransferOffer, World } from '../
 import { Rng, clamp } from '../../domain/rng'
 import { addDays, ageOn, fmtDate } from '../../domain/dates'
 import { fmtMoney, roundValue } from '../../domain/finance'
-import { askingPrice, contractDemand, evaluateContract, evaluateOffer, executeTransfer, makeOffer, playerInterest, releasePlayer, roleForBuyer, sellerStance, yearsLeft } from './transfers'
-import { rosterOf, setPlayerClub } from './roster'
+import { askingPrice, completeLoanPurchase, contractDemand, evaluateContract, evaluateOffer, executeTransfer, makeOffer, playerInterest, releasePlayer, replyBy, roleForBuyer, sellerStance, yearsLeft } from './transfers'
+import { offerStory, syncOfferStory } from './market'
+import { callName } from '../match/commentary'
+import { rosterOf, setPlayerClub, wageBill as clubWageBill } from './roster'
 import { postNews, sendInbox, staffNames } from './messages'
 import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { blockedText, openContractTalks, respondToContract, talksBlock, type TalkLine, type Talks } from './negotiation'
@@ -30,7 +32,7 @@ function withRng<T>(w: World, fn: (rng: Rng) => T): T {
 }
 
 export function wageBill(w: World, clubId = w.userClubId): number {
-  return rosterOf(w, clubId).reduce((a, p) => a + (p.loan && p.loan.fromClubId !== clubId ? p.contract.wage * (1 - (p.loan.wageSplit ?? 50) / 100) : p.contract.wage), 0)
+  return clubWageBill(w, clubId)
 }
 export function wageRoom(w: World): number {
   const c = w.clubs[w.userClubId]
@@ -75,6 +77,8 @@ export function acceptIncomingBid(w: World, offerId: string): Outcome {
   const buyer = w.clubs[o.fromClubId]
   if (!isWindowOpen(w)) {
     o.status = 'Awaiting Window'
+    syncOfferStory(w, o, `${w.clubs[w.userClubId].short} accept ${buyer.short}'s ${fmtMoney(o.fee)} bid: ${callName(p.name)} joins them when the window opens.`)
+    resolveMessages(w, offerId)
     return { ok: true, text: `Deal agreed. ${p.name} will join ${buyer.short} when the window opens.` }
   }
   executeTransfer(w, o)
@@ -90,12 +94,15 @@ export function rejectIncomingBid(w: World, offerId: string): Outcome {
   o.status = 'Offer Rejected'
   resolveMessages(w, offerId)
   const buyer = w.clubs[o.fromClubId]
+  const story = offerStory(w, o)
+  const us = w.clubs[w.userClubId].short
   return withRng(w, (rng) => {
     // a determined club may come back with an improved bid
     if (rng.next() < 0.4 && buyer.finance.transferBudget > o.fee * 1.15) {
       const fee = roundValue(o.fee * (1.1 + rng.next() * 0.12))
       const n = makeOffer(w, { playerId: p.id, fee, type: 'transfer', fromClubId: buyer.id })
-      n.userIsBuyer = false; n.userIsSeller = true; n.respondBy = addDays(w.date, 3)
+      n.userIsBuyer = false; n.userIsSeller = true; n.respondBy = replyBy(w)
+      syncOfferStory(w, n, `${us} turn down ${buyer.short}'s ${fmtMoney(o.fee)} bid; ${buyer.short} come straight back with ${fmtMoney(fee)}.`, story)
       sendInbox(w, {
         from: staffNames(w).director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Improved offer for ${p.name}`,
         body: `${buyer.name} have come back with an improved offer of ${fmtMoney(fee)} for ${p.name}.`,
@@ -104,6 +111,7 @@ export function rejectIncomingBid(w: World, offerId: string): Outcome {
       })
       return { ok: true, text: `Offer rejected. ${buyer.short} have returned with ${fmtMoney(fee)}.` }
     }
+    syncOfferStory(w, o)
     return { ok: true, text: `You rejected ${buyer.short}'s offer for ${p.name}.` }
   })
 }
@@ -131,12 +139,15 @@ export function counterIncomingBid(w: World, offerId: string, fee: number): Outc
     if (o.patience <= 0) {
       o.status = 'Negotiations Failed'
       resolveMessages(w, offerId)
+      syncOfferStory(w, o, `${buyer.short} walk away: ${w.clubs[w.userClubId].short} wanted ${fmtMoney(fee)} for ${callName(p.name)}.`)
       return { ok: false, text: line([`We're walking away. ${fmtMoney(fee)} is not realistic for ${p.name}.`, `That's too much for us. ${buyer.short} are ending talks and moving on to other targets.`, `We've made our position clear. Good luck selling him elsewhere.`]), status: o.status }
     }
     const counter = roundValue(Math.min(max, o.fee + (fee - o.fee) * (gap > 1.3 ? 0.25 : 0.5)))
     const moved = counter > o.fee
     o.fee = counter
     o.history.push({ date: w.date, by: 'buyer', text: `${buyer.short} improve their offer to ${fmtMoney(counter)}.`, fee: counter })
+    o.respondBy = replyBy(w)
+    syncOfferStory(w, o, `${w.clubs[w.userClubId].short} hold out for ${fmtMoney(fee)}; ${buyer.short} ${moved ? `go to ${fmtMoney(counter)}` : `stay at ${fmtMoney(counter)}`}.`)
     const text = !moved
       ? line([`${fmtMoney(counter)} is our limit. We can't go any higher.`, `We won't go beyond ${fmtMoney(counter)}. Take it or leave it.`, `That is our final offer: ${fmtMoney(counter)}.`])
       : gap > 1.3
@@ -173,12 +184,14 @@ export function submitBid(w: World, p: Player, terms: BidTerms, existing?: strin
     o = makeOffer(w, { playerId: p.id, ...terms, patience: 100 })
   }
   const offer = o
+  syncOfferStory(w, offer)
   // Edit Mode override: the selling club agrees to this bid
   const forced = w.meta.editMode && w.flags.editAccept?.[p.id]
   const res = forced ? (editNegotiation(w, offer.id, { accept: true }), 'accept' as const) : withRng(w, (rng) => evaluateOffer(w, offer, rng))
   const last = offer.history[offer.history.length - 1]
   const t = w.transfers.targets[p.id]
   if (t) t.status = offer.status
+  syncOfferStory(w, offer)
   if (res === 'accept') return { ok: true, text: last.text, status: offer.status, offerId: offer.id }
   if (res === 'counter') return { ok: false, text: last.text, status: offer.status, counter: offer.counterFee, offerId: offer.id }
   return { ok: false, text: last.text, status: offer.status, offerId: offer.id }
@@ -194,6 +207,7 @@ export function acceptCounter(w: World, offerId: string): Outcome {
   o.history.push({ date: w.date, by: 'buyer', text: `You accept ${fmtMoney(o.fee)}.`, fee: o.fee })
   const t = w.transfers.targets[o.playerId]
   if (t) t.status = o.status
+  syncOfferStory(w, o)
   resolveMessages(w, offerId)
   return { ok: true, text: `Fee agreed at ${fmtMoney(o.fee)}. Open contract talks with the player.` }
 }
@@ -218,12 +232,14 @@ export function proposeContract(w: World, offerId: string | undefined, p: Player
   if (o.type === 'pre-contract') {
     o.status = 'Pre-Contract'
     const t = w.transfers.targets[p.id]; if (t) t.status = 'Pre-Contract'
+    syncOfferStory(w, o)
     postNews(w, { headline: `${p.name} agrees pre-contract with ${club.short}`, body: `${p.name} will join ${club.name} on a free transfer when his contract with ${w.clubs[p.clubId]?.name} expires in the summer.`, kind: 'transfer', playerIds: [p.id], clubIds: [club.id, p.clubId], importance: 3, userRelated: true })
     return { ok: true, text: `${p.name} has agreed a pre-contract and will join on 1 July.`, status: 'accept' }
   }
   if (!isWindowOpen(w) && p.clubId) {
     o.status = 'Awaiting Window'
     const t = w.transfers.targets[p.id]; if (t) t.status = 'Awaiting Window'
+    syncOfferStory(w, o)
     const next = w.windows.map((x) => x.open).filter((d) => d > w.date).sort()[0]
     return { ok: true, text: `Agreed! ${p.name} will join when the window opens${next ? ` on ${fmtDate(next, 'dm')}` : ''}.`, status: 'accept' }
   }
@@ -294,21 +310,23 @@ export function processPendingDeals(w: World, rng: Rng) {
       const ok = demand.wage <= wageRoom(w) && playerInterest(w, p, club.id) >= 30
       if (ok) {
         if (open) executeTransfer(w, o, demand)
-        else { o.contractTerms = demand; o.status = 'Awaiting Window' }
+        else { o.contractTerms = demand; o.status = 'Awaiting Window'; syncOfferStory(w, o) }
         sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Deal done: ${p.name}`, body: `I've agreed a ${d.type === 'loan' ? 'loan' : `fee of ${fmtMoney(o.fee)}`} with ${w.clubs[o.toClubId]?.name} and personal terms of ${fmtMoney(demand.wage)}/wk over ${demand.years} years.${open ? '' : ' He joins when the window opens.'}`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id, image: { kind: 'player', id: p.id } })
         continue
       }
       o.status = 'Negotiations Failed'
+      syncOfferStory(w, o, `The clubs agreed a fee, but ${callName(p.name)}'s wage demands were beyond ${club.short}.`)
       sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `${p.name}: personal terms failed`, body: `The clubs agreed a fee, but ${p.name}'s demands (${fmtMoney(demand.wage)}/wk) were beyond what we can offer.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id })
       continue
     }
+    if (o) { if (o.status !== 'Negotiations Failed') o.status = 'Negotiations Failed'; syncOfferStory(w, o, `${w.clubs[o.toClubId]?.short} would not sell ${callName(p.name)} within ${club.short}'s limit of ${fmtMoney(d.maxFee)}.`) }
     sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `No deal for ${p.name}`, body: `${w.clubs[p.clubId]?.name} would not accept an offer within your limit of ${fmtMoney(d.maxFee)}. ${o?.history[o.history.length - 1]?.text || ''}`, actions: [{ label: 'Negotiate Yourself', action: 'openOffer', payload: p.id, primary: true }], playerId: p.id })
   }
   // deals waiting for the window to open
   if (open) for (const o of Object.values(w.transfers.offers)) {
     if (o.status !== 'Awaiting Window') continue
     const p = w.players[o.playerId]
-    if (!p || p.clubId !== o.toClubId) { o.status = 'Negotiations Failed'; continue }
+    if (!p || p.clubId !== o.toClubId) { o.status = 'Negotiations Failed'; syncOfferStory(w, o, p ? `The deal fell through: ${callName(p.name)} is no longer at ${w.clubs[o.toClubId]?.short || 'the club'}.` : undefined); continue }
     executeTransfer(w, o, o.contractTerms)
     if (o.userIsSeller) for (const s of club.sheets) { s.lineup = s.lineup.map((id) => (id === p.id ? 0 : id)); s.bench = s.bench.filter((id) => id !== p.id) }
   }
@@ -334,7 +352,8 @@ export function processPendingDeals(w: World, rng: Rng) {
       const loan = p.loanListed
       const fee = loan ? 0 : roundValue(askingPrice(w, p, buyer.id) * (0.72 + rng.next() * 0.3))
       const o = makeOffer(w, { playerId: p.id, fee, type: loan ? 'loan' : 'transfer', fromClubId: buyer.id, loanWageSplit: loan ? rng.pick([50, 75, 100]) : undefined })
-      o.userIsBuyer = false; o.userIsSeller = true; o.respondBy = addDays(w.date, 3)
+      o.userIsBuyer = false; o.userIsSeller = true; o.respondBy = replyBy(w)
+      syncOfferStory(w, o)
       sendInbox(w, {
         from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: loan ? `Loan offer for ${p.name}` : `Offer received for ${p.name}`,
         body: loan ? `${buyer.name} want to take ${p.name} (${age}) on loan until the end of the season, covering ${o.loanWageSplit}% of his wages. It would give him regular football.` : `${buyer.name} have bid ${fmtMoney(fee)} for ${p.name}. His market value is ${fmtMoney(p.value)}.`,
@@ -343,6 +362,22 @@ export function processPendingDeals(w: World, rng: Rng) {
       })
     }
   }
+}
+
+/** Take up the option to buy a player the manager has on loan: now if a window is open, else when the loan ends. */
+export function exerciseLoanOption(w: World, p: Player): Outcome {
+  const club = w.clubs[w.userClubId]
+  const l = p.loan
+  if (!l || p.clubId !== club.id || !l.optionFee) return { ok: false, text: 'There is no option to take up.' }
+  if (l.obligation) return { ok: false, text: `The purchase is already agreed: ${p.name} joins permanently when his loan ends.` }
+  if (l.exercised) return { ok: false, text: 'You have already taken up the option.' }
+  if (l.optionFee > club.finance.transferBudget) return { ok: false, text: `Taking up the option costs ${fmtMoney(l.optionFee)}; your transfer budget is ${fmtMoney(club.finance.transferBudget)}.` }
+  if (isWindowOpen(w)) {
+    completeLoanPurchase(w, p)
+    return { ok: true, text: `${p.name} has joined permanently for ${fmtMoney(l.optionFee)}.` }
+  }
+  l.exercised = true
+  return { ok: true, text: `Option taken up: ${p.name} joins permanently for ${fmtMoney(l.optionFee)} when his loan ends on ${fmtDate(l.until, 'dm')}.` }
 }
 
 export function recallLoan(w: World, p: Player): Outcome {

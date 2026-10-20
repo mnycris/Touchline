@@ -49,6 +49,27 @@ export function setPlayerClub(w: World, p: Player, clubId: number) {
   touchRoster(w)
 }
 
+/**
+ * What a club pays a player each week: his wage, or its share of it during a loan (the borrowing club pays the split
+ * agreed in the loan, his parent club the rest).
+ */
+export function wageShare(p: Player, clubId: number): number {
+  const wage = p.contract.wage || 0
+  if (!p.loan) return p.clubId === clubId ? wage : 0
+  const borrower = (p.loan.wageSplit ?? 50) / 100
+  if (p.clubId === clubId && p.loan.fromClubId !== clubId) return wage * borrower
+  if (p.loan.fromClubId === clubId) return wage * (1 - borrower)
+  return 0
+}
+
+/** A club's weekly wage bill: its squad, its share of loanees' wages, and its share of the players it has loaned out. */
+export function wageBill(w: World, clubId: number): number {
+  let s = 0
+  for (const p of rosterOf(w, clubId)) s += wageShare(p, clubId)
+  for (const p of allPlayers(w)) if (p.loan?.fromClubId === clubId && p.clubId !== clubId) s += wageShare(p, clubId)
+  return Math.round(s)
+}
+
 /** Cached array of every player (valid until the roster version changes). */
 export function allPlayers(w: World): Player[] {
   return index(w).all
