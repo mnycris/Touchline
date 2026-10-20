@@ -1087,6 +1087,8 @@ select.input option { background: #151b27; }
 .mc-next { display: flex; align-items: flex-start; gap: 8px; margin: 0 14px 8px; padding: 8px 10px; border-radius: 10px; background: rgba(var(--club-rgb), .1); color: var(--t2); font-size: 13px; line-height: 1.35; }
 .mc-next .icon, .mc-next svg { flex: none; margin-top: 2px; color: var(--acc); }
 .mc-award .meta .s { white-space: normal; line-height: 1.4; }
+.grid3 > .club-mgr { display: flex; flex-direction: row; align-items: center; gap: 8px; min-width: 0; }
+.or-mgr { gap: 6px; margin-top: 3px; }
 .mc-award-lg { display: block; font-weight: 600; color: var(--t1); font-size: 12px; margin-bottom: 1px; }
 .mc-award-n { flex: none; font-family: var(--display); font-weight: 800; font-size: 14px; padding: 2px 7px; border-radius: 7px; background: var(--gold); color: #1a1405; }
 

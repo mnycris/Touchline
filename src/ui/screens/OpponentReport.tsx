@@ -5,7 +5,7 @@
 import { useMemo } from 'react'
 import { useGame, useWorld } from '../../store/game'
 import { Screen } from '../components/layout'
-import { Badge, Empty, Face } from '../components/atoms'
+import { Badge, Empty, Face, ManagerAvatar } from '../components/atoms'
 import { Icon, type IconName } from '../icons/Icon'
 import { TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
 import { opponentReport, tacticWord, type Breakdown, type Matchup, type OpponentReport as Report, type StyleRow } from '../../engine/world/opponentReport'
@@ -134,7 +134,8 @@ export function OpponentReport({ params }: { params: { id: number; fixtureId?: s
           <Badge club={c} size={58} />
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="h3 ellipsis">{c.name}</div>
-            <div className="tiny dim">{pos ? `${ordinal(pos)} in the ${lg!.short}` : c.country}{mgr ? ` · ${mgr.name}` : ''}</div>
+            <div className="tiny dim">{pos ? `${ordinal(pos)} in the ${lg!.short}` : c.country}</div>
+            {mgr && <div className="tiny dim row tight or-mgr"><ManagerAvatar name={mgr.name} real={mgr.real} size={18} radius={9} nation={mgr.nationality} clubs={[c.name]} /><span className="ellipsis">{mgr.name}</span></div>}
             <div className="or-rec"><b>{recTxt(r.record)}</b><span className="dim"> · {r.record.gf}–{r.record.ga} goals · {r.games} games</span></div>
           </div>
           <Icon name="forward" size={16} color="var(--t3)" />

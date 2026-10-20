@@ -1,0 +1,20 @@
+// How a nationality is written in English: for telling one person from another of the same name.
+export const DEMONYMS: Record<string, string[]> = {
+  Spain: ['Spanish'], Germany: ['German'], Italy: ['Italian'], France: ['French'], Portugal: ['Portuguese'],
+  Argentina: ['Argentine', 'Argentinian'], England: ['English', 'British'], Scotland: ['Scottish', 'British'],
+  Wales: ['Welsh', 'British'], 'Northern Ireland': ['Northern Irish', 'British'], 'Republic of Ireland': ['Irish'],
+  Austria: ['Austrian'], Belgium: ['Belgian'], Croatia: ['Croatian'], Switzerland: ['Swiss'], Netherlands: ['Dutch'],
+  Poland: ['Polish'], Romania: ['Romanian'], Brazil: ['Brazilian'], Türkiye: ['Turkish'], Turkey: ['Turkish'],
+  Chile: ['Chilean'], 'United States': ['American'], Denmark: ['Danish'], 'Bosnia and Herzegovina': ['Bosnian'],
+  Norway: ['Norwegian'], Sweden: ['Swedish'], Finland: ['Finnish'], Iceland: ['Icelandic'], Serbia: ['Serbian'],
+  Slovenia: ['Slovenian', 'Slovene'], Slovakia: ['Slovak', 'Slovakian'], Czechia: ['Czech'], 'Czech Republic': ['Czech'],
+  Hungary: ['Hungarian'], Greece: ['Greek'], Bulgaria: ['Bulgarian'], Ukraine: ['Ukrainian'], Russia: ['Russian'],
+  Albania: ['Albanian'], 'North Macedonia': ['Macedonian'], Montenegro: ['Montenegrin'], Georgia: ['Georgian'],
+  Uruguay: ['Uruguayan'], Colombia: ['Colombian'], Mexico: ['Mexican'], Paraguay: ['Paraguayan'], Peru: ['Peruvian'],
+  Ecuador: ['Ecuadorian'], Venezuela: ['Venezuelan'], Japan: ['Japanese'], 'Korea Republic': ['South Korean', 'Korean'],
+  'China PR': ['Chinese'], Australia: ['Australian'], 'New Zealand': ['New Zealand'], Canada: ['Canadian'],
+  'Saudi Arabia': ['Saudi'], Egypt: ['Egyptian'], Morocco: ['Moroccan'], Algeria: ['Algerian'], Tunisia: ['Tunisian'],
+  Senegal: ['Senegalese'], Nigeria: ['Nigerian'], Ghana: ['Ghanaian'], Cameroon: ['Cameroonian'], "Côte d'Ivoire": ['Ivorian'],
+  Israel: ['Israeli'], Iran: ['Iranian'], Cyprus: ['Cypriot'], Luxembourg: ['Luxembourgish'], Estonia: ['Estonian'],
+  Latvia: ['Latvian'], Lithuania: ['Lithuanian'], Kosovo: ['Kosovar', 'Kosovan'], Armenia: ['Armenian'], Qatar: ['Qatari'],
+}

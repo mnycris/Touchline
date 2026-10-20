@@ -3,6 +3,7 @@ import compLogos from '../data/compLogos.json'
 import crestsCC from '../data/crestsCC.json'
 import eaAssets from '../data/eaAssets.json'
 import treatments from '../data/logoTreatments.json'
+import { managerMatches } from '../domain/identity'
 
 const BASE = import.meta.env.BASE_URL || '/'
 const CC = 'https://assets.football-logos.cc/logos'
@@ -236,13 +237,21 @@ export function compWikiQuery(key: string): WikiQuery | undefined {
   return { key: `c:${t}`, titles: [t], asIs: true, verify: (d, e) => /football|soccer|cup|super ?cup|competition|tournament/i.test(`${d} ${e.slice(0, 200)}`) }
 }
 
-export function managerWikiQuery(name: string): WikiQuery {
+/**
+ * A real manager's Wikipedia portrait, accepted only when the article is about the same person: an association football
+ * manager or coach (not a namesake in American football or rugby), with his nationality or one of his clubs named.
+ * A description that names another nationality and none of his clubs is someone else. With no confirmation the
+ * monogram stays: a wrong face is worse than none.
+ */
+export function managerWikiQuery(name: string, nation?: string, clubs: string[] = []): WikiQuery {
   return {
-    key: `m:${name}`,
+    // (the checks depend on what is known about him, so a lookup with less to go on is kept apart)
+    key: `m3:${name}${nation ? `:${nation}` : ''}`,
     titles: [name, `${name} (football manager)`, `${name} (footballer)`],
-    verify: (d, e) => /football|soccer|coach|manager/i.test(d) || /football (manager|coach)|head coach/i.test(e.slice(0, 300)),
+    verify: (d, e) => managerMatches(d, e, nation, clubs),
   }
 }
+
 
 export function playerWikiQuery(p: Pick<Player, 'id' | 'name' | 'fullName' | 'dob'>): WikiQuery {
   const year = p.dob.slice(0, 4)

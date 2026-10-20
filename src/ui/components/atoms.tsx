@@ -102,9 +102,12 @@ export function Avatar({ name, photo, size = 40, radius, color }: { name: string
   )
 }
 
-/** Real-world manager portrait (verified Wikipedia lead image), monogram while loading or when none exists. */
-export function ManagerAvatar({ name, size = 40, radius, real = true, color }: { name: string; size?: number; radius?: number; real?: boolean; color?: string }) {
-  const url = useWiki(real ? managerWikiQuery(name) : undefined, real)
+/**
+ * Real-world manager portrait (a Wikipedia lead image confirmed to be the same person by nationality or club),
+ * monogram while loading or when none is confirmed.
+ */
+export function ManagerAvatar({ name, size = 40, radius, real = true, color, nation, clubs }: { name: string; size?: number; radius?: number; real?: boolean; color?: string; nation?: string; clubs?: string[] }) {
+  const url = useWiki(real ? managerWikiQuery(name, nation, clubs) : undefined, real)
   return <Avatar name={name} photo={url} size={size} radius={radius} color={color} />
 }
 
@@ -364,5 +367,5 @@ export function CountUp({ value, format = (v: number) => String(Math.round(v)), 
 /** The career manager: real-world photo when playing as a real manager, monogram otherwise. */
 export function UserAvatar({ w, size = 48, radius }: { w: World; size?: number; radius?: number }) {
   const u = w.user
-  return u.realManager ? <ManagerAvatar name={u.realManager} size={size} radius={radius} /> : <Avatar name={`${u.firstName} ${u.lastName}`} size={size} radius={radius} color={u.avatarColor} />
+  return u.realManager ? <ManagerAvatar name={u.realManager} size={size} radius={radius} nation={u.nationality} clubs={u.history.map((h) => w.clubs[h.clubId]?.name).filter(Boolean)} /> : <Avatar name={`${u.firstName} ${u.lastName}`} size={size} radius={radius} color={u.avatarColor} />
 }

@@ -51,7 +51,7 @@ export interface LSide {
   formation: Formation
   xi: (LPl | undefined)[] // by formation slot
   bench: LPl[]
-  manager?: { name: string; real: boolean; color?: string }
+  manager?: { name: string; real: boolean; color?: string; nation?: string; club?: string }
   note?: string
   unavailable?: { id: number; reason: string; icon: string; color: string }[]
   avg?: number
@@ -62,9 +62,9 @@ export interface LSide {
 }
 
 export function managerOf(w: World, clubId: number): LSide['manager'] {
-  if (clubId === w.userClubId) return { name: w.user.realManager || `${w.user.firstName} ${w.user.lastName}`, real: !!w.user.realManager, color: w.user.avatarColor }
+  if (clubId === w.userClubId) return { name: w.user.realManager || `${w.user.firstName} ${w.user.lastName}`, real: !!w.user.realManager, color: w.user.avatarColor, nation: w.user.nationality, club: w.clubs[clubId]?.name }
   const m = w.managers[w.clubs[clubId]?.managerId]
-  return m ? { name: m.name, real: m.real } : undefined
+  return m ? { name: m.name, real: m.real, nation: m.nationality, club: w.clubs[clubId]?.name } : undefined
 }
 
 export function sideFromSheet(w: World, clubId: number, sheet: Pick<TeamSheet, 'lineup' | 'bench' | 'formation' | 'captain'>, comp?: Competition, note?: string): LSide {
@@ -325,5 +325,5 @@ function BenchColumns({ w, home, away, title, onTap, sel }: { w: World; home: LS
 }
 
 function ManagerOrMono({ m }: { m: NonNullable<LSide['manager']> }) {
-  return m.real ? <ManagerAvatar name={m.name} size={30} /> : <Avatar name={m.name} size={30} color={m.color} />
+  return m.real ? <ManagerAvatar name={m.name} size={30} nation={m.nation} clubs={m.club ? [m.club] : []} /> : <Avatar name={m.name} size={30} color={m.color} />
 }

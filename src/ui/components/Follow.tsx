@@ -104,7 +104,7 @@ export function refView(w: World, r: SearchRef): RefView | undefined {
       return {
         title: m.name, kindLabel: 'Manager', followable: 'manager', tint: club?.theme,
         sub: club ? <><Badge club={club} size={13} /><span>{club.short} · {m.nationality}</span></> : <span>Out of work · {m.nationality}</span>,
-        avatar: (s) => <ManagerAvatar name={m.name} real={m.real} size={s} radius={s / 2} />,
+        avatar: (s) => <ManagerAvatar name={m.name} real={m.real} size={s} radius={s / 2} nation={m.nationality} clubs={club ? [club.name] : []} />,
       }
     }
     case 'comp': {

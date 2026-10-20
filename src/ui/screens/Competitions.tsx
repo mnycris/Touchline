@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Club, Competition, Fixture, Player, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { Badge, CompLogo, Empty, Face, Flag, FormPips, Ovr, PosChip, Stars } from '../components/atoms'
+import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
@@ -535,7 +535,10 @@ export function ClubProfile({ params }: { params: { id: number } }) {
         </div>
       </div>
       <div className="pad grid3" style={{ marginTop: 10 }}>
-        <button className="card pad-card tap" style={{ padding: 10, textAlign: 'left' }} disabled={c.id !== w.userClubId && !mgr} onClick={() => go(c.id === w.userClubId ? { name: 'manager' } : { name: 'coach', params: { id: mgr!.id } })}><div className="tiny dim">Manager</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></button>
+        <button className="card pad-card tap club-mgr" style={{ padding: 10, textAlign: 'left' }} disabled={c.id !== w.userClubId && !mgr} onClick={() => go(c.id === w.userClubId ? { name: 'manager' } : { name: 'coach', params: { id: mgr!.id } })}>
+          {c.id === w.userClubId ? <UserAvatar w={w} size={30} radius={15} /> : mgr ? <ManagerAvatar name={mgr.name} real={mgr.real} size={30} radius={15} nation={mgr.nationality} clubs={[c.name]} /> : null}
+          <div style={{ minWidth: 0 }}><div className="tiny dim">Manager</div><div className="b small ellipsis2" style={{ marginTop: 2, lineHeight: 1.15 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></div>
+        </button>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Stadium</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium || '—'}</div></div>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Budget</div><div className="b small" style={{ marginTop: 3 }}>{fmtMoney(c.finance.transferBudget, { short: true })}</div></div>
       </div>

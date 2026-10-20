@@ -82,7 +82,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
         <div className="pad stack fade-up">
           <div className="hero" style={{ padding: 18, background: `linear-gradient(135deg, ${clubAccent(club)}, #06080d 80%)` }}>
             <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>
-              {identity.real ? <ManagerAvatar name={identity.real} size={86} radius={16} /> : <Avatar name={`${first} ${last}`} size={86} radius={16} color={identity.color} />}
+              {identity.real ? <ManagerAvatar name={identity.real} size={86} radius={16} nation={nation} /> : <Avatar name={`${first} ${last}`} size={86} radius={16} color={identity.color} />}
               <div className="grow">
                 <div className="kicker" style={{ color: '#fff', opacity: 0.8 }}>Manager</div>
                 <div className="h2">{first} {last}</div>
@@ -157,7 +157,7 @@ function ManagerStep(props: { raw: RawDb; first: string; last: string; setFirst:
     <div className="pad stack fade-up">
       <Seg items={[{ id: 'custom', label: 'Create manager' }, { id: 'real', label: 'Real manager' }]} value={mode} onChange={(v) => { setMode(v); if (v === 'custom') setIdentity({ ...identity, real: undefined }) }} />
       <div className="manager-preview">
-        {identity.real ? <ManagerAvatar name={identity.real} size={96} radius={48} /> : <Avatar name={`${props.first || '?'} ${props.last}`} size={96} color={identity.color} />}
+        {identity.real ? <ManagerAvatar name={identity.real} size={96} radius={48} nation={props.nation} /> : <Avatar name={`${props.first || '?'} ${props.last}`} size={96} color={identity.color} />}
         <div className="grow" style={{ minWidth: 0 }}>
           <div className="h2 ellipsis">{props.first || 'First'} {props.last || 'Last'}</div>
           <div className="row tight small muted" style={{ marginTop: 6 }}><Flag code={nat?.flag} size={12} /> {props.nation} · {props.age} yrs</div>
@@ -170,7 +170,7 @@ function ManagerStep(props: { raw: RawDb; first: string; last: string; setFirst:
           <div className="card list" style={{ maxHeight: '52vh', overflowY: 'auto' }}>
             {shown.map((m) => (
               <button key={m.name + m.club?.id} className={`li tap ${identity.real === m.name ? 'sel-row' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => pickReal(m)}>
-                <ManagerAvatar name={m.name} size={42} />
+                <ManagerAvatar name={m.name} size={42} nation={m.nationality} clubs={m.club ? [m.club.name] : []} />
                 <div className="meta"><div className="t ellipsis">{m.name}</div><div className="s row tight">{m.club && <Badge club={m.club as any} size={14} />}{m.club?.short} · {m.nationality} · {m.age}</div></div>
                 <span className="tiny dim">{m.vision}</span>
               </button>

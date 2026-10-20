@@ -36,7 +36,7 @@ export function CoachProfile({ params }: { params: { id: number } }) {
       <div className="pad">
         <div className="hero coach-hero" style={{ ['--cc' as string]: underWhite(club?.theme || '#2a3240') }}>
           <div className="row" style={{ gap: 14, position: 'relative', zIndex: 1 }}>
-            <ManagerAvatar name={m.name} real={m.real} size={84} radius={42} />
+            <ManagerAvatar name={m.name} real={m.real} size={84} radius={42} nation={m.nationality} clubs={w.clubs[m.clubId] ? [w.clubs[m.clubId].name] : []} />
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="h2" style={{ lineHeight: 1.02 }}>{m.name}</div>
               <div className="row tight small" style={{ marginTop: 7, opacity: 0.9 }}><Flag w={w} nation={m.nationality} size={12} /><span>{m.nationality} · {m.age}</span></div>
