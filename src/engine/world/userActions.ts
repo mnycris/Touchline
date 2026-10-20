@@ -12,6 +12,7 @@ import { rosterOf, setPlayerClub, wageBill as clubWageBill } from './roster'
 import { postNews, sendInbox, staffNames } from './messages'
 import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { blockedText, openContractTalks, respondToContract, talksBlock, type TalkLine, type Talks } from './negotiation'
+import { loanSuitor } from './loans'
 
 export interface Outcome { ok: boolean; text: string; status?: string; counter?: number; demand?: ContractOffer; replies?: TalkLine[] }
 
@@ -344,15 +345,18 @@ export function processPendingDeals(w: World, rng: Rng) {
     const listed = rosterOf(w, club.id).filter((p) => p.transferListed || p.loanListed)
     for (const p of listed) {
       if (Object.values(w.transfers.offers).some((o) => o.playerId === p.id && o.userIsSeller && ['Offer Submitted', 'Counter Offer'].includes(o.status))) continue
-      if (rng.next() > (p.loanListed ? 0.06 : 0.05)) continue
+      if (rng.next() > (p.loanListed ? 0.09 : 0.05)) continue
       const age = ageOn(p.dob, w.date)
-      const suitors = Object.values(w.clubs).filter((c) => c.id !== club.id && c.leagueId && Math.abs(c.squadAvg - p.ovr) <= 6 && (p.loanListed ? c.reputation <= club.reputation : c.finance.transferBudget > p.value * 0.7))
-      if (!suitors.length) continue
-      const buyer = rng.pick(suitors)
+      // a loan: a club where he would play, as for loans between other clubs
+      const suitors = p.loanListed ? [] : Object.values(w.clubs).filter((c) => c.id !== club.id && c.leagueId && Math.abs(c.squadAvg - p.ovr) <= 6 && c.finance.transferBudget > p.value * 0.7)
+      const buyer = p.loanListed ? loanSuitor(w, p, rng) : suitors.length ? rng.pick(suitors) : undefined
+      if (!buyer) continue
       const loan = p.loanListed
       const fee = loan ? 0 : roundValue(askingPrice(w, p, buyer.id) * (0.72 + rng.next() * 0.3))
       const o = makeOffer(w, { playerId: p.id, fee, type: loan ? 'loan' : 'transfer', fromClubId: buyer.id, loanWageSplit: loan ? rng.pick([50, 75, 100]) : undefined })
       o.userIsBuyer = false; o.userIsSeller = true; o.respondBy = replyBy(w)
+      // a club in for him counts towards a loan promise: the manager now has the chance to keep it
+      if (loan) for (const pr of w.promises) if (pr.playerId === p.id && pr.kind === 'Loan Move' && pr.status === 'active') pr.offers = (pr.offers || 0) + 1
       syncOfferStory(w, o)
       sendInbox(w, {
         from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: loan ? `Loan offer for ${p.name}` : `Offer received for ${p.name}`,

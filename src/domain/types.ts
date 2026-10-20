@@ -732,8 +732,17 @@ export interface PlayerPromise {
   deadline: ISODate
   requirement: number
   progress: number
-  status: 'active' | 'fulfilled' | 'broken'
+  /** lapsed: the game gave no fair chance to keep it (no matches, no offers, an injury); nobody's fault */
+  status: 'active' | 'fulfilled' | 'broken' | 'lapsed'
   baseline?: number
+  /** the competition a cup promise is about (a promised start in a particular cup tie) */
+  compId?: string
+  /** loan clubs that came in for him while the promise ran */
+  offers?: number
+  /** the deadline was moved once already (injury) */
+  extended?: boolean
+  /** the injury it was moved for: the matches he missed then were no chance to keep it */
+  out?: { from: ISODate; to: ISODate }
 }
 
 export interface Conversation {

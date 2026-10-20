@@ -145,7 +145,8 @@ function ShortlistBtn({ w, p }: { w: World; p: Player }) {
 }
 
 function Promises({ w, p }: { w: World; p: Player }) {
-  const list = w.promises.filter((x) => x.playerId === p.id).slice(-4).reverse()
+  // the ones still running first, then the latest
+  const list = w.promises.filter((x) => x.playerId === p.id).sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.made.localeCompare(a.made)).slice(0, 4)
   if (!list.length) return null
   return (
     <div className="pad" style={{ marginTop: 10 }}>
@@ -153,8 +154,8 @@ function Promises({ w, p }: { w: World; p: Player }) {
         <div className="card-h"><span className="label">Promises</span></div>
         {list.map((pr) => (
           <div key={pr.id} className="li" style={{ minHeight: 50 }}>
-            <Icon name={pr.status === 'fulfilled' ? 'check' : pr.status === 'broken' ? 'close' : 'handshake'} size={18} color={pr.status === 'fulfilled' ? 'var(--pos)' : pr.status === 'broken' ? 'var(--neg)' : 'var(--warn)'} />
-            <div className="meta"><div className="t small">{pr.kind}</div><div className="s">{pr.status === 'active' ? `${pr.progress}/${pr.requirement} · deadline ${fmtDate(pr.deadline, 'dm')}` : `${pr.status === 'fulfilled' ? 'Kept' : 'Broken'} · made ${fmtDate(pr.made, 'dm')}`}</div></div>
+            <Icon name={pr.status === 'fulfilled' ? 'check' : pr.status === 'broken' ? 'close' : pr.status === 'lapsed' ? 'minus' : 'handshake'} size={18} color={pr.status === 'fulfilled' ? 'var(--pos)' : pr.status === 'broken' ? 'var(--neg)' : pr.status === 'lapsed' ? 'var(--t3)' : 'var(--warn)'} />
+            <div className="meta"><div className="t small">{pr.kind}{pr.compId && w.competitions[pr.compId] ? ` · ${w.competitions[pr.compId].short}` : ''}</div><div className="s">{pr.status === 'active' ? `${pr.kind === 'Loan Move' ? (pr.offers ? `${pr.offers} offer${pr.offers > 1 ? 's' : ''} so far` : 'no offers yet') : `${pr.progress}/${pr.requirement}`} · until ${fmtDate(pr.deadline, 'dm')}` : `${pr.status === 'fulfilled' ? 'Kept' : pr.status === 'lapsed' ? 'Lapsed, through nobody’s fault' : 'Broken'} · made ${fmtDate(pr.made, 'dm')}`}</div></div>
           </div>
         ))}
       </div>

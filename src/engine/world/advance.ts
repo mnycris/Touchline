@@ -29,6 +29,7 @@ import { rosterOf, wageBill } from './roster'
 import { processPendingDeals } from './userActions'
 import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
 import { aOrAn } from '../../domain/words'
+import { aiLoanMarket } from './loans'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -231,6 +232,7 @@ function endOfDay(w: World, rng: Rng) {
   processOffers(w, rng)
   processPendingDeals(w, rng)
   aiTransferDay(w, rng)
+  aiLoanMarket(w, rng)
   // the transfer centre: stories move on; at the deadline whatever is unfinished collapses
   if (w.settings.aiTransfers) marketDaily(w, rng)
   if (w.windows.some((x) => x.close === d)) windowShut(w)
