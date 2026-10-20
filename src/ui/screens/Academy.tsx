@@ -140,7 +140,8 @@ function AcademySquad({ w }: { w: World }) {
   // within each line, best first: a quick read of who leads in each position
   const best = new Map<string, number>()
   for (const p of all) { const g = lineOf(p); if ((best.get(g) ?? -1) < p.pot) best.set(g, p.pot) }
-  let lastLine = ''
+  // in position order, a heading where each line starts
+  const heads = new Set(sort === 'line' ? squad.filter((p, i) => i === 0 || lineOf(squad[i - 1]) !== lineOf(p)).map((p) => p.id) : [])
   return (
     <div className="pad" style={{ marginTop: 12 }}>
       {squad.length > 0 && <>
@@ -155,7 +156,7 @@ function AcademySquad({ w }: { w: World }) {
             const next = daysToNext(p)
             const out = agesOut(p.dob)
             const line = lineOf(p)
-            const head = sort === 'line' && line !== lastLine ? (lastLine = line, <div className="ac-line label">{LINE[line]}</div>) : null
+            const head = heads.has(p.id) ? <div className="ac-line label">{LINE[line]}</div> : null
             const lead = best.get(line) === p.pot
             return (
               <div key={p.id}>

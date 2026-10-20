@@ -11,12 +11,12 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CountUp, Empty, Face, Flag, Ovr, PosChip, Stars } from '../components/atoms'
-import { Chips, Confirm, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
+import { Chips, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { addDays, diffDays, fmtDate } from '../../domain/dates'
 import { POS_GROUP, SQUAD_ROLES } from '../../domain/constants'
 import { allPlayers, rosterOf } from '../../engine/world/roster'
-import { fireScout, hireScout, knowledge, matchesPosition, potRange, replaceScout, reportDays, scoutNetwork, SCOUT_SLOTS, YOUTH_SCOUT_SLOTS } from '../../engine/world/scouting'
+import { hireScout, matchesPosition, potRange, replaceScout, reportDays, SCOUT_SLOTS, YOUTH_SCOUT_SLOTS } from '../../engine/world/scouting'
 import { askingPrice, contractDemand, playerInterest, roleForBuyer, sellerStance, yearsLeft } from '../../engine/world/transfers'
 import { acceptCounter, delegateTransfer, proposeContract, renewalDemand, renewContract, startContractTalks, submitBid, wageRoom, windowLabel } from '../../engine/world/userActions'
 import { agentStyleLabel, getTalks, PRIORITY_TEXT } from '../../engine/world/negotiation'
@@ -337,73 +337,7 @@ export function Search({ params }: { params?: { preset?: Partial<Filters>; label
 }
 
 // ============================================================================ scouting (Global Transfer Network)
-const REGIONS = ['Anywhere', 'England', 'Spain', 'Germany', 'Italy', 'France', 'Portugal', 'Netherlands', 'Belgium', 'Brazil', 'Argentina', 'Scandinavia', 'Eastern Europe', 'Africa', 'South America', 'Rest of World']
-const FOCUS = ['Balanced', 'High Potential', 'Ready Now', 'Bargain']
-
-export function Scouting() {
-  const w = useWorld()
-  const mutate = useGame((s) => s.mutate)
-  const notify = useGame((s) => s.notify)
-  const [assign, setAssign] = useState<number>()
-  const [hire, setHire] = useState(false)
-  const [replacing, setReplacing] = useState<number>()
-  const [releasing, setReleasing] = useState<number>()
-  const [cfg, setCfg] = useState({ region: 'Anywhere', position: 'Any', ageMax: 23, focus: 'High Potential', months: 2 })
-  return (
-    <Screen title="Scouting Network" sub="Global Transfer Network" back>
-      <div className="pad stack">
-        <div className="art-banner">
-          <Fx kind="radar" />
-          <div className="content"><div className="kicker">Global Transfer Network</div><div className="h2" style={{ marginTop: 6 }}>{w.scouts.length} scout{w.scouts.length === 1 ? '' : 's'} active</div><div className="small muted" style={{ marginTop: 4, maxWidth: 230 }}>{w.scouts.filter((s) => s.assignment).length} on assignment · {Object.keys(w.transfers.knowledge).length} players known</div></div>
-        </div>
-        <div className="card pad-card small muted">Assign scouts to search a region for a type of player, or to watch one player. Reports reveal attributes, PlayStyles and his true potential. Experience sets how fast a scout works, judgement how sharp his reads are, and he's quicker in the country he knows. The best-known players need little scouting; unknown teenagers abroad need a lot.</div>
-        {w.scouts.map((s) => {
-          const a = s.assignment
-          const found = a?.foundIds.map((id) => w.players[id]).filter(Boolean) || []
-          return (
-            <div key={s.id} className="card">
-              <div className="row" style={{ padding: 12, gap: 12 }}>
-                <Avatar name={s.name} size={48} radius={12} />
-                <div className="grow">
-                  <div className="b">{s.name}</div>
-                  <div className="tiny dim row tight"><Flag w={w} nation={s.nationality} size={10} />{s.nationality} · {fmtMoney(s.wage)}/wk</div>
-                  <div className="row tight tiny" style={{ marginTop: 4 }}><span className="dim">EXP</span><Stars n={s.experience} size={10} /><span className="dim">JDG</span><Stars n={s.judgement} size={10} /></div>
-                </div>
-                <button className="btn xs club" onClick={() => setAssign(s.id)}>{a ? 'Reassign' : 'Assign'}</button>
-              </div>
-              <div className="sct-meta">
-                <span className="tiny dim"><Icon name="clock" size={12} /> Full report in ~{reportDays(s)} days</span>
-                <span className="grow" />
-                <button className="btn xs" onClick={() => { haptic(); setReplacing(s.id) }}><Icon name="swap" size={13} /> Replace</button>
-                <button className="btn xs" onClick={() => { haptic(); setReleasing(s.id) }}>Release</button>
-              </div>
-              {a && (
-                <div style={{ padding: '0 12px 12px' }}>
-                  <div className="row between tiny"><span className="muted">{a.kind === 'player' ? `Scouting ${w.players[a.playerId!]?.name}` : `${a.region} · ${a.position} · U${a.ageMax} · ${a.focus}`}</span><span className="b">{Math.round(a.progress)}%</span></div>
-                  <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${a.progress}%`, background: 'var(--acc)' }} /></div>
-                  {found.length > 0 && <div className="card list" style={{ marginTop: 10 }}>{found.slice(-6).reverse().map((p) => <PlayerLine key={p.id} w={w} p={p} sub={`${knowledge(w, p)}% known`} />)}</div>}
-                </div>
-              )}
-            </div>
-          )
-        })}
-        {w.scouts.length < SCOUT_SLOTS ? <button className="btn block" onClick={() => setHire(true)}><Icon name="plus" size={18} /> Hire scout ({w.scouts.length}/{SCOUT_SLOTS})</button> : <div className="tiny dim" style={{ textAlign: 'center' }}>All {SCOUT_SLOTS} places taken: replace a scout to bring someone new in.</div>}
-      </div>
-      <Sheet open={assign !== undefined} onClose={() => setAssign(undefined)} title="Scouting instructions">
-        <div className="stack" style={{ gap: 12 }}>
-          <div className="field"><label className="label">Region</label><select className="input" value={cfg.region} onChange={(e) => setCfg({ ...cfg, region: e.target.value })}>{REGIONS.map((r) => <option key={r}>{r}</option>)}</select></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Position</div><div className="row wrap" style={{ gap: 6 }}>{POS_OPTS.map((p) => <button key={p} className={`chip ${cfg.position === p ? 'on' : ''}`} onClick={() => setCfg({ ...cfg, position: p })}>{p}</button>)}</div></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Max age · {cfg.ageMax}</div><Stepper value={cfg.ageMax} min={17} max={35} onChange={(v) => setCfg({ ...cfg, ageMax: v })} /></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Focus</div><Seg small items={FOCUS.map((x) => ({ id: x, label: x }))} value={cfg.focus} onChange={(v) => setCfg({ ...cfg, focus: v })} /></div>
-          <div><div className="label" style={{ marginBottom: 6 }}>Duration</div><Seg small items={[1, 2, 3, 6].map((m) => ({ id: m, label: `${m} mo` }))} value={cfg.months} onChange={(v) => setCfg({ ...cfg, months: v })} /></div>
-          <button className="btn primary block" onClick={() => { mutate((w) => scoutNetwork(w, assign!, cfg.region, cfg.position, cfg.ageMax, cfg.focus, cfg.months)); notify('Scout dispatched', 'ok'); setAssign(undefined) }}>Send scout</button>
-        </div>
-      </Sheet>
-      <HireSheet open={hire || replacing != null} onClose={() => { setHire(false); setReplacing(undefined) }} youth={false} replacing={replacing} />
-      <Confirm open={releasing != null} title={`Release ${w.scouts.find((x) => x.id === releasing)?.name || 'scout'}?`} text={`His contract is paid off with four weeks' wages (${fmtMoney((w.scouts.find((x) => x.id === releasing)?.wage || 0) * 4)}); what he has found stays known.`} confirm="Release" danger onConfirm={() => { mutate((w) => fireScout(w, releasing!, false)); notify('Scout released', 'ok'); setReleasing(undefined) }} onClose={() => setReleasing(undefined)} />
-    </Screen>
-  )
-}
+export { Scouting } from './ScoutingNetwork'
 
 export function HireSheet({ open, onClose, youth, replacing }: { open: boolean; onClose: () => void; youth: boolean; replacing?: number }) {
   const w = useWorld()

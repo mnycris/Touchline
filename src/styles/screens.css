@@ -2234,3 +2234,38 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .ys-mission.idle { display: block; }
 .ys-fire { position: absolute; right: 12px; bottom: -1px; transform: translateY(100%); color: var(--t3); padding: 6px 2px; }
 .ys-card { margin-bottom: 18px; }
+
+/* ---------- scouting network ---------- */
+.sn-sum { display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 18px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line); }
+.sn-sum > div { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 12px 4px; }
+.sn-sum > div + div { border-left: 1px solid var(--line); }
+.sn-sum b { font-size: 24px; line-height: 1; }
+.sn-sum .warn b { color: var(--warn); }
+.sn-cover { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: -2px; }
+.sn-reg { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--line2); }
+.sn-reg b { color: var(--acc); font-size: 11px; }
+.sn-card { animation: fadeUp .32s cubic-bezier(.2, .9, .25, 1) both; overflow: hidden; }
+.sn-card.on { box-shadow: inset 3px 0 0 var(--acc); }
+.sn-card.idle { box-shadow: inset 3px 0 0 var(--warn); }
+.sn-head { display: flex; align-items: center; gap: 12px; padding: 12px 12px 10px 14px; }
+.sn-av { position: relative; flex: none; }
+.sn-nat { position: absolute; right: -4px; bottom: -2px; padding: 2px; border-radius: 4px; background: var(--s2); line-height: 0; }
+.sn-skills { display: flex; gap: 12px; margin-top: 5px; }
+.sn-skills > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sn-idle { display: flex; align-items: center; gap: 6px; margin: 0 12px 10px 14px; padding: 9px 11px; border-radius: 12px; color: var(--warn); background: rgba(255, 176, 32, .08); }
+.sn-job { display: block; width: calc(100% - 26px); margin: 0 12px 10px 14px; padding: 11px 12px; border-radius: 14px; background: rgba(255, 255, 255, .035); box-shadow: inset 0 0 0 1px var(--line); }
+.sn-watch { display: flex; align-items: center; gap: 12px; text-align: left; }
+.sn-watch:active { background: rgba(255, 255, 255, .06); }
+.sn-brief { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 10px; }
+.sn-brief span { padding: 2px 8px; border-radius: 6px; background: rgba(255, 255, 255, .06); color: var(--t2); font-weight: 600; }
+.sn-prog { display: block; position: relative; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .07); overflow: hidden; margin-bottom: 6px; }
+.sn-prog > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: linear-gradient(90deg, rgba(31, 214, 122, .7), var(--acc)); transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+.sn-found { display: flex; flex-direction: column; margin: 10px -12px -11px; border-top: 1px solid var(--line); }
+.sn-p { display: flex; align-items: center; gap: 10px; padding: 9px 12px; text-align: left; }
+.sn-p + .sn-p { border-top: 1px solid var(--line); }
+.sn-p:active { background: rgba(255, 255, 255, .05); }
+.sn-more { padding: 10px 12px 12px; text-align: center; border-top: 1px solid var(--line); font-size: 12px; }
+.sn-foot { display: flex; align-items: center; gap: 6px; padding: 0 12px 12px 14px; }
+.sn-focus { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sn-focus button { display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 9px 11px; border-radius: 12px; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px var(--line2); }
+.sn-focus button.on { background: rgba(31, 214, 122, .12); box-shadow: inset 0 0 0 1.5px var(--acc); }
