@@ -67,6 +67,7 @@ function goalScorers(w: World, r: Pick<MatchResult, 'events'>, side: 0 | 1) {
 }
 
 export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: number }) {
+  const hideEdited = useGame((st) => !!st.prefs.hideEdited)
   const go = useGame((s) => s.go)
   const [sheet, setSheet] = useState(false)
   const comp = w.competitions[f.compId]
@@ -88,7 +89,7 @@ export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: nu
           <span className="grow ellipsis small b">{w.clubs[f.away]?.short}</span>
         </div>
         {watching && <Icon name="eye" size={14} color="var(--acc)" />}
-        {(w.scripts?.[f.id] || f.edited) && <Icon name="edit" size={13} color="var(--gold)" />}
+        {(w.scripts?.[f.id] || f.edited) && !hideEdited && <Icon name="edit" size={13} color="var(--gold)" />}
       </button>
       {sheet && <FixtureSheet w={w} f={f} onClose={() => setSheet(false)} />}
     </>
@@ -839,6 +840,7 @@ export function GoalsAssists({ st, mins = true }: { st: { goals: number; assists
 }
 
 function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
+  const hideEdited = useGame((st) => !!st.prefs.hideEdited)
   const go = useGame((s) => s.go)
   const r = f.result!
   const hasLineups = !!r.lineups && r.players.length > 0
@@ -863,7 +865,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
           <div className="col center" style={{ minWidth: 100 }}>
             <div className="display num rp-score">{r.score[0]} – {r.score[1]}</div>
             <div className="tiny dim" style={{ marginTop: 4 }}>{r.pens ? `${r.pens[0]}–${r.pens[1]} on penalties` : r.et ? 'After extra time' : 'Full-time'}</div>
-            {f.edited && <div className="tiny row tight" style={{ marginTop: 4, color: 'var(--gold)', justifyContent: 'center' }}><Icon name="edit" size={11} /> Edited match</div>}
+            {f.edited && !hideEdited && <div className="tiny row tight" style={{ marginTop: 4, color: 'var(--gold)', justifyContent: 'center' }}><Icon name="edit" size={11} /> Edited match</div>}
           </div>
           <button className="md-team" onClick={() => go({ name: 'club', params: { id: away.id } })}><span className="badge-rc"><Badge club={away} size={58} /><RedCards n={redsOf(r.events, 1)} size={17} /></span><b>{away.short}</b></button>
         </div>

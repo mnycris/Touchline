@@ -5,7 +5,7 @@
 // only guarantees what you chose.
 import { useMemo, useState } from 'react'
 import type { Fixture, MatchScript, Player, ScriptEvent, ScriptLevel, World } from '../../domain/types'
-import { FORMATIONS, formationOf } from '../../domain/constants'
+import { BENCH_SIZE, FORMATIONS, formationOf } from '../../domain/constants'
 import { useGame, haptic } from '../../store/game'
 import { setScript } from '../../engine/world/edit'
 import { sideInput } from '../../engine/world/matchRunner'
@@ -21,11 +21,12 @@ import { Ball, Boot, MissedPen } from './Glyphs'
 import { Stepper } from './Editors'
 import { assignToFormation } from '../screens/Match'
 import { kitColors } from './LivePitch'
+import { sideFromSheet, TeamLineup } from './Lineup'
 
 const LEVEL_NAME: Record<number, string> = { [-2]: 'Nightmare', [-1]: 'Off day', 0: 'As usual', 1: 'Sharp', 2: 'Inspired' }
 const uid = () => Math.random().toString(36).slice(2, 9)
 const goalsFor = (s: MatchScript, side: 0 | 1) => (s.events || []).filter((e) => e.side === side && (e.kind === 'goal' || (e.kind === 'pen' && (e.pen ?? 'goal') === 'goal'))).length
-const minLabel = (e: Pick<ScriptEvent, 'min' | 'add'>) => (e.add ? `${e.min}+${e.add}'` : `${e.min}'`)
+const minLabel = (e: Pick<ScriptEvent, 'min' | 'add'>) => (!e.min ? 'any time' : e.add ? `${e.min}+${e.add}'` : `${e.min}'`)
 const AUTO = 0, AUTO_ASSIST = -1
 
 export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose: () => void }) {
@@ -86,16 +87,20 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
     setRolled((x) => x + 1)
   }
 
-  const levels: { v: ScriptLevel; label: string }[] = [
-    { v: 2, label: `${clubs[0].short} dominate` }, { v: 1, label: `${clubs[0].short} have the edge` }, { v: 0, label: 'An even contest' },
-    { v: -1, label: `${clubs[1].short} have the edge` }, { v: -2, label: `${clubs[1].short} dominate` },
+  // "as the teams are" (no say) is not the same as "an even contest" (the gap between them evened out)
+  const levels: { v: ScriptLevel | undefined; label: string; sub: string }[] = [
+    { v: undefined, label: 'As the teams are', sub: 'No say: strength, form and the day decide' },
+    { v: 2, label: `${clubs[0].short} dominate`, sub: `${clubs[0].short} much sharper all over the pitch` }, { v: 1, label: `${clubs[0].short} have the edge`, sub: `${clubs[0].short} a little sharper` },
+    { v: 0, label: 'An even contest', sub: 'The gap between them evened out, whoever they are' },
+    { v: -1, label: `${clubs[1].short} have the edge`, sub: `${clubs[1].short} a little sharper` }, { v: -2, label: `${clubs[1].short} dominate`, sub: `${clubs[1].short} much sharper all over the pitch` },
   ]
+  const levelOf = (b?: ScriptLevel) => levels.find((l) => l.v === b) || levels[0]
   const pct = (x: number) => `${Math.round(x * 100)}%`
   const feelControls = (
     <div className="sc-feel">
-      <div className="sc-feel-row"><span className="small b">Goals</span><Seg small items={[{ id: '-1', label: 'Tight' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Open' }, { id: '2', label: 'Goal-fest' }]} value={String(s.goals || 0)} onChange={(v) => { haptic(); set({ goals: (Number(v) || undefined) as MatchScript['goals'] }) }} /></div>
-      <div className="sc-feel-row"><span className="small b">Temper</span><Seg small items={[{ id: '-1', label: 'Calm' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Heated' }]} value={String(s.temper || 0)} onChange={(v) => { haptic(); set({ temper: (Number(v) || undefined) as MatchScript['temper'] }) }} /></div>
-      <div className="sc-feel-row"><span className="small b">Stars shine</span><Seg small items={[{ id: '', label: 'Off' }, { id: 'home', label: clubs[0].short }, { id: 'away', label: clubs[1].short }, { id: 'both', label: 'Both' }]} value={s.stars || ''} onChange={(v) => { haptic(); set({ stars: (v || undefined) as MatchScript['stars'] }) }} /></div>
+      <div className="sc-feel-row"><span className="sc-feel-l"><span className="small b">Goals</span><span className="tiny dim">Finishing and goalkeeping, both ways</span></span><Seg small items={[{ id: '-1', label: 'Tight' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Open' }, { id: '2', label: 'Goal-fest' }]} value={String(s.goals || 0)} onChange={(v) => { haptic(); set({ goals: (Number(v) || undefined) as MatchScript['goals'] }) }} /></div>
+      <div className="sc-feel-row"><span className="sc-feel-l"><span className="small b">Temper</span><span className="tiny dim">Fouls, cards and flare-ups</span></span><Seg small items={[{ id: '-1', label: 'Calm' }, { id: '0', label: 'Normal' }, { id: '1', label: 'Heated' }]} value={String(s.temper || 0)} onChange={(v) => { haptic(); set({ temper: (Number(v) || undefined) as MatchScript['temper'] }) }} /></div>
+      <div className="sc-feel-row"><span className="sc-feel-l"><span className="small b">Stars shine</span><span className="tiny dim">The three best outfield players inspired</span></span><Seg small items={[{ id: '', label: 'Off' }, { id: 'home', label: clubs[0].short }, { id: 'away', label: clubs[1].short }, { id: 'both', label: 'Both' }]} value={s.stars || ''} onChange={(v) => { haptic(); set({ stars: (v || undefined) as MatchScript['stars'] }) }} /></div>
       <Toggle label="Late drama" sub="The last ten minutes and stoppage time turn frantic" on={!!s.late} onChange={(v) => set({ late: v || undefined })} />
     </div>
   )
@@ -121,32 +126,37 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
           <div className="fade-up" key="simple">
             <div className="label" style={{ margin: '14px 2px 8px' }}>Who's on top?</div>
             <div className="sc-levels">
-              {levels.map((l) => (
-                <button key={l.v} className={`sc-level ${(s.bias || 0) === l.v ? 'on' : ''}`} onClick={() => { haptic(); set({ bias: l.v || undefined }) }}>
-                  <span className="sc-share"><i style={{ flex: 3 + l.v * 1.3, background: colors[0] }} /><i style={{ flex: 3 - l.v * 1.3, background: colors[1] }} /></span>
-                  <span className="small b">{l.label}</span>
-                  {(s.bias || 0) === l.v && <Icon name="check" size={16} color="var(--gold)" />}
-                </button>
-              ))}
+              {levels.map((l) => {
+                // the bar: the prediction left alone, the split implied otherwise
+                const hs = l.v === undefined ? pred.pHome + pred.pDraw / 2 : 0.5 + l.v * 0.18
+                return (
+                  <button key={String(l.v)} className={`sc-level ${s.bias === l.v ? 'on' : ''}`} onClick={() => { haptic(); set({ bias: l.v }) }}>
+                    <span className="sc-share"><i style={{ flex: hs, background: colors[0] }} /><i style={{ flex: 1 - hs, background: colors[1] }} /></span>
+                    <span className="sc-level-t"><span className="small b">{l.label}</span><span className="tiny dim">{l.sub}</span></span>
+                    {s.bias === l.v && <Icon name="check" size={16} color="var(--gold)" />}
+                  </button>
+                )
+              })}
             </div>
             <div className="label" style={{ margin: '16px 2px 8px' }}>The feel of it</div>
             {feelControls}
-            <div className="tiny dim" style={{ marginTop: 10 }}>The whole match is still simulated: these shape the day, not the result itself. For a fixed score or exact moments, use Advanced.</div>
+            <div className="tiny dim" style={{ marginTop: 10 }}>The whole match is still simulated: these shape how the day goes (who is sharper, how open, how heated), not the result itself. The underdog can still win. For a fixed score or exact moments, use Advanced.</div>
           </div>
         )}
 
         {mode === 'advanced' && (
           <div className="stack fade-up" style={{ gap: 14, marginTop: 14 }} key="advanced">
             <section className="card sc-sec">
-              <div className="row between"><span className="small b">Who's on top?</span><span className="tiny dim">{levels.find((l) => l.v === (s.bias || 0))?.label}</span></div>
+              <div className="row between"><span className="small b">Who's on top?</span><span className="tiny dim">{levelOf(s.bias).label}</span></div>
               <div className="sc-balance">
                 <Badge club={clubs[0]} size={20} />
                 <div className="sc-bdots">
-                  {([2, 1, 0, -1, -2] as ScriptLevel[]).map((v) => <button key={v} className={`sc-bdot ${(s.bias || 0) === v ? 'on' : ''}`} style={{ ['--c' as any]: v > 0 ? colors[0] : v < 0 ? colors[1] : '#dfe5ec', ['--s' as any]: 0.7 + Math.abs(v) * 0.15 }} onClick={() => { haptic(); set({ bias: v || undefined }) }} aria-label={levels.find((l) => l.v === v)?.label} />)}
+                  {([2, 1, 0, -1, -2] as ScriptLevel[]).map((v) => <button key={v} className={`sc-bdot ${s.bias === v ? 'on' : ''}`} style={{ ['--c' as any]: v > 0 ? colors[0] : v < 0 ? colors[1] : '#dfe5ec', ['--s' as any]: 0.7 + Math.abs(v) * 0.15 }} onClick={() => { haptic(); set({ bias: s.bias === v ? undefined : v }) }} aria-label={levelOf(v).label} />)}
                   <i className="sc-bline" />
                 </div>
                 <Badge club={clubs[1]} size={20} />
               </div>
+              <div className="tiny dim" style={{ marginTop: 6 }}>{s.bias === undefined ? 'Untouched: strength, form and the day decide. Tap a point to tilt it; the middle evens the sides out.' : `${levelOf(s.bias).sub}. Tap it again to leave it to the teams.`}</div>
             </section>
 
             <section className="card sc-sec">
@@ -172,17 +182,17 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
             <section className="card sc-sec">
               <div className="row between"><span className="small b">Moments</span><span className="tiny dim">{(s.events || []).length || 'None yet'}</span></div>
               {(s.events || []).length > 0 && <Timeline w={w} events={s.events!} colors={colors} knockout={knockout} />}
-              {(s.events || []).slice().sort((a, b) => a.min - b.min || (a.add || 0) - (b.add || 0)).map((e) => {
+              {(s.events || []).slice().sort((a, b) => (a.min || 999) - (b.min || 999) || (a.add || 0) - (b.add || 0)).map((e) => {
                 const p = e.player ? w.players[e.player] : undefined
                 const as = e.assist && e.assist > 0 ? w.players[e.assist] : undefined
                 return (
                   <div key={e.id} className="sc-ev">
                     <span className="sc-min num">{minLabel(e)}</span>
-                    <span className="sc-ic">{e.kind === 'goal' ? <Ball size={14} /> : e.kind === 'pen' ? (e.pen === 'goal' || !e.pen ? <Ball size={14} /> : <MissedPen size={14} />) : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}</span>
+                    <span className="sc-ic">{e.kind === 'goal' ? <Ball size={14} /> : e.kind === 'pen' ? (e.pen === 'goal' || !e.pen || e.pen === 'auto' ? <Ball size={14} /> : <MissedPen size={14} />) : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}</span>
                     {p ? <Face p={p} size={24} radius={12} club={clubs[e.side]} /> : <span className="sc-auto sm"><Icon name="refresh" size={11} /></span>}
                     <span className="grow small" style={{ minWidth: 0 }}>
                       <b>{p ? callName(p.name) : 'Auto'}</b>
-                      <span className="dim"> · {e.kind === 'goal' ? (as ? <>assist {callName(as.name)}</> : e.assist === AUTO_ASSIST ? 'auto assist' : 'goal') : e.kind === 'pen' ? `penalty ${e.pen === 'saved' ? 'saved' : e.pen === 'miss' ? 'missed' : 'scored'}${e.card && e.card !== 'none' ? ` · ${e.card} for the foul` : ''}` : e.kind === 'red' ? 'sent off' : 'booked'}</span>
+                      <span className="dim"> · {e.kind === 'goal' ? (as ? <>assist {callName(as.name)}</> : e.assist === AUTO_ASSIST ? 'auto assist' : 'goal') : e.kind === 'pen' ? `penalty ${e.pen === 'saved' ? 'saved' : e.pen === 'miss' ? 'missed' : e.pen === 'auto' ? 'left to the kick' : 'scored'}${e.card && e.card !== 'none' ? ` · ${e.card} for the foul` : ''}` : e.kind === 'red' ? 'sent off' : 'booked'}</span>
                     </span>
                     <Badge club={clubs[e.side]} size={16} />
                     <button className={`sc-x ${adding?.id === e.id ? 'on' : ''}`} onClick={() => { haptic(); setAdding({ ...e }) }} aria-label="Edit"><Icon name="edit" size={12} /></button>
@@ -280,9 +290,9 @@ function Timeline({ w, events, colors, knockout }: { w: World; events: ScriptEve
       <i className="sc-tl-line" />
       <i className="sc-tl-ht" style={{ left: `${(45 / end) * 100}%` }} />
       {end === 120 && <i className="sc-tl-ht" style={{ left: '75%' }} />}
-      {events.map((e) => (
+      {events.filter((e) => e.min).map((e) => (
         <span key={e.id} className={`sc-tl-m ${e.side ? 'away' : 'home'}`} style={{ left: x(e), ['--c' as any]: colors[e.side] }} title={`${minLabel(e)} ${e.player ? callName(w.players[e.player]?.name || '') : 'Auto'}`}>
-          {e.kind === 'goal' || (e.kind === 'pen' && (e.pen ?? 'goal') === 'goal') ? <Ball size={11} /> : e.kind === 'pen' ? <MissedPen size={11} /> : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}
+          {e.kind === 'goal' || (e.kind === 'pen' && ((e.pen ?? 'goal') === 'goal' || e.pen === 'auto')) ? <Ball size={11} /> : e.kind === 'pen' ? <MissedPen size={11} /> : <i className={`card-${e.kind === 'red' ? 'r' : 'y'}`} />}
         </span>
       ))}
       <span className="sc-tl-lab l">0'</span><span className="sc-tl-lab c" style={{ left: `${(45 / end) * 100}%` }}>HT</span><span className="sc-tl-lab r">{end}'</span>
@@ -339,7 +349,8 @@ function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone, 
       {e.kind === 'pen' && (
         <>
           <div className="tiny dim sc-pick-h">Outcome</div>
-          <Seg small items={[{ id: 'goal', label: 'Scored' }, { id: 'saved', label: 'Saved' }, { id: 'miss', label: 'Missed' }]} value={e.pen || 'goal'} onChange={(v) => up({ pen: v as ScriptEvent['pen'] })} />
+          <Seg small items={[{ id: 'goal', label: 'Scored' }, { id: 'saved', label: 'Saved' }, { id: 'miss', label: 'Missed' }, { id: 'auto', label: 'Auto' }]} value={e.pen || 'goal'} onChange={(v) => up({ pen: v as ScriptEvent['pen'] })} />
+          {e.pen === 'auto' && <div className="tiny dim" style={{ marginTop: 6 }}>The taker and the keeper decide it, as with any penalty.</div>}
           <div className="row" style={{ gap: 12, marginTop: 10, alignItems: 'flex-start' }}>
             <div>
               <div className="tiny dim" style={{ margin: '0 2px 5px' }}>Placement</div>
@@ -360,10 +371,12 @@ function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone, 
       <div className="ed-line" style={{ marginTop: 12 }}>
         <span className="small">Minute</span>
         <span className="row tight">
-          <Stepper value={e.min} min={1} max={maxMin} label="Minute" onChange={(v) => up({ min: v, add: v === 45 || v === 90 || v === 105 || v === 120 ? e.add : undefined })} fmt={(v) => `${v}'`} />
-          {endOfHalf && <Stepper value={e.add || 0} min={0} max={e.min === 90 ? 8 : 5} label="Stoppage time" onChange={(v) => up({ add: v || undefined })} fmt={(v) => (v ? `+${v}` : '+0')} />}
+          <button className={`chip sm ${!e.min ? 'on' : ''}`} onClick={() => { haptic(); up({ min: e.min ? 0 : 30, add: undefined }) }}>Any time</button>
+          {!!e.min && <Stepper value={e.min} min={1} max={maxMin} label="Minute" onChange={(v) => up({ min: v, add: v === 45 || v === 90 || v === 105 || v === 120 ? e.add : undefined })} fmt={(v) => `${v}'`} />}
+          {!!e.min && endOfHalf && <Stepper value={e.add || 0} min={0} max={e.min === 90 ? 8 : 5} label="Stoppage time" onChange={(v) => up({ add: v || undefined })} fmt={(v) => (v ? `+${v}` : '+0')} />}
         </span>
       </div>
+      {!e.min && <div className="tiny dim">The engine picks the minute, within normal time.</div>}
       {e.min > 90 && <div className="tiny dim">Extra-time moments only happen if the match goes to extra time.</div>}
       {sq.bench.some((p) => p.id === e.player || p.id === e.assist) && <div className="tiny" style={{ color: 'var(--gold)', marginTop: 4 }}>Starting on the bench: he comes on before the moment if a change is left.</div>}
       <div className="row" style={{ gap: 8, marginTop: 12 }}>
@@ -376,42 +389,59 @@ function EventForm({ w, e, squads, clubs, knockout, onChange, onCancel, onDone, 
   )
 }
 
-/** Choose an AI side's XI and bench for the match, in any formation. */
+/**
+ * An AI side's line-up for the match, edited on the pitch: tap a player, then who takes his place (from the bench, a
+ * swap; from the rest of the squad, he drops out). The formation can change; the XI keeps who is in it and is
+ * re-fitted to the new shape.
+ */
 function LineupPicker({ w, clubId, start, onSave, onReset }: { w: World; clubId: number; start: Squad; onSave: (l: { formation: string; lineup: number[]; bench: number[] }) => void; onReset: () => void }) {
   // (a national side picks from its called-up squad)
-  const squad = squadOf(w, clubId).filter((p) => !p.injury).sort((a, b) => (a.positions[0] === 'GK' ? -1 : 0) - (b.positions[0] === 'GK' ? -1 : 0) || b.ovr - a.ovr)
+  const squad = squadOf(w, clubId).filter((p) => !p.injury).sort((a, b) => b.ovr - a.ovr)
   const [formation, setFormation] = useState(start.formation)
   const [xi, setXi] = useState<number[]>(start.xi.map((p) => p.id))
-  const [bench, setBench] = useState<number[]>(start.bench.map((p) => p.id))
+  const [bench, setBench] = useState<number[]>(start.bench.map((p) => p.id).slice(0, BENCH_SIZE))
+  const [pick, setPick] = useState<number>()
   const club = w.clubs[clubId]
-  const cycle = (id: number) => {
-    haptic()
-    if (xi.includes(id)) { setXi(xi.filter((x) => x !== id)); if (bench.length < 12) setBench([...bench, id]) }
-    else if (bench.includes(id)) setBench(bench.filter((x) => x !== id))
-    else if (xi.length < 11) setXi([...xi, id])
-    else if (bench.length < 12) setBench([...bench, id])
+  const side = sideFromSheet(w, clubId, { lineup: xi, bench, formation, captain: xi[0] })
+  const pickSlot = xi.indexOf(pick ?? -1)
+  const rest = squad.filter((p) => !xi.includes(p.id) && !bench.includes(p.id))
+  const changeFormation = (id: string) => { haptic(); setFormation(id); setXi(assignToFormation(xi.map((x) => w.players[x]).filter(Boolean), id)); setPick(undefined) }
+  // who comes in for the picked XI player
+  const bring = (id: number) => {
+    if (pickSlot < 0) return
+    haptic('medium')
+    const out = xi[pickSlot]
+    const n = [...xi]; n[pickSlot] = id
+    setXi(n)
+    setBench(bench.includes(id) ? bench.map((b) => (b === id ? out : b)) : bench)
+    setPick(undefined)
   }
+  const toBench = (id: number) => { haptic(); setBench(bench.includes(id) ? bench.filter((b) => b !== id) : bench.length < BENCH_SIZE ? [...bench, id] : bench) }
   const common = ['4-3-3', '4-2-3-1', '4-4-2', '3-5-2', '3-4-3', '5-3-2', '4-1-2-1-2', '4-5-1']
   const forms = FORMATIONS.filter((f) => common.some((c) => f.name.startsWith(c))).slice(0, 10)
+  const row = (p: Player, where: 'bench' | 'rest') => (
+    <button key={p.id} className={`sc-lrow ${where === 'bench' ? 'bench' : 'out'}`} onClick={() => (pickSlot >= 0 ? bring(p.id) : toBench(p.id))}>
+      <span className={`sc-lst ${where === 'bench' ? 'bench' : 'out'}`}>{where === 'bench' ? 'SUB' : '—'}</span>
+      <Face p={p} size={26} radius={13} club={club} />
+      <span className="small ellipsis grow" style={{ textAlign: 'left' }}>{callName(p.name)}</span>
+      <span className="tiny dim">{p.positions[0]}</span>
+      <b className="num small" style={{ width: 24, textAlign: 'right' }}>{p.ovr}</b>
+    </button>
+  )
   return (
     <div className="sc-form fade-up">
-      <div className="sc-chips" style={{ marginBottom: 8 }}>{forms.map((f) => <button key={f.id} className={`chip sm ${formation === f.id ? 'on' : ''}`} onClick={() => { haptic(); setFormation(f.id) }}>{f.name}</button>)}</div>
-      <div className="tiny dim" style={{ margin: '0 2px 6px' }}>Tap to cycle: starting XI · bench · left out. <b style={{ color: xi.length === 11 ? 'var(--pos)' : 'var(--warn)' }}>XI {xi.length}/11</b> · bench {bench.length}</div>
-      {squad.map((p) => {
-        const st = xi.includes(p.id) ? 'xi' : bench.includes(p.id) ? 'bench' : 'out'
-        return (
-          <button key={p.id} className={`sc-lrow ${st}`} onClick={() => cycle(p.id)}>
-            <span className={`sc-lst ${st}`}>{st === 'xi' ? 'XI' : st === 'bench' ? 'SUB' : '—'}</span>
-            <Face p={p} size={26} radius={13} club={club} />
-            <span className="small ellipsis grow" style={{ textAlign: 'left' }}>{callName(p.name)}</span>
-            <span className="tiny dim">{p.positions[0]}</span>
-            <b className="num small" style={{ width: 24, textAlign: 'right' }}>{p.ovr}</b>
-          </button>
-        )
-      })}
+      <div className="sc-chips" style={{ marginBottom: 8 }}>{forms.map((f) => <button key={f.id} className={`chip sm ${formation === f.id ? 'on' : ''}`} onClick={() => changeFormation(f.id)}>{f.name}</button>)}</div>
+      <TeamLineup w={w} side={side} sel={pick} onTap={(t) => { haptic(); setPick(pick === t.id ? undefined : t.id) }} />
+      <div className="tiny dim" style={{ margin: '8px 2px 6px' }}>
+        {pickSlot >= 0 ? <><b style={{ color: 'var(--gold)' }}>{callName(w.players[pick!]?.name || '')}</b> ({formationOf(formation).slots[pickSlot]?.label}): tap who comes in. From the bench it's a swap.</> : 'Tap a player on the pitch to change him. Tap anyone below to move him on or off the bench.'}
+      </div>
+      <div className="label" style={{ margin: '4px 2px 4px' }}>Bench · {bench.length}/{BENCH_SIZE}</div>
+      {bench.map((id) => w.players[id]).filter(Boolean).map((p) => row(p, 'bench'))}
+      {rest.length > 0 && <div className="label" style={{ margin: '10px 2px 4px' }}>Rest of the squad</div>}
+      {rest.map((p) => row(p, 'rest'))}
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
         <button className="btn sm" onClick={onReset}>AI picks</button>
-        <button className="btn sm ed-apply grow" disabled={xi.length !== 11} onClick={() => onSave({ formation, lineup: assignToFormation(xi.map((id) => w.players[id]), formation), bench })}>Use this line-up · {formationOf(formation).name}</button>
+        <button className="btn sm ed-apply grow" disabled={xi.length !== 11} onClick={() => onSave({ formation, lineup: xi, bench })}>Use this line-up · {formationOf(formation).name}</button>
       </div>
     </div>
   )

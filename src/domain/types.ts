@@ -399,9 +399,10 @@ export interface ScriptEvent {
   side: 0 | 1
   player: number // scorer, penalty taker, or the player booked; 0 = the engine picks (AUTO)
   assist?: number // undefined = no assist; -1 = the engine picks (AUTO)
-  min: number // match minute 1–120
+  min: number // match minute 1–120; 0 = any time (the engine picks it)
   add?: number // stoppage-time minute (45+add, 90+add)
-  pen?: 'goal' | 'saved' | 'miss'
+  /** the kick's outcome; 'auto': the taker and keeper decide it, as any penalty */
+  pen?: 'goal' | 'saved' | 'miss' | 'auto'
   spot?: 'BL' | 'BR' | 'TL' | 'TR' | 'C'
   dive?: 'L' | 'R' | 'C'
   /** penalty: the card for the foul that gave it (undefined: the referee decides) */
@@ -409,7 +410,8 @@ export interface ScriptEvent {
 }
 /** Facts the editor guarantees; the match engine plays everything else out as normal around them. */
 export interface MatchScript {
-  bias?: ScriptLevel // + favours the home side
+  /** + favours the home side; 0 is an even contest (the gap between the sides evened out); unset, as the teams are */
+  bias?: ScriptLevel
   score?: [number, number] // final score (after extra time)
   events?: ScriptEvent[]
   form?: Record<number, ScriptLevel> // individual performances

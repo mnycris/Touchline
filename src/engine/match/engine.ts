@@ -381,6 +381,12 @@ export class MatchSim {
       if (st !== 'both' && (st === 'home') !== (k === 0)) continue
       inp.sheet.lineup.map((id) => inp.players[id]).filter((p) => p && p.positions[0] !== 'GK').sort((a, b) => b.ovr - a.ovr).slice(0, 3).forEach((p) => this.stars.add(p.id))
     }
+    // Edit Mode moments left to "any time": the engine picks the minute now, before anything is planned around them
+    if (ctx.script?.events?.some((e) => !e.min)) {
+      ctx.script = { ...ctx.script, events: ctx.script.events!.map((e) => (e.min ? e : { ...e, min: 4 + Math.floor(this.rng.next() * 84) })) }
+    }
+    // Edit Mode "an even contest": the two XIs' strength evened out (and no difficulty edge either way)
+    const even = ctx.script?.bias === 0
     this.sides = [new Side(home, 0), new Side(away, 1)]
     const us = ctx.userSide
     for (const s of this.sides) {
@@ -390,7 +396,20 @@ export class MatchSim {
       const bias = ctx.script?.bias || 0
       if (bias) s.boost *= s.idx === 0 ? 1 + 0.045 * bias : 1 - 0.04 * bias
       s.home = ctx.neutral ? 0 : s.idx === 0 ? 1.5 : -0.35
+      if (even) {
+        // no difficulty edge and a softer home edge (the strength itself is evened out below)
+        s.boost = 1
+        if (!ctx.neutral) s.home = s.idx === 0 ? 0.5 : -0.15
+      }
       this.initSide(s)
+    }
+    if (even) {
+      // the two XIs as they actually take the field (sharpness, morale, familiarity, form), moved to the middle of the
+      // two (each rated in the position he plays): form counts in rating points. The day's own ups and downs stay, so it is a contest, not a rigged coin toss.
+      const lvl = this.sides.map((s) => s.lps.reduce((a, l) => a + posRating(l.p, l.pos) * (l.cf[0] + l.cf[1] + l.cf[2]) / 3 + l.form, 0) / Math.max(1, s.lps.length))
+      const mid = (lvl[0] + lvl[1]) / 2
+      for (const s of this.sides) { s.dayForm += mid - lvl[s.idx]; for (const l of [...s.lps, ...s.bench]) this.cond(l) }
+      this.evenBase = [this.sides[0].dayForm, this.sides[1].dayForm]
     }
     const xi = this.sides.flatMap((s) => s.on)
     const lvl = xi.length ? xi.reduce((a, l) => a + l.p.ovr, 0) / xi.length : 79
@@ -678,6 +697,7 @@ export class MatchSim {
       this.addedPlanned = Math.max(this.plannedStoppage(), this.scriptedAdded(endMin))
       if (this.ctx.commentary && this.addedPlanned > 0) this.push({ min: endMin, type: 'info', side: -1, text: line(this.crng, 'added', { x: this.addedPlanned }) })
     }
+    if (this.evenBase && this.minute % 5 === 0 && this.added === 0) this.keepEven()
     const evStart = this.events.length
     this.simMinute()
     this.frame(evStart)
@@ -925,6 +945,18 @@ export class MatchSim {
   }
 
   // =========================================================== edit mode scripts
+  /** "An even contest": whatever made one side better (PlayStyles, shape, the matchup), the side making the chances
+   *  is reined in a little and the other lifted, every five minutes, within a bound: an even game, still played out. */
+  private evenBase?: [number, number]
+  private evenAdj = 0
+  private keepEven() {
+    const [a, b] = this.sides
+    this.evenAdj = clamp(this.evenAdj + clamp((b.stats.xg - a.stats.xg) * 2.2 + (this.score[1] - this.score[0]) * 0.4, -1.5, 1.5), -9, 9)
+    a.dayForm = this.evenBase![0] + this.evenAdj
+    b.dayForm = this.evenBase![1] - this.evenAdj
+    for (const s of this.sides) for (const l of [...s.lps, ...s.bench]) this.cond(l)
+  }
+
   private forceShot?: 'goal'
   private forceCard?: 'none' | 'yellow' | 'red'
   private stars = new Set<number>()
@@ -1052,7 +1084,7 @@ export class MatchSim {
     this.b = { x: 90 + this.rng.next() * 4, y: 40 + this.rng.next() * 20 }
     this.car = victim
     victim.at = { ...this.b }
-    this.forcePen = { taker: taker.p.id, res: e.pen || 'goal', spot: e.spot, dive: e.dive }
+    this.forcePen = { taker: taker.p.id, res: e.pen === 'auto' ? undefined : e.pen || 'goal', spot: e.spot, dive: e.dive }
     this.forceCard = e.card
     let dt = this.foul(def, victim, 'tackle', this.b)
     this.forceCard = undefined
@@ -3048,7 +3080,8 @@ export class MatchSim {
     let res: PenaltyKick['res'] = kick.res
     // Edit Mode: a scripted outcome, and no natural penalty goal past a scripted final score
     if (!shootout) {
-      const room = fp ? undefined : this.goalRoom(X.idx)
+      // (a scripted kick left to the taker still can't take the score past a scripted final score)
+      const room = fp?.res ? undefined : this.goalRoom(X.idx)
       const want2 = fp?.res ?? (room !== undefined && room <= 0 && res === 'goal' ? 'saved' : undefined)
       if (want2 === 'goal') { res = 'goal' }
       else if (want2 === 'saved') { res = 'saved'; dive = want === 'C' ? 'C' : want }

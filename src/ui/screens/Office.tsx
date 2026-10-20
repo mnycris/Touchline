@@ -537,6 +537,12 @@ export function CareerSettingsScreen() {
           <Toggle label="Haptics" on={prefs.haptics} onChange={(v) => setPrefs({ haptics: v })} />
           <Toggle label="Reduce motion" on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
         </div>
+        {w.meta.editMode && (
+          <div className="card">
+            <div className="card-h"><span className="label">Edit Mode</span></div>
+            <Toggle label="Hide Edited tags" sub="Scripted matches look like any other in results and reports. The edit is still recorded." on={!!prefs.hideEdited} onChange={(v) => setPrefs({ hideEdited: v })} />
+          </div>
+        )}
         <ImageCheck />
         <CareerOptions />
         <div className="card pad-card">

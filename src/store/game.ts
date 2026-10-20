@@ -68,6 +68,8 @@ export interface AppPrefs {
   /** the three speed buttons in the match centre (0.2×–6×) */
   speeds: [number, number, number]
   sound: boolean; reduceMotion: boolean; assistantSubs: boolean; stopOn: StopPrefs
+  /** Edit Mode: don't show the Edited tag on scripted matches (a display preference; the record of the edit stays) */
+  hideEdited?: boolean
 }
 
 export const DEFAULT_SPEEDS: [number, number, number] = [0.5, 1, 2]
