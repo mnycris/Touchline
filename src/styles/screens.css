@@ -1082,6 +1082,11 @@ select.input option { background: #151b27; }
 .mc-ms:disabled { opacity: 1; cursor: default; }
 .mc-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--s3); color: var(--t2); box-shadow: 0 0 0 3px var(--s1); }
 .mc-dot.gold { background: var(--gold); color: #1a1405; }
+.mc-next { display: flex; align-items: flex-start; gap: 8px; margin: 0 14px 8px; padding: 8px 10px; border-radius: 10px; background: rgba(var(--club-rgb), .1); color: var(--t2); font-size: 13px; line-height: 1.35; }
+.mc-next .icon, .mc-next svg { flex: none; margin-top: 2px; color: var(--acc); }
+.mc-award .meta .s { white-space: normal; line-height: 1.4; }
+.mc-award-lg { display: block; font-weight: 600; color: var(--t1); font-size: 12px; margin-bottom: 1px; }
+.mc-award-n { flex: none; font-family: var(--display); font-weight: 800; font-size: 14px; padding: 2px 7px; border-radius: 7px; background: var(--gold); color: #1a1405; }
 
 /* ---------- season hub ---------- */
 .so-card { padding: 14px; }

@@ -10,9 +10,11 @@ import { emptyLine } from './matchRunner'
 import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
 import { takeNewFixtures } from '../competitions/fixtures'
 import { rebuildReputations } from './reputation'
+import { migrateHonours } from './honours'
+import { sortTable } from '../competitions/tables'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
-export const SAVE_SCHEMA = 5
+export const SAVE_SCHEMA = 6
 
 interface Migration { to: number; name: string; run: (w: World) => void }
 
@@ -52,6 +54,8 @@ const MIGRATIONS: Migration[] = [
   },
   // the old formula topped out at 100 for two dozen clubs, the whole Premier League included
   { to: 5, name: 'Club reputations rebuilt on squad, league and stature', run: (w) => rebuildReputations(w) },
+  // monthly awards were saved with the month's name only, and trophies waited for the end of the season
+  { to: 6, name: 'Personal awards dated, and this season\'s trophies in the cabinet', run: (w) => migrateHonours(w, (c) => (c.format === 'league' ? sortTable(w, c)[0]?.clubId : c.winner)) },
 ]
 
 export interface MigrationReport { from: number; to: number; applied: string[]; repaired: number }

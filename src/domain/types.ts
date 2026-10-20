@@ -766,8 +766,10 @@ export interface UserManager {
   reputation: number // 1..100
   clubId: number // 0 = unemployed
   history: { clubId: number; from: ISODate; to?: ISODate; p: number; w: number; d: number; l: number; gf: number; ga: number; trophies: string[] }[]
-  trophies: { compKey: string; compName: string; season: number; clubId: number }[]
-  awards: { name: string; season: number; month?: string }[]
+  /** date: the day it was won (older saves don't have it) */
+  trophies: { compKey: string; compName: string; season: number; clubId: number; date?: ISODate }[]
+  /** month: yyyy-mm for monthly awards; compKey: the league it was won in */
+  awards: { name: string; season: number; month?: string; compKey?: string; clubId?: number }[]
   jobOffers: { clubId: number; date: ISODate; expires: ISODate }[]
   sacked?: ISODate
   rating: number // manager rating 1..100 dynamic

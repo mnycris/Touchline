@@ -1,9 +1,14 @@
 import type { Award, Competition, Player, World } from '../../domain/types'
 import { addDays, ageOn, monthName, toDate } from '../../domain/dates'
+import { clamp } from '../../domain/rng'
+import { ordinalOf } from '../../domain/words'
+import { sortTable } from '../competitions/tables'
 import { postNews, sendInbox } from './messages'
 
+/** The leagues with monthly and season awards: the top two divisions of the big nations, and the manager's own. */
+const awardsLeague = (w: World, c: Competition) => c.format === 'league' && (((w.leagues[c.leagueId!]?.level ?? 9) <= 2 && ['England', 'Spain', 'Germany', 'Italy', 'France', 'Netherlands', 'Portugal'].includes(c.country)) || c.clubs.includes(w.userClubId))
 function leagueComps(w: World): Competition[] {
-  return Object.values(w.competitions).filter((c) => c.season === w.season && c.format === 'league' && (w.leagues[c.leagueId!]?.level ?? 9) <= 2 && ['England', 'Spain', 'Germany', 'Italy', 'France', 'Netherlands', 'Portugal'].includes(c.country) || c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))
+  return Object.values(w.competitions).filter((c) => c.season === w.season && awardsLeague(w, c))
 }
 
 /** Player & Manager of the Month for the month that just ended (called on the 1st). */
@@ -64,7 +69,7 @@ export function monthlyAwards(w: World) {
       const pw = winners.find((x) => x.compId === comp.id)
       if (pw) pw.manager = `${name} (${w.clubs[bc].short}, ${bp} pts)`
       if (isUser) {
-        w.user.awards.push({ name: `${comp.short} Manager of the Month`, season: w.season, month: mName })
+        w.user.awards.push({ name: `${comp.short} Manager of the Month`, season: w.season, month, compKey: comp.key, clubId: bc })
         w.user.reputation = Math.min(100, w.user.reputation + 2)
         sendInbox(w, { from: comp.name, fromRole: 'Competition', category: 'Competitions', subject: `Manager of the Month: ${mName}`, body: `Congratulations! You have been named ${comp.short} Manager of the Month for ${mName} after collecting ${bp} points.`, actions: [], compId: comp.id, image: { kind: 'comp', id: comp.logoKey || comp.key } })
       }
@@ -81,6 +86,43 @@ export function monthlyAwards(w: World) {
     kind: 'award', playerIds: winners.filter((x) => x.playerId).map((x) => x.playerId!), clubIds: [], compId: lead.compId, month,
     importance: mine ? 4 : lead.own ? 3 : 2, userRelated: !!mine,
   })
+}
+
+/**
+ * Manager of the Season, named when a league finishes: usually the champions' manager, unless someone took a side far
+ * above where its squad would put it. He must have been in charge from before halfway to the end.
+ */
+export function managerOfTheSeason(w: World, comp: Competition) {
+  if (!awardsLeague(w, comp) || w.awards.some((a) => a.compKey === comp.key && a.season === comp.season && a.name.endsWith('Manager of the Season'))) return
+  const table = sortTable(w, comp)
+  const fx = comp.fixtures.map((id) => w.fixtures[id]).filter((f) => f?.played).sort((a, b) => a.date.localeCompare(b.date))
+  if (!table.length || !fx.length) return
+  const mid = fx[Math.floor(fx.length / 2)].date, end = fx[fx.length - 1].date
+  const expected = [...comp.clubs].sort((a, b) => (w.clubs[b]?.squadAvg || 0) - (w.clubs[a]?.squadAvg || 0))
+  let best: { clubId: number; user: boolean; name: string; pos: number; pts: number } | undefined, bs = -Infinity
+  table.forEach((r, i) => {
+    const pos = i + 1
+    const user = w.user.history.some((h) => h.clubId === r.clubId && h.from <= mid && (!h.to || h.to >= end))
+    const m = user ? undefined : w.managers[w.clubs[r.clubId]?.managerId]
+    if (!user && (!m || (m.appointed && m.appointed > mid))) return
+    const over = expected.indexOf(r.clubId) + 1 - pos
+    // the champions' manager as a rule; a side far above its means (a promoted club in the top four) can take it
+    const s = over * 0.6 + (pos === 1 ? 8 : pos <= 4 ? 1.5 : 0) + (comp.rules.promo && pos <= comp.rules.promo ? 2 : 0) + (r.pts / Math.max(1, r.p)) * 2
+    if (s > bs) { bs = s; best = { clubId: r.clubId, user, name: user ? `${w.user.firstName} ${w.user.lastName}` : m!.name, pos, pts: r.pts } }
+  })
+  if (!best) return
+  const name = `${comp.short} Manager of the Season`
+  const club = w.clubs[best.clubId]
+  w.awards.push({ id: `a${w.nextIds.misc++}`, name, season: comp.season, compKey: comp.key, clubId: best.clubId, managerName: best.name })
+  const how = best.pos === 1 ? `leading ${club.name} to the title with ${best.pts} points` : `taking ${club.name} to ${ordinalOf(best.pos)} place with ${best.pts} points`
+  if (best.user) {
+    w.user.awards.push({ name, season: comp.season, compKey: comp.key, clubId: best.clubId })
+    w.user.reputation = clamp(w.user.reputation + 4, 1, 100)
+    sendInbox(w, { from: comp.name, fromRole: 'Competition', category: 'Competitions', subject: name, body: `Congratulations! You have been named ${name} for ${how}.`, actions: [], compId: comp.id, image: { kind: 'comp', id: comp.logoKey || comp.key } })
+  }
+  if (best.user || (w.leagues[comp.leagueId!]?.prestige || 0) >= 8) {
+    postNews(w, { headline: `${best.name} named ${name}`, body: `${best.name} is the ${name} for ${how}.`, kind: 'award', playerIds: [], clubIds: [best.clubId], compId: comp.id, importance: best.user ? 4 : 2, userRelated: best.user })
+  }
 }
 
 export function seasonAwards(w: World) {

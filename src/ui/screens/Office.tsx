@@ -19,7 +19,7 @@ import { ordinal } from './Menu'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
 import { sortTable } from '../../engine/competitions/tables'
-import { careerSummary, seasonOfDate } from '../../engine/world/career'
+import { careerSummary } from '../../engine/world/career'
 
 const CAT_ICON: Record<ObjectiveCategory, string> = { 'Domestic Success': 'trophy', 'Continental Success': 'globe', Financial: 'money', 'Brand Exposure': 'star', 'Youth Development': 'youth' }
 
@@ -132,6 +132,18 @@ export function ManagerCareer() {
     for (const t of u.trophies) { const e = m.get(t.compKey) || { key: t.compKey, name: t.compName, seasons: [] }; e.seasons.push(t.season); m.set(t.compKey, e) }
     return [...m.values()].sort((a, b) => b.seasons.length - a.seasons.length)
   }, [u.trophies.length])
+  // the same award won again goes on one line: when, month by month or season by season (the season's awards first)
+  const honours = useMemo(() => {
+    const m = new Map<string, { name: string; title: string; league?: string; compKey?: string; at: string[] }>()
+    for (const a of u.awards) {
+      const comp = a.compKey ? Object.values(w.competitions).find((x) => x.key === a.compKey) : undefined
+      const g = m.get(a.name) || { name: a.name, title: comp && a.name.startsWith(`${comp.short} `) ? a.name.slice(comp.short.length + 1) : a.name, league: comp && a.name.startsWith(`${comp.short} `) ? comp.short : undefined, compKey: a.compKey, at: [] }
+      g.at.push(a.month && /^\d{4}-\d{2}$/.test(a.month) ? a.month : `${a.season}`)
+      m.set(a.name, g)
+    }
+    return [...m.values()].map((g) => ({ ...g, when: g.at.sort().map((x) => (x.length === 7 ? fmtDate(`${x}-01`, 'month') : seasonLabel(Number(x)))) }))
+      .sort((a, b) => Number(b.name.endsWith('of the Season')) - Number(a.name.endsWith('of the Season')) || b.when.length - a.when.length)
+  }, [u.awards.length])
   const seasons = new Set(c.seasons.map((s) => s.season)).size
   const fx = (m?: { f: { id: string } }) => m && go({ name: 'fixture', params: { id: m.f.id } })
   const scoreOf = (m: NonNullable<typeof c.biggestWin>) => `${m.f.result!.score[0]}–${m.f.result!.score[1]}`
@@ -158,7 +170,7 @@ export function ManagerCareer() {
           <button key={r.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => p && go({ name: 'player', params: { id: r.id } })} disabled={!p}>
             <span className="mc-rank">{i + 1}</span>
             {p ? <Face p={p} size={32} radius={16} club={w.clubs[p.clubId]} /> : <span style={{ width: 32 }} />}
-            <div className="meta"><div className="t small ellipsis">{p?.name || 'Retired player'}</div><div className="s">{r.apps} apps · {r.goals} goals · {r.assists} assists</div></div>
+            <div className="meta"><div className="t small ellipsis">{p?.name || 'Retired player'}</div><div className="s">{r.apps} app{r.apps === 1 ? '' : 's'} · {r.goals} goal{r.goals === 1 ? '' : 's'} · {r.assists} assist{r.assists === 1 ? '' : 's'}</div></div>
             <b className="num">{stat(r)}</b>
           </button>
         )
@@ -271,14 +283,14 @@ export function ManagerCareer() {
 
         <div className="card list">
           <div className="card-h"><span className="label">Clubs managed</span></div>
-          {[...u.history].reverse().map((h, i) => (
+          {u.history.map((h, i) => ({ h, r: c.stints[i] || h })).reverse().map(({ h, r }, i) => (
             <button key={i} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'club', params: { id: h.clubId } })}>
               <Badge club={w.clubs[h.clubId]} size={34} />
               <div className="meta">
                 <div className="t small">{w.clubs[h.clubId]?.name}</div>
-                <div className="s">{fmtDate(h.from, 'short')} – {h.to ? fmtDate(h.to, 'short') : 'present'} · P{h.p} W{h.w} D{h.d} L{h.l}</div>
+                <div className="s">{fmtDate(h.from, 'short')} – {h.to ? fmtDate(h.to, 'short') : 'present'} · P{r.p} W{r.w} D{r.d} L{r.l}</div>
               </div>
-              <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><b className="num small">{h.p ? Math.round((h.w / h.p) * 100) : 0}%</b><span className="tiny dim">{u.trophies.filter((t) => t.clubId === h.clubId && t.season >= seasonOfDate(h.from)).length} trophies</span></div>
+              <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><b className="num small">{r.p ? Math.round((r.w / r.p) * 100) : 0}%</b><span className="tiny dim">{h.trophies.length} troph{h.trophies.length === 1 ? 'y' : 'ies'}</span></div>
             </button>
           ))}
         </div>
@@ -286,6 +298,7 @@ export function ManagerCareer() {
         {c.milestones.length > 0 && (
           <div className="card">
             <div className="card-h"><span className="label">Milestones</span></div>
+            {c.next.length > 0 && <div className="mc-next"><Icon name="flag" size={13} /><span>Next: {c.next.join(' · ')}</span></div>}
             <div className="mc-tl">
               {c.milestones.slice(0, 14).map((m, i) => (
                 <button key={i} className="mc-ms" disabled={!m.fixtureId} onClick={() => m.fixtureId && go({ name: 'fixture', params: { id: m.fixtureId } })}>
@@ -297,10 +310,19 @@ export function ManagerCareer() {
           </div>
         )}
 
-        {u.awards.length > 0 && (
+        {honours.length > 0 && (
           <div className="card list">
-            <div className="card-h"><span className="label">Personal awards</span></div>
-            {u.awards.map((a, i) => <div key={i} className="li"><Icon name="medal" size={20} color="var(--gold)" /><div className="meta"><div className="t small">{a.name}</div><div className="s">{a.month ? fmtDate(`${a.month}-01`, 'month') : seasonLabel(a.season)}</div></div></div>)}
+            <div className="card-h"><span className="label">Personal awards</span><span className="tiny dim">{u.awards.length}</span></div>
+            {honours.map((g) => (
+              <div key={g.name} className="li mc-award">
+                {g.compKey ? <CompLogo k={g.compKey} size={30} /> : <Icon name="medal" size={22} color="var(--gold)" />}
+                <div className="meta">
+                  <div className="t small">{g.title}</div>
+                  <div className="s">{g.league && <b className="mc-award-lg">{g.league}</b>}{g.when.join(', ')}</div>
+                </div>
+                {g.when.length > 1 && <b className="mc-award-n">×{g.when.length}</b>}
+              </div>
+            ))}
           </div>
         )}
         <JobsButton />
@@ -427,8 +449,9 @@ export function SeasonReview({ params }: { params: { season: number } }) {
   const club = w.clubs[a.userClubId]
   const objs = w.board.objectives.filter((o) => o.season === a.season)
   const won = Object.entries(a.winners).filter(([, c]) => c === a.userClubId)
-  const awards = a.awards.slice(0, 12)
   const lgKey = Object.keys(a.tables).find((k) => a.tables[k].some((r) => r.clubId === a.userClubId))
+  // the manager's own league first
+  const awards = [...a.awards].sort((x, y) => Number(y.compKey === lgKey) - Number(x.compKey === lgKey)).slice(0, 12)
   return (
     <Screen title="Season Review" sub={seasonLabel(a.season)} back onBack={close} noNav>
       <div className="pad stack fade-up">
@@ -458,7 +481,7 @@ export function SeasonReview({ params }: { params: { season: number } }) {
         {awards.length > 0 && (
           <div className="card list">
             <div className="card-h"><span className="label">Season awards</span></div>
-            {awards.map((x) => { const p = x.playerId ? w.players[x.playerId] : undefined; return <div key={x.id} className="li"><Icon name="medal" size={18} color="var(--gold)" /><div className="meta"><div className="t small">{x.name}</div><div className="s">{p?.name || x.managerName}{x.value ? ` · ${x.value}` : ''}</div></div>{p && <Face p={p} size={34} radius={9} club={w.clubs[p.clubId]} />}</div> })}
+            {awards.map((x) => { const p = x.playerId ? w.players[x.playerId] : undefined; return <div key={x.id} className="li"><Icon name="medal" size={18} color="var(--gold)" /><div className="meta"><div className="t small">{x.name}</div><div className="s">{p?.name || x.managerName}{x.value ? ` · ${x.value}` : ''}</div></div>{p ? <Face p={p} size={34} radius={9} club={w.clubs[p.clubId]} /> : x.clubId && w.clubs[x.clubId] ? <Badge club={w.clubs[x.clubId]} size={30} /> : null}</div> })}
           </div>
         )}
         <div className="card pad-card small muted">Contracts have expired, loans have ended, retiring players have hung up their boots and the {seasonLabel(w.season)} fixtures are out. Your new budget is {fmtMoney(w.clubs[w.userClubId]?.finance.transferBudget || 0)}.</div>
@@ -591,8 +614,8 @@ function AwardsBoard() {
             {seasonAw.slice(0, 18).map((a) => {
               const p = a.playerId ? w.players[a.playerId] : undefined
               return (
-                <button key={a.id} className="aw-season" onClick={() => p && go({ name: 'player', params: { id: p.id } })}>
-                  {p ? <Face p={p} size={50} radius={14} club={w.clubs[p.clubId]} /> : <Icon name="medal" size={30} color="var(--gold)" />}
+                <button key={a.id} className="aw-season" onClick={() => p ? go({ name: 'player', params: { id: p.id } }) : a.clubId && w.clubs[a.clubId] && go({ name: 'club', params: { id: a.clubId } })}>
+                  {p ? <Face p={p} size={50} radius={14} club={w.clubs[p.clubId]} /> : a.clubId && w.clubs[a.clubId] ? <Badge club={w.clubs[a.clubId]} size={46} /> : <Icon name="medal" size={30} color="var(--gold)" />}
                   <span className="tiny b" style={{ color: 'var(--gold)', textAlign: 'center' }}>{a.name}</span>
                   <span className="small b ellipsis" style={{ maxWidth: '100%' }}>{p?.name || a.managerName}</span>
                   <span className="tiny dim">{seasonLabel(a.season)}{a.value ? ` · ${a.value}` : ''}</span>

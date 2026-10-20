@@ -16,7 +16,7 @@ import { aiTransferDay, processOffers, yearsLeft } from './transfers'
 import { updateBoardConfidence, generateObjectives } from './board'
 import { checkPromises, maybeConversations, weeklyMorale } from './morale'
 import { dailyScouting, dailyYouth } from './scouting'
-import { monthlyAwards } from './awards'
+import { managerOfTheSeason, monthlyAwards } from './awards'
 import { isDeepFixture } from './matchRunner'
 import { dailyWorldNews, matchWorldNews } from './worldNews'
 import { afterUserMatchMedia } from './media'
@@ -30,6 +30,7 @@ import { processPendingDeals } from './userActions'
 import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
 import { aOrAn } from '../../domain/words'
 import { aiLoanMarket } from './loans'
+import { registerTrophy } from './honours'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -68,29 +69,34 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
   const comp = w.competitions[f.compId]
   const idx = dateIndex(w)
   if (comp) {
+    // a trophy is recorded the moment it is won
     if (comp.format === 'cup') {
       const r = advanceCup(w, comp, f, rng, idx)
-      if (r.champion) championNews(w, comp, r.champion, f)
+      if (r.champion) { registerTrophy(w, comp, r.champion); championNews(w, comp, r.champion, f) }
       else if (r.roundDone && comp.clubs.includes(w.userClubId)) drawNews(w, comp)
     } else if (comp.format === 'supercup') {
       const r = advanceSuperCup(w, comp, f)
-      if (r.champion) championNews(w, comp, r.champion, f)
+      if (r.champion) { registerTrophy(w, comp, r.champion); championNews(w, comp, r.champion, f) }
     } else if (comp.format === 'uefa') {
       const r = advanceUefa(w, comp, f, rng, idx)
-      if (r.champion) championNews(w, comp, r.champion, f)
+      if (r.champion) { registerTrophy(w, comp, r.champion); championNews(w, comp, r.champion, f) }
       else if (r.stageDrawn && comp.clubs.includes(w.userClubId)) drawNews(w, comp, r.stageDrawn)
     } else if (comp.format === 'intl') {
       intlAfterMatch(w, f, result, res.injuries)
       const r = advanceIntl(w, comp, f, rng)
-      if (r.champion) championIntlNews(w, comp, r.champion, f)
+      if (r.champion) { registerTrophy(w, comp, r.champion); championIntlNews(w, comp, r.champion, f) }
     } else if (comp.format === 'playoff') {
       advancePlayoff(w, comp, f.id)
+      if (comp.status === 'finished' && comp.winner) registerTrophy(w, comp, comp.winner)
     } else if (comp.format === 'league') {
       if (comp.status === 'upcoming') comp.status = 'active'
       if (leagueFinished(w, comp)) {
         comp.status = 'finished'
         createPlayoffs(w, comp)
+        const champ = sortTable(w, comp)[0]?.clubId
+        if (champ) registerTrophy(w, comp, champ)
         leagueChampionNews(w, comp)
+        managerOfTheSeason(w, comp)
       }
     }
     if (comp.status === 'upcoming') comp.status = 'active'

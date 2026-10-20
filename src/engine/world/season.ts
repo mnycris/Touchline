@@ -18,6 +18,7 @@ import { closeCareerEntry, completeLoanPurchase, contractDemand, notableExit, ro
 import { namesInUse } from '../../domain/names'
 import { generateProspect } from './scouting'
 import { seasonReputation } from './reputation'
+import { registerTrophy } from './honours'
 
 // ---------------------------------------------------------------- playoffs
 export function leagueFinished(w: World, comp: Competition) {
@@ -114,7 +115,8 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
   const season = w.season
   const archive: SeasonArchive = { season, tables: {}, winners: {}, userClubId: w.userClubId, awards: [], topScorers: {}, transfersIn: 0, transfersOut: 0 }
   // ---- awards & archive
-  archive.awards = seasonAwards(w)
+  // the season's player awards, with the managers named when their leagues finished
+  archive.awards = [...seasonAwards(w), ...w.awards.filter((a) => a.season === season && a.name.endsWith('Manager of the Season'))]
   for (const comp of Object.values(w.competitions)) {
     if (comp.season !== season) continue
     if (comp.table) archive.tables[comp.key] = sortTable(w, comp)
@@ -122,15 +124,8 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     if (comp.format === 'league' && comp.table) winner = archive.tables[comp.key][0]?.clubId
     if (winner) {
       archive.winners[comp.key] = winner
-      w.clubs[winner]?.trophies.push({ compKey: comp.key, season })
-      if (winner === w.userClubId) {
-        w.user.trophies.push({ compKey: comp.key, compName: comp.name, season, clubId: winner })
-        const h = w.user.history[w.user.history.length - 1]
-        if (h) h.trophies.push(comp.short)
-        w.user.reputation = clamp(w.user.reputation + (comp.tier === 1 ? 8 : 4), 1, 100)
-      }
-      const m = w.managers[w.clubs[winner]?.managerId]
-      if (m) { m.trophies++; m.reputation = clamp(m.reputation + 3, 1, 99) }
+      // (recorded on the day it was won; this only catches a trophy nothing recorded then)
+      registerTrophy(w, comp, winner)
     }
     if (comp.stats?.topScorers) archive.topScorers[comp.key] = comp.stats.topScorers
   }
