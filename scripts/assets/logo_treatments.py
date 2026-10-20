@@ -27,7 +27,9 @@ DARK = 2.2  # contrast below this against the surface: lost on it
 # decided by eye on the contact sheet, over what the pixels say:
 # two-tone marks whose dark tone becomes white; a wordmark whose white version is its own; a blue mark that turns pastel
 CURATED = {
-    'comps': {'UEL': 'reverse', 'L50': 'reverse', 'L83': 'reverse', 'L68': 'reverse', 'L41': 'light'},
+    'comps': {'UEL': 'reverse', 'L50': 'reverse', 'L83': 'reverse', 'L68': 'reverse', 'L41': 'light',
+              # the Bundesliga wordmarks under the player, the "SERIE A" under its faceted A: dark type on the logo
+              'L19': 'reverse', 'L20': 'reverse', 'L31': 'reverse'},
     'badges': {'4': 'reverse', '100087': 'reverse', '131739': 'plate'},
 }
 
@@ -85,11 +87,19 @@ def classify(im):
     return 'none', share
 
 
-def lighten(im):
+# only part of the logo goes white: from this row down (the wordmark), the symbol above it keeps its own dark facets
+FROM_ROW = {'L31': 141}
+
+
+def lighten(im, key=None):
     """Dark tones to white, smoothly (so anti-aliased edges stay clean); everything else as it is."""
     out = Image.new('RGBA', im.size)
     data = []
-    for r, g, b, a in im.getdata():
+    start = FROM_ROW.get(key, 0) * im.width
+    for i, (r, g, b, a) in enumerate(im.getdata()):
+        if a == 0 or i < start:
+            data.append((r, g, b, a) if a else (0, 0, 0, 0))
+            continue
         if a == 0:
             data.append((0, 0, 0, 0))
             continue
@@ -114,7 +124,7 @@ def main():
             t = CURATED[kind].get(key, t)
             rev = os.path.join(folder, f'{key}.rev.webp')
             if t in ('light', 'reverse'):
-                lighten(im).save(rev, 'WEBP', lossless=True, quality=100, method=6)
+                lighten(im, key).save(rev, 'WEBP', lossless=True, quality=100, method=6)
             elif os.path.exists(rev):
                 os.remove(rev)
             if t != 'none':
@@ -143,7 +153,7 @@ def contact(items, path):
         a = im.copy(); a.thumbnail((80, 80))
         sheet.paste(a, (x0 + 10 + (80 - a.width) // 2, y0 + 10 + (80 - a.height) // 2), a)
         if t in ('light', 'reverse'):
-            b = lighten(im); b.thumbnail((80, 80))
+            b = lighten(im, key); b.thumbnail((80, 80))
         else:
             b = im.copy(); b.thumbnail((68, 68))
             dr.rounded_rectangle((x0 + 112, y0 + 6, x0 + 200, y0 + 94), radius=22, fill=(0x22, 0x26, 0x2D))

@@ -6,6 +6,7 @@ import type { Club, Competition, Fixture, Player, World } from '../../domain/typ
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
 import { compIdentity, identityClass, identityVars } from '../compIdentity'
+import { IdentityArt } from '../components/IdentityArt'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
@@ -209,7 +210,7 @@ function CompCard({ w, c }: { w: World; c: Competition }) {
   return (
     <button className="card tap comp-card" onClick={() => { haptic(); go({ name: 'comp', params: { id: c.id } }) }}>
       <div className="row" style={{ padding: 14, gap: 14 }}>
-        <div className={`logo-tile lg${ci ? ` ${identityClass(ci)}` : ''}`} style={ci ? identityVars(ci) : undefined}><CompLogo k={compLogoKey(c)} size={44} name={c.name} /></div>
+        <div className={`logo-tile lg${ci ? ` ${identityClass(ci)}` : ''}`} style={ci ? identityVars(ci) : undefined}>{ci && <IdentityArt ci={ci} />}<CompLogo k={compLogoKey(c)} size={44} name={c.name} /></div>
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
           <div className="h3 ellipsis">{c.name}</div>
           <div className="small muted" style={{ marginTop: 3 }}>{status}</div>
@@ -296,31 +297,83 @@ export function CompScreen({ params }: { params: { id: string } }) {
   )
 }
 
-/** The big competitions' own presentation at the top of their page: colours, pattern, where the season stands. */
+type HeroStage = { id: string; short: string; name: string; state: 'done' | 'now' | 'ahead' }
+
+/** Where a competition stands, for its title card: the stage, how far through it is, and who leads or has won it. */
+function heroState(w: World, c: Competition) {
+  const played = (id: string) => !!w.fixtures[id]?.played
+  const pts = (r: { pts: number; ded?: number }) => r.pts - (r.ded || 0)
+  let stage = '', progress: number | undefined
+  let lead: { id: number; text: string } | undefined
+  let champion = c.winner
+  const stages: HeroStage[] = []
+  if (c.format === 'league' && c.table?.length) {
+    const t = sortTable(w, c)
+    const n = Math.max(...t.map((r) => r.p)), total = (c.clubs.length - 1) * 2
+    if (c.status === 'finished') { stage = 'Final standings'; champion = t[0].clubId }
+    else if (!n) {
+      const first = c.fixtures.map((id) => w.fixtures[id]?.date).filter(Boolean).sort()[0]
+      stage = first ? `Kick-off ${fmtDate(first, 'dm')}` : 'Season ahead'
+    } else {
+      stage = `Matchday ${n} of ${total}`
+      progress = n / total
+      const gap = pts(t[0]) - (t[1] ? pts(t[1]) : 0)
+      lead = { id: t[0].clubId, text: `${pts(t[0])} pts · ${gap > 0 ? `${gap} clear` : 'level at the top'}` }
+    }
+    return { stage, progress, stages, lead, champion }
+  }
+  if (c.format === 'uefa' && c.table?.length) {
+    const md = Math.max(...c.table.map((r) => r.p)), lpDone = c.table.every((r) => r.p >= 8)
+    stages.push({ id: 'lp', short: 'LP', name: 'League phase', state: lpDone ? 'done' : 'now' })
+    if (!lpDone) {
+      stage = md ? `Matchday ${md} of 8` : 'League phase'
+      if (md) { progress = md / 8; const top = sortTable(w, c)[0]; lead = { id: top.clubId, text: `${pts(top)} pts` } }
+    }
+  }
+  if (c.intl && c.groups && Object.keys(c.groups).length) {
+    const gfx = c.fixtures.filter((id) => !c.rounds.some((r) => r.fixtures.includes(id)))
+    stages.push({ id: 'gs', short: 'GS', name: 'Group stage', state: gfx.length && gfx.every(played) ? 'done' : 'now' })
+  }
+  for (const r of c.rounds) {
+    const done = r.drawn && r.fixtures.length > 0 && r.fixtures.every(played) && !!r.winners?.length
+    const now = !done && !stages.some((s) => s.state === 'now')
+    stages.push({ id: r.id, short: shortRound(r.name), name: r.name, state: done ? 'done' : now ? 'now' : 'ahead' })
+  }
+  const final = c.rounds[c.rounds.length - 1]
+  if (c.winner) stage = c.intl ? 'Tournament complete' : `Final${final ? ` · ${fmtDate(final.date2 || final.date, 'dm')}` : ''}`
+  else if (!stage) {
+    const cur = stages.find((s) => s.state === 'now'), r = cur && c.rounds.find((x) => x.id === cur.id)
+    stage = c.intl && !r ? intlStage(w, c) : r ? `${r.name}${r.drawn ? '' : ` · ${fmtDate(r.date, 'dm')}`}` : cur?.name || ''
+  }
+  return { stage, progress, stages, lead, champion }
+}
+
+/** The big competitions' own title card at the top of their page, in their brand: colours, the genuine mark large,
+ * where the season stands, who leads and who holds it. */
 function CompHero({ w, c }: { w: World; c: Competition }) {
   const ci = compIdentity(c.key)
   if (!ci) return null
+  const { stage, progress, stages, lead, champion } = heroState(w, c)
   const holder = c.holderId || w.archive.find((a) => a.season === c.season - 1)?.winners[c.key]
-  let line = ''
-  if (c.format === 'league' && c.table?.length) {
-    const t = sortTable(w, c)
-    const played = Math.max(...t.map((r) => r.p)), total = (c.clubs.length - 1) * 2
-    line = c.status === 'finished' ? `Champions: ${w.clubs[t[0].clubId]?.name}` : played ? `Matchday ${played} of ${total} · ${w.clubs[t[0].clubId]?.short} top` : 'The season is about to begin'
-  } else if (c.winner) line = `Won by ${w.clubs[c.winner]?.name}`
-  else {
-    const r = c.rounds.find((x) => x.drawn && x.fixtures.some((id) => !w.fixtures[id]?.played))
-    line = r ? r.name : c.format === 'uefa' && c.table?.some((x) => x.p) ? 'League phase' : c.rounds[0] ? `${c.rounds[0].name} · ${fmtDate(c.rounds[0].date, 'dm')}` : ''
-  }
+  const chip = (id: number, label: string, text?: string) => w.clubs[id] && (
+    <span className="ch-chip"><span className="ch-chip-l">{label}</span><Badge club={w.clubs[id]} size={16} /><b>{w.clubs[id].short}</b>{text && <span className="ch-chip-t">{text}</span>}</span>
+  )
   return (
     <div className="pad" style={{ marginTop: 8 }}>
       <div className={`comp-hero ${identityClass(ci)}`} style={identityVars(ci)}>
-        <i className="ci-light" aria-hidden />
-        <CompLogo k={compLogoKey(c)} size={58} name={c.name} />
-        <div className="grow" style={{ minWidth: 0 }}>
-          <div className="ch-kicker">{seasonLabel(c.season)}</div>
-          <div className="h3 ch-name">{c.name}</div>
-          {line && <div className="small ch-line">{line}</div>}
-          {holder && !c.winner && w.clubs[holder] && <div className="tiny ch-hold"><Badge club={w.clubs[holder]} size={14} /> Holders: {w.clubs[holder].short}</div>}
+        <IdentityArt ci={ci} />
+        <div className="ch-top">
+          <span className="ch-logo"><CompLogo k={compLogoKey(c)} size={36} name={c.name} /></span>
+          <div className="ch-kicker"><span>{seasonLabel(c.season)}</span>{stage && <><i className="ch-dot" />{stage}</>}</div>
+        </div>
+        <div className="ch-name">{c.name}</div>
+        {progress != null && <div className="ch-prog" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.max(2, progress * 100)}%` }} /></div>}
+        {stages.length > 1 && (
+          <div className="ch-stages">{stages.map((s, i) => <span key={s.id} className="ch-stw">{i > 0 && <i className="ch-sep" />}<span className={`ch-st ${s.state}`} title={s.name}>{s.short}</span></span>)}</div>
+        )}
+        <div className="ch-foot">
+          {champion ? chip(champion, c.format === 'league' ? 'Champions' : 'Winners') : lead ? chip(lead.id, c.format === 'league' ? 'Leaders' : 'Top', lead.text) : null}
+          {!champion && holder ? chip(holder, 'Holders') : null}
         </div>
       </div>
     </div>

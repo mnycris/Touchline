@@ -82,3 +82,22 @@ in white), reverse (dark tone white, accents kept), plate (own colours on a neut
 | JCS | Johan Cruijff Schaal | supercup | Netherlands |  | Wikipedia: Johan Cruyff Shield | — | Wikipedia logo, looked up on device |
 | SUPERTACA | Supertaça Cândido de Oliveira | supercup | Portugal |  | Wikipedia: Supertaça Cândido de Oliveira | — | Wikipedia logo, looked up on device |
 | SUPERCOPA | Supercopa de España | supercup | Spain |  | Wikipedia: Supercopa de España | — | Wikipedia logo, looked up on device |
+
+## Competition identities
+
+The biggest competitions have their own presentation on their page (title card), on the Season page tile and on the
+Match Day band (`src/ui/compIdentity.ts`, styles under `.ci-<id>` in `src/styles/screens.css`).
+
+- **Marks** (`public/assets/marks/*.svg`): the symbol of the genuine bundled logo, without its wordmark, traced into a
+  single-colour vector by `scripts/assets/comp_marks.py` so it can be shown large and filled with the brand's colours:
+  the starball, the Europa League trophy, the LALIGA "LL" (and Hypermotion), the Bundesliga and 2. Bundesliga players,
+  Serie A's "A", the Ligue 1 and Ligue 2 symbols, the FA Cup trophy. The Premier League lion is the Simple Icons vector
+  (from premierleague.com), not a trace.
+- **Colours**: sampled from those logos where the app has them (UCL navy #00004b, Europa orange #ff6900, LALIGA coral
+  #ff4b44, Bundesliga red #d20515, Serie A navy #1a1659 and azure #0070f8, Carabao green #008c5a), the Premier League's
+  purple #37003c and accents, and otherwise taken from published descriptions of the identities with no official values
+  found (Ligue 1's electric blue and pink on charcoal, Ligue 2's aquamarine and purple, the FA Cup's navy and red, the
+  Champions League's "Kick of Light" spectrum, the Conference League's black and green). Those are approximations.
+- Competitions without a bundled logo (Conference League, Copa del Rey, DFB-Pokal, Coppa Italia, Coupe de France, World
+  Cup, EURO) get their colours and light but no mark, since their logos load only on the device and couldn't be traced or
+  checked here.

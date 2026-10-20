@@ -2303,33 +2303,150 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .masthead { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .02em; line-height: 1; white-space: nowrap; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
 .masthead.newspaper { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; letter-spacing: 0; }
 
-/* ---------- competition identities (ui/compIdentity.ts): the big competitions in their own colours ---------- */
-.ci { position: relative; overflow: hidden; isolation: isolate; background: linear-gradient(135deg, var(--ci-a), var(--ci-b)); }
-.ci::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
-.cip-starball::before { background:
-  radial-gradient(1.3px 1.3px at 14% 24%, rgba(255, 255, 255, .7), transparent 70%), radial-gradient(1px 1px at 30% 72%, rgba(255, 255, 255, .5), transparent 70%),
-  radial-gradient(1.4px 1.4px at 52% 18%, rgba(255, 255, 255, .55), transparent 70%), radial-gradient(1px 1px at 66% 64%, rgba(255, 255, 255, .45), transparent 70%),
-  radial-gradient(1.2px 1.2px at 82% 30%, rgba(255, 255, 255, .6), transparent 70%), radial-gradient(1px 1px at 90% 80%, rgba(255, 255, 255, .4), transparent 70%),
-  radial-gradient(1px 1px at 40% 42%, rgba(255, 255, 255, .35), transparent 70%), radial-gradient(1.2px 1.2px at 6% 86%, rgba(255, 255, 255, .45), transparent 70%),
-  radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 18%, transparent), transparent 62%); }
-.cip-chevron::before { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ci-acc) 9%, transparent) 0 2px, transparent 2px 16px), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 18%, transparent), transparent 62%); }
-.cip-grid::before { background: linear-gradient(color-mix(in srgb, var(--ci-acc) 8%, transparent) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, color-mix(in srgb, var(--ci-acc) 8%, transparent) 1px, transparent 1px) 0 0 / 22px 22px, radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
-.cip-stripes::before { background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--ci-acc) 7%, transparent) 0 9px, transparent 9px 26px), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
-.cip-rays::before { background: repeating-conic-gradient(from 200deg at 92% 115%, color-mix(in srgb, var(--ci-acc) 9%, transparent) 0deg 3deg, transparent 3deg 11deg), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 14%, transparent), transparent 62%); }
-.cip-waves::before { background: radial-gradient(120% 70% at 0% 110%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 60%), radial-gradient(90% 60% at 100% -10%, color-mix(in srgb, var(--ci-acc) 14%, transparent), transparent 62%), repeating-radial-gradient(circle at 0% 120%, color-mix(in srgb, var(--ci-acc) 6%, transparent) 0 1px, transparent 1px 14px); }
-/* the sweep of light across the big nights (after UEFA's "kick of light"); still for those who ask for less motion */
-.ci-light { position: absolute; inset: -30% -70%; z-index: -1; pointer-events: none; opacity: 0;
-  background: linear-gradient(102deg, transparent 43%, color-mix(in srgb, var(--ci-acc) 20%, transparent) 50%, transparent 57%); }
-.ci-motion .ci-light { opacity: 1; animation: ci-sweep 10s cubic-bezier(.45, 0, .2, 1) infinite; }
-@keyframes ci-sweep { 0%, 12% { transform: translateX(-38%); } 62%, 100% { transform: translateX(38%); } }
-@media (prefers-reduced-motion: reduce) { .ci-motion .ci-light { animation: none; transform: none; opacity: .45; } }
+/* ---------- competition identities (ui/compIdentity.ts): the big competitions in their own brand ----------
+   Each identity (.ci-<id>) sets its colour field (--ci-field), its light (--ci-glow), how its mark is filled and
+   placed (--ci-mark-fill, --ci-mark-op; --ci-mw its width against the box, --ci-mx right offset, --ci-my, --ci-mr), and a
+   hairline in its colours along the top (--ci-edge). The marks are traced from the genuine logos
+   (scripts/assets/comp_marks.py); the colours are sampled from those logos or taken from the brands' descriptions. */
+.ci { position: relative; overflow: hidden; isolation: isolate; background: var(--ci-field, #12151b); }
+.ci-art { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; border-radius: inherit; }
+.ci-art > i { position: absolute; display: block; }
+.ci-glow { inset: 0; background: var(--ci-glow, none); }
+.ci-mark { top: 50%; right: var(--ci-mx, -10%); width: calc(var(--ci-mw, .5) * 100%); aspect-ratio: var(--ci-ar, 1);
+  transform: translateY(calc(-50% + var(--ci-my, 0%))) rotate(var(--ci-mr, 0deg));
+  background: var(--ci-mark-fill, #fff); opacity: var(--ci-mark-op, .14);
+  -webkit-mask: var(--ci-mark) center / contain no-repeat; mask: var(--ci-mark) center / contain no-repeat; }
+/* fine grain over the field: no banding in the gradients, the finish of printed and broadcast graphics */
+.ci::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: url(/assets/fx/grain.png) 0 0 / 160px 160px; mix-blend-mode: overlay; opacity: var(--ci-grain, .3); }
+.ci::before { content: ''; position: absolute; inset: 0 0 auto; height: var(--ci-edge-h, 1px); z-index: 1; pointer-events: none;
+  background: var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent)); }
+/* a logo shown in white on a coloured field: the competition's own version for it (LALIGA on its coral) */
+.ci-white-logo .comp-logo { filter: brightness(0) invert(1); }
+/* the light of the big nights: a slow sweep across the field, a spectrum turning through the starball */
+.ci-light { inset: -40% -60%; opacity: 0; background: linear-gradient(100deg, transparent 43%, rgba(255, 255, 255, .1) 50%, transparent 57%); }
+.ci-sheen .ci-light, .ci-prism .ci-light { opacity: 1; animation: ci-sweep 12s cubic-bezier(.45, 0, .2, 1) infinite; }
+@keyframes ci-sweep { 0%, 16% { transform: translateX(-42%); } 66%, 100% { transform: translateX(42%); } }
+@keyframes ci-hue { from { filter: blur(5px) hue-rotate(0deg); } to { filter: blur(5px) hue-rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ci .ci-light, .ci .ci-mark { animation: none !important; } .ci .ci-light { opacity: 0 !important; } }
 
-.comp-hero { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ci-acc) 20%, transparent); }
-.comp-hero .ch-kicker { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ci-acc); }
-.comp-hero .ch-name { color: #fff; margin-top: 2px; line-height: 1.1; }
-.comp-hero .ch-line { color: rgba(255, 255, 255, .84); margin-top: 5px; }
-.comp-hero .ch-hold { display: flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, .68); margin-top: 6px; }
-.logo-tile.ci { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ci-acc) 24%, transparent); }
-.md-head.ci-band { background: linear-gradient(180deg, color-mix(in srgb, var(--ci-a) 92%, transparent) 0%, color-mix(in srgb, var(--ci-b) 70%, var(--s1)) 60%, var(--s1) 100%); }
-.md-head.ci-band::before { -webkit-mask-image: linear-gradient(#000, transparent 80%); mask-image: linear-gradient(#000, transparent 80%); }
+/* Champions League: "Kick of Light" (2024-27). The starball's night blue (#00004b, from the logo); white light
+   split into a spectrum through the starball, its glass catching the light */
+.ci-UCL { --ci-field: radial-gradient(120% 140% at 95% -10%, #2a46d6 0%, #13289e 22%, #061073 45%, #01035a 68%, #000038 100%);
+  --ci-glow: radial-gradient(45% 75% at 86% 32%, rgba(150, 180, 255, .3), transparent 70%), radial-gradient(70% 100% at -5% 110%, rgba(0, 0, 25, .6), transparent 70%);
+  --ci-mw: .72; --ci-mx: -21%; --ci-my: 8%; --ci-mr: -16deg; --ci-mark-op: .9;
+  --ci-edge: linear-gradient(90deg, transparent 0%, #7f8cff 14%, #5ee8ff 30%, #8dffb3 44%, #fff07a 56%, #ffb46b 68%, #ff73b5 82%, transparent 100%); }
+.ci-UCL .ci-mark { background: conic-gradient(from 0deg at 50% 50%, #ff73b5, #ffb46b, #fff07a, #8dffb3, #5ee8ff, #7f8cff, #c08bff, #ff73b5); filter: blur(5px); }
+.ci-UCL.ci-prism .ci-mark { animation: ci-hue 24s linear infinite; }
+/* the starball itself: deep blue glass in front of the light, so the spectrum shows only at its edges */
+.ci-UCL .ci-mark-glass { opacity: 1; filter: none; animation: none !important; margin: 4px 0 0 4px;
+  background: linear-gradient(150deg, #5672ff 0%, #1a2fa8 26%, #071272 58%, #020558 100%); }
+/* Europa League: orange (#ff6900, from the logo) and black, the trophy and its ring */
+.ci-UEL { --ci-field: radial-gradient(90% 130% at 100% 100%, rgba(255, 105, 0, .42) 0%, rgba(255, 105, 0, .1) 45%, transparent 70%), linear-gradient(135deg, #17120e 0%, #0b0a09 55%, #050505 100%);
+  --ci-glow: radial-gradient(40% 70% at 84% 40%, rgba(255, 150, 60, .2), transparent 70%);
+  --ci-mw: .5; --ci-mx: -15%; --ci-my: 8%; --ci-mark-op: .95;
+  --ci-mark-fill: linear-gradient(165deg, #ffb066 0%, #ff7a12 32%, #ff6900 58%, #a83f00 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #ff6900 35%, #ffb066 65%, transparent); }
+/* Conference League: black and bright green, planes of light */
+.ci-UECL { --ci-field: radial-gradient(80% 120% at 100% 0%, rgba(44, 240, 124, .42), transparent 60%), linear-gradient(135deg, #0c110e 0%, #050806 60%, #020302 100%);
+  --ci-glow: linear-gradient(112deg, transparent 56%, rgba(44, 240, 124, .16) 56.4%, rgba(44, 240, 124, .03) 65%, transparent 65.4%), linear-gradient(112deg, transparent 69%, rgba(44, 240, 124, .11) 69.4%, rgba(44, 240, 124, .02) 76%, transparent 76.4%), linear-gradient(112deg, transparent 81%, rgba(44, 240, 124, .08) 81.4%, transparent 86%);
+  --ci-edge: linear-gradient(90deg, transparent, #2cf07c 45%, transparent); }
+/* Premier League: purple (#37003c) and the three gradient tones of the 2023 refresh (lime green, sky purple, purple
+   red); the lion, heroic, as a cut-out against the colour */
+.ci-L13 { --ci-field: radial-gradient(70% 120% at 110% -15%, #00ff85 0%, rgba(0, 255, 133, 0) 58%), radial-gradient(65% 110% at 104% 62%, #04f5ff 0%, rgba(4, 245, 255, 0) 56%), radial-gradient(85% 120% at 78% 125%, #e90052 0%, rgba(233, 0, 82, 0) 62%), radial-gradient(55% 90% at 64% 38%, #963cff 0%, rgba(150, 60, 255, 0) 70%), #37003c;
+  --ci-glow: linear-gradient(90deg, #37003c 0%, rgba(55, 0, 60, .9) 34%, rgba(55, 0, 60, 0) 70%);
+  --ci-mw: .66; --ci-mx: -12%; --ci-my: 14%; --ci-mark-fill: #37003c; --ci-mark-op: .94;
+  --ci-edge: linear-gradient(90deg, transparent, #00ff85 35%, #04f5ff 60%, #e90052 85%, transparent); }
+/* LALIGA: coral red (Pantone Red 032 C; #ff4b44 in the logo), the "LL" symbol large; Hypermotion in its turquoise */
+.ci-L53, .ci-L54 { --ci-glow: radial-gradient(55% 90% at 96% 0%, rgba(255, 255, 255, .2), transparent 65%), radial-gradient(60% 100% at 0% 100%, rgba(40, 0, 10, .32), transparent 70%);
+  --ci-mw: .78; --ci-mx: -15%; --ci-my: 6%; --ci-mark-op: .2;
+  --ci-edge: linear-gradient(90deg, transparent, rgba(255, 255, 255, .7) 50%, transparent); }
+.ci-L53 { --ci-field: linear-gradient(112deg, #b4162a 0%, #d42638 32%, #f23d40 60%, #ff4b44 80%, #ff6a52 100%); }
+.ci-L54 { --ci-field: linear-gradient(112deg, #003c45 0%, #00646d 34%, #00959c 66%, #00c3c8 88%, #2fe0e0 100%); }
+/* Bundesliga: red (#d20515, from the logo), white and silver after the trophy; the logo's player, in red */
+.ci-L19, .ci-L20 { --ci-field: linear-gradient(135deg, #1e1f23 0%, #131417 50%, #08090a 100%);
+  --ci-glow: linear-gradient(118deg, transparent 20%, rgba(255, 255, 255, .07) 33%, rgba(255, 255, 255, 0) 42%), radial-gradient(55% 90% at 100% 55%, rgba(210, 5, 21, .36), transparent 70%);
+  --ci-mw: .5; --ci-mx: -11%; --ci-my: 9%; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(160deg, #ff3443 0%, #d20515 50%, #8f000d 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #c9ced6 25%, #ffffff 50%, #c9ced6 75%, transparent); }
+/* Serie A: navy (#1a1659) and azure (#0070f8), both from the logo; its faceted "A"; the tricolore of its strip */
+.ci-L31 { --ci-field: linear-gradient(122deg, #0d0a3a 0%, #1a1659 34%, #10379d 70%, #0062e0 92%, #0a78ff 100%);
+  --ci-glow: radial-gradient(50% 80% at 92% 8%, rgba(120, 200, 255, .3), transparent 65%);
+  --ci-mw: .58; --ci-mx: -9%; --ci-my: 8%; --ci-mark-op: .6;
+  --ci-mark-fill: linear-gradient(180deg, #66c6ff 0%, #2a92ff 42%, rgba(26, 22, 89, .2) 100%);
+  --ci-edge: linear-gradient(90deg, #009246 0 33.3%, #f1f2f1 33.3% 66.6%, #ce2b37 66.6%); --ci-edge-h: 2px; }
+/* Ligue 1: electric blue and pink on charcoal (Ligue 2: aquamarine and purple), the 2024 identity; the "L1" */
+.ci-L16, .ci-L17 { --ci-mw: .37; --ci-mx: -5%; --ci-my: 9%; --ci-mark-op: .95; }
+.ci-L17 { --ci-mw: .3; --ci-mx: 3%; --ci-my: 0%; }
+.ci-L16 { --ci-field: radial-gradient(85% 130% at 106% -6%, #3552ff 0%, #2340f0 26%, rgba(35, 64, 240, 0) 62%), radial-gradient(55% 85% at 92% 116%, rgba(255, 61, 139, .85) 0%, rgba(255, 61, 139, 0) 62%), linear-gradient(135deg, #202127 0%, #16171c 55%, #0f1013 100%);
+  --ci-mark-fill: linear-gradient(200deg, #4d68ff 0%, #2340f0 42%, #c0307f 78%, #ff3d8b 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #3552ff 35%, #ff3d8b 70%, transparent); }
+.ci-L17 { --ci-field: radial-gradient(85% 130% at 106% -6%, #7b3cff 0%, #6a2ef0 26%, rgba(106, 46, 240, 0) 62%), radial-gradient(55% 85% at 92% 116%, rgba(31, 224, 192, .75) 0%, rgba(31, 224, 192, 0) 62%), linear-gradient(135deg, #202127 0%, #16171c 55%, #0f1013 100%);
+  --ci-mark-fill: linear-gradient(200deg, #9a66ff 0%, #6a2ef0 42%, #17a993 78%, #1fe0c0 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #7b3cff 35%, #1fe0c0 70%, transparent); }
+/* Emirates FA Cup: navy and red (the 2020 identity's panels), the trophy in silver */
+.ci-FACUP { --ci-field: linear-gradient(104deg, transparent 66%, #c8102e 66.2%, #a20c24 100%), linear-gradient(125deg, #091634 0%, #0e2150 55%, #142c66 100%);
+  --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
+  --ci-mw: .27; --ci-mx: 4%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #c8102e 75%, transparent); }
+/* Carabao Cup: the logo's green (#008c5a) and white, the gold of its sun's rim */
+.ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .32), transparent 62%), linear-gradient(125deg, #002417 0%, #004d33 50%, #008a59 100%);
+  --ci-glow: linear-gradient(112deg, transparent 56%, rgba(255, 255, 255, .13) 56.4%, rgba(255, 255, 255, .02) 65%, transparent 65.4%), linear-gradient(112deg, transparent 69%, rgba(255, 255, 255, .09) 69.4%, rgba(255, 255, 255, .02) 76%, transparent 76.4%), linear-gradient(112deg, transparent 81%, rgba(245, 196, 0, .14) 81.4%, transparent 85%);
+  --ci-edge: linear-gradient(90deg, transparent, #f5c400 45%, transparent); }
+/* Copa del Rey: crimson and gold; DFB-Pokal: black and gold after the trophy; both with their nation's colours */
+.ci-CDR { --ci-field: linear-gradient(125deg, #3a0510 0%, #6d0a1c 45%, #9c1229 100%);
+  --ci-glow: radial-gradient(60% 100% at 100% 0%, rgba(246, 196, 69, .32), transparent 62%), linear-gradient(115deg, transparent 62%, rgba(246, 196, 69, .1) 62.4%, transparent 72%);
+  --ci-edge: linear-gradient(90deg, #aa151b 0 25%, #f1bf00 25% 75%, #aa151b 75%); --ci-edge-h: 2px; }
+.ci-DFB { --ci-field: linear-gradient(135deg, #1b1b1d 0%, #0f0f10 55%, #060606 100%);
+  --ci-glow: radial-gradient(65% 110% at 100% 0%, rgba(255, 206, 58, .3), transparent 62%), radial-gradient(40% 60% at 94% 100%, rgba(221, 0, 0, .22), transparent 70%), linear-gradient(112deg, transparent 62%, rgba(255, 206, 58, .1) 62.4%, transparent 71%);
+  --ci-edge: linear-gradient(90deg, #000 0 33.3%, #dd0000 33.3% 66.6%, #ffce00 66.6%); --ci-edge-h: 2px; }
+/* Coppa Italia and Coupe de France: their nation's blue, its flag along the top */
+.ci-CI { --ci-field: linear-gradient(125deg, #06183d 0%, #0a2f72 55%, #0f4aa8 100%);
+  --ci-glow: radial-gradient(55% 90% at 100% 0%, rgba(210, 225, 245, .24), transparent 62%), linear-gradient(112deg, transparent 62%, rgba(210, 225, 245, .1) 62.4%, transparent 71%);
+  --ci-edge: linear-gradient(90deg, #009246 0 33.3%, #f1f2f1 33.3% 66.6%, #ce2b37 66.6%); --ci-edge-h: 2px; }
+.ci-CDF { --ci-field: linear-gradient(125deg, #07133f 0%, #0c2373 55%, #1437a8 100%);
+  --ci-glow: radial-gradient(50% 90% at 100% 100%, rgba(237, 41, 57, .4), transparent 62%), radial-gradient(45% 70% at 95% 0%, rgba(255, 255, 255, .14), transparent 65%), linear-gradient(112deg, transparent 62%, rgba(255, 255, 255, .08) 62.4%, transparent 71%);
+  --ci-edge: linear-gradient(90deg, #0055a4 0 33.3%, #ffffff 33.3% 66.6%, #ef4135 66.6%); --ci-edge-h: 2px; }
+/* World Cup: black and gold with the trophy's malachite; EURO: UEFA blue and the silver of the Henri Delaunay */
+.ci-WC { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(236, 197, 96, .34), transparent 60%), radial-gradient(60% 90% at 86% 116%, rgba(16, 110, 80, .45), transparent 65%), linear-gradient(135deg, #121212 0%, #080808 100%);
+  --ci-edge: linear-gradient(90deg, transparent, #ecc560 45%, #fff2c4 60%, transparent); }
+.ci-EURO { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(180, 205, 255, .28), transparent 60%), linear-gradient(125deg, #050d33 0%, #0a1d6b 60%, #1236b0 100%);
+  --ci-glow: linear-gradient(112deg, transparent 60%, rgba(201, 214, 238, .12) 60.4%, transparent 69%), linear-gradient(112deg, transparent 74%, rgba(201, 214, 238, .08) 74.4%, transparent 80%);
+  --ci-edge: linear-gradient(90deg, transparent, #c9d6ee 45%, #ffffff 60%, transparent); }
+
+/* the competition's title card */
+.comp-hero { padding: 14px 16px 15px; border-radius: 20px; color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 14px 34px -20px rgba(0, 0, 0, .9); }
+.comp-hero .ch-top { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+.comp-hero .ch-logo { flex: none; display: grid; place-items: center; min-width: 36px; height: 36px; filter: drop-shadow(0 2px 10px rgba(0, 0, 0, .28)); }
+.comp-hero .ch-kicker { display: flex; align-items: center; gap: 7px; min-width: 0; font-family: var(--display); font-weight: 800; font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ci-acc); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.comp-hero .ch-dot { flex: none; width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: .7; }
+.comp-hero .ch-name { margin-top: 14px; max-width: 72%; font-family: var(--display); font-weight: 800; font-size: 25px; line-height: 1; letter-spacing: .01em; text-transform: uppercase; color: #fff; text-wrap: balance; text-shadow: 0 2px 18px rgba(0, 0, 0, .25); }
+.comp-hero .ch-prog { margin-top: 12px; max-width: 56%; height: 3px; border-radius: 3px; background: rgba(255, 255, 255, .18); overflow: hidden; }
+.comp-hero .ch-prog > i { display: block; height: 100%; border-radius: inherit; background: var(--ci-acc); box-shadow: 0 0 12px color-mix(in srgb, var(--ci-acc) 70%, transparent); }
+.comp-hero .ch-stages { display: flex; flex-wrap: wrap; align-items: center; row-gap: 6px; margin-top: 12px; max-width: 78%; }
+.comp-hero .ch-st { display: inline-flex; align-items: center; font-family: var(--display); font-weight: 800; font-size: 11px; letter-spacing: .06em; line-height: 18px; color: rgba(255, 255, 255, .4); }
+.comp-hero .ch-stw { display: inline-flex; align-items: center; }
+.comp-hero .ch-sep { width: 9px; height: 1px; margin: 0 5px; background: rgba(255, 255, 255, .26); }
+.comp-hero .ch-st.done { color: rgba(255, 255, 255, .88); }
+.comp-hero .ch-st.now { color: #0b0d10; background: var(--ci-acc); padding: 0 6px; border-radius: 5px; box-shadow: 0 0 14px color-mix(in srgb, var(--ci-acc) 45%, transparent); }
+.comp-hero .ch-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 12px; }
+.comp-hero .ch-foot:empty { display: none; }
+.comp-hero .ch-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: #fff; }
+.comp-hero .ch-chip-l { font-family: var(--display); font-weight: 800; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255, 255, 255, .62); }
+.comp-hero .ch-chip-t { color: rgba(255, 255, 255, .82); }
+
+/* the Season page's tile: the field and its light, the logo on it */
+.logo-tile.ci { border-color: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+.logo-tile.ci .ci-mark, .logo-tile.ci .ci-light { display: none; }
+.logo-tile.ci .comp-logo, .logo-tile.ci > svg { position: relative; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .3)); }
+.logo-tile.ci-white-logo .comp-logo { filter: brightness(0) invert(1) drop-shadow(0 2px 6px rgba(0, 0, 0, .25)); }
+/* the FA Cup's red panel would cut through its red logo on a tile this small: navy alone */
+.logo-tile.ci-FACUP { --ci-field: linear-gradient(125deg, #091634 0%, #0e2150 55%, #142c66 100%); }
+
+/* Match Day: the band at the top in the competition's brand, deepened under the badges, into the page below */
+.md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, .34) 55%, var(--s1) 97%), var(--ci-field); border-bottom-color: transparent; }
+.md-head.ci-band .ci-art { -webkit-mask-image: linear-gradient(#000 35%, transparent 96%); mask-image: linear-gradient(#000 35%, transparent 96%); }
+.md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
+.md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
+.md-head.ci-FACUP { --ci-md-op: .2; }
+.md-head.ci-white-logo { background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0%, rgba(0, 0, 0, .44) 55%, var(--s1) 97%), var(--ci-field); }
