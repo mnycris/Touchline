@@ -12,7 +12,7 @@ import { roleTendencies } from '../tacticsGuide'
 import { FOCUS_BIAS, ROLE_BIAS } from '../../engine/match/engine'
 import { Pitch } from '../components/Pitch'
 import { EnergyBar } from '../components/Lineup'
-import { FORMATIONS, formationOf, ROLE_GROUP, ROLES } from '../../domain/constants'
+import { BENCH_SIZE, FORMATIONS, formationOf, ROLE_GROUP, ROLES } from '../../domain/constants'
 import { posRating, roleFit } from '../../domain/ratings'
 import { buildSheet, defaultRoles, isAvailable, mainSheet, matchSheetOf, setPieceTakers, sheetFor } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
@@ -87,10 +87,10 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
             )
           }} />
           {sel && <div className="tiny" style={{ textAlign: 'center', color: 'var(--acc)' }}>Tap another player or slot to swap</div>}
-          <div className="label">Substitutes ({sheet.bench.length}/9)</div>
+          <div className="label">Substitutes ({sheet.bench.length}/{BENCH_SIZE})</div>
           <div className="card list">
             {sheet.bench.map((id) => <BenchRow key={id} w={w} p={P(id)} on={isSel({ kind: 'bench', id })} onClick={() => tap({ kind: 'bench', id })} />)}
-            {sheet.bench.length < 9 && (
+            {sheet.bench.length < BENCH_SIZE && (
               <button className={`li tap ${isSel({ kind: 'bench', id: 0 }) ? 'sel-row' : ''}`} style={{ width: '100%', minHeight: 48 }} onClick={() => tap({ kind: 'bench', id: 0 })}>
                 <div className="empty-slot" style={{ width: 36, height: 36 }}><Icon name="plus" size={16} /></div>
                 <div className="meta"><div className="t small muted">Empty substitute slot</div><div className="s">Tap, then pick a reserve</div></div>
@@ -182,7 +182,7 @@ function swap(w: World, s: TeamSheet, a: Sel, b: Sel) {
   const set = (x: Sel, id: number) => {
     if (x.kind === 'slot') s.lineup[x.i] = id
     else if (x.kind === 'bench') {
-      if (!x.id) { if (id && !s.bench.includes(id) && s.bench.length < 9) s.bench.push(id); return }
+      if (!x.id) { if (id && !s.bench.includes(id) && s.bench.length < BENCH_SIZE) s.bench.push(id); return }
       const k = s.bench.indexOf(x.id)
       if (k >= 0) { if (id) s.bench[k] = id; else s.bench.splice(k, 1) }
     }

@@ -310,3 +310,6 @@ export const SQUAD_ROLES = ['Crucial', 'Important', 'Rotation', 'Sparingly', 'Pr
 export const ROLE_EXPECTED_SHARE: Record<string, number> = { Crucial: 0.85, Important: 0.65, Rotation: 0.4, Sparingly: 0.18, Prospect: 0.08 }
 
 export const attrIndex = (k: AttrKey) => A[k]
+
+/** Substitutes named on a team sheet. (Five may come on, in three windows; that rule lives in the match engine.) */
+export const BENCH_SIZE = 10

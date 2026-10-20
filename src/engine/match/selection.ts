@@ -1,5 +1,5 @@
 import type { Club, Competition, Player, Position, SlotRole, TeamSheet, TeamTactics, World } from '../../domain/types'
-import { DEFAULT_TACTICS, FORMATIONS, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
+import { BENCH_SIZE, DEFAULT_TACTICS, FORMATIONS, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
 import { A } from '../../domain/types'
 import { bestRole, posRating, roleFit } from '../../domain/ratings'
 import { rosterOf } from '../world/roster'
@@ -94,7 +94,7 @@ function assign(n: number, m: number, cost: (r: number, c: number) => number): n
   return res
 }
 
-export function pickBench(w: World, players: Player[], xi: number[], size = 9): number[] {
+export function pickBench(w: World, players: Player[], xi: number[], size = BENCH_SIZE): number[] {
   const rest = players.filter((p) => !xi.includes(p.id)).sort((a, b) => b.ovr - a.ovr)
   const bench: number[] = []
   const gk = rest.find((p) => p.positions[0] === 'GK')
@@ -256,7 +256,7 @@ export function validateSheet(w: World, club: Club, sheet: TeamSheet, comp?: Com
   }
   const bench = sheet.bench.filter((id) => avail.has(id) && !used.has(id))
   for (const p of squad.sort((a, b) => b.ovr - a.ovr)) {
-    if (bench.length >= 9) break
+    if (bench.length >= BENCH_SIZE) break
     if (avail.has(p.id) && !used.has(p.id) && !bench.includes(p.id)) bench.push(p.id)
   }
   const out = { ...sheet, lineup, bench }
