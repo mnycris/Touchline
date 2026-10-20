@@ -203,10 +203,11 @@ export function CompEmblem({ k, size = 32, name, color }: { k: string; size?: nu
         <linearGradient id={`em${base}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor={c1} /><stop offset="1" stopColor={c2} /></linearGradient>
       </defs>
       {cup ? (
+        // a placeholder that says what it is: the competition's initials, not a generic trophy standing in for its logo
         <>
           <path d="M24 3 43 13v22L24 45 5 35V13Z" fill={`url(#em${base})`} stroke="rgba(255,255,255,.35)" strokeWidth="1.4" />
-          <path d="M17 13h14v5a7 7 0 0 1-14 0Z M17 15h-3c0 4 1.6 5.6 3.8 6 M31 15h3c0 4-1.6 5.6-3.8 6 M24 25v4 M20 32h8l-1-3h-6Z" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinejoin="round" />
-          <text x="24" y="41" textAnchor="middle" fontFamily="Barlow Condensed" fontWeight="800" fontSize="7.5" fill="#fff" letterSpacing=".5">{label}</text>
+          <path d="M14 31.5h20" stroke="rgba(255,255,255,.45)" strokeWidth="1" />
+          <text x="24" y="28" textAnchor="middle" fontFamily="Barlow Condensed" fontWeight="800" fontSize={label.length > 3 ? 11 : 13} fill="#fff" letterSpacing=".4">{label}</text>
         </>
       ) : (
         <>
