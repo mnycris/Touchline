@@ -9,6 +9,7 @@ import { staffName } from '../domain/names'
 import { buildSheet, squadOf, tacticsForManager } from '../engine/match/selection'
 import { setupSeason } from '../engine/competitions/setupSeason'
 import type { RawDb } from './rawTypes'
+import { computeReputations } from '../engine/world/reputation'
 
 export interface NewCareerOptions {
   clubId: number
@@ -165,6 +166,9 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
     }
     w.clubs[club.id] = club
   }
+  // reputation: what each club is now and what it has been, ranked together (engine/world/reputation)
+  const reps = computeReputations(raw.clubs.map((rc) => ({ id: rc.id, names: [rc.name, rc.dbName], squadAvg: rc.squadAvg, leaguePrestige: w.leagues[rc.leagueId]?.prestige, capacity: rc.capacity, inLeague: !!rc.leagueId })))
+  for (const [id, r] of reps) if (w.clubs[id]) w.clubs[id].reputation = r
   // ---- managers
   for (const rc of raw.clubs) {
     const club = w.clubs[rc.id]

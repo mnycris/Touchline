@@ -2164,3 +2164,23 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .fl-res.W { background: var(--pos); } .fl-res.D { background: #9aa3ae; } .fl-res.L { background: var(--neg); color: #fff; }
 .fl-new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px rgba(244, 197, 66, .18); }
 .fl-manage { min-height: 54px; }
+
+/* ---------- club profile: transfers, club ---------- */
+.ct-sum { display: grid; grid-template-columns: repeat(3, 1fr); }
+.ct-sum > div { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; }
+.ct-sum > div + div { border-left: 1px solid var(--line); }
+.ct-sum b { font-size: 22px; }
+.ct-row { width: 100%; text-align: left; }
+.ct-row:disabled { opacity: 1; }
+.ct-fee { flex: none; font-weight: 700; font-size: 12.5px; padding: 4px 8px; border-radius: 8px; background: rgba(255, 255, 255, .06); font-variant-numeric: tabular-nums; }
+.ct-fee.transfer, .ct-fee.loan-buy { color: var(--t1); }
+.ct-fee.loan { color: var(--info); }
+.ct-fee.free { color: var(--pos); }
+.ct-fee.release, .ct-fee.retire { color: var(--t3); background: none; font-weight: 600; }
+.ci-rep { display: flex; gap: 14px; align-items: flex-start; padding: 14px; }
+.ci-rep-n { flex: none; width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.ci-rep-n b { font-size: 40px; }
+.ci-grid { display: grid; grid-template-columns: 1fr 1fr; }
+.ci-grid > div { display: flex; flex-direction: column; gap: 5px; padding: 11px 14px; border-top: 1px solid var(--line); }
+.ci-grid > div:nth-child(-n+2) { border-top: 0; }
+.ci-grid > div:nth-child(even) { border-left: 1px solid var(--line); }

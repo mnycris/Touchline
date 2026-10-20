@@ -9,9 +9,10 @@ import { ensureRanking } from './fifaRanking'
 import { emptyLine } from './matchRunner'
 import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
 import { takeNewFixtures } from '../competitions/fixtures'
+import { rebuildReputations } from './reputation'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
-export const SAVE_SCHEMA = 4
+export const SAVE_SCHEMA = 5
 
 interface Migration { to: number; name: string; run: (w: World) => void }
 
@@ -49,6 +50,8 @@ const MIGRATIONS: Migration[] = [
       takeNewFixtures(w)
     },
   },
+  // the old formula topped out at 100 for two dozen clubs, the whole Premier League included
+  { to: 5, name: 'Club reputations rebuilt on squad, league and stature', run: (w) => rebuildReputations(w) },
 ]
 
 export interface MigrationReport { from: number; to: number; applied: string[]; repaired: number }

@@ -7,6 +7,7 @@ import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, Ovr, PosChip, Stars } from '../components/atoms'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
+import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
@@ -507,7 +508,7 @@ function TeamOfTheWeek({ w, c }: { w: World; c: Competition }) {
 export function ClubProfile({ params }: { params: { id: number } }) {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [tab, setTab] = useRemember<'overview' | 'squad' | 'fixtures' | 'info'>('tab', 'overview')
+  const [tab, setTab] = useRemember<'overview' | 'squad' | 'fixtures' | 'transfers' | 'news' | 'info'>('tab', 'overview')
   const [editing, toggleEdit, setEditing] = useEditing('Club')
   const c = w.clubs[params.id]
   if (!c) return <Screen title="Club" back><Empty icon="stadium" title="Club not found" /></Screen>
@@ -518,8 +519,6 @@ export function ClubProfile({ params }: { params: { id: number } }) {
   const mgr = w.managers[c.managerId]
   const top = [...squad].sort((a, b) => b.ovr - a.ovr)
   const avg = top.slice(0, 16).reduce((a, p) => a + p.ovr, 0) / Math.max(1, Math.min(16, top.length))
-  const trophies = new Map<string, number>()
-  for (const t of c.trophies) trophies.set(t.compKey, (trophies.get(t.compKey) || 0) + 1)
   return (
     <Screen title={c.short} sub={w.leagues[c.leagueId]?.name || c.country} back right={<div className="row tight"><FollowBtn w={w} kind="club" id={c.id} name={c.name} /><EditToggle w={w} on={editing} onClick={toggleEdit} label="Edit club" /></div>}>
       {editing && <div className="pad" style={{ marginBottom: 10 }}><ClubEditor w={w} club={c} onClose={() => setEditing(false)} /></div>}
@@ -540,7 +539,7 @@ export function ClubProfile({ params }: { params: { id: number } }) {
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Stadium</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium || '—'}</div></div>
         <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Budget</div><div className="b small" style={{ marginTop: 3 }}>{fmtMoney(c.finance.transferBudget, { short: true })}</div></div>
       </div>
-      <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'overview', label: 'Overview' }, { id: 'squad', label: 'Squad' }, { id: 'fixtures', label: 'Fixtures' }, { id: 'info', label: 'Club' }]} value={tab} onChange={setTab} /></div>
+      <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'overview', label: 'Overview' }, { id: 'squad', label: 'Squad' }, { id: 'fixtures', label: 'Fixtures' }, { id: 'transfers', label: 'Transfers' }, { id: 'news', label: 'News' }, { id: 'info', label: 'Club' }]} value={tab} onChange={setTab} /></div>
       {tab === 'overview' && <ClubOverview w={w} clubId={c.id} />}
       {tab === 'squad' && (
         <div className="pad" style={{ marginTop: 10 }}>
@@ -557,20 +556,9 @@ export function ClubProfile({ params }: { params: { id: number } }) {
         </div>
       )}
       {tab === 'fixtures' && <ClubFixtures w={w} clubId={c.id} />}
-      {tab === 'info' && (
-        <div className="pad stack" style={{ marginTop: 10 }}>
-          <div className="card pad-card small stack" style={{ gap: 6 }}>
-            <div className="row between"><span className="muted">City</span><b>{c.city || c.country}</b></div>
-            <div className="row between"><span className="muted">Founded</span><b>{c.founded || '—'}</b></div>
-            <div className="row between"><span className="muted">Capacity</span><b>{c.capacity.toLocaleString()}</b></div>
-            <div className="row between"><span className="muted">Domestic prestige</span><Stars n={c.prestige.domestic / 2} size={11} /></div>
-            <div className="row between"><span className="muted">International prestige</span><Stars n={c.prestige.intl / 2} size={11} /></div>
-            <div className="row between"><span className="muted">Kit</span><span className="row tight">{c.kit.map((k) => <span key={k} className="swatch" style={{ width: 20, height: 20, background: k }} />)}</span></div>
-          </div>
-          {c.rivals.length > 0 && <div className="card list"><div className="card-h"><span className="label">Rivals</span></div>{c.rivals.map(([id, name, lvl]) => w.clubs[id] && <button key={id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'club', params: { id } })}><Badge club={w.clubs[id]} size={30} /><div className="meta"><div className="t small">{w.clubs[id].name}</div><div className="s">{name}</div></div><span className="row tight">{Array.from({ length: lvl }, (_, i) => <Icon key={i} name="fire" size={14} color="var(--neg)" />)}</span></button>)}</div>}
-          {trophies.size > 0 && <div className="card list"><div className="card-h"><span className="label">Trophies won in this save</span></div>{[...trophies.entries()].map(([k, n]) => <div key={k} className="li"><CompLogo k={k.startsWith('L') ? k : k} size={24} /><div className="meta"><div className="t small">{Object.values(w.competitions).find((x) => x.key === k)?.name || k}</div></div><b>×{n}</b></div>)}</div>}
-        </div>
-      )}
+      {tab === 'transfers' && <ClubTransfers w={w} club={c} />}
+      {tab === 'news' && <ClubNews w={w} club={c} />}
+      {tab === 'info' && <ClubInfo w={w} club={c} />}
     </Screen>
   )
 }

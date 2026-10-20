@@ -487,8 +487,24 @@ function freeNumber(w: World, clubId: number, p: Player): number {
 
 function recordHistory(w: World, p: Player, from: number, to: number, fee: number, type: TransferRecord['type']) {
   w.transfers.history.unshift({ date: w.date, playerId: p.id, playerName: p.name, from, to, fee, type, season: w.season })
-  if (w.transfers.history.length > 1500) w.transfers.history.length = 1500
+  trimHistory(w)
 }
+
+/**
+ * The world's transfer record, kept for club profiles season by season. When it grows long the oldest routine entries
+ * (releases and retirements elsewhere) go first; the manager's own club and real transfers are kept longest.
+ */
+export function trimHistory(w: World, max = 3600) {
+  const h = w.transfers.history
+  if (h.length <= max) return
+  const me = w.userClubId
+  const routine = (r: TransferRecord) => (r.type === 'release' || r.type === 'retire' || r.type === 'loan-return') && r.from !== me && r.to !== me
+  for (let i = h.length - 1; i >= 0 && h.length > max * 0.92; i--) if (routine(h[i])) h.splice(i, 1)
+  if (h.length > max) { const mine = h.slice(max).filter((r) => r.from === me || r.to === me); h.length = max; h.push(...mine.slice(0, 400)) }
+}
+
+/** A release or retirement worth a line in the record: anyone of the manager's, or a player of some standing. */
+export const notableExit = (w: World, p: Player) => p.clubId === w.userClubId || p.ovr >= 68 || p.intlRep >= 2
 
 export function closeCareerEntry(w: World, p: Player) {
   const apps = Object.values(p.season).reduce((a, s) => a + s.apps, 0)

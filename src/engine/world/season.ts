@@ -14,9 +14,10 @@ import { seasonAwards } from './awards'
 import { isRetiring, seasonAging } from './development'
 import { postNews, sendInbox, staffNames } from './messages'
 import { rosterOf, touchRoster, setPlayerClub } from './roster'
-import { closeCareerEntry, completeLoanPurchase, contractDemand, roleForBuyer } from './transfers'
+import { closeCareerEntry, completeLoanPurchase, contractDemand, notableExit, roleForBuyer, trimHistory } from './transfers'
 import { pickName, displayName } from '../../domain/names'
 import { generateProspect } from './scouting'
+import { seasonReputation } from './reputation'
 
 // ---------------------------------------------------------------- playoffs
 export function leagueFinished(w: World, comp: Competition) {
@@ -149,9 +150,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
       club.finance.revenueSeason += prize
       if (club.id === w.userClubId) club.finance.ledger.push({ date: w.date, label: `${comp.short} prize money (${i + 1}${suffix(i + 1)})`, amount: prize, kind: 'prize' })
       club.lastSeasonPos = i + 1
-      const exp = club.prestige.domestic
-      club.reputation = clamp(club.reputation + (i < 3 ? 2 : i >= t.length - 3 ? -2 : 0), 5, 100)
-      void exp
+      club.reputation = seasonReputation(club.reputation, i, t.length)
     })
   }
   // ---- promotion / relegation
@@ -187,7 +186,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
         p.contract = { until: season + 1 + c.years, wage: c.wage, role: c.role, releaseClause: 0, signedOn: w.date }
         p.wage = c.wage
       } else if (p.clubId !== w.userClubId || !w.flags.renewed?.[p.id]) {
-        w.transfers.history.unshift({ date: w.date, playerId: p.id, playerName: p.name, from: p.clubId, to: 0, fee: 0, type: 'release', season })
+        if (notableExit(w, p)) w.transfers.history.unshift({ date: w.date, playerId: p.id, playerName: p.name, from: p.clubId, to: 0, fee: 0, type: 'release', season })
         setPlayerClub(w, p, 0)
       }
     }
@@ -206,8 +205,9 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     seasonAging(w, p, rng)
     p.value = dynamicValue(p, w.date, p.valueCalib ?? 1)
   }
+  trimHistory(w)
   for (const p of retirees) {
-    w.transfers.history.unshift({ date: w.date, playerId: p.id, playerName: p.name, from: p.clubId, to: 0, fee: 0, type: 'retire', season })
+    if (notableExit(w, p)) w.transfers.history.unshift({ date: w.date, playerId: p.id, playerName: p.name, from: p.clubId, to: 0, fee: 0, type: 'retire', season })
     if (p.ovr >= 80 || p.clubId === w.userClubId) postNews(w, { headline: `${p.name} retires`, body: `${p.name} has announced his retirement from professional football at the age of ${ageOn(p.dob, w.date)}.`, kind: 'milestone', playerIds: [p.id], clubIds: [p.clubId], importance: p.ovr >= 84 ? 4 : 2, userRelated: p.clubId === w.userClubId })
     delete w.players[p.id]
   }
