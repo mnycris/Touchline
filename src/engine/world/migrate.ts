@@ -4,7 +4,7 @@
 import type { World } from '../../domain/types'
 import { dynamicValue } from '../../domain/finance'
 import { addDays } from '../../domain/dates'
-import { migrateIntl } from './international'
+import { applyNationExclusions, migrateIntl } from './international'
 import { ensureRanking } from './fifaRanking'
 import { emptyLine } from './matchRunner'
 import { markOutOfSequence, rescheduleClashes } from '../competitions/reschedule'
@@ -14,7 +14,7 @@ import { migrateHonours } from './honours'
 import { sortTable } from '../competitions/tables'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
-export const SAVE_SCHEMA = 6
+export const SAVE_SCHEMA = 7
 
 interface Migration { to: number; name: string; run: (w: World) => void }
 
@@ -56,6 +56,7 @@ const MIGRATIONS: Migration[] = [
   { to: 5, name: 'Club reputations rebuilt on squad, league and stature', run: (w) => rebuildReputations(w) },
   // monthly awards were saved with the month's name only, and trophies waited for the end of the season
   { to: 6, name: 'Personal awards dated, and this season\'s trophies in the cabinet', run: (w) => migrateHonours(w, (c) => (c.format === 'league' ? sortTable(w, c)[0]?.clubId : c.winner)) },
+  { to: 7, name: 'International competitions drawn from the game world\'s eligible nations', run: (w) => applyNationExclusions(w) },
 ]
 
 export interface MigrationReport { from: number; to: number; applied: string[]; repaired: number }

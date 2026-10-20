@@ -23,7 +23,12 @@ import { aOrAn } from '../../domain/words'
 
 export const NT_BASE = 9_500_000
 /** Suspended from international competition: friendlies only. */
-const BANNED = new Set(['Russia'])
+/**
+ * Game-world configuration: national teams kept out of competitive international football (qualifiers, the Nations
+ * League, tournaments). They still exist and play friendlies; every draw, qualifying place and seeding is made from
+ * the other sides, so the competitions stay whole.
+ */
+export const EXCLUDED_NATIONS = new Set(['Russia', 'Israel'])
 
 export const isNational = (c?: Pick<Club, 'id'> | number) => (typeof c === 'number' ? c : c?.id ?? 0) >= NT_BASE
 export const ntId = (w: World, nation: string) => w.intl?.nt[nation]
@@ -100,7 +105,7 @@ export function refreshStrength(w: World) {
 }
 
 function teams(w: World, confed?: string, opts: { competitive?: boolean } = {}): Club[] {
-  return Object.values(w.intl?.nt || {}).map((id) => w.clubs[id]).filter((c) => c && (!confed || c.confed === confed) && (!opts.competitive || !BANNED.has(c.nation!)))
+  return Object.values(w.intl?.nt || {}).map((id) => w.clubs[id]).filter((c) => c && (!confed || c.confed === confed) && (!opts.competitive || !EXCLUDED_NATIONS.has(c.nation!)))
     .sort((a, b) => b.squadAvg - a.squadAvg)
 }
 
@@ -223,13 +228,13 @@ export function setupIntlSeason(w: World, season: number, rng: Rng) {
     if (y % 4 === 3) {
       // Asian Cup, January (Saudi Arabia 2027): the best eight AFC sides
       const asian = makeComp(w, { key: 'ASIAN', name: 'AFC Asian Cup', short: 'Asian Cup', confed: 'AFC', kind: 'tournament', squadSize: 26, hosts: HOSTS.ASIAN, tier: 2 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-01-24`, `${y}-01-28`] })
-      addGroups(w, asian, seedGroups(teams(w, 'AFC').slice(0, 8), 2, rng, w), [`${y}-01-10`, `${y}-01-14`, `${y}-01-18`], rng)
+      addGroups(w, asian, seedGroups(teams(w, 'AFC', { competitive: true }).slice(0, 8), 2, rng, w), [`${y}-01-10`, `${y}-01-14`, `${y}-01-18`], rng)
     }
     if (y % 2 === 1) {
       const afcon = makeComp(w, { key: 'AFCON', name: 'Africa Cup of Nations', short: 'AFCON', confed: 'CAF', kind: 'tournament', squadSize: 26, hosts: HOSTS.AFCON, tier: 2 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-20`, `${y}-06-24`, `${y}-06-29`] })
-      addGroups(w, afcon, seedGroups(teams(w, 'CAF').slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
+      addGroups(w, afcon, seedGroups(teams(w, 'CAF', { competitive: true }).slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
       const gold = makeComp(w, { key: 'GOLD', name: 'CONCACAF Gold Cup', short: 'Gold Cup', confed: 'CONCACAF', kind: 'tournament', squadSize: 26, hosts: HOSTS.GOLD, tier: 3 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-22`, `${y}-06-27`] })
-      const cc = [...teams(w, 'CONCACAF'), ...teams(w, 'AFC').filter((c) => !['Japan', 'Korea Republic'].includes(c.nation!)).slice(0, 1)].slice(0, 8)
+      const cc = [...teams(w, 'CONCACAF', { competitive: true }), ...teams(w, 'AFC', { competitive: true }).filter((c) => !['Japan', 'Korea Republic'].includes(c.nation!)).slice(0, 1)].slice(0, 8)
       addGroups(w, gold, seedGroups(cc, 2, rng, w), [`${y}-06-10`, `${y}-06-14`, `${y}-06-18`], rng)
     }
   }
@@ -237,7 +242,7 @@ export function setupIntlSeason(w: World, season: number, rng: Rng) {
     const q = makeComp(w, { key: 'EUROQ', name: 'European Qualifiers', short: 'Euro Qualifiers', logoKey: 'EURO', confed: 'UEFA', kind: 'groups', tier: 2 }, season, { feeds: 'EURO', qualify: { top: 2, extra: 8 } })
     addGroups(w, q, seedGroups(UEFA, 8, rng, w), [...wd.autumn, ...wd.march], rng)
     const ca = makeComp(w, { key: 'CA', name: 'Copa América', short: 'Copa América', confed: 'CONMEBOL', kind: 'tournament', squadSize: 26, hosts: HOSTS.CA, tier: 1 }, season, { advance: { top: 2, thirds: 0 }, koDates: [`${y}-06-20`, `${y}-06-24`, `${y}-06-28`] })
-    addGroups(w, ca, seedGroups([...teams(w, 'CONMEBOL'), ...teams(w, 'CONCACAF').slice(0, 6)].slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
+    addGroups(w, ca, seedGroups([...teams(w, 'CONMEBOL', { competitive: true }), ...teams(w, 'CONCACAF', { competitive: true }).slice(0, 6)].slice(0, 16), 4, rng, w), [`${y}-06-08`, `${y}-06-12`, `${y}-06-16`], rng)
   }
   if (cyc === 3) {
     // World Cup qualifying in every confederation; the World Cup itself is drawn when they end
@@ -264,6 +269,31 @@ export function migrateIntl(w: World) {
   ensureNationalTeams(w)
   const wd = windowDates(w.season)
   scheduleFriendlies(w, w.season, [...wd.autumn, ...wd.march].filter((d) => d > addDays(w.date, 3)), rng)
+}
+
+/**
+ * Bring this season's drawn competitions in line with EXCLUDED_NATIONS (older saves). A side that hasn't played in a
+ * competition yet is taken out of it: its fixtures go, its group plays on without it, and its opponents get those
+ * dates for friendlies. A competition it has already played in finishes as it was drawn.
+ */
+export function applyNationExclusions(w: World) {
+  if (!w.intl) return
+  const out = new Set([...EXCLUDED_NATIONS].map((n) => w.intl!.nt[n]).filter(Boolean))
+  if (!out.size) return
+  const freed = new Set<ISODate>()
+  for (const c of Object.values(w.competitions)) {
+    if (c.format !== 'intl' || c.season !== w.season || c.key === 'INTF' || !c.clubs.some((id) => out.has(id))) continue
+    const theirs = c.fixtures.map((id) => w.fixtures[id]).filter((f) => f && (out.has(f.home) || out.has(f.away)))
+    if (theirs.some((f) => f.played)) continue
+    for (const f of theirs) { if (f.date > w.date) freed.add(f.date); delete w.fixtures[f.id] }
+    const gone = new Set(theirs.map((f) => f.id))
+    c.fixtures = c.fixtures.filter((id) => !gone.has(id))
+    for (const r of c.rounds) r.fixtures = r.fixtures.filter((id) => !gone.has(id))
+    c.clubs = c.clubs.filter((id) => !out.has(id))
+    for (const g of Object.keys(c.groups || {})) c.groups![g] = c.groups![g].filter((id) => !out.has(id))
+    if (c.table) c.table = c.table.filter((r) => !out.has(r.clubId))
+  }
+  if (freed.size) scheduleFriendlies(w, w.season, [...freed].sort(), new Rng((w.meta.seed ^ 0x15ae1) >>> 0))
 }
 
 /** Friendlies on window days for sides with no competitive match that day, paired with similar opposition. */
@@ -383,7 +413,9 @@ function qualifiersDone(w: World, feeds: string, season: number, rng: Rng) {
     for (const t of tables) qualified.push(...t.slice(0, top).map((r) => r.clubId))
     const extra = q.intl!.qualify?.extra || 0
     if (extra) {
-      const next = tables.map((t) => t[top]).filter(Boolean).sort((a, b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga))
+      // the best of the next places across groups, by points per game (groups can differ in size)
+      const ppg = (r: { pts: number; p: number }) => r.pts / Math.max(1, r.p)
+      const next = tables.map((t) => t[top]).filter(Boolean).sort((a, b) => ppg(b) - ppg(a) || (b.gf - b.ga) / Math.max(1, b.p) - (a.gf - a.ga) / Math.max(1, a.p))
       qualified.push(...next.slice(0, extra).map((r) => r.clubId))
     }
   }
