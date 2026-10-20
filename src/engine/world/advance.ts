@@ -31,6 +31,7 @@ import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './inte
 import { aOrAn } from '../../domain/words'
 import { aiLoanMarket } from './loans'
 import { registerTrophy } from './honours'
+import { historyAfterMatch } from './history'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -101,6 +102,8 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
     }
     if (comp.status === 'upcoming') comp.status = 'active'
   }
+  // landmarks just reached by the manager and the players in the side
+  if (f.home === w.userClubId || f.away === w.userClubId) historyAfterMatch(w, f)
   // new ties (a cup round, a knockout draw, play-offs) can collide with league dates: the league game moves
   const fresh = takeNewFixtures(w)
   if (fresh.length) rescheduleClashes(w, fresh.flatMap((x) => [x.home, x.away]), { notify: true })

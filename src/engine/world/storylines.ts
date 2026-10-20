@@ -4,6 +4,7 @@ import type { Competition, Fixture, Player, World } from '../../domain/types'
 import { sortTable } from '../competitions/tables'
 import { aggregateBefore } from '../competitions/cups'
 import { callName } from '../match/commentary'
+import { historyNotes } from './history'
 
 type R = 'W' | 'D' | 'L'
 
@@ -183,15 +184,18 @@ export function storyLines(w: World, f: Fixture): { icon: string; text: string }
     else if (x.teams && x.usPos > x.teams - 5 && x.themPos > x.teams - 5) out.push({ icon: 'warning', text: `Relegation six-pointer: ${ord(x.usPos)} v ${ord(x.themPos)}` })
     else out.push({ icon: 'list', text: `${H} ${ord(x.usPos)} (${x.usPts} pts) · ${A} ${ord(x.themPos)} (${x.themPts} pts)` })
   }
+  // history about to be made or repeated, from what the save remembers
+  for (const n of historyNotes(w, f).slice(0, 3)) out.push({ icon: n.icon, text: n.text })
   if (x.opener) out.push({ icon: 'calendar', text: 'Opening day of the league season' })
   if (x.finale) out.push({ icon: 'flag', text: 'Final day of the league season' })
   if (x.usStreak) out.push({ icon: x.usStreak.kind === 'lost' || x.usStreak.kind === 'winless' ? 'formDown' : 'form', text: streakText(x.usStreak, H) })
   if (x.themStreak) out.push({ icon: x.themStreak.kind === 'lost' || x.themStreak.kind === 'winless' ? 'formDown' : 'form', text: streakText(x.themStreak, A) })
-  if (x.lastMeeting?.result) {
+  // (in a second leg the last meeting is the first leg, already said)
+  if (x.lastMeeting?.result && !(x.agg && x.lastMeeting.tieId && x.lastMeeting.tieId === f.tieId)) {
     const m = x.lastMeeting
     out.push({ icon: 'history', text: `Last meeting: ${w.clubs[m.home].short} ${m.result!.score[0]}–${m.result!.score[1]} ${w.clubs[m.away].short}${m.result!.pens ? ` (${m.result!.pens[0]}–${m.result!.pens[1]} pens)` : ''}` })
   }
   for (const p of x.exOurs.slice(0, 1)) out.push({ icon: 'swap', text: `${callName(p.name)} faces former club ${A}` })
   for (const p of x.exTheirs.slice(0, 1)) out.push({ icon: 'swap', text: `${callName(p.name)} returns to face ${H}` })
-  return out.slice(0, 7)
+  return out.slice(0, 8)
 }

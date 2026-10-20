@@ -15,6 +15,7 @@ import { isSuspendedFor } from '../match/selection'
 import { YELLOW_LIMITS, refereeStrictness } from './matchRunner'
 import { opponentReport } from './opponentReport'
 import { fmtFormation, media, personaOf, rememberLines } from './media'
+import { historyNotes, type HistoryNote } from './history'
 
 export type Tone = 'Confident' | 'Measured' | 'Humble' | 'Deflect' | 'Praise' | 'Critical' | 'Defiant' | 'Joke' | 'Bold'
 export interface PressEffect { team?: number; player?: number; playerId?: number; brand?: number; rep?: number; opponent?: number; youth?: number; promise?: 'win' | 'title' | 'survive' | 'trophy' | 'score'; stopId?: number }
@@ -533,6 +534,40 @@ const PRE: Topic[] = [
         options: [
           o(c, 'Praise', [`${cn(theirs)} is a good player and we wish him well, just not tomorrow.`], { team: 0, rep: 0.1 }),
           o(c, 'Deflect', ['No regrets. We made the right decision for the club.'], { team: 1 }),
+        ],
+      }
+    },
+  },
+  {
+    // history about to be made: the manager's own landmarks, a return to a former club, a player's milestone for him
+    id: 'history', kind: 'pre', weight: (c) => { const n = historyFor(c); return !n ? 0 : n.kind === 'former' ? 12 : n.kind === 'manager' && n.weight >= 7 ? 12 : 7 }, build: (c) => {
+      const n = historyFor(c)!
+      const p = n.playerId ? c.w.players[n.playerId] : undefined
+      if (n.kind === 'former') return {
+        clubId: n.clubId,
+        text: pk(c, [`${n.text}. What kind of reception are you expecting?`, `${n.text}. Is this one a little different for you?`]),
+        options: [
+          o(c, 'Praise', [`I have nothing but good memories of ${c.opp.short}. But tomorrow I want to win.`, `They gave me an opportunity and I will always be grateful. Tomorrow is about us.`], { team: 0, rep: 0.1 }),
+          o(c, 'Measured', ['It is three points like any other. The past is the past.'], { team: 1 }),
+          o(c, 'Defiant', ['I left for a reason. I want to show them what they lost.'], { team: 2, brand: 2, opponent: 2 }),
+        ],
+      }
+      if (p) return {
+        playerId: p.id,
+        text: n.kind === 'record' ? pk(c, [`${n.text.replace(/ \(.*\)$/, '')}. Is it on his mind?`, `${n.text.replace(/ \(.*\)$/, '')}. Does he talk about it?`]) : pk(c, [`${n.text}. How important has he been?`, `${n.text}. Is that something the group talks about?`]),
+        options: [
+          o(c, 'Praise', [`${cn(p)} has been fantastic for me. Numbers like that say everything about his consistency.`, `He deserves it. Nobody works harder than ${cn(p)}.`], { player: 4, playerId: p.id }),
+          o(c, 'Measured', ['Records are nice for later. The team comes first.'], { team: 1, player: 0, playerId: p.id }),
+          o(c, 'Joke', [`Don't tell him, he'll start taking every free kick.`], { brand: 2, player: 1, playerId: p.id }),
+        ],
+      }
+      const lead = n.text.replace(/^Your /, "It's your ").replace(/^A win would/, 'A win tomorrow would')
+      return {
+        text: pk(c, [`${lead}. What does that mean to you?`, `${lead}. Have you had a moment to reflect on it?`]),
+        options: [
+          o(c, 'Humble', ['It means I have been lucky to work with very good players. The credit is theirs.', 'It is a nice number, but the next game is the one that matters.'], { team: 2, rep: 0.1 }),
+          o(c, 'Confident', ['I am proud of it, and I want many more.', 'It shows we are doing something right here. And we are not finished.'], { brand: 2, team: 1 }),
+          o(c, 'Joke', ['It mostly means I am getting old.'], { brand: 2 }),
         ],
       }
     },
@@ -1946,6 +1981,13 @@ const POST_MORE: Topic[] = [
 ]
 
 // ---------------------------------------------------------------- helpers
+/** The history note worth asking about: the manager's, his own side's, or his own players'. */
+function historyFor(c: Ctx): HistoryNote | undefined {
+  if (!c.m.has('history')) c.m.set('history', historyNotes(c.w, c.f))
+  return (c.m.get('history') as HistoryNote[]).find((n) =>
+    n.kind === 'manager' || n.kind === 'former' || (n.kind === 'run' && n.clubId == null) || ((n.kind === 'player' || n.kind === 'record') && !!n.playerId && c.w.players[n.playerId]?.clubId === c.club.id && n.weight >= 5))
+}
+
 function rumourTarget(c: Ctx): Player | undefined {
   const ids = [...Object.keys(c.w.transfers.targets).map(Number), ...c.w.transfers.shortlist]
   const ps = ids.map((id) => c.w.players[id]).filter((p) => p && p.clubId && p.clubId !== c.club.id && p.ovr >= 76)

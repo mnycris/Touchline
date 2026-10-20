@@ -62,8 +62,8 @@ export interface CareerSummary {
   next: string[]
 }
 
-const MATCH_MARKS = [50, 100, 200, 300, 400, 500, 750, 1000]
-const WIN_MARKS = [50, 100, 200, 300, 400, 500]
+export const MATCH_MARKS = [50, 100, 200, 300, 400, 500, 750, 1000]
+export const WIN_MARKS = [50, 100, 200, 300, 400, 500]
 
 export function careerSummary(w: World): CareerSummary {
   const ms = managedMatches(w)
