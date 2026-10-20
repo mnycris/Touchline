@@ -11,6 +11,7 @@ import { fmtMoney, roundValue } from '../../domain/finance'
 import { runAction } from '../actions'
 import { respondConversation } from '../../engine/world/morale'
 import { applyPress, pressQuestions, type PressOption, type PressQuestion } from '../../engine/world/press'
+import { outletById, type Outlet } from '../../engine/world/outlets'
 import { counterIncomingBid } from '../../engine/world/userActions'
 import { staffNames } from '../../engine/world/messages'
 import { hashString } from '../../domain/rng'
@@ -233,6 +234,12 @@ export function ConversationScreen({ params }: { params: { id: string; msgId?: s
 /** A reporter coming back on your last answer (not counted as a new question). */
 const isFollow = (q: PressQuestion) => q.topic.endsWith('-follow')
 
+/** The outlet by name, set in its colours: a masthead, not a copy of its logo. */
+function Masthead({ o }: { o?: Outlet }) {
+  if (!o) return null
+  return <span className={`masthead ${o.kind}`} style={{ background: o.color, color: o.ink }}>{o.name}</span>
+}
+
 export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fixtureId: string } }) {
   const w = useWorld()
   const mutate = useGame((s) => s.mutate)
@@ -248,6 +255,8 @@ export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fi
   const q = qs[i]
   const f = w.fixtures[params.fixtureId]
   const opp = f ? w.clubs[f.home === w.userClubId ? f.away : f.home] : undefined
+  // each reporter wears the colour of the outlet they write for
+  const outletOf = useMemo(() => new Map(qs.map((x) => [x.reporter, outletById(x.outletId)])), [qs])
   // each question is "typed" by the reporter before it can be answered
   useEffect(() => {
     if (!q || summary || askedRef.current === i) return
@@ -273,8 +282,8 @@ export function PressConference({ params }: { params: { kind: 'pre' | 'post'; fi
           <UserAvatar w={w} size={78} radius={39} />
           <div className="press-mics"><Icon name="chat" size={20} /></div>
         </div>
-        {!summary && q && <div className="row between"><span className="label">{isFollow(q) ? 'Follow-up' : `Question ${qs.slice(0, i + 1).filter((x) => !isFollow(x)).length} of ${qs.filter((x) => !isFollow(x)).length}`}</span>{q.playerId && w.players[q.playerId] ? <span className="row tight tiny b"><Face p={w.players[q.playerId]} size={22} radius={11} club={w.clubs[w.players[q.playerId].clubId]} />{w.players[q.playerId].name}</span> : <span className="tiny dim">{q.outlet}</span>}</div>}
-        <ChatLog lines={chat.lines} typing={chat.typing} avatar={(who) => <Avatar name={(who || 'Press').split(' · ')[0]} size={30} />} />
+        {!summary && q && <div className="row between"><span className="label">{isFollow(q) ? 'Follow-up' : `Question ${qs.slice(0, i + 1).filter((x) => !isFollow(x)).length} of ${qs.filter((x) => !isFollow(x)).length}`}</span>{q.playerId && w.players[q.playerId] ? <span className="row tight tiny b"><Face p={w.players[q.playerId]} size={22} radius={11} club={w.clubs[w.players[q.playerId].clubId]} />{w.players[q.playerId].name}</span> : outletById(q.outletId) ? <Masthead o={outletById(q.outletId)} /> : <span className="tiny dim">{q.outlet}</span>}</div>}
+        <ChatLog lines={chat.lines} typing={chat.typing} avatar={(who) => { const name = (who || 'Press').split(' · ')[0]; return <Avatar name={name} size={30} color={outletOf.get(name)?.color} /> }} />
         {!summary && q && !chat.busy && asked === i && (
           <div className="stack" style={{ gap: 8 }}>
             {q.options.map((o) => (

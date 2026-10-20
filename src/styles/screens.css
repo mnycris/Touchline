@@ -2295,3 +2295,7 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .ns-race-r b { flex: 1; min-width: 0; font-size: 13px; }
 .art-form { display: flex; flex-direction: column; gap: 8px; margin: 14px 0; padding: 12px 14px; border-radius: 14px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line); }
 .art-form-r { display: flex; align-items: center; gap: 10px; }
+
+/* press: the outlet by name in its colours */
+.masthead { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .02em; line-height: 1; white-space: nowrap; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
+.masthead.newspaper { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; letter-spacing: 0; }

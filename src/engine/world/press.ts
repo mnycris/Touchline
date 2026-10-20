@@ -16,28 +16,13 @@ import { YELLOW_LIMITS, refereeStrictness } from './matchRunner'
 import { opponentReport } from './opponentReport'
 import { fmtFormation, media, personaOf, rememberLines } from './media'
 import { historyNotes, type HistoryNote } from './history'
+import { outletForTopic, reporterFor } from './outlets'
 
 export type Tone = 'Confident' | 'Measured' | 'Humble' | 'Deflect' | 'Praise' | 'Critical' | 'Defiant' | 'Joke' | 'Bold'
 export interface PressEffect { team?: number; player?: number; playerId?: number; brand?: number; rep?: number; opponent?: number; youth?: number; promise?: 'win' | 'title' | 'survive' | 'trophy' | 'score'; stopId?: number }
 export interface PressOption { id: string; tone: Tone; text: string; effect: PressEffect; quote: string; followUp?: PressQuestion }
-export interface PressQuestion { id: string; topic: string; reporter: string; outlet: string; text: string; options: PressOption[]; playerId?: number; clubId?: number; followKind?: string }
+export interface PressQuestion { id: string; topic: string; reporter: string; outlet: string; outletId?: string; text: string; options: PressOption[]; playerId?: number; clubId?: number; followKind?: string }
 
-const OUTLETS: Record<string, string[]> = {
-  England: ['BBC Sport', 'Sky Sports News', 'The Athletic', 'The Guardian', 'talkSPORT', 'The Times', 'Daily Mail', 'The Telegraph'],
-  Spain: ['Marca', 'AS', 'Mundo Deportivo', 'Sport', 'El País', 'Cadena SER', 'COPE'],
-  Germany: ['kicker', 'Bild', 'Sport1', 'Süddeutsche Zeitung', 'FAZ', 'Sky Sport'],
-  Italy: ['La Gazzetta dello Sport', 'Corriere dello Sport', 'Tuttosport', 'Sky Sport Italia', 'DAZN'],
-  France: ["L'Équipe", 'RMC Sport', 'Le Parisien', 'France Football', 'Canal+'],
-  Portugal: ['A Bola', 'Record', 'O Jogo', 'SIC Notícias'],
-  Netherlands: ['De Telegraaf', 'Voetbal International', 'NOS', 'AD'],
-  Scotland: ['BBC Scotland', 'Daily Record', 'The Herald', 'Sky Sports'],
-  Turkey: ['Fanatik', 'Hürriyet', 'Sabah Spor'],
-  'Saudi Arabia': ['Al Riyadiya', 'SSC', 'Arab News'],
-  'United States': ['ESPN', 'The Athletic', 'MLSsoccer.com'],
-  _: ['ESPN', 'Reuters', 'Associated Press', 'The Athletic', 'Goal'],
-}
-const FIRST = ['Sam', 'Laura', 'Marco', 'Elena', 'Tom', 'Sofia', 'Daniel', 'Clara', 'James', 'Lucía', 'Pieter', 'Anna', 'Rory', 'Ines', 'Felix', 'Hannah', 'Matteo', 'Chloé', 'Ben', 'Nadia']
-const LAST = ['Hughes', 'Martín', 'Rossi', 'Keller', 'Dubois', 'Silva', 'de Vries', 'Walsh', 'Moreno', 'Schmidt', 'Costa', 'Bennett', 'Okafor', 'Novak', 'Lindqvist', 'Barros', 'Fitzgerald', 'Conti']
 
 // ---------------------------------------------------------------- context
 interface Ctx {
@@ -2539,10 +2524,10 @@ function followFor(c: Ctx, t: Topic, q: Built, op: PressOption, rep: { reporter:
 }
 
 
-function reporter(w: World, rng: Rng) {
-  const c = w.clubs[w.userClubId]
-  const o = OUTLETS[c.country] || OUTLETS._
-  return { reporter: `${rng.pick(FIRST)} ${rng.pick(LAST)}`, outlet: rng.pick(o) }
+/** Who asks: the outlet whose beat the question is, and one of its reporters covering the club. */
+function reporter(w: World, rng: Rng, topic: string) {
+  const out = outletForTopic(w.clubs[w.userClubId], topic, rng.next())
+  return { reporter: reporterFor(w, out, rng.next()), outlet: out.name, outletId: out.id }
 }
 
 /** QA scripts set this to surface errors that the game itself swallows (a broken topic is skipped, not fatal). */
@@ -2602,7 +2587,7 @@ export function pressQuestions(w: World, kind: 'pre' | 'post', fixtureId: string
     try { q = t.build(c) } catch (e) { if (pressDebug()) throw e; q = undefined }
     if (!q || !q.options.length) continue
     // bold claims get a follow-up from the same reporter
-    const rep = reporter(w, rng)
+    const rep = reporter(w, rng, t.id)
     for (const op of q.options) {
       if (op.effect.promise === 'win' || op.effect.promise === 'title' || op.effect.promise === 'trophy') {
         op.followUp = {
