@@ -71,7 +71,7 @@ export function WageSheet({ w, open, onClose }: { w: World; open: boolean; onClo
         <div>
           <div className="label" style={{ marginBottom: 6 }}>Biggest earners</div>
           {top.map((p) => (
-            <div key={p.id} className="ws-row"><Face p={p} size={26} radius={13} club={club} /><span className="small grow ellipsis">{callName(p.name)}</span><span className="tiny dim">until {p.contract.until + 1}</span><b className="small num">{fmtMoney(pays(p))}</b></div>
+            <div key={p.id} className="ws-row"><Face p={p} size={26} radius={13} club={club} /><span className="small grow ellipsis">{callName(p.name)}</span><span className="tiny dim">until {p.contract.until}</span><b className="small num">{fmtMoney(pays(p))}</b></div>
           ))}
           {loanees.length > 0 && <div className="tiny dim" style={{ marginTop: 6 }}>Loanees count at the share you pay: {loanees.map((p) => `${callName(p.name)} ${p.loan!.wageSplit ?? 50}%`).join(' · ')}</div>}
         </div>

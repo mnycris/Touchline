@@ -19,6 +19,7 @@ import { emptyRow, sortTable } from '../competitions/tables'
 import { tieWinner } from '../competitions/cups'
 import { postNews, sendInbox, staffNames } from './messages'
 import { callName } from '../match/commentary'
+import { aOrAn } from '../../domain/words'
 
 export const NT_BASE = 9_500_000
 /** Suspended from international competition: friendlies only. */
@@ -494,7 +495,7 @@ export function intlAfterMatch(w: World, f: Fixture, r: MatchResult, injuries: {
     const nt = w.clubs[f.home]?.nation === p.nation ? w.clubs[f.home] : w.clubs[f.away]
     sendInbox(w, {
       from: staff.medical, fromRole: 'Head of Medical', category: 'Medical', subject: `${p.name} injured on international duty`,
-      body: `${p.name} picked up a ${inj.type.toLowerCase()} playing for ${nt?.short || p.nation} against ${(nt?.id === f.home ? w.clubs[f.away] : w.clubs[f.home])?.short}. He'll be out for about ${inj.days} day${inj.days === 1 ? '' : 's'} (back ${fmtDate(p.injury?.until || addDays(w.date, inj.days), 'dm')}).`,
+      body: `${p.name} picked up ${aOrAn(inj.type)} ${inj.type.toLowerCase()} playing for ${nt?.short || p.nation} against ${(nt?.id === f.home ? w.clubs[f.away] : w.clubs[f.home])?.short}. He'll be out for about ${inj.days} day${inj.days === 1 ? '' : 's'} (back ${fmtDate(p.injury?.until || addDays(w.date, inj.days), 'dm')}).`,
       actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id, image: { kind: 'player', id: p.id },
     })
   }

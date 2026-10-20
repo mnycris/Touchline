@@ -214,7 +214,7 @@ export const CULTURES: Record<string, Culture> = {
  last:`Hosseini Mohammadi Rezaei Ahmadi Karimi Moradi Hashemi Jafari Rahimi Kazemi Ghasemi Mousavi Sadeghi Ebrahimi Azizi Nouri Taheri Rostami Ansari Bagheri Amiri Shojaei Gholizadeh Mohebi Torabi Jalali`,
   },
   south_asia: {
-    first: `Arjun Rahul Rohan Aarav Vihaan Aditya Sahil Ishaan Ayush Karan Nikhil Siddharth Anirudh Akash Vikram Sandesh Gurpreet Jeakson Lalengmawia Sahal Anwar Ashique Udanta Brandon Liston Manvir Lallianzuala Bipin Mehtab Pritam Subhasish Rahim Nandhakumar Vibin Lalrinliana Imran Hamza Bilal Zain Usman`,
+    first: `Arjun Rahul Rohan Aarav Vihaan Aditya Sahil Ishaan Ayush Karan Nikhil Siddharth Anirudh Akash Vikram Sandesh Gurpreet Jeakson Sahal Anwar Ashique Udanta Brandon Liston Manvir Bipin Mehtab Pritam Subhasish Rahim Nandhakumar Vibin Imran Hamza Bilal Zain Usman`,
     last: `Singh Kumar Sharma Patel Das Nair Reddy Rao Gupta Thapa Bose Mondal Sarkar Ali Khan Chhetri Gogoi Bheke Fernandes Colaco Rodrigues D'Silva Kuruniyan Kotal Jhingan Gurung Ralte Hnamte Chhangte Pandita Tangri Meitei Laishram Thangjam Ahmed Hussain Qureshi Malik Chaudhry`,
   },
   us: {

@@ -38,7 +38,7 @@ const COLS: Partial<Record<View, Col[]>> = {
   ],
   contract: [
     { k: 'wage', label: 'Wage', w: 50, cell: (_w, p) => <span className="num">{fmtMoney(p.contract.wage, { short: true })}</span> },
-    { k: 'expiry', label: 'Until', w: 38, cell: (w, p) => { const yl = yearsLeft(w, p); return <span className="num b" style={{ color: yl <= 0 ? 'var(--neg)' : yl <= 1 ? 'var(--warn)' : undefined }}>{p.contract.until + 1}</span> } },
+    { k: 'expiry', label: 'Until', w: 38, cell: (w, p) => { const yl = yearsLeft(w, p); return <span className="num b" style={{ color: yl <= 0 ? 'var(--neg)' : yl <= 1 ? 'var(--warn)' : undefined }}>{p.contract.until}</span> } },
     { k: 'value', label: 'Value', w: 48, cell: (_w, p) => <span className="num">{fmtMoney(p.value, { short: true })}</span> },
   ],
 }
@@ -288,7 +288,7 @@ export function Contracts() {
               <div key={p.id} className="li">
                 <button className="row grow" style={{ gap: 12, textAlign: 'left', minWidth: 0 }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
                   <Face p={p} size={40} radius={10} club={club} />
-                  <div className="meta"><div className="t ellipsis">{p.name}</div><div className="s" style={{ color: yl <= 1 ? 'var(--warn)' : undefined }}>{fmtMoney(p.contract.wage)}/wk · expires {p.contract.until + 1} · {p.contract.role}</div></div>
+                  <div className="meta"><div className="t ellipsis">{p.name}</div><div className="s" style={{ color: yl <= 1 ? 'var(--warn)' : undefined }}>{fmtMoney(p.contract.wage)}/wk · expires {p.contract.until} · {p.contract.role}</div></div>
                 </button>
                 {p.loan ? <span className="tiny dim">Loan</span> : <button className={`btn xs ${yl <= 1 ? 'club' : ''}`} onClick={() => open({ name: 'renewal', params: { id: p.id } })}>Renew</button>}
               </div>

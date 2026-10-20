@@ -1,6 +1,6 @@
 import type { Conversation, Player, PlayerPromise, World } from '../../domain/types'
 import { Rng, clamp, hashString } from '../../domain/rng'
-import { addDays, ageOn, fmtDate } from '../../domain/dates'
+import { addDays, ageOn, diffDays, fmtDate } from '../../domain/dates'
 import { ROLE_EXPECTED_SHARE } from '../../domain/constants'
 import { rosterOf } from './roster'
 import { sendInbox } from './messages'
@@ -47,9 +47,32 @@ const SUBJECT: Record<string, string> = {
   Contract: 'asks about his contract', Development: 'asks about a loan', Confidence: 'needs your backing', Thanks: 'wants a word',
 }
 
+/** Days a player waits for an answer before he stops expecting one (a word of thanks needs none). */
+const CONV_WAIT = 21
+
+/**
+ * Conversations that are no longer open: the player has left the club, or waited three weeks without an answer
+ * (a little put out, unless it was only a word of thanks). Ones that went stale long ago close quietly.
+ */
+function lapseConversations(w: World) {
+  for (const c of w.conversations) {
+    if (c.resolved) continue
+    const p = w.players[c.playerId]
+    const gone = !p || (p.clubId !== w.userClubId && p.loan?.fromClubId !== w.userClubId)
+    const age = diffDays(w.date, c.opened)
+    const wait = c.kind === 'Thanks' ? 14 : CONV_WAIT
+    if (!gone && age < wait) continue
+    c.resolved = true
+    c.choice = gone ? 'left' : 'ignored'
+    if (!gone && p && c.kind !== 'Thanks' && age < wait + 7) p.morale = clamp(p.morale - (p.hidden.temperament > 68 ? 5 : 3), 0, 100)
+    for (const m of w.inbox) if (m.actions.some((a) => a.action === 'openConversation' && a.payload === c.id)) { m.expires = addDays(w.date, -1); m.read = true }
+  }
+}
+
 export function maybeConversations(w: World, rng: Rng) {
   const club = w.clubs[w.userClubId]
   if (!club) return
+  lapseConversations(w)
   const open = new Set(w.conversations.filter((c) => !c.resolved).map((c) => c.playerId))
   const recent = w.flags.convRecent || (w.flags.convRecent = {})
   for (const p of rosterOf(w, club.id)) {

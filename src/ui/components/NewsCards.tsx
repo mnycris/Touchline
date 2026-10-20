@@ -2,7 +2,8 @@
 // wearing its own identity: a scoreline for results, the move itself for transfers, a quote for managers, the number
 // for records, gold for trophies and awards, the medical cross for injuries, a dashed "unconfirmed" look for rumours.
 import type { NewsItem, World } from '../../domain/types'
-import { Badge, CompLogo, Face } from './atoms'
+import { Badge, CompLogo, Face, FormPips } from './atoms'
+import { fixturesOf, outcomeFor } from '../selectors'
 import { Icon } from '../icons/Icon'
 import { fmtDate, diffDays } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
@@ -49,6 +50,11 @@ const weeks = (s: string) => { const m = /(\d+)\s+weeks?/i.exec(s); return m ? `
 const until = (s: string) => { const m = /(?:until|to) (?:June )?(20\d\d)/i.exec(s); return m ? m[1] : undefined }
 const outlet = (s: string) => { const m = /^([A-Z][\w'.&\- ]{2,28}?) (?:report|reports|claim|claims|say|says|understand)\b/.exec(s); return m?.[1] }
 const isIntl = (w: World, n: NewsItem) => (n.compId ? w.competitions[n.compId]?.format === 'intl' : false) || n.clubIds.some((id) => w.clubs[id]?.national)
+
+/** A club's last five results in one competition, up to a date. */
+export function formUpTo(w: World, clubId: number, compId: string, date: string) {
+  return fixturesOf(w, clubId).filter((f) => f.compId === compId && f.played && f.result && f.date <= date).slice(-5).map((f) => outcomeFor(f, clubId)!).filter(Boolean)
+}
 
 /** Day heading for the feed: Today, Yesterday, then the date. */
 export function dayLabel(w: World, d: string) {
@@ -132,6 +138,11 @@ export function StoryCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolea
   } else if (t === 'race') {
     const [a, b] = n.clubIds.map((id) => w.clubs[id])
     visual = <span className="ns-duo"><Badge club={a} size={36} /><Badge club={b} size={30} /></span>
+    // the clubs in the race and how they came into it: their last five in this league, up to the day of the story
+    if (n.compId) {
+      const rows = n.clubIds.map((id) => ({ c: w.clubs[id], form: formUpTo(w, id, n.compId!, n.date) })).filter((r) => r.c && r.form.length)
+      if (rows.length) extra = <div className="ns-race">{rows.map(({ c, form }) => <span key={c.id} className="ns-race-r"><Badge club={c} size={16} /><b className="ellipsis">{c.short}</b><FormPips form={form} /></span>)}</div>
+    }
   } else if (t === 'milestone') {
     const k = num(n.headline)
     visual = p ? <span className="ns-big">{p && <Face p={p} size={lead ? 64 : 50} radius={14} club={w.clubs[p.clubId]} />}{k && <b>{k}</b>}</span> : null

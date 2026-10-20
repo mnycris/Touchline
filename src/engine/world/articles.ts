@@ -16,6 +16,8 @@ export interface Article {
   facts: [string, string][]
   hero: { kind: 'player' | 'club' | 'comp' | 'none'; id?: number | string }
   fixtureId?: string
+  /** clubs whose recent results the story is about: shown as W/D/L, in this competition, up to the story's date */
+  form?: { clubIds: number[]; compId: string; date: string }
 }
 
 const WEEKDAY = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -51,7 +53,9 @@ export function articleFor(w: World, n: NewsItem): Article {
   const pick = picker(n.id)
   const comp = n.compId ? w.competitions[n.compId] : undefined
   const kickerBase = { transfer: 'Transfer', rumour: 'Transfer rumour', result: 'Match report', injury: 'Injury news', manager: 'Manager', record: 'Record', milestone: 'Milestone', youth: 'Youth', contract: 'Contract', title: 'Champions', relegation: 'Relegation', award: 'Awards', board: 'Board', preview: 'Preview' }[n.kind] || 'News'
-  const kicker = [kickerBase, comp?.short].filter(Boolean).join(' · ')
+  // 'title' covers the race as well as the trophy, and promotion: say which
+  const titleKind = n.kind === 'title' ? (/promot/i.test(n.headline + n.body) ? 'Promotion' : n.clubIds.length >= 2 && !n.fixtureId ? 'Title race' : 'Champions') : undefined
+  const kicker = [titleKind || kickerBase, comp?.short].filter(Boolean).join(' · ')
   const base: Article = { kicker, headline: n.headline, lede: n.body, paras: [], facts: [], hero: n.playerIds[0] ? { kind: 'player', id: n.playerIds[0] } : n.clubIds[0] ? { kind: 'club', id: n.clubIds[0] } : { kind: 'none' } }
   const f = n.fixtureId ? w.fixtures[n.fixtureId] : undefined
   if (n.kind === 'result' && f?.result) return resultArticle(w, n, f, base, pick)
@@ -173,7 +177,7 @@ function transferArticle(w: World, n: NewsItem, a: Article, pick: ReturnType<typ
   }
   const lost = from?.transferPolicy?.lost?.find((l) => l.id === p.id)
   if (from && lost) a.paras.push(`${from.short} will now look to replace ${pick(['a key member of their side', 'one of their regular starters', 'an important player'])}.`)
-  a.facts = [['From', from?.name || 'Free agent'], ['To', to?.name || ''], ['Fee', fee ? fmtMoney(fee) : 'Free'], ['Age', String(age)], ['Position', p.positions.join(' / ')], ['Contract', p.contract.until ? `Until ${p.contract.until + 1}` : '–']]
+  a.facts = [['From', from?.name || 'Free agent'], ['To', to?.name || ''], ['Fee', fee ? fmtMoney(fee) : 'Free'], ['Age', String(age)], ['Position', p.positions.join(' / ')], ['Contract', p.contract.until ? `Until ${p.contract.until}` : '–']]
   return a
 }
 
@@ -194,7 +198,7 @@ function injuryArticle(w: World, n: NewsItem, a: Article, pick: ReturnType<typeo
   return a
 }
 
-function clubArticle(w: World, n: NewsItem, a: Article, pick: ReturnType<typeof picker>): Article {
+function clubArticle(w: World, n: NewsItem, a: Article, _pick: ReturnType<typeof picker>): Article {
   const club = w.clubs[n.clubIds[0]] as Club | undefined
   if (!club) return a
   a.hero = { kind: 'club', id: club.id }
@@ -206,7 +210,7 @@ function clubArticle(w: World, n: NewsItem, a: Article, pick: ReturnType<typeof 
   a.lede = sents[0] || n.body
   if (sents.length > 1) a.paras.push(sents.slice(1).join(' '))
   if (tl) a.paras.push(tl)
-  if (recent && row && row.form?.length) a.paras.push(`${pick(['Recent form', 'Their last five', 'Form going into the next game'])}: ${row.form.slice(-5).join(' ')}.`)
+  if (lg && (n.kind === 'title' || n.kind === 'relegation' || n.kind === 'manager')) a.form = { clubIds: [...new Set(n.clubIds)].slice(0, 3), compId: n.compId || lg.id, date: n.date }
   if (recent && row) a.facts = [['Played', String(row.p)], ['Record', `${row.w}W ${row.d}D ${row.l}L`], ['Goals', `${row.gf}–${row.ga}`], ['Points', String(row.pts)]]
   return a
 }

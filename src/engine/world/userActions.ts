@@ -259,8 +259,8 @@ export function renewContract(w: World, p: Player, c: ContractOffer, attempt: nu
   p.morale = clamp(p.morale + 10, 0, 100)
   if (c.signingBonus) { club.finance.balance -= c.signingBonus; club.finance.ledger.push({ date: w.date, label: `Loyalty bonus: ${p.name}`, amount: -c.signingBonus, kind: 'bonus' }) }
   ;(w.flags.renewed ||= {})[p.id] = w.date
-  if (p.ovr >= 78) postNews(w, { headline: `${p.name} commits future to ${club.short}`, body: `${p.name} has signed a new contract with ${club.name} running until ${c.years + w.season + 1 - 1 === w.season ? '' : `June ${w.season + c.years + 1}`}.`, kind: 'contract', playerIds: [p.id], clubIds: [club.id], importance: 3, userRelated: true })
-  return { ok: true, text: `${p.name} signs a new deal until ${w.season + c.years + 1}.`, status: 'accept' }
+  if (p.ovr >= 78) postNews(w, { headline: `${p.name} commits future to ${club.short}`, body: `${p.name} has signed a new contract with ${club.name} running until June ${w.season + c.years}.`, kind: 'contract', playerIds: [p.id], clubIds: [club.id], importance: 3, userRelated: true })
+  return { ok: true, text: `${p.name} signs a new deal until ${w.season + c.years}.`, status: 'accept' }
 }
 
 export function renewalDemand(w: World, p: Player): ContractOffer {

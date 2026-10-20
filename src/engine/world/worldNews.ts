@@ -6,6 +6,7 @@ import { ageOn, weekday } from '../../domain/dates'
 import { sortTable } from '../competitions/tables'
 import { deepLeagueSet } from './matchRunner'
 import { postNews } from './messages'
+import { aOrAn } from '../../domain/words'
 
 const pickFor = (seed: string) => <T,>(arr: T[]) => arr[hashString(seed) % arr.length]
 
@@ -46,7 +47,7 @@ export function matchWorldNews(w: World, f: Fixture, r: MatchResult, injuries: {
     const pick = pickFor(`${p.id}:${w.date}:inj`)
     postNews(w, {
       headline: pick([`Blow for ${w.clubs[p.clubId]?.short} as ${p.name} is ruled out`, `${p.name} faces ${Math.round(inj.days / 7)} weeks out`, `${w.clubs[p.clubId]?.short} sweat on ${p.name} injury`]),
-      body: `${w.clubs[p.clubId]?.name} will be without ${p.name} for around ${Math.round(inj.days / 7)} weeks after he suffered a ${inj.type.toLowerCase()}.`,
+      body: `${w.clubs[p.clubId]?.name} will be without ${p.name} for around ${Math.round(inj.days / 7)} weeks after he suffered ${aOrAn(inj.type)} ${inj.type.toLowerCase()}.`,
       kind: 'injury', playerIds: [p.id], clubIds: [p.clubId], compId: comp.id, importance: p.ovr >= 87 ? 4 : 3, userRelated: own,
     })
   }

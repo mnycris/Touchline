@@ -4,13 +4,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { NewsItem, World } from '../../domain/types'
 import { useGame, useWorld, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
-import { Badge, CompLogo, Empty, Face } from '../components/atoms'
+import { Badge, CompLogo, Empty, Face, FormPips } from '../components/atoms'
 import { Chips, Screen } from '../components/layout'
 import { fmtDate } from '../../domain/dates'
 import { articleFor } from '../../engine/world/articles'
 import { Ball } from '../components/Glyphs'
 import { useRemember } from '../memory'
-import { StoryCard, STORY, storyType, dayLabel } from '../components/NewsCards'
+import { StoryCard, STORY, storyType, dayLabel, formUpTo } from '../components/NewsCards'
 import { underWhite } from '../theme'
 import { FollowingView } from '../components/FollowingFeed'
 import { StarGlyph } from '../components/Follow'
@@ -115,6 +115,15 @@ export function Article({ params }: { params: { id: string } }) {
             </div>
           )}
 
+          {a.form && (() => {
+            const rows = a.form.clubIds.map((id) => ({ c: w.clubs[id], form: formUpTo(w, id, a.form!.compId, a.form!.date) })).filter((r) => r.c && r.form.length)
+            return rows.length ? (
+              <div className="art-form">
+                <div className="label">{rows.length > 1 ? 'Recent form' : 'Their last five'}</div>
+                {rows.map(({ c, form }) => <button key={c.id} className="art-form-r" onClick={() => go({ name: 'club', params: { id: c.id } })}><Badge club={c} size={20} /><span className="small b grow ellipsis" style={{ textAlign: 'left' }}>{c.short}</span><FormPips form={form} /></button>)}
+              </div>
+            ) : null
+          })()}
           {a.facts.length > 0 && (
             <div className="art-facts">
               {a.facts.map(([k, v]) => <div key={k} className="art-fact"><span className="tiny dim">{k}</span><span className="small b">{v}</span></div>)}

@@ -4,6 +4,7 @@ import { addDays, fmtDate } from '../../domain/dates'
 import { positionOf } from '../competitions/tables'
 import { expectedRank } from './board'
 import { postNews, sendInbox, staffNames } from './messages'
+import { staffName } from '../../domain/names'
 
 /** Weekly AI manager review: underperforming managers get sacked and replaced. */
 export function aiManagerReview(w: World, rng: Rng) {
@@ -33,24 +34,31 @@ export function aiManagerReview(w: World, rng: Rng) {
 
 export function sackManager(w: World, club: Club, rng: Rng) {
   const old = w.managers[club.managerId]
-  if (old) { old.clubId = 0; old.reputation = clamp(old.reputation - 4, 5, 99) }
-  const pool = Object.values(w.managers).filter((m) => m.clubId === 0 && !m.retired)
+  if (old) { old.clubId = 0; old.reputation = clamp(old.reputation - 4, 5, 99); (w.flags.mgrSacked ||= {})[old.id] = w.date }
+  // a replacement from the managers out of work (not one sacked in the last month), or a new name when there is nobody
+  const sacked = (w.flags.mgrSacked || {}) as Record<number, string>
+  const cool = addDays(w.date, -30)
+  const pool = Object.values(w.managers).filter((m) => m.clubId === 0 && !m.retired && m.id !== old?.id && !(sacked[m.id] > cool))
   const fit = pool.sort((a, b) => Math.abs(a.reputation - club.reputation) - Math.abs(b.reputation - club.reputation))
-  const next = fit[Math.floor(rng.next() * Math.min(3, fit.length))]
-  // the vacancy may go to the user first, if it makes sense for both sides
-  const chance = userJobInterest(w, club)
-  if (chance > 0 && rng.next() < chance) offerUserJob(w, club, old?.name, rng)
-  if (next) {
-    next.clubId = club.id
-    next.appointed = w.date
-    club.managerId = next.id
-    // new manager may bring a new shape
-    const sheet = club.sheets[0]
-    if (sheet) sheet.formation = next.formation
+  let next = fit[Math.floor(rng.next() * Math.min(3, fit.length))]
+  if (!next) {
+    const id = w.nextIds.manager++
+    next = { id, name: staffName(rng, w.namePools, w.nations[club.country] ? club.country : 'England'), nationality: w.nations[club.country] ? club.country : 'England', age: rng.int(38, 60), clubId: 0, formation: old?.formation || '4-2-3-1 Wide', vision: old?.vision || 'Balanced', reputation: clamp(club.reputation - rng.int(5, 15), 10, 85), real: false, faceSeed: rng.int(1, 1e9), record: { p: 0, w: 0, d: 0, l: 0 }, trophies: 0 }
+    w.managers[id] = next
   }
+  // the vacancy may go to the user first, if it makes sense for both sides; until then the new man is in interim charge
+  const chance = userJobInterest(w, club)
+  const offered = chance > 0 && rng.next() < chance
+  if (offered) offerUserJob(w, club, old?.name, rng)
+  next.clubId = club.id
+  next.appointed = w.date
+  club.managerId = next.id
+  // a new manager may bring a new shape
+  const sheet = club.sheets[0]
+  if (sheet) sheet.formation = next.formation
   postNews(w, {
-    headline: `${club.short} part company with ${old?.name ?? 'manager'}`,
-    body: `${club.name} have dismissed ${old?.name ?? 'their manager'} following a run of poor results.${next ? ` ${next.name} has been appointed as the new head coach.` : ''}`,
+    headline: `${club.short} part company with ${old?.name ?? 'their manager'}`,
+    body: `${club.name} have dismissed ${old?.name ?? 'their manager'} following a run of poor results. ${offered ? `${next.name} takes charge in the interim while the board look for a permanent appointment.` : `${next.name} has been appointed as the new head coach.`}`,
     kind: 'manager', playerIds: [], clubIds: [club.id], importance: club.reputation >= 70 ? 4 : 2, userRelated: false,
   })
 }
@@ -152,9 +160,9 @@ export function acceptJob(w: World, clubId: number) {
   if (!club) return
   const h = w.user.history[w.user.history.length - 1]
   if (h && !h.to) h.to = w.date
-  // incumbent leaves
+  // incumbent (an interim, usually) leaves
   const inc = w.managers[club.managerId]
-  if (inc) inc.clubId = 0
+  if (inc) { inc.clubId = 0; inc.appointed = undefined }
   if (prev && prev.managerId === -1) {
     const pool = Object.values(w.managers).filter((m) => m.clubId === 0 && !m.retired && m.id !== inc?.id)
     const m = pool.sort((a, b) => b.reputation - a.reputation)[0]

@@ -9,6 +9,7 @@ import { fmtMoney } from '../../domain/finance'
 import { useGame } from '../../store/game'
 import { avgRating, totals } from '../selectors'
 import { rosterOf } from '../../engine/world/roster'
+import { yearsLeft } from '../../engine/world/transfers'
 import { Badge, Face, Ovr, PosChip } from './atoms'
 import { Icon } from '../icons/Icon'
 
@@ -73,7 +74,7 @@ export function MessageContext({ w, m }: { w: World; m: InboxMessage }) {
   }
   if (!p) return null
   const club = w.clubs[p.clubId]
-  const yl = Math.max(0, p.contract.until - w.season)
+  const yl = Math.max(0, yearsLeft(w, p))
   const t = totals(p, (k) => k.includes(String(w.season)))
   if (kind === 'contract') {
     return (
@@ -82,8 +83,8 @@ export function MessageContext({ w, m }: { w: World; m: InboxMessage }) {
         <PlayerHead w={w} p={p} />
         <div className="mc-grid">
           <Fact k="Wage" v={`${fmtMoney(p.contract.wage)}/wk`} />
-          <Fact k="Expires" v={p.contract.until ? `June ${p.contract.until + 1}` : '–'} tone={yl <= 1 ? 'warn' : undefined} />
-          <Fact k="Years left" v={yl <= 0 ? 'Final months' : String(yl)} tone={yl <= 1 ? 'warn' : undefined} />
+          <Fact k="Expires" v={p.contract.until ? `June ${p.contract.until}` : '–'} tone={yl <= 1 ? 'warn' : undefined} />
+          <Fact k="Left" v={yl <= 1 ? 'This season' : `${yl} seasons`} tone={yl <= 1 ? 'warn' : undefined} />
           <Fact k="Squad role" v={p.contract.role} />
           <Fact k="Release clause" v={p.contract.releaseClause ? fmtMoney(p.contract.releaseClause) : 'None'} />
           <Fact k="Morale" v={p.morale >= 70 ? 'Happy' : p.morale >= 45 ? 'Content' : 'Unhappy'} tone={p.morale >= 70 ? 'pos' : p.morale < 45 ? 'neg' : undefined} />
@@ -127,7 +128,7 @@ export function MessageContext({ w, m }: { w: World; m: InboxMessage }) {
           {offer && <Fact k="Offer" v={fmtMoney(offer.fee)} tone={ratio >= 1.1 ? 'pos' : ratio < 0.85 ? 'neg' : undefined} />}
           <Fact k="Market value" v={fmtMoney(p.value)} />
           {offer && <Fact k="Against value" v={`${ratio >= 1 ? '+' : ''}${Math.round((ratio - 1) * 100)}%`} tone={ratio >= 1.1 ? 'pos' : ratio < 0.85 ? 'neg' : undefined} />}
-          <Fact k="Contract" v={yl <= 0 ? 'Expiring' : `${yl} yr${yl === 1 ? '' : 's'} left`} tone={yl <= 1 ? 'warn' : undefined} />
+          <Fact k="Contract" v={yl <= 1 ? 'Ends this season' : `${yl} seasons left`} tone={yl <= 1 ? 'warn' : undefined} />
           <Fact k="Squad role" v={p.contract.role} />
           <Fact k="This season" v={`${t.apps} apps · ${t.goals} G · ${t.assists} A`} />
         </div>
@@ -166,7 +167,7 @@ export function MessageContext({ w, m }: { w: World; m: InboxMessage }) {
       <PlayerHead w={w} p={p} />
       <div className="mc-grid">
         <Fact k="Value" v={fmtMoney(p.value)} />
-        <Fact k="Contract" v={p.contract.until ? `Until ${p.contract.until + 1}` : 'Free agent'} />
+        <Fact k="Contract" v={p.contract.until ? `Until ${p.contract.until}` : 'Free agent'} />
         <Fact k={kind === 'scouting' ? 'Potential' : 'This season'} v={kind === 'scouting' ? `${p.pot}` : `${t.apps} apps · ${t.goals} G`} />
         <Fact k="Best attribute" v={(() => { const ks = Object.keys(A) as (keyof typeof A)[]; const k = ks.reduce((b, x) => (p.attrs[A[x]] > p.attrs[A[b]] ? x : b), ks[0]); return `${ATTR_LABEL[k]} ${p.attrs[A[k]]}` })()} />
       </div>

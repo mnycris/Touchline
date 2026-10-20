@@ -28,6 +28,7 @@ import { rollInjury } from './matchRunner'
 import { rosterOf, wageBill } from './roster'
 import { processPendingDeals } from './userActions'
 import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
+import { aOrAn } from '../../domain/words'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -107,7 +108,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
       if (p?.clubId !== w.userClubId) continue
       sendInbox(w, {
         from: staff.medical, fromRole: 'Head of Medical', category: 'Medical', subject: `Injury: ${p.name}`,
-        body: `${p.name} suffered a ${inj.type.toLowerCase()} against ${w.clubs[f.home === w.userClubId ? f.away : f.home].short}. He is expected to be out for ${inj.days} day${inj.days === 1 ? '' : 's'} (return ${fmtDate(p.injury!.until, 'dm')}).`,
+        body: `${p.name} suffered ${aOrAn(inj.type)} ${inj.type.toLowerCase()} against ${w.clubs[f.home === w.userClubId ? f.away : f.home].short}. He is expected to be out for ${inj.days} day${inj.days === 1 ? '' : 's'} (return ${fmtDate(p.injury!.until, 'dm')}).`,
         actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id, image: { kind: 'player', id: p.id },
       })
       if (p.ovr >= 80) postNews(w, { headline: `${p.name} ruled out with ${inj.type.toLowerCase()}`, body: `${w.clubs[p.clubId].name} will be without ${p.name} for around ${Math.max(1, Math.round(inj.days / 7))} week${inj.days >= 14 ? 's' : ''}.`, kind: 'injury', playerIds: [p.id], clubIds: [p.clubId], importance: 3, userRelated: true })
@@ -115,7 +116,7 @@ export function afterMatch(w: World, f: Fixture, result: MatchResult, rng: Rng, 
     for (const b of res.bans) {
       const p = w.players[b.id]
       if (p?.clubId !== w.userClubId) continue
-      sendInbox(w, { from: staff.assistant, fromRole: 'Assistant Manager', category: 'Squad', subject: `Suspension: ${p.name}`, body: `${p.name} will miss the next ${b.games} ${comp?.short ?? ''} match${b.games > 1 ? 'es' : ''} through suspension.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
+      sendInbox(w, { from: staff.assistant, fromRole: 'Assistant Manager', category: 'Squad', subject: `Suspension: ${p.name}`, body: b.games > 1 ? `${p.name} will miss the next ${b.games} ${comp?.short ?? ''} matches through suspension.` : `${p.name} will miss the next ${comp?.short ? `${comp.short} ` : ''}match through suspension.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
     }
     resultNews(w, f, result, true)
   } else if (comp && (comp.clubs.includes(w.userClubId) || comp.format === 'uefa' || isDeepFixture(w, f))) {
@@ -215,7 +216,7 @@ function endOfDay(w: World, rng: Rng) {
       const inj = rollInjury(w, p, rng, d)
       if (inj.totalDays > 20) { inj.totalDays = Math.round(inj.totalDays / 3); inj.until = addDays(d, inj.totalDays) }
       p.injury = { ...inj, type: `${inj.type} (training)` }
-      if (p.clubId === w.userClubId) sendInbox(w, { from: staff.medical, fromRole: 'Head of Medical', category: 'Medical', subject: `Training injury: ${p.name}`, body: `${p.name} picked up a ${inj.type.toLowerCase()} in training and will miss around ${inj.totalDays} days.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
+      if (p.clubId === w.userClubId) sendInbox(w, { from: staff.medical, fromRole: 'Head of Medical', category: 'Medical', subject: `Training injury: ${p.name}`, body: `${p.name} picked up ${aOrAn(inj.type)} ${inj.type.toLowerCase()} in training and will miss around ${inj.totalDays} day${inj.totalDays === 1 ? '' : 's'}.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id, image: { kind: 'player', id: p.id } })
     }
     if (breakNow && p.intlDuty && !inSquad.has(p.id)) p.fitness = clamp(p.fitness - 1.5, 30, 100)
   }
@@ -257,7 +258,8 @@ function endOfDay(w: World, rng: Rng) {
       const ups = user.filter((x) => x.d > 0).sort((a, b) => b.d - a.d)
       const downs = user.filter((x) => x.d < 0).sort((a, b) => a.d - b.d)
       const top = ups[0]
-      const young = ups.filter((u) => ageOn(w.players[u.id].dob, w.date) <= 21)
+      // the young ones, other than the one the opener already names
+      const young = ups.filter((u) => ageOn(w.players[u.id].dob, w.date) <= 21 && !(ups.length <= 3 && !downs.length && u === top))
       const opener = ups.length && downs.length ? `Mixed news from the training ground this fortnight.` : ups.length > 3 ? `A good fortnight on the training ground: ${ups.length} players have taken a step forward.` : ups.length ? `${top.name} ${top.d > 1 ? 'has made a big jump' : 'has kicked on'} in training.` : `A couple of players have lost a little sharpness.`
       const detail = [young.length ? `${young.map((u) => u.name).slice(0, 2).join(' and ')} ${young.length > 1 ? 'are' : 'is'} developing nicely.` : '', downs.length ? `${downs.map((u) => u.name).slice(0, 2).join(' and ')} ${downs.length > 1 ? 'have' : 'has'} dropped off; age and minutes play a part.` : ''].filter(Boolean).join(' ')
       const rows = [...ups, ...downs].slice(0, 10).map((u) => {

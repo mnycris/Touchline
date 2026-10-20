@@ -654,7 +654,7 @@ export function Renewal({ params }: { params: { id: number } }) {
       <div className="pad stack fade-up">
         <div className="card pad-card row" style={{ gap: 12 }}>
           <Face p={p} size={56} radius={28} club={club} />
-          <div className="grow"><div className="b">{p.name}</div><div className="tiny dim">Current: {fmtMoney(p.contract.wage)}/wk · until {p.contract.until + 1} · {p.contract.role}</div><div className="tiny dim">Morale {Math.round(p.morale)} · {yearsLeft(w, p) <= 1 ? 'Final year' : `${yearsLeft(w, p)} years left`}</div></div>
+          <div className="grow"><div className="b">{p.name}</div><div className="tiny dim">Current: {fmtMoney(p.contract.wage)}/wk · until {p.contract.until} · {p.contract.role}</div><div className="tiny dim">Morale {Math.round(p.morale)} · {yearsLeft(w, p) <= 1 ? 'Final year' : `${yearsLeft(w, p)} years left`}</div></div>
           <Ovr v={p.ovr} />
         </div>
         <div className="card pad-card" style={{ padding: 12 }}><MoodMeter v={talks?.patience ?? 100} label={`Agent${talks ? ` · ${agentStyleLabel(talks.style)}` : ''}`} />{talks?.priority && <div className="tiny dim row tight" style={{ gap: 5, marginTop: 6 }}><Icon name="star" size={12} color="var(--gold)" />{PRIORITY_TEXT[talks.priority]}</div>}</div>

@@ -6,7 +6,7 @@ import type { InboxMessage, NewsItem, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CompLogo, Empty, Face, Ovr, PosChip, UserAvatar } from '../components/atoms'
 import { Chips, Screen, Stepper } from '../components/layout'
-import { fmtDate } from '../../domain/dates'
+import { diffDays, fmtDate } from '../../domain/dates'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { runAction } from '../actions'
 import { respondConversation } from '../../engine/world/morale'
@@ -33,35 +33,113 @@ function MsgAvatar({ w, m, size = 42 }: { w: World; m: InboxMessage; size?: numb
   return <div className="msg-av"><Icon name={CAT_ICON[m.category] || 'inbox'} size={20} /></div>
 }
 
+/** Decisions still open in a message: a bid to answer, a conversation, a counter-offer, a contract or job. */
+const DECISION = new Set(['acceptBid', 'rejectBid', 'negotiateBid', 'acceptCounter', 'openConversation', 'openContract', 'openJobOffer'])
+const needsYou = (w: World, m: InboxMessage) => {
+  if (m.resolved || (m.expires && w.date > m.expires)) return false
+  const conv = m.actions.find((a) => a.action === 'openConversation')
+  // (a player waits three weeks for an answer: the same rule the conversations lapse by)
+  if (conv) { const c = w.conversations.find((x) => x.id === conv.payload); return !!c && !c.resolved && c.kind !== 'Thanks' && diffDays(w.date, c.opened) < 21 }
+  return m.actions.some((a) => DECISION.has(a.action)) || (!!m.urgent && !m.read)
+}
+
+/** Routine notices that stack: same kind, same month, one row. */
+const ROUTINE: [RegExp, string, string][] = [
+  [/^Development:|^Player development update/, 'dev', 'Development updates'],
+  [/^Suspension:/, 'susp', 'Suspensions'],
+  [/back in training$/, 'fit', 'Back in training'],
+  [/^Injury:|^Training injury:|injured on international duty/i, 'inj', 'Injuries'],
+  [/international (duty|call-up)|international call-ups/i, 'intl', 'International duty'],
+  [/ draw$/i, 'draw', 'Cup draws'],
+  [/^Scouting update/, 'scout', 'Scouting updates'],
+  [/of the Month/i, 'award', 'Monthly awards'],
+]
+const routineOf = (m: InboxMessage) => (m.actions.some((a) => DECISION.has(a.action)) || m.urgent ? undefined : ROUTINE.find(([re]) => re.test(m.subject)))
+
+type Row = { kind: 'msg'; m: InboxMessage } | { kind: 'stack'; key: string; label: string; items: InboxMessage[] }
+
 export function Inbox() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const mutate = useGame((s) => s.mutate)
   const [cat, setCat] = useRemember<string>('inboxCat', 'All')
+  const [open, setOpen] = useRemember<string[]>('inboxOpen', [])
   const cats = ['All', 'Unread', 'Transfers', 'Squad', 'Player', 'Board', 'Medical', 'Scouting', 'Youth', 'Competitions']
-  const list = w.inbox.filter((m) => cat === 'All' || (cat === 'Unread' ? !m.read : m.category === cat || (cat === 'Squad' && m.category === 'Assistant')))
+  const inCat = (m: InboxMessage, c: string) => c === 'All' || (c === 'Unread' ? !m.read : m.category === c || (c === 'Squad' && m.category === 'Assistant'))
+  const list = w.inbox.filter((m) => inCat(m, cat))
   const unread = w.inbox.filter((m) => !m.read).length
+  const pending = cat === 'All' ? list.filter((m) => needsYou(w, m)) : []
+  const pendingIds = new Set(pending.map((m) => m.id))
+  // the rest, with routine notices of the same kind in the same month stacked into one row
+  const rows: Row[] = []
+  const stacks = new Map<string, Row & { kind: 'stack' }>()
+  for (const m of list.slice(0, 200)) {
+    if (pendingIds.has(m.id)) continue
+    const r = cat === 'Unread' ? undefined : routineOf(m)
+    if (!r) { rows.push({ kind: 'msg', m }); continue }
+    const key = `${r[1]}:${m.date.slice(0, 7)}`
+    const st = stacks.get(key)
+    if (st) { st.items.push(m); continue }
+    const row: Row & { kind: 'stack' } = { kind: 'stack', key, label: r[2], items: [m] }
+    stacks.set(key, row)
+    rows.push(row)
+  }
+  const openMsg = (m: InboxMessage) => { mutate((x) => { const y = x.inbox.find((z) => z.id === m.id); if (y) y.read = true }, { save: false }); go({ name: 'message', params: { id: m.id } }) }
+  const count = (c: string) => (c === 'All' ? 0 : w.inbox.filter((m) => !m.read && inCat(m, c)).length)
   return (
-    <Screen title="Inbox" sub={`${unread} unread`} back right={unread ? <button className="btn xs" onClick={() => mutate((w) => w.inbox.forEach((m) => (m.read = true)))}>Mark all read</button> : undefined}>
-      <Chips items={cats.map((c) => ({ id: c, label: c }))} value={cat} onChange={setCat} />
+    <Screen title="Inbox" sub={`${unread} unread`} back right={unread ? <button className="btn xs" onClick={() => mutate((x) => x.inbox.forEach((m) => (m.read = true)))}>Mark all read</button> : undefined}>
+      <Chips items={cats.map((c) => { const n = c === 'Unread' ? unread : count(c); return { id: c, label: <>{c}{n > 0 && c !== 'All' && <span className="chip-n">{n}</span>}</> } })} value={cat} onChange={setCat} />
       {!list.length && <Empty icon="inbox" title="Nothing here" text="Messages from your staff, players, the board and other clubs appear here." />}
-      <div className="pad" style={{ marginTop: 10 }}>
-        <div className="card list">
-          {list.slice(0, 150).map((m) => (
-            <button key={m.id} className={`li tap msg-row ${m.read ? '' : 'unread'}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => { mutate((w) => { const x = w.inbox.find((y) => y.id === m.id); if (x) x.read = true }, { save: false }); go({ name: 'message', params: { id: m.id } }) }}>
-              <MsgAvatar w={w} m={m} />
-              <div className="meta">
-                <div className="row between"><span className="tiny dim ellipsis">{m.from} · {m.fromRole}</span><span className="tiny dim" style={{ flex: 'none' }}>{fmtDate(m.date, 'dm')}</span></div>
-                <div className="t ellipsis" style={{ marginTop: 2 }}>{m.subject}</div>
-                <div className="s ellipsis">{m.body}</div>
-              </div>
-              {!m.read && <span className="status-dot" style={{ background: 'var(--acc)' }} />}
-              {m.actions.length > 0 && !m.resolved && m.read && <Icon name="forward" size={16} color="var(--t3)" />}
-            </button>
-          ))}
+      {pending.length > 0 && (
+        <div className="pad" style={{ marginTop: 10 }}>
+          <div className="row between" style={{ margin: '0 4px 8px' }}><span className="label" style={{ color: 'var(--warn)' }}>Needs you</span><span className="tiny dim">{pending.length}</span></div>
+          <div className="card list ib-need">{pending.map((m) => <MsgRow key={m.id} w={w} m={m} onClick={() => openMsg(m)} />)}</div>
         </div>
-      </div>
+      )}
+      {rows.length > 0 && (
+        <div className="pad" style={{ marginTop: 12 }}>
+          {pending.length > 0 && <div className="label" style={{ margin: '0 4px 8px' }}>Everything else</div>}
+          <div className="card list">
+            {rows.map((r) => {
+              if (r.kind === 'msg') return <MsgRow key={r.m.id} w={w} m={r.m} onClick={() => openMsg(r.m)} />
+              if (r.items.length === 1) return <MsgRow key={r.items[0].id} w={w} m={r.items[0]} onClick={() => openMsg(r.items[0])} />
+              const isOpen = open.includes(r.key)
+              const fresh = r.items.filter((m) => !m.read).length
+              return (
+                <div key={r.key} className={`ib-stack ${isOpen ? 'open' : ''}`}>
+                  <button className={`li tap msg-row ${fresh ? 'unread' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={() => { haptic(); setOpen(isOpen ? open.filter((k) => k !== r.key) : [...open, r.key]) }}>
+                    <span className="ib-pile">{r.items.slice(0, 3).map((m, i) => <span key={m.id} style={{ zIndex: 3 - i }}><MsgAvatar w={w} m={m} size={30} /></span>)}</span>
+                    <div className="meta">
+                      <div className="row between"><span className="tiny dim ellipsis">{r.items[0].from}</span><span className="tiny dim" style={{ flex: 'none' }}>{fmtDate(r.items[r.items.length - 1].date, 'dm')} – {fmtDate(r.items[0].date, 'dm')}</span></div>
+                      <div className="t ellipsis" style={{ marginTop: 2 }}>{r.label} <span className="dim">· {r.items.length}</span></div>
+                      <div className="s ellipsis">{r.items.map((m) => m.subject.replace(/^[^:]+:\s*/, '')).slice(0, 4).join(' · ')}</div>
+                    </div>
+                    {fresh > 0 && <span className="status-dot" style={{ background: 'var(--acc)' }} />}
+                    <Icon name="down" size={16} color="var(--t3)" className="ib-chev" />
+                  </button>
+                  {isOpen && <div className="ib-items">{r.items.map((m) => <MsgRow key={m.id} w={w} m={m} onClick={() => openMsg(m)} compact />)}</div>}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </Screen>
+  )
+}
+
+function MsgRow({ w, m, onClick, compact }: { w: World; m: InboxMessage; onClick: () => void; compact?: boolean }) {
+  return (
+    <button className={`li tap msg-row ${m.read ? '' : 'unread'} ${compact ? 'compact' : ''}`} style={{ width: '100%', textAlign: 'left' }} onClick={onClick}>
+      <MsgAvatar w={w} m={m} size={compact ? 34 : 42} />
+      <div className="meta">
+        <div className="row between"><span className="tiny dim ellipsis">{m.from} · {m.fromRole}</span><span className="tiny dim" style={{ flex: 'none' }}>{fmtDate(m.date, 'dm')}</span></div>
+        <div className="t ellipsis" style={{ marginTop: 2 }}>{m.subject}</div>
+        {!compact && <div className="s ellipsis">{m.body}</div>}
+      </div>
+      {!m.read && <span className="status-dot" style={{ background: 'var(--acc)' }} />}
+      {m.actions.length > 0 && !m.resolved && m.read && <Icon name="forward" size={16} color="var(--t3)" />}
+    </button>
   )
 }
 
@@ -103,7 +181,8 @@ export function ConversationScreen({ params }: { params: { id: string; msgId?: s
   const mutate = useGame((s) => s.mutate)
   const back = useGame((s) => s.back)
   const c = w.conversations.find((x) => x.id === params.id)
-  const chat = useTypingChat(c ? [{ by: 'them', text: c.prompt }, ...(c.resolved && c.choice ? [{ by: 'me' as const, text: c.options.find((o) => o.id === c.choice)?.text || '' }] : [])] : [])
+  const said = c?.resolved && c.choice ? c.options.find((o) => o.id === c.choice)?.text : undefined
+  const chat = useTypingChat(c ? [{ by: 'them', text: c.prompt }, ...(said ? [{ by: 'me' as const, text: said }] : [])] : [])
   const [answered, setAnswered] = useState(!!c?.resolved)
   if (!c) return <Screen title="Conversation" back><Empty icon="chat" title="Conversation not found" /></Screen>
   const p = w.players[c.playerId]
@@ -117,7 +196,10 @@ export function ConversationScreen({ params }: { params: { id: string; msgId?: s
         </div>
         <ChatLog lines={chat.lines} typing={chat.typing} avatar={() => p ? <Face p={p} size={30} radius={15} club={club} /> : null} />
         {answered ? (
-          !chat.busy && <button className="btn block" onClick={back}>Done</button>
+          !chat.busy && <>
+            {c.resolved && !said && <div className="tiny dim" style={{ textAlign: 'center' }}>{c.choice === 'left' ? 'He has left the club since.' : 'You didn’t answer in time: he has stopped waiting for a reply.'}</div>}
+            <button className="btn block" onClick={back}>Done</button>
+          </>
         ) : (
           <div className="stack" style={{ gap: 8 }}>
             <div className="label">Your response</div>
@@ -239,7 +321,7 @@ export function SellNegotiation({ params }: { params: { offerId: string; msgId?:
       <div className="pad stack fade-up">
         <div className="card pad-card row" style={{ gap: 12 }}>
           <Face p={p} size={56} radius={28} club={w.clubs[p.clubId]} />
-          <div className="grow"><div className="b">{p.name}</div><div className="tiny dim">Value {fmtMoney(p.value)} · Contract to {p.contract.until + 1}</div></div>
+          <div className="grow"><div className="b">{p.name}</div><div className="tiny dim">Value {fmtMoney(p.value)} · Contract to {p.contract.until}</div></div>
           <Badge club={buyer} size={42} />
         </div>
         <div className="card pad-card row between">
