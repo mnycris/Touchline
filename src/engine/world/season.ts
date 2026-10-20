@@ -15,7 +15,7 @@ import { isRetiring, seasonAging } from './development'
 import { postNews, sendInbox, staffNames } from './messages'
 import { rosterOf, touchRoster, setPlayerClub } from './roster'
 import { closeCareerEntry, completeLoanPurchase, contractDemand, notableExit, roleForBuyer, trimHistory } from './transfers'
-import { pickName, displayName } from '../../domain/names'
+import { namesInUse } from '../../domain/names'
 import { generateProspect } from './scouting'
 import { seasonReputation } from './reputation'
 
@@ -345,6 +345,7 @@ function moveClub(w: World, clubId: number, from: number, to: number) {
 }
 
 function regenIntake(w: World, rng: Rng) {
+  const taken = namesInUse(Object.values(w.players))
   for (const club of Object.values(w.clubs)) {
     if (club.id === w.userClubId || club.national) continue
     const squad = rosterOf(w, club.id)
@@ -352,10 +353,9 @@ function regenIntake(w: World, rng: Rng) {
     const nat = w.nations[club.country] ? club.country : rng.pick(['England', 'Spain', 'France', 'Germany', 'Brazil'])
     for (let i = 0; i < n; i++) {
       const fake = { id: -1, name: '', nationality: nat, experience: clamp(Math.round(club.youthRating / 2), 1, 5), judgement: 3, wage: 0, faceSeed: 0, mission: { country: nat, playerType: 'Any', started: w.date, months: 1, nextReport: w.date } }
-      const pr = generateProspect(w, fake as any, rng)
-      const nm = pickName(w.namePools, nat, rng)
+      const pr = generateProspect(w, fake as any, rng, taken)
       const p: Player = {
-        id: pr.id, name: displayName(nm.first, nm.last, nat), fullName: `${nm.first} ${nm.last}`, shortName: displayName(nm.first, nm.last, nat), nation: nat,
+        id: pr.id, name: pr.name, fullName: pr.fullName, shortName: pr.name, nation: nat,
         clubId: club.id, positions: pr.positions, dob: pr.dob, height: pr.height, weight: pr.weight, foot: pr.foot, ovr: pr.trueOvr, pot: pr.truePot,
         ovrAdj: 0, attrs: pr.attrs, weakFoot: rng.int(2, 4), skillMoves: rng.int(2, 3), intlRep: 1, workRate: ['Medium', 'Medium'], bodyType: 'Lean',
         playstyles: [], playstylesPlus: [], value: pr.value, wage: 800, contract: { until: w.season + 4, wage: 800, role: 'Prospect', releaseClause: 0, signedOn: w.date },

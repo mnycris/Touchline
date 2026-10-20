@@ -5,7 +5,7 @@ import { addDays, ageOn, iso, toDate } from '../../domain/dates'
 import { POS_GROUP, RATING_WEIGHTS, POS_WEIGHT_KEY } from '../../domain/constants'
 import { rawPosRating } from '../../domain/ratings'
 import { formulaValue } from '../../domain/finance'
-import { pickName, displayName, staffName } from '../../domain/names'
+import { generateName, namesInUse, staffName } from '../../domain/names'
 import { sendInbox, staffNames } from './messages'
 import { academyOf, touchRoster } from './roster'
 
@@ -229,7 +229,7 @@ export function dailyYouth(w: World, rng: Rng) {
   }
 }
 
-export function generateProspect(w: World, s: YouthScout, rng: Rng): Prospect {
+export function generateProspect(w: World, s: YouthScout, rng: Rng, taken?: Set<string>): Prospect {
   const m = s.mission!
   const nation = m.country
   const t = m.playerType
@@ -246,11 +246,11 @@ export function generateProspect(w: World, s: YouthScout, rng: Rng): Prospect {
   const attrs = generateAttrs(pos, ovr, t, rng)
   const trueOvr = Math.round(rawPosRating(attrs, pos))
   const err = Math.max(1, 7 - s.judgement)
-  const name = pickName(w.namePools, nation, rng)
+  const name = generateName(w.namePools, nation, rng, taken || namesInUse([...Object.values(w.players), ...w.prospects]))
   const year = w.season + (w.date >= `${w.season}-07-01` ? 0 : -1) - age
   const dob = `${year}-${String(rng.int(1, 12)).padStart(2, '0')}-${String(rng.int(1, 28)).padStart(2, '0')}`
   return {
-    id: w.nextIds.player++, scoutId: s.id, name: displayName(name.first, name.last, nation), fullName: `${name.first} ${name.last}`, nation, age, dob,
+    id: w.nextIds.player++, scoutId: s.id, name: name.display, fullName: name.full, nation, age, dob,
     positions: [pos], ovrRange: [Math.max(35, trueOvr - err), trueOvr + err], potRange: [Math.max(trueOvr, pot - err - 1), Math.min(99, pot + err)],
     trueOvr, truePot: pot, attrs, foot: rng.next() < 0.26 ? 'L' : 'R', height: pos === 'GK' ? rng.int(183, 196) : rng.int(166, 190),
     weight: rng.int(58, 82), faceSeed: rng.int(1, 2 ** 30), value: formulaValue(trueOvr, pot, age, pos), found: w.date, playerType: t,
