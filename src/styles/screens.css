@@ -2299,3 +2299,34 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 /* press: the outlet by name in its colours */
 .masthead { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 5px; font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .02em; line-height: 1; white-space: nowrap; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); max-width: 60vw; overflow: hidden; text-overflow: ellipsis; }
 .masthead.newspaper { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; letter-spacing: 0; }
+
+/* ---------- competition identities (ui/compIdentity.ts): the big competitions in their own colours ---------- */
+.ci { position: relative; overflow: hidden; isolation: isolate; background: linear-gradient(135deg, var(--ci-a), var(--ci-b)); }
+.ci::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
+.cip-starball::before { background:
+  radial-gradient(1.3px 1.3px at 14% 24%, rgba(255, 255, 255, .7), transparent 70%), radial-gradient(1px 1px at 30% 72%, rgba(255, 255, 255, .5), transparent 70%),
+  radial-gradient(1.4px 1.4px at 52% 18%, rgba(255, 255, 255, .55), transparent 70%), radial-gradient(1px 1px at 66% 64%, rgba(255, 255, 255, .45), transparent 70%),
+  radial-gradient(1.2px 1.2px at 82% 30%, rgba(255, 255, 255, .6), transparent 70%), radial-gradient(1px 1px at 90% 80%, rgba(255, 255, 255, .4), transparent 70%),
+  radial-gradient(1px 1px at 40% 42%, rgba(255, 255, 255, .35), transparent 70%), radial-gradient(1.2px 1.2px at 6% 86%, rgba(255, 255, 255, .45), transparent 70%),
+  radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 18%, transparent), transparent 62%); }
+.cip-chevron::before { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ci-acc) 9%, transparent) 0 2px, transparent 2px 16px), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 18%, transparent), transparent 62%); }
+.cip-grid::before { background: linear-gradient(color-mix(in srgb, var(--ci-acc) 8%, transparent) 1px, transparent 1px) 0 0 / 22px 22px, linear-gradient(90deg, color-mix(in srgb, var(--ci-acc) 8%, transparent) 1px, transparent 1px) 0 0 / 22px 22px, radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
+.cip-stripes::before { background: repeating-linear-gradient(115deg, color-mix(in srgb, var(--ci-acc) 7%, transparent) 0 9px, transparent 9px 26px), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 62%); }
+.cip-rays::before { background: repeating-conic-gradient(from 200deg at 92% 115%, color-mix(in srgb, var(--ci-acc) 9%, transparent) 0deg 3deg, transparent 3deg 11deg), radial-gradient(90% 80% at 100% 0%, color-mix(in srgb, var(--ci-acc) 14%, transparent), transparent 62%); }
+.cip-waves::before { background: radial-gradient(120% 70% at 0% 110%, color-mix(in srgb, var(--ci-acc) 16%, transparent), transparent 60%), radial-gradient(90% 60% at 100% -10%, color-mix(in srgb, var(--ci-acc) 14%, transparent), transparent 62%), repeating-radial-gradient(circle at 0% 120%, color-mix(in srgb, var(--ci-acc) 6%, transparent) 0 1px, transparent 1px 14px); }
+/* the sweep of light across the big nights (after UEFA's "kick of light"); still for those who ask for less motion */
+.ci-light { position: absolute; inset: -30% -70%; z-index: -1; pointer-events: none; opacity: 0;
+  background: linear-gradient(102deg, transparent 43%, color-mix(in srgb, var(--ci-acc) 20%, transparent) 50%, transparent 57%); }
+.ci-motion .ci-light { opacity: 1; animation: ci-sweep 10s cubic-bezier(.45, 0, .2, 1) infinite; }
+@keyframes ci-sweep { 0%, 12% { transform: translateX(-38%); } 62%, 100% { transform: translateX(38%); } }
+@media (prefers-reduced-motion: reduce) { .ci-motion .ci-light { animation: none; transform: none; opacity: .45; } }
+
+.comp-hero { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ci-acc) 20%, transparent); }
+.comp-hero .ch-kicker { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--ci-acc); }
+.comp-hero .ch-name { color: #fff; margin-top: 2px; line-height: 1.1; }
+.comp-hero .ch-line { color: rgba(255, 255, 255, .84); margin-top: 5px; }
+.comp-hero .ch-hold { display: flex; align-items: center; gap: 6px; color: rgba(255, 255, 255, .68); margin-top: 6px; }
+.logo-tile.ci { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ci-acc) 24%, transparent); }
+.md-head.ci-band { background: linear-gradient(180deg, color-mix(in srgb, var(--ci-a) 92%, transparent) 0%, color-mix(in srgb, var(--ci-b) 70%, var(--s1)) 60%, var(--s1) 100%); }
+.md-head.ci-band::before { -webkit-mask-image: linear-gradient(#000, transparent 80%); mask-image: linear-gradient(#000, transparent 80%); }

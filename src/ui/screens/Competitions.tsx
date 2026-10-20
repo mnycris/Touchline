@@ -5,6 +5,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Club, Competition, Fixture, Player, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
+import { compIdentity, identityClass, identityVars } from '../compIdentity'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
@@ -204,10 +205,11 @@ function CompCard({ w, c }: { w: World; c: Competition }) {
   }
   const next = fixturesOf(w, me).find((f) => !f.played && f.compId === c.id)
   const path = c.format !== 'league' ? cupPath(w, c) : []
+  const ci = compIdentity(c.key)
   return (
     <button className="card tap comp-card" onClick={() => { haptic(); go({ name: 'comp', params: { id: c.id } }) }}>
       <div className="row" style={{ padding: 14, gap: 14 }}>
-        <div className="logo-tile lg"><CompLogo k={compLogoKey(c)} size={44} name={c.name} /></div>
+        <div className={`logo-tile lg${ci ? ` ${identityClass(ci)}` : ''}`} style={ci ? identityVars(ci) : undefined}><CompLogo k={compLogoKey(c)} size={44} name={c.name} /></div>
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
           <div className="h3 ellipsis">{c.name}</div>
           <div className="small muted" style={{ marginTop: 3 }}>{status}</div>
@@ -284,12 +286,44 @@ export function CompScreen({ params }: { params: { id: string } }) {
   ]
   return (
     <Screen title={<div className="row" style={{ gap: 10, minWidth: 0 }}><CompLogo k={compLogoKey(c)} size={30} name={c.name} /><div style={{ minWidth: 0 }}><div className="title ellipsis">{c.short}</div><div className="tiny dim ellipsis" style={{ marginTop: 1 }}>{c.name !== c.short ? `${c.name} · ` : ''}{seasonLabel(c.season)}</div></div></div>} back right={<FollowBtn w={w} kind="comp" id={c.key} name={c.name} />}>
+      <CompHero w={w} c={c} />
       <Tabs sticky items={items} value={tab} onChange={setTab} />
       {tab === 'table' && (groups ? <GroupTables w={w} c={c} /> : <TableView w={w} c={c} />)}
       {tab === 'fixtures' && <CompFixtures w={w} c={c} />}
       {tab === 'bracket' && <Bracket w={w} c={c} />}
       {tab === 'stats' && <CompStats w={w} c={c} />}
     </Screen>
+  )
+}
+
+/** The big competitions' own presentation at the top of their page: colours, pattern, where the season stands. */
+function CompHero({ w, c }: { w: World; c: Competition }) {
+  const ci = compIdentity(c.key)
+  if (!ci) return null
+  const holder = c.holderId || w.archive.find((a) => a.season === c.season - 1)?.winners[c.key]
+  let line = ''
+  if (c.format === 'league' && c.table?.length) {
+    const t = sortTable(w, c)
+    const played = Math.max(...t.map((r) => r.p)), total = (c.clubs.length - 1) * 2
+    line = c.status === 'finished' ? `Champions: ${w.clubs[t[0].clubId]?.name}` : played ? `Matchday ${played} of ${total} · ${w.clubs[t[0].clubId]?.short} top` : 'The season is about to begin'
+  } else if (c.winner) line = `Won by ${w.clubs[c.winner]?.name}`
+  else {
+    const r = c.rounds.find((x) => x.drawn && x.fixtures.some((id) => !w.fixtures[id]?.played))
+    line = r ? r.name : c.format === 'uefa' && c.table?.some((x) => x.p) ? 'League phase' : c.rounds[0] ? `${c.rounds[0].name} · ${fmtDate(c.rounds[0].date, 'dm')}` : ''
+  }
+  return (
+    <div className="pad" style={{ marginTop: 8 }}>
+      <div className={`comp-hero ${identityClass(ci)}`} style={identityVars(ci)}>
+        <i className="ci-light" aria-hidden />
+        <CompLogo k={compLogoKey(c)} size={58} name={c.name} />
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="ch-kicker">{seasonLabel(c.season)}</div>
+          <div className="h3 ch-name">{c.name}</div>
+          {line && <div className="small ch-line">{line}</div>}
+          {holder && !c.winner && w.clubs[holder] && <div className="tiny ch-hold"><Badge club={w.clubs[holder]} size={14} /> Holders: {w.clubs[holder].short}</div>}
+        </div>
+      </div>
+    </div>
   )
 }
 

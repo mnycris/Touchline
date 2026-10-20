@@ -6,6 +6,7 @@ import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Fixture, Player, TeamSheet, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
+import { compIdentity, identityClass, identityVars } from '../compIdentity'
 import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
@@ -64,6 +65,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   if (!f) return <Screen title="Match Day" back onBack={back} noNav><div className="pad muted">No match today.</div></Screen>
 
   const comp = w.competitions[f.compId]
+  const ci = compIdentity(comp?.key)
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const us: 0 | 1 = f.home === w.userClubId ? 0 : 1
   const club = w.clubs[w.userClubId]
@@ -126,7 +128,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
       ) : (
         <div className="md-footer"><div className="md-countdown"><Icon name="clock" size={18} /> Kick-off {fmtDate(f.date, 'long')} · {f.time}</div></div>
       )}>
-      <div className="md-head">
+      <div className={`md-head${ci ? ` ci-band ${identityClass(ci)}` : ''}`} style={ci ? identityVars(ci) : undefined}>
+        {ci && <i className="ci-light" aria-hidden />}
         <div className="row tight" style={{ justifyContent: 'center', gap: 8 }}>{comp && <CompLogo k={compLogoKey(comp)} size={20} name={comp.name} />}<span className="tiny b upper" style={{ opacity: 0.8 }}>{comp?.short} · {f.roundName}</span>{f.moved && <span className="moved-chip">{movedText(f)!.tag}</span>}</div>
         {f.moved && <div className="tiny" style={{ textAlign: 'center', opacity: 0.7, marginTop: 4 }}>{movedText(f)!.long}</div>}
         <div className="md-teams">
