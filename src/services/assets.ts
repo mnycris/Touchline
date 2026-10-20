@@ -126,10 +126,34 @@ const loaded = new Set<string>()
 const held = new Map<string, HTMLImageElement>()
 const HOLD = 700
 const faceOf = new Map<number, string>()
+
+// the headshot that worked for each player, remembered across sessions so a later launch goes straight to it (no walk
+// through sources that fail, no silhouette flashing to a face). A current-season photo is kept; an older one is
+// tried again after two weeks, in case a newer one has been published since.
+const FACE_KEY = 'opus:faces:v1'
+const CURRENT = /FC27|\/27_\d+\.png|fifa27|fc27/
+let faceStore: Record<string, [string, number]> = {}
+try { faceStore = JSON.parse(localStorage.getItem(FACE_KEY) || '{}') } catch { faceStore = {} }
+let faceTimer: number | undefined
+function rememberFace(playerId: number, url: string) {
+  const prev = faceStore[playerId]
+  if (prev && prev[0] === url) return
+  faceStore[playerId] = [url, Date.now()]
+  const keys = Object.keys(faceStore)
+  if (keys.length > 5000) for (const k of keys.sort((a, b) => faceStore[a][1] - faceStore[b][1]).slice(0, keys.length - 5000)) delete faceStore[k]
+  window.clearTimeout(faceTimer)
+  faceTimer = window.setTimeout(() => { try { localStorage.setItem(FACE_KEY, JSON.stringify(faceStore)) } catch { /* quota */ } }, 2000)
+}
+function storedFace(playerId: number): string | undefined {
+  const e = faceStore[playerId]
+  if (!e) return undefined
+  return CURRENT.test(e[0]) || Date.now() - e[1] < 14 * 864e5 ? e[0] : undefined
+}
+
 export function markLoaded(url: string, playerId?: number) {
   if (!loaded.has(url)) bump(sourceOf(url), 'ok')
   loaded.add(url)
-  if (playerId != null) faceOf.set(playerId, url)
+  if (playerId != null) { faceOf.set(playerId, url); rememberFace(playerId, url) }
   if (!held.has(url) && typeof Image !== 'undefined') {
     const im = new Image()
     im.referrerPolicy = 'no-referrer'
@@ -140,7 +164,7 @@ export function markLoaded(url: string, playerId?: number) {
 }
 export function isLoaded(url: string) { return loaded.has(url) }
 /** The headshot that already worked for this player this session. */
-export function knownFace(playerId: number) { return faceOf.get(playerId) }
+export function knownFace(playerId: number) { return faceOf.get(playerId) ?? storedFace(playerId) }
 
 // per-device reliability of each image source
 const SRC_KEY = 'opus:imgsrc:v1'
