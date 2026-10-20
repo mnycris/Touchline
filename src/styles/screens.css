@@ -729,7 +729,9 @@ select.input option { background: #151b27; }
 .asst-note.good svg:first-child { color: var(--pos); }
 .asst-note svg:last-child { flex: none; color: var(--t3); }
 /* dark crests/logos stay legible on the dark UI: a hairline light outline, colours untouched */
-.logo-lift img, img.comp-logo.lift { filter: drop-shadow(0 0 0.7px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 2.5px rgba(255, 255, 255, 0.28)); }
+/* a multicolour badge whose dark outline would vanish on the dark surface: a small neutral plate, not a glow */
+.logo-plate { border-radius: 26%; background: linear-gradient(180deg, rgba(255, 255, 255, .085), rgba(255, 255, 255, .055)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
+.logo-plate.comp { display: inline-grid; place-items: center; flex: none; padding: 0 10%; }
 
 /* ---------------------------------------------------------------- match moments: cards, penalty award, penalty kick */
 .mm { position: absolute; left: 14px; right: 14px; top: 16px; z-index: 20; display: block; text-align: left; border-radius: 16px; overflow: hidden; background: #0e1116; box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55); animation: gcIn 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }

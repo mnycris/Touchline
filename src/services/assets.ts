@@ -2,6 +2,7 @@ import type { Club, Player, World } from '../domain/types'
 import compLogos from '../data/compLogos.json'
 import crestsCC from '../data/crestsCC.json'
 import eaAssets from '../data/eaAssets.json'
+import treatments from '../data/logoTreatments.json'
 
 const BASE = import.meta.env.BASE_URL || '/'
 const CC = 'https://assets.football-logos.cc/logos'
@@ -47,12 +48,25 @@ export function faceUrls(p: Pick<Player, 'id' | 'regen'>, css = 48): string[] {
   ])
 }
 
+// ---------------------------------------------------------------- logos on dark surfaces
+// How a logo is shown on the app's dark surfaces, measured from the bundled art (scripts/assets/logo_treatments.py):
+// 'light', a near-black single-colour mark shown in white (its official treatment on dark backgrounds); 'reverse', a
+// dark main colour turned white with the coloured accents kept; 'plate', a multicolour badge whose outline would
+// vanish, kept in its own colours on a small neutral plate. Anything else is shown exactly as it is.
+export type LogoTreatment = 'light' | 'reverse' | 'plate'
+const TREAT = treatments as { clubs: Record<string, LogoTreatment>; comps: Record<string, LogoTreatment> }
+export const clubLogoTreatment = (id: number): LogoTreatment | undefined => TREAT.clubs[String(id)]
+export const compLogoTreatment = (key: string): LogoTreatment | undefined => TREAT.comps[key.replace(/-\d+$/, '')]
+const lightened = (t?: LogoTreatment) => t === 'light' || t === 'reverse'
+
 /**
  * Club crests: the bundled 160px art first (precached, instant, works offline), then football-logos.cc's 512px
  * transparent PNGs, EA's crest art and SoFIFA's 120px copy. Big displays upgrade to the 512px art (badgeHiRes).
+ * A crest with a light version for dark surfaces shows that one (the remote copies are the dark original).
  */
 export function badgeUrls(c: Pick<Club, 'id' | 'badge' | 'sofifaTeamId'>): string[] {
   const out: string[] = []
+  if (c.badge && lightened(clubLogoTreatment(c.id))) out.push(`${BASE}assets/badges/${c.id}.rev.webp`)
   if (c.badge) out.push(`${BASE}assets/badges/${c.id}.webp`)
   const cc = CREST_CC.clubs[String(c.id)]
   if (cc) out.push(ccUrl(cc))
@@ -63,7 +77,7 @@ export function badgeUrls(c: Pick<Club, 'id' | 'badge' | 'sofifaTeamId'>): strin
 /** The sharper crest to fade in over the bundled one when it is shown bigger than the bundled art can carry. */
 export function badgeHiRes(c: Pick<Club, 'id' | 'badge'>, css: number): string | undefined {
   const cc = CREST_CC.clubs[String(c.id)]
-  return c.badge && cc && devicePx(css) > 170 ? ccUrl(cc) : undefined
+  return c.badge && cc && devicePx(css) > 170 && !lightened(clubLogoTreatment(c.id)) ? ccUrl(cc) : undefined
 }
 
 export function flagUrl(w: World | undefined, nation: string, fallbackCode?: string): string | undefined {
@@ -79,6 +93,8 @@ const LOGOS = compLogos as Record<string, { w: number; h: number }>
 /** Competition logo sources in official colours (football-logos.cc first, bundled art second). */
 export function compLogoUrls(key: string): string[] {
   const out: string[] = []
+  // the light version made for dark surfaces, where the mark has one (the remote copy is the dark original)
+  if (LOGOS[key] && lightened(compLogoTreatment(key))) return [`${BASE}assets/comps/${key}.rev.webp`, `${BASE}assets/comps/${key}.webp`]
   if (CREST_CC.comps[key]) out.push(ccUrl(CREST_CC.comps[key]))
   if (LOGOS[key]) out.push(`${BASE}assets/comps/${key}.webp`)
   return out
