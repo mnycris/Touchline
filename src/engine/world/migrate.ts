@@ -12,6 +12,7 @@ import { takeNewFixtures } from '../competitions/fixtures'
 import { rebuildReputations } from './reputation'
 import { migrateHonours } from './honours'
 import { sortTable } from '../competitions/tables'
+import { dropFromSheets } from './roster'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
 export const SAVE_SCHEMA = 7
@@ -114,6 +115,12 @@ export function repairWorld(w: World): number {
     if (!c.trophies) { c.trophies = []; n++ }
     if (!c.sheets) { c.sheets = []; n++ }
     if (!c.rivals) { c.rivals = []; n++ }
+    // players who left before their clubs' sheets let them go (a contract that ran out at the end of a season kept
+    // its player in the XI until 4.2)
+    // (a national team's sheets hold its call-ups, who play their club football elsewhere)
+    if (!c.national) for (const s of [...c.sheets, ...Object.values(c.matchSheets || {})]) {
+      for (const id of [...s.lineup, ...s.bench]) if (id && w.players[id]?.clubId !== c.id) { dropFromSheets(c, id); n++ }
+    }
   }
   return n
 }

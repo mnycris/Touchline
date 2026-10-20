@@ -263,7 +263,7 @@ export function Search({ params }: { params?: { preset?: Partial<Filters>; label
   // a preset (e.g. from Squad needs) starts a fresh search; otherwise pick up where you left off
   const [f, setF] = useRemember<Filters>('searchFilters', () => (params?.preset ? { ...DEF, ...params.preset } : { ...DEF, ...(w.flags.searchFilters || {}) }))
   const [open, setOpen] = useState(false)
-  const [sort, setSort] = useRemember<'ovr' | 'pot' | 'value' | 'age'>('searchSort', 'ovr')
+  const [sort, setSort] = useRemember<'ovr' | 'pot' | 'value' | 'age'>('searchSort', 'ovr', 'screen')
   const set = (p: Partial<Filters>) => { const n = { ...f, ...p }; setF(n); w.flags.searchFilters = n }
   const results = useMemo(() => {
     const q = f.q.trim().toLowerCase()

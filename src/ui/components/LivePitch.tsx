@@ -10,6 +10,7 @@ import type { Act, MatchSim, MinuteFrame } from '../../engine/match/engine'
 import { playerSpot, type Pt } from '../../engine/match/pitch'
 import { Ball } from './Lineup'
 import { PitchSurface } from './PitchSurface'
+import { onDark } from '../theme'
 
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const hash = (a: number, b: number) => { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967295 }
@@ -26,7 +27,9 @@ export const inkOn = (hex: string) => (lum(hex) > 165 ? '#0b0d11' : '#fff')
 
 /** CSS variables for a match's two colours and the ink that reads on each. */
 export function kitVars([h, a]: [string, string]): React.CSSProperties {
-  return { ['--home-c' as any]: h, ['--away-c' as any]: a, ['--home-ink' as any]: inkOn(h), ['--away-ink' as any]: inkOn(a) }
+  // these paint bars, pills and markers on the app's dark surfaces: a black kit is lifted so it still shows
+  const [hc, ac] = [onDark(h), onDark(a)]
+  return { ['--home-c' as any]: hc, ['--away-c' as any]: ac, ['--home-ink' as any]: inkOn(hc), ['--away-ink' as any]: inkOn(ac) }
 }
 
 /** Kit colours for both sides, switching the away side to its second colour on a clash. */
@@ -236,7 +239,7 @@ export function MomentumGraph({ data, goals, colors, live, et }: { data: [number
       {ft > 0 && <line x1={ft * bw} y1="2" x2={ft * bw} y2={H - 2} stroke="rgba(255,255,255,.18)" strokeDasharray="2 2" strokeWidth=".6" />}
       {sm.map((v, i) => {
         const h = Math.max(0.6, Math.pow(Math.abs(v), 0.6) * (mid - 7))
-        return <rect key={i} x={i * bw + bw * 0.12} width={bw * 0.76} y={v >= 0 ? mid - h : mid} height={h} rx={bw * 0.2} fill={v >= 0 ? colors[0] : colors[1]} opacity={0.92} />
+        return <rect key={i} x={i * bw + bw * 0.12} width={bw * 0.76} y={v >= 0 ? mid - h : mid} height={h} rx={bw * 0.2} fill={onDark(v >= 0 ? colors[0] : colors[1])} opacity={0.92} />
       })}
       {goals.map((g, i) => {
         const x = (idxOf(g.key) + 0.5) * bw

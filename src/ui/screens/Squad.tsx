@@ -1,23 +1,22 @@
 import { useRemember } from '../memory'
-import { underWhite } from '../theme'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
-import type { Player, World } from '../../domain/types'
+import type { Player, Position, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, Face, Ovr, PosChip, Empty } from '../components/atoms'
 import { Chips, HubActions, Screen, Seg } from '../components/layout'
-import { POS_GROUP, POS_ORDER } from '../../domain/constants'
+import { POS_GROUP, POS_ORDER, formationOf } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
 import { ageOf, avgRating, fixturesOf, playerStatus, totals, userClub } from '../selectors'
 import { dutyTeam } from '../../engine/world/international'
-import { formLabel, moraleLevel, moraleColor, moraleIcon } from '../../domain/ratings'
+import { formLabel, moraleLevel, moraleColor, moraleIcon, ovrColor, posRating } from '../../domain/ratings'
 import { wageBill, loanedOut } from '../../engine/world/userActions'
 import { yearsLeft } from '../../engine/world/transfers'
 import { fmtDate } from '../../domain/dates'
 import { callName } from '../../engine/match/commentary'
 
-type View = 'overview' | 'status' | 'stats' | 'contract' | 'cards'
+type View = 'overview' | 'status' | 'stats' | 'contract' | 'depth'
 type Sort = 'pos' | 'ovr' | 'age' | 'value' | 'pot' | 'apps' | 'goals' | 'assists' | 'rating' | 'energy' | 'sharp' | 'morale' | 'wage' | 'expiry'
 const GROUP_NAME: Record<string, string> = { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', ATT: 'Forwards' }
 
@@ -82,7 +81,7 @@ export function SquadHub() {
   const injured = squad.filter((p) => p.injury).length, banned = squad.filter((p) => p.suspensions.length).length
   const unhappy = squad.filter((p) => p.morale < 40).length, expiring = squad.filter((p) => yearsLeft(w, p) <= 0 && !p.loan).length
   const cols = COLS[view]
-  const grouped = sort === 'pos' && grp === 'ALL' && view !== 'cards'
+  const grouped = sort === 'pos' && grp === 'ALL' && view !== 'depth'
   const sections = grouped ? (['GK', 'DEF', 'MID', 'ATT'] as const).map((g) => ({ g, ps: list.filter((p) => POS_GROUP[p.positions[0]] === g) })).filter((x) => x.ps.length) : [{ g: '', ps: list }]
   if (w.flags.unemployed) return <Screen title="Squad" right={<HubActions />}><Empty icon="squad" title="No club" text="Find a new job to manage a squad." /></Screen>
   const setView2 = (v: View) => { setView(v); if (!COLS[v]?.some((c) => c.k === sort) && !['pos', 'ovr', 'pot', 'age', 'value'].includes(sort)) setSort('pos') }
@@ -117,11 +116,11 @@ export function SquadHub() {
         ) : null}
       </div>
       <div className="pad" style={{ marginTop: 12 }}>
-        <Seg small items={[{ id: 'cards', label: 'Cards' }, { id: 'overview', label: 'List' }, { id: 'status', label: 'Status' }, { id: 'stats', label: 'Stats' }, { id: 'contract', label: 'Deal' }]} value={view} onChange={setView2} />
+        <Seg small items={[{ id: 'overview', label: 'List' }, { id: 'depth', label: 'Depth' }, { id: 'status', label: 'Status' }, { id: 'stats', label: 'Stats' }, { id: 'contract', label: 'Deal' }]} value={view} onChange={setView2} />
       </div>
       <div className="sq-tools">
         <Chips items={[{ id: 'ALL', label: 'All' }, { id: 'GK', label: 'GK' }, { id: 'DEF', label: 'DEF' }, { id: 'MID', label: 'MID' }, { id: 'ATT', label: 'ATT' }]} value={grp} onChange={setGrp} />
-        {!cols && (
+        {!cols && view !== 'depth' && (
           <div className="chips" style={{ marginTop: 6 }}>
             <span className="tiny dim" style={{ alignSelf: 'center' }}>Sort</span>
             {(['pos', 'ovr', 'pot', 'age', 'value'] as Sort[]).map((k) => <button key={k} className={`chip ${sort === k ? 'on' : ''}`} style={{ height: 26 }} onClick={() => { haptic(); setSort(k) }}>{k === 'pos' ? 'Position' : k === 'ovr' ? 'OVR' : k === 'pot' ? 'POT' : k === 'age' ? 'Age' : 'Value'}</button>)}
@@ -129,8 +128,8 @@ export function SquadHub() {
         )}
       </div>
       <div className="pad" style={{ marginTop: 10 }}>
-        {view === 'cards' ? (
-          <div className="pcard-grid stagger">{list.map((p) => <PlayerCard key={p.id} w={w} p={p} />)}</div>
+        {view === 'depth' ? (
+          <DepthChart w={w} squad={squad} grp={grp} />
         ) : (
           <div className="card list sq-list">
             {cols && (
@@ -154,25 +153,64 @@ export function SquadHub() {
   )
 }
 
-export function PlayerCard({ w, p }: { w: World; p: Player }) {
+/** Who covers each position of the team's formation, by their rating there: the starters, then the cover, and where
+ * the squad is thin. A player can cover more than one position, as he would. */
+function DepthChart({ w, squad, grp }: { w: World; squad: Player[]; grp: string }) {
   const go = useGame((s) => s.go)
-  const club = w.clubs[p.clubId]
-  const st = playerStatus(w, p)
-  const tier = p.ovr >= 85 ? 't-elite' : p.ovr >= 80 ? 't-gold' : p.ovr >= 70 ? 't-silver' : 't-bronze'
+  const club = userClub(w)
+  const sheet = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
+  const f = formationOf(sheet.formation)
+  // each of the formation's positions once, from the goalkeeper up, with the starters picked there
+  const rows: { pos: Position; slots: number; starters: number[] }[] = []
+  f.slots.forEach((sl, i) => {
+    const id = sheet.lineup[i]
+    let row = rows.find((r) => r.pos === sl.pos)
+    if (!row) rows.push((row = { pos: sl.pos, slots: 0, starters: [] }))
+    row.slots++
+    if (id && w.players[id]?.clubId === club.id) row.starters.push(id)
+  })
+  const shown = rows.filter((r) => grp === 'ALL' || POS_GROUP[r.pos] === grp)
+  const chip = ({ p, r: v }: { p: Player; r: number }, xi: boolean) => {
+    const st = playerStatus(w, p)
+    return (
+      <button key={p.id} className={`dp-p ${xi ? 'xi' : ''}`} onClick={() => { haptic(); go({ name: 'player', params: { id: p.id } }) }}>
+        <Face p={p} size={28} radius={8} club={club} />
+        <span className="dp-n ellipsis">{callName(p.name)}</span>
+        {st.key !== 'ok' && <Icon name={st.icon} size={11} color={st.color} />}
+        <b className="dp-r" style={{ color: ovrColor(v) }}>{v}</b>
+      </button>
+    )
+  }
   return (
-    <button className={`pcard ${tier}`} style={{ ['--pc' as any]: underWhite(club?.theme) }} onClick={() => { haptic(); go({ name: 'player', params: { id: p.id } }) }}>
-      <span className="pcard-shine" />
-      <div className="pcard-top">
-        <div className="col" style={{ alignItems: 'center' }}>
-          <span className="pcard-ovr">{p.ovr}</span>
-          <span className="pcard-pos">{p.positions[0]}</span>
-        </div>
-        {st.key !== 'ok' && <span className="pcard-status" style={{ background: st.color }}><Icon name={st.icon} size={10} color="#fff" /></span>}
-      </div>
-      <div className="pcard-face"><Face p={p} size={66} radius={10} club={club} /></div>
-      <div className="pcard-name ellipsis">{p.name}</div>
-      <div className="pcard-meta"><span>{ageOf(w, p)}</span><span className="dot-sep" /><span>POT {p.pot}</span></div>
-    </button>
+    <div className="stack">
+      <div className="tiny dim" style={{ padding: '0 4px' }}>Your {f.name} from the team sheet. Each position's starters, then the best of the rest by their rating there.</div>
+      {shown.map((r) => {
+        const rated = squad.map((p) => ({ p, r: posRating(p, r.pos) })).sort((a, b) => b.r - a.r)
+        const starters = r.starters.map((id) => rated.find((x) => x.p.id === id)).filter(Boolean) as typeof rated
+        const floor = starters.length ? Math.min(...starters.map((x) => x.r)) : rated[0]?.r || 0
+        const others = rated.filter((x) => !r.starters.includes(x.p.id) && x.r >= floor - 12).slice(0, 3)
+        // cover: a fit player no more than five points below the weakest starter there; otherwise, how far it drops
+        const cover = others.filter((x) => x.r >= floor - 5 && playerStatus(w, x.p).key !== 'injured').length
+        const drop = others[0] ? floor - others[0].r : undefined
+        return (
+          <div key={r.pos} className="card dp-row">
+            <div className="dp-h">
+              <PosChip pos={r.pos} />
+              {r.slots > 1 && <span className="tiny dim">×{r.slots}</span>}
+              <span className="grow" />
+              <span className={`dp-cover ${cover ? '' : 'thin'}`}>{cover ? `${cover} close cover` : <><Icon name="warning" size={12} /> {drop != null ? `Drop-off −${drop}` : 'No cover'}</>}</span>
+            </div>
+            <div className="dp-ps">
+              {starters.map((x) => chip(x, true))}
+              {Array.from({ length: r.slots - starters.length }, (_, k) => (
+                <button key={`open${k}`} className="dp-p open" onClick={() => { haptic(); go({ name: 'tactics' }) }}><Icon name="plus" size={14} /><span className="dp-n">Open in the XI</span></button>
+              ))}
+              {others.map((x) => chip(x, false))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

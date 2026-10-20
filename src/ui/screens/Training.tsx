@@ -76,7 +76,7 @@ export function DevelopmentScreen() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const club = userClub(w)
-  const [grp, setGrp] = useRemember<'young' | 'all'>('devGroup', 'young')
+  const [grp, setGrp] = useRemember<'young' | 'all'>('devGroup', 'young', 'screen')
   const squad = [...rosterOf(w, club.id)].filter((p) => grp === 'all' || ageOf(w, p) <= 23).sort((a, b) => (b.pot - b.ovr) - (a.pot - a.ovr))
   return (
     <Screen title="Player Development" back>

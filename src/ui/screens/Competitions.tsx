@@ -382,7 +382,7 @@ function CompHero({ w, c }: { w: World; c: Competition }) {
 
 export function TableView({ w, c, compact, highlight }: { w: World; c: Competition; compact?: boolean; highlight?: number[] }) {
   const go = useGame((s) => s.go)
-  const [mode, setMode] = useRemember<'short' | 'full' | 'form'>('tableMode', 'short')
+  const [mode, setMode] = useRemember<'short' | 'full' | 'form'>('tableMode', 'short', 'global')
   const t = sortTable(w, c)
   const zones = new Map<Zone, true>()
   t.forEach((_, i) => { const z = zoneFor(w, c, i + 1, t.length); if (z) zones.set(z, true) })

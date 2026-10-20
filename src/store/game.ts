@@ -10,7 +10,7 @@ import { loadCareer as loadSave, saveCareer, listSaves, deleteSave, getKV, setKV
 import { positionOf } from '../engine/competitions/tables'
 import type { MatchSim } from '../engine/match/engine'
 import { touchRoster } from '../engine/world/roster'
-import { clearMemory } from '../ui/memory'
+import { clearMemory, forgetView, viewKeyFor } from '../ui/memory'
 import { SAVE_SCHEMA, migrateSave } from '../engine/world/migrate'
 import { sendInbox } from '../engine/world/messages'
 import { APP_VERSION } from '../ui/components/brand'
@@ -112,6 +112,8 @@ interface GameState {
   mutate: (fn: (w: World) => void, opts?: { save?: boolean; roster?: boolean }) => void
   bump: () => void
   setTab: (t: Tab) => void
+  /** counts taps on the tab already open at its root: its screen scrolls back to the top */
+  topTap: number
   go: (r: Route) => void
   back: () => void
   resetTab: () => void
@@ -154,6 +156,7 @@ export const useGame = create<GameState>((set, get) => ({
   loadingDb: false,
   v: 0,
   tab: 'central',
+  topTap: 0,
   stacks: emptyStacks(),
   overlay: [],
   advancing: false,
@@ -347,15 +350,23 @@ export const useGame = create<GameState>((set, get) => ({
   bump() { set({ v: get().v + 1 }) },
 
   setTab(t) {
-    if (get().tab === t) { set({ stacks: { ...get().stacks, [t]: [] } }); return }
+    if (get().tab === t) {
+      // the tab you're on, tapped again: back to its root, and from the root, back to the top
+      if (!get().stacks[t].length) set({ topTap: get().topTap + 1 })
+      set({ stacks: { ...get().stacks, [t]: [] } })
+      return
+    }
     set({ tab: t })
     haptic()
   },
   go(r) {
     // navigating from inside an overlay (match day, negotiation…) stacks on the overlay so it stays visible
-    if (get().overlay.length) { set({ overlay: [...get().overlay, r] }); haptic(); return }
+    if (get().overlay.length) { get().open(r); return }
     const t = get().tab
-    set({ stacks: { ...get().stacks, [t]: [...get().stacks[t], r] } })
+    const stack = [...get().stacks[t], r]
+    // a page opened afresh starts afresh, whatever an earlier visit to it left behind
+    forgetView(viewKeyFor(t, stack.length, r.name, r.params))
+    set({ stacks: { ...get().stacks, [t]: stack } })
     haptic()
   },
   back() {
@@ -365,7 +376,12 @@ export const useGame = create<GameState>((set, get) => ({
     if (s.length) set({ stacks: { ...get().stacks, [t]: s.slice(0, -1) } })
   },
   resetTab() { set({ stacks: { ...get().stacks, [get().tab]: [] } }) },
-  open(r) { set({ overlay: [...get().overlay, r] }); haptic() },
+  open(r) {
+    const overlay = [...get().overlay, r]
+    forgetView(viewKeyFor('ov', overlay.length, r.name, r.params))
+    set({ overlay })
+    haptic()
+  },
   close() { set({ overlay: get().overlay.slice(0, -1) }) },
   closeAll() { set({ overlay: [] }) },
 

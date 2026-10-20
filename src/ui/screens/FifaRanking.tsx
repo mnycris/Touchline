@@ -26,7 +26,7 @@ const CONFEDS = ['All', 'UEFA', 'CONMEBOL', 'CONCACAF', 'CAF', 'AFC', 'OFC'] as 
 export function FifaRanking({ params }: { params?: { id?: number } }) {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const [cf, setCf] = useRemember<(typeof CONFEDS)[number]>('cf', 'All')
+  const [cf, setCf] = useRemember<(typeof CONFEDS)[number]>('cf', 'All', 'screen')
   const rows = useMemo(() => rankingTable(w), [w.intl?.fifa?.date, w.intl?.fifa?.published])
   const F = w.intl?.fifa
   if (!F || !rows.length) return <Screen title="World ranking" back><Empty icon="globe" title="No ranking yet" text="The ranking is published after the first international window." /></Screen>

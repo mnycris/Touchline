@@ -121,7 +121,7 @@ function AcademySquad({ w }: { w: World }) {
   const go = useGame((s) => s.go)
   const notify = useGame((s) => s.notify)
   const [rel, setRel] = useState<number>()
-  const [sort, setSort] = useRemember<Sort>('acSort', 'ready')
+  const [sort, setSort] = useRemember<Sort>('acSort', 'ready', 'screen')
   const club = userClub(w)
   const bar = useMemo(() => firstTeamBar(w), [w.date, w.userClubId])
   const rank = { Ready: 0, Close: 1, Developing: 2 }

@@ -187,10 +187,10 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
   return (
     <div className="hero next-match duo" style={{ ['--hc' as any]: hc, ['--ac' as any]: ac }}>
       <div style={{ position: 'relative', zIndex: 1, padding: '14px 14px 16px' }}>
-        <div className="row between">
-          <div className="row tight">
-            {comp && <CompLogo k={compLogoKey(comp)} size={22} name={comp.name} />}
-            <span className="label" style={{ color: 'rgba(255,255,255,.85)' }}>{comp?.short} · {f.roundName}</span>
+        <div className="row between" style={{ gap: 10 }}>
+          <div className="row tight" style={{ minWidth: 0 }}>
+            {comp && <span style={{ flex: 'none' }}><CompLogo k={compLogoKey(comp)} size={22} name={comp.name} /></span>}
+            <span className="label ellipsis" style={{ color: 'rgba(255,255,255,.85)', minWidth: 0 }}>{comp?.short} · {f.roundName}</span>
             {f.moved && <span className="moved-chip" title={movedText(f)!.long}><Icon name="refresh" size={10} strokeWidth={2.6} />{movedText(f)!.tag}</span>}
           </div>
           <span className="pill" style={{ background: today ? 'var(--acc)' : 'rgba(0,0,0,.35)', color: today ? '#03170c' : '#fff' }}>{today ? 'MATCH DAY' : days === 1 ? 'TOMORROW' : `${days} DAYS`}</span>

@@ -1,4 +1,4 @@
-import type { Player, World } from '../../domain/types'
+import type { Club, Player, World } from '../../domain/types'
 
 // Derived club -> players index (not persisted). Invalidate with touchRoster() whenever
 // a player's club or academy status changes.
@@ -33,7 +33,20 @@ export function rosterOf(w: World, clubId: number): Player[] {
 export function academyOf(w: World, clubId: number): Player[] {
   return index(w).academy.get(clubId) || []
 }
+/** A player who leaves a club leaves its team sheets too, every sheet and each match's own copy: his place in the
+ * XI is left open for the next pick (the match-day checks fill it, and pass his armband and set pieces on). */
+export function dropFromSheets(club: Club | undefined, id: number) {
+  if (!club) return
+  for (const s of [...(club.sheets || []), ...Object.values(club.matchSheets || {})]) {
+    if (s.lineup.includes(id)) s.lineup = s.lineup.map((x) => (x === id ? 0 : x))
+    if (s.bench.includes(id)) s.bench = s.bench.filter((x) => x !== id)
+  }
+}
+
 export function setPlayerClub(w: World, p: Player, clubId: number) {
+  // whatever the move (a transfer, a loan and its return, a release, a contract running out), the old club's
+  // sheets let him go
+  if (p.clubId !== clubId) dropFromSheets(w.clubs[p.clubId], p.id)
   const c = cache.get(w)
   const valid = c && c.v === (w.flags.rosterVersion || 0)
   if (valid && !p.academy) {

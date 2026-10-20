@@ -243,7 +243,7 @@ export function validateSheet(w: World, club: Club, sheet: TeamSheet, comp?: Com
     const id = lineup[i]
     if (id && avail.has(id) && !used.has(id)) { used.add(id); continue }
     const p = w.players[id]
-    if (p) issues.push(`${p.name} is unavailable${p.injury ? ` (${p.injury.type})` : isSuspendedFor(p, comp) ? ' (suspended)' : ''}`)
+    if (p) issues.push(!club.national && p.clubId !== club.id ? `${p.name} has left the club` : `${p.name} is unavailable${p.injury ? ` (${p.injury.type})` : isSuspendedFor(p, comp) ? ' (suspended)' : ''}`)
     let best = 0, bs = -1e9
     for (const q of squad) {
       if (!avail.has(q.id) || used.has(q.id) || lineup.includes(q.id) && lineup.indexOf(q.id) !== i) continue

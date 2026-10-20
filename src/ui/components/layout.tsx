@@ -23,12 +23,21 @@ export function Screen({ title, sub, children, back, right, noNav, noTop, classN
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
-    const top = rememberedScroll(vk)
+    const day = () => useGame.getState().world?.date
+    const top = rememberedScroll(vk, day())
     if (top) { el.scrollTop = top; requestAnimationFrame(() => { if (el.scrollTop < top) el.scrollTop = top }) }
-    const onScroll = () => saveScroll(vk, el.scrollTop)
+    const onScroll = () => saveScroll(vk, el.scrollTop, day())
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [vk])
+  // the tab already open at its root, tapped again: back to the top
+  const topTap = useGame((s) => s.topTap)
+  const taps = useRef(topTap)
+  useEffect(() => {
+    if (topTap === taps.current) return
+    taps.current = topTap
+    if (vk.split(':')[1] === '0' && !vk.startsWith('ov:')) ref.current?.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [topTap, vk])
   return (
     <>
       {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} search={search} />}

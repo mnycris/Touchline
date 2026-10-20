@@ -84,10 +84,12 @@ export function syncThemeColor() {
 }
 
 /** A club colour made safe to sit under white text: light kits (white, yellow, sky blue) are pulled towards the
- *  app's slate; dark and mid colours pass unchanged. */
+ *  app's slate; a black kit is lifted to a charcoal, so the card keeps its shape on the app's own near-black; other
+ *  dark and mid colours pass unchanged. */
 export function underWhite(hex?: string): string {
   if (!hex) return '#2a3346'
   const l = luminance(hex)
+  if (l < 30) return mix(hex, [58, 64, 78], 0.55)
   const k = l > 200 ? 0.62 : l > 150 ? 0.42 : l > 100 ? 0.2 : 0
   return k ? mix(hex, [26, 32, 48], k) : hex
 }

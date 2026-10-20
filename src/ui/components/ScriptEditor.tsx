@@ -21,6 +21,7 @@ import { Ball, Boot, MissedPen } from './Glyphs'
 import { Stepper } from './Editors'
 import { assignToFormation } from '../screens/Match'
 import { kitColors } from './LivePitch'
+import { onDark } from '../theme'
 import { sideFromSheet, TeamLineup } from './Lineup'
 
 const LEVEL_NAME: Record<number, string> = { [-2]: 'Nightmare', [-1]: 'Off day', 0: 'As usual', 1: 'Sharp', 2: 'Inspired' }
@@ -41,7 +42,8 @@ export function ScriptEditor({ w, f, onClose }: { w: World; f: Fixture; onClose:
   const [rolled, setRolled] = useState(0)
   const comp = w.competitions[f.compId]
   const clubs = [w.clubs[f.home], w.clubs[f.away]] as const
-  const colors = kitColors(clubs[0], clubs[1])
+  // bars, dots and the timeline sit on the sheet's dark surface: a black kit is lifted so it still shows
+  const colors = kitColors(clubs[0], clubs[1]).map((c) => onDark(c)) as [string, string]
   const knockout = !!f.tieId
   const pred = useMemo(() => predictFixture(w, f), [f.id])
   // each side's matchday squad: the user's selected sheet, a scripted AI line-up, or the XI the AI would pick

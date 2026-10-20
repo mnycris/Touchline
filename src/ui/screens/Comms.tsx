@@ -63,7 +63,7 @@ export function Inbox() {
   const w = useWorld()
   const go = useGame((s) => s.go)
   const mutate = useGame((s) => s.mutate)
-  const [cat, setCat] = useRemember<string>('inboxCat', 'All')
+  const [cat, setCat] = useRemember<string>('inboxCat', 'All', 'screen')
   const [open, setOpen] = useRemember<string[]>('inboxOpen', [])
   const cats = ['All', 'Unread', 'Transfers', 'Squad', 'Player', 'Board', 'Medical', 'Scouting', 'Youth', 'Competitions']
   const inCat = (m: InboxMessage, c: string) => c === 'All' || (c === 'Unread' ? !m.read : m.category === c || (c === 'Squad' && m.category === 'Assistant'))

@@ -478,25 +478,19 @@ select.input option { background: #151b27; }
 .toast { white-space: normal; max-width: calc(100% - 32px); width: max-content; line-height: 1.3; }
 
 /* ---------- squad card grid (EA-style mini player cards) ---------- */
-.pcard-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.pcard { position: relative; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 8px 6px 10px; border-radius: 14px 14px 18px 18px;
-  background: linear-gradient(165deg, color-mix(in srgb, var(--pc) 70%, #000) 0%, color-mix(in srgb, var(--pc) 25%, #06080d) 60%, #06080d 100%);
-  border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18); transition: transform 0.12s; }
-.pcard:active { transform: scale(0.96); }
-.pcard.t-elite { border-color: rgba(244, 197, 66, 0.75); box-shadow: 0 0 18px rgba(244, 197, 66, 0.25), inset 0 1px 0 rgba(255, 240, 190, 0.5); }
-.pcard.t-gold { border-color: rgba(231, 196, 92, 0.5); }
-.pcard.t-silver { border-color: rgba(201, 209, 219, 0.35); }
-.pcard.t-bronze { border-color: rgba(201, 144, 90, 0.35); }
-.pcard-shine { position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.12) 45%, transparent 60%); background-size: 250% 100%; animation: holo 7s ease-in-out infinite; pointer-events: none; }
-.pcard-top { position: absolute; left: 8px; top: 7px; right: 8px; display: flex; justify-content: space-between; z-index: 2; }
-.pcard-ovr { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 0.9; text-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
-.pcard.t-elite .pcard-ovr { color: #f9d34a; }
-.pcard-pos { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; opacity: 0.85; }
-.pcard-status { width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; }
-.pcard-face { margin-top: 10px; z-index: 1; }
-.pcard-face .face { background: transparent !important; }
-.pcard-name { width: 100%; text-align: center; font-family: var(--display); font-weight: 700; font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.02em; margin-top: 6px; z-index: 1; padding-top: 5px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
-.pcard-meta { display: flex; gap: 5px; align-items: center; font-size: 10.5px; color: var(--t2); margin-top: 2px; z-index: 1; }
+/* Squad › Depth: who covers each position of the formation */
+.dp-row { padding: 10px 12px 12px; }
+.dp-h { display: flex; align-items: center; gap: 6px; }
+.dp-cover { font-size: 11.5px; font-weight: 700; color: var(--t3); display: inline-flex; align-items: center; gap: 4px; }
+.dp-cover.thin { color: var(--warn, #ffb020); }
+.dp-ps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.dp-p { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 4px 7px 4px 4px; border-radius: 10px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); text-align: left; transition: transform .15s ease; }
+.dp-p:active { transform: scale(.97); }
+.dp-p.xi { background: rgba(var(--club-rgb), .16); box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), .5); }
+.dp-n { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; }
+.dp-r { font-family: var(--display); font-weight: 800; font-size: 15px; }
+.dp-p.open { justify-content: center; min-height: 36px; background: transparent; box-shadow: inset 0 0 0 1px var(--line); border: 1px dashed rgba(255, 255, 255, .18); color: var(--t3); }
+.dp-p.open .dp-n { flex: none; }
 .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--t3); display: inline-block; }
 
 /* ---------- avatars (real photos or monograms) ---------- */
