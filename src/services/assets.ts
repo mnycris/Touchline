@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react'
 import type { Club, Player, World } from '../domain/types'
 import compLogos from '../data/compLogos.json'
+import crestFitData from '../data/crestFit.json'
 import crestsCC from '../data/crestsCC.json'
 import eaAssets from '../data/eaAssets.json'
 import treatments from '../data/logoTreatments.json'
@@ -21,31 +23,34 @@ export function devicePx(css: number) {
 }
 
 /**
- * Official EA SPORTS FC headshots, sharpest and newest first:
- *   1. EA's own ratings portrait CDN (the cleanest cut-outs, resized on request: 512px for big displays)
- *   2. the SoFIFA mirror of the same scans (240px for retina, 120px otherwise)
- *   3. FUTBIN and FUTWIZ mirrors, then last year's scans for players EA hasn't re-photographed.
- * The order stays quality-first on every device; a source is only pushed back when it keeps failing here (see
- * rankSources). All remote images are requested with `referrerPolicy="no-referrer"` (see ImgChain) so hotlink
- * rules keyed on the Referer header don't reject them.
+ * Player headshots: this season's EA SPORTS FC 27 face first, wherever it is sharpest, and older images only for a
+ * player who has none (checked against every source on 21 Oct 2026; see docs/assets/competition-logos.md):
+ *   1. EA's own FC 27 Ultimate Team portraits (the FUT Web App's content store): this season's kit and look, 160px,
+ *      exactly what avatars up to ~53 CSS px need. FUTBIN serves byte-identical copies, as the mirror.
+ *   2. For big displays, SoFIFA's 240px render of the same FC 27 face goes first (sharper, same image), when the
+ *      device can reach it (SoFIFA puts some networks behind a bot challenge; rankSources drops it there).
+ *   3. FC 26's faces for anyone FC 27 hasn't scanned.
+ *   4. Last, EA's ratings-site portrait: a real photo at 512px, but from 2024/25 (Wirtz in Leverkusen red), so it is
+ *      only a fallback. Its CDN resizes with Akamai's `im=Resize` (a `width=` parameter is ignored and sends 365KB).
+ * A source is pushed back only when it keeps failing on this device (rankSources). All remote images are requested
+ * with `referrerPolicy="no-referrer"` (see ImgChain) so hotlink rules keyed on the Referer header don't reject them.
  */
+// the FC 27 FUT Web App's content store (its id is in the web app's page: window.fut_guid; it changes once a year)
+const FUT27 = 'https://www.ea.com/ea-sports-fc/ultimate-team/web-app/content/27A3C9F1-6B2E-4D7A-8C1F-2E9B5A4D6C7E/2027/fut/items/images/mobile/portraits'
 export function faceUrls(p: Pick<Player, 'id' | 'regen'>, css = 48): string[] {
   if (p.regen || p.id >= 9_000_000) return []
   const s = String(p.id).padStart(6, '0')
   const a = s.slice(0, s.length - 3), b = s.slice(-3)
   const px = devicePx(css)
-  const ea = (v: string) => (px > 260 ? [512, 256] : [256]).map((wd) => `${EA}/${v}/full/player-portraits/p${p.id}.png?width=${wd}`)
-  const sofifa = (y: number) => (px > 130 ? [240, 120] : [120]).map((wd) => `https://cdn.sofifa.net/players/${a}/${b}/${y}_${wd}.png`)
+  const big = px > 170
+  const sofifa = (y: number) => `https://cdn.sofifa.net/players/${a}/${b}/${y}_${big ? 240 : 120}.png`
+  const fc27 = [`${FUT27}/${p.id}.png`, `https://cdn.futbin.com/content/fifa27/img/players/${p.id}.png`]
   return rankSources([
-    ...ea('FC27'), ...ea('FC26'),
-    ...sofifa(27), ...sofifa(26),
-    `https://cdn.futbin.com/content/fifa27/img/players/${p.id}.png`,
-    `https://cdn.futwiz.com/assets/img/fc27/faces/${p.id}.png`,
+    ...(big ? [sofifa(27), ...fc27] : [...fc27, sofifa(27)]),
     `https://cdn.futbin.com/content/fifa26/img/players/${p.id}.png`,
     `https://cdn.futwiz.com/assets/img/fc26/faces/${p.id}.png`,
-    ...ea('FC25'), ...sofifa(25),
-    `https://cdn.futwiz.com/assets/img/fc25/faces/${p.id}.png`,
-    `https://cdn.futbin.com/content/fifa25/img/players/${p.id}.png`,
+    sofifa(26),
+    `${EA}/FC25/full/player-portraits/p${p.id}.png?im=Resize,width=${big ? 512 : 256}`,
   ])
 }
 
@@ -58,7 +63,7 @@ export function faceUrls(p: Pick<Player, 'id' | 'regen'>, css = 48): string[] {
 export type LogoTreatment = 'light' | 'reverse' | 'edge'
 const TREAT = treatments as { clubs: Record<string, LogoTreatment>; comps: Record<string, LogoTreatment> }
 export const clubLogoTreatment = (id: number): LogoTreatment | undefined => TREAT.clubs[String(id)]
-export const compLogoTreatment = (key: string): LogoTreatment | undefined => TREAT.comps[key.replace(/-\d+$/, '')]
+export const compLogoTreatment = (key: string): LogoTreatment | undefined => TREAT.comps[compBase(key)]
 const lightened = (t?: LogoTreatment) => t === 'light' || t === 'reverse'
 /** the bundled art made for dark surfaces, where the crest has one (the remote copies are the original) */
 const darkSurfaceArt = (t?: LogoTreatment) => (lightened(t) ? 'rev' : t === 'edge' ? 'edge' : undefined)
@@ -79,6 +84,17 @@ export function badgeUrls(c: Pick<Club, 'id' | 'badge' | 'sofifaTeamId'>): strin
   if (c.sofifaTeamId) out.push(`https://cdn.sofifa.net/teams/${c.sofifaTeamId}/120.png`)
   return out
 }
+/**
+ * How a crest sits in its box: art drawn with a wide margin is scaled up so its long side fills the box like every other
+ * crest's, and centred (measured once from the art: scripts/assets/bundle_crests.py). The same for the bundled crest and
+ * the sharper one faded in over it, which are the same art.
+ */
+const FIT = crestFitData as Record<string, number[]>
+export function crestFit(id: number): CSSProperties | undefined {
+  const f = FIT[String(id)]
+  return f ? { transform: `scale(${f[0]}) translate(${(-f[1] * 100).toFixed(1)}%, ${(-f[2] * 100).toFixed(1)}%)` } : undefined
+}
+
 /** The sharper crest to fade in over the bundled one when it is shown bigger than the bundled art can carry. */
 export function badgeHiRes(c: Pick<Club, 'id' | 'badge'>, css: number): string | undefined {
   const cc = CREST_CC.clubs[String(c.id)]
@@ -94,21 +110,30 @@ export function flagCodeUrl(code: string) {
   return `${BASE}assets/flags/${code}.svg`
 }
 
-const LOGOS = compLogos as Record<string, { w: number; h: number }>
-/** Competition logo sources in official colours (football-logos.cc first, bundled art second). */
+const LOGOS = compLogos as Record<string, { w: number; h: number; src?: string }>
+/**
+ * A competition's logo key as the logo files know it: the season suffix of a competition id goes ("FACUP-2026" is the
+ * FA Cup), and a tournament with a logo of its own edition keeps it ("EURO@2028").
+ */
+export const compBase = (key: string) => (LOGOS[key] ? key : key.replace(/[-@]\d+$/, ''))
+/** The logo key for a tournament edition, when that edition's own logo is bundled (else the competition's). */
+export const editionLogoKey = (key: string, year: number) => (LOGOS[`${key}@${year}`] ? `${key}@${year}` : key)
+/**
+ * Competition logos: the bundled art, checked and trimmed to the mark (scripts/assets/bundle_comp_logos.py), and its
+ * version for dark surfaces where the mark needs one. football-logos.cc's copy is only a fallback for a competition with
+ * no bundled art.
+ */
 export function compLogoUrls(key: string): string[] {
-  const out: string[] = []
-  // the light version made for dark surfaces, where the mark has one (the remote copy is the dark original)
-  if (LOGOS[key] && lightened(compLogoTreatment(key))) return [`${BASE}assets/comps/${key}.rev.webp`, `${BASE}assets/comps/${key}.webp`]
-  if (CREST_CC.comps[key]) out.push(ccUrl(CREST_CC.comps[key]))
-  if (LOGOS[key]) out.push(`${BASE}assets/comps/${key}.webp`)
-  return out
+  const k = compBase(key)
+  const file = `${BASE}assets/comps/${k.replace('@', '_')}`
+  if (LOGOS[k]) return lightened(compLogoTreatment(k)) ? [`${file}.rev.webp`, `${file}.webp`] : [`${file}.webp`]
+  return CREST_CC.comps[k] ? [ccUrl(CREST_CC.comps[k])] : []
 }
 export function compLogoUrl(key: string): string | undefined {
   return compLogoUrls(key)[0]
 }
 export function compLogoMeta(key: string) {
-  return LOGOS[key]
+  return LOGOS[compBase(key)]
 }
 
 /** Real EA PlayStyle icon (drop-assets.ea.com) for a PlayStyle name, e.g. "Power Shot" or "Power Shot+". */
@@ -134,8 +159,9 @@ const faceOf = new Map<number, string>()
 // the headshot that worked for each player, remembered across sessions so a later launch goes straight to it (no walk
 // through sources that fail, no silhouette flashing to a face). A current-season photo is kept; an older one is
 // tried again after two weeks, in case a newer one has been published since.
-const FACE_KEY = 'opus:faces:v1'
-const CURRENT = /FC27|\/27_\d+\.png|fifa27|fc27/
+// (v2: the order changed to this season's FC 27 faces first; a remembered older photo is forgotten)
+const FACE_KEY = 'opus:faces:v2'
+const CURRENT = /\/2027\/fut\/|\/27_\d+\.png|fifa27|fc27/
 let faceStore: Record<string, [string, number]> = {}
 try { faceStore = JSON.parse(localStorage.getItem(FACE_KEY) || '{}') } catch { faceStore = {} }
 let faceTimer: number | undefined
@@ -184,6 +210,7 @@ function sourceOf(url: string) {
   if (fb) return `futbin-${fb[1]}`
   const fw = url.match(/futwiz\.com\/assets\/img\/fc(\d+)\//)
   if (fw) return `futwiz-${fw[1]}`
+  if (url.includes('/ultimate-team/web-app/content/')) return 'ea-fut-web'
   try { return new URL(url, location.href).host } catch { return url }
 }
 function bump(key: string, k: 'ok' | 'fail') {
@@ -276,7 +303,7 @@ const INTL_WIKI: Record<string, string> = {
 const isDrawn = (url: string) => /\.(svg|png)(\/|$|\?)/i.test(url)
 const fileName = (url: string) => decodeURIComponent(url.split('/').filter((s) => /\.(svg|png|jpe?g|gif|webp)$/i.test(s))[0] || url).replace(/_/g, ' ')
 export function compWikiQuery(key: string): WikiQuery | undefined {
-  const base = key.replace(/-\d+$/, '')
+  const base = key.replace(/[-@]\d+$/, '')
   const intl = INTL_WIKI[base]
   const t = COMP_WIKI[base] || intl
   if (!t) return undefined

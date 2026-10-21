@@ -5,6 +5,7 @@ import { positionOf, sortTable } from '../engine/competitions/tables'
 import { ageOn } from '../domain/dates'
 import { emptyLine } from '../engine/world/matchRunner'
 import { isSuspendedFor } from '../engine/match/selection'
+import { editionLogoKey } from '../services/assets'
 
 export const userClub = (w: World): Club => w.clubs[w.userClubId]
 
@@ -120,7 +121,9 @@ export function tableAround(w: World, comp: Competition, clubId: number, span = 
 }
 
 export function compLogoKey(c: Competition) {
-  return c.logoKey || (c.leagueId ? `L${c.leagueId}` : c.key)
+  const k = c.logoKey || (c.leagueId ? `L${c.leagueId}` : c.key)
+  // a tournament (and its qualifiers) shows its own edition's logo where there is one: the EURO played in June 2028
+  return k === 'EURO' || k === 'WC' ? editionLogoKey(k, c.season + 1) : k
 }
 
 export function clubShort(w: World, id: number) {

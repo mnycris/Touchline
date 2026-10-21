@@ -1,1 +1,282 @@
-{"UCL":{"w":210,"h":200},"UEL":{"w":136,"h":200},"FACUP":{"w":148,"h":200},"EFLCUP":{"w":140,"h":200},"COMMSHIELD":{"w":200,"h":200},"L13":{"w":150,"h":200},"L14":{"w":154,"h":200},"L53":{"w":185,"h":200},"L54":{"w":185,"h":200},"L19":{"w":190,"h":200},"L20":{"w":190,"h":200},"L31":{"w":123,"h":200},"L16":{"w":150,"h":200},"L17":{"w":161,"h":200},"L10":{"w":320,"h":187},"L308":{"w":194,"h":200},"L4":{"w":165,"h":200},"L50":{"w":320,"h":162},"L68":{"w":169,"h":200},"L80":{"w":118,"h":200},"L41":{"w":320,"h":148},"L350":{"w":201,"h":200},"L39":{"w":180,"h":200},"L353":{"w":145,"h":200},"L351":{"w":119,"h":200},"L83":{"w":156,"h":200},"L2012":{"w":320,"h":151}}
+{
+ "ASIAN": {
+  "w": 229,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/afc-asian-cup.e51b1ad8.png"
+ },
+ "BELCUP": {
+  "w": 360,
+  "h": 274,
+  "src": "https://assets.football-logos.cc/logos/belgium/700x700/belgian-cup.523dfaa9.png"
+ },
+ "CDF": {
+  "w": 335,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/france/700x700/french-cup.2e92a519.png"
+ },
+ "CDR": {
+  "w": 342,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/spain/700x700/copa-del-rey.a3ebbbe0.png"
+ },
+ "CI": {
+  "w": 311,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/italy/700x700/coppa-italia.a62c208e.png"
+ },
+ "COMMSHIELD": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/fa-community-shield.6c1793a2.png"
+ },
+ "DFB": {
+  "w": 295,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/germany/700x700/dfb-pokal.97dbec3a.png"
+ },
+ "DFLSC": {
+  "w": 256,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/germany/700x700/franz-beckenbauer-supercup.8b104317.png"
+ },
+ "EFLCUP": {
+  "w": 260,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/efl-cup.09d6ba91.png"
+ },
+ "EURO@2028": {
+  "w": 222,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/uefa-euro-2028.803d4112.png"
+ },
+ "FACUP": {
+  "w": 276,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/emirates-fa-cup.34212029.png"
+ },
+ "GOLD": {
+  "w": 360,
+  "h": 143,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/concacaf-gold-cup.4fcfb627.png"
+ },
+ "KNVB": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/netherlands/700x700/knvb-cup.a908d441.png"
+ },
+ "L1": {
+  "w": 359,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/denmark/700x700/danish-super-liga.acfeb027.png"
+ },
+ "L10": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/netherlands/700x700/eredivisie.846bf0f7.png"
+ },
+ "L13": {
+  "w": 290,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/english-premier-league.ee1e9b08.png"
+ },
+ "L14": {
+  "w": 286,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/efl-championship.59bb7d97.png"
+ },
+ "L16": {
+  "w": 293,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/france/700x700/ligue-1.9fc5cb7b.png"
+ },
+ "L17": {
+  "w": 313,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/france/700x700/ligue-2.aef87665.png"
+ },
+ "L189": {
+  "w": 360,
+  "h": 354,
+  "src": "https://assets.football-logos.cc/logos/switzerland/700x700/swiss-football-league.1dd47392.png"
+ },
+ "L19": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/germany/700x700/bundesliga.dd519ce6.png"
+ },
+ "L20": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/germany/700x700/2-bundesliga.e2512d8d.png"
+ },
+ "L2012": {
+  "w": 360,
+  "h": 178,
+  "src": "https://assets.football-logos.cc/logos/china/700x700/chinese-super-league.17e0048f.png"
+ },
+ "L2076": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/germany/700x700/3-liga.6188a003.png"
+ },
+ "L2149": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/india/700x700/indian-super-league.09e49309.png"
+ },
+ "L308": {
+  "w": 356,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/portugal/700x700/primeira-liga.bedff667.png"
+ },
+ "L31": {
+  "w": 241,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/italy/700x700/serie-a.15e58b67.png"
+ },
+ "L32": {
+  "w": 265,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/italy/700x700/serie-b.d27003ee.png"
+ },
+ "L330": {
+  "w": 360,
+  "h": 208,
+  "src": "https://assets.football-logos.cc/logos/romania/700x700/superliga.79a0a87b.png"
+ },
+ "L341": {
+  "w": 360,
+  "h": 292,
+  "src": "https://assets.football-logos.cc/logos/mexico/700x700/liga-mx.32510f86.png"
+ },
+ "L350": {
+  "w": 201,
+  "h": 200,
+  "src": "earlier bundle"
+ },
+ "L351": {
+  "w": 119,
+  "h": 200,
+  "src": "earlier bundle"
+ },
+ "L353": {
+  "w": 217,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/argentina/700x700/argentina-primera-division.57664552.png"
+ },
+ "L39": {
+  "w": 349,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/usa/700x700/mls.c0d2b1af.png"
+ },
+ "L4": {
+  "w": 305,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/belgium/700x700/jupiler-pro-league.0a11c474.png"
+ },
+ "L41": {
+  "w": 360,
+  "h": 174,
+  "src": "https://assets.football-logos.cc/logos/norway/700x700/eliteserien.66be932e.png"
+ },
+ "L50": {
+  "w": 360,
+  "h": 190,
+  "src": "https://assets.football-logos.cc/logos/scotland/700x700/scottish-premiership.b3d4bdfb.png"
+ },
+ "L53": {
+  "w": 349,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/spain/700x700/la-liga.362cd1ca.png"
+ },
+ "L54": {
+  "w": 349,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/spain/700x700/la-liga-2.e0084660.png"
+ },
+ "L56": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/sweden/700x700/allsvenskan.fc94b578.png"
+ },
+ "L60": {
+  "w": 286,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/efl-league-one.22db0245.png"
+ },
+ "L61": {
+  "w": 286,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/england/700x700/efl-league-two.e37d5ec5.png"
+ },
+ "L65": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/republic-of-ireland/700x700/league-of-ireland-premier-division.f980fd8a.png"
+ },
+ "L66": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/poland/700x700/ekstraklasa.007755e8.png"
+ },
+ "L68": {
+  "w": 311,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/turkey/700x700/super-lig.b375bfcd.png"
+ },
+ "L80": {
+  "w": 220,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/austria/700x700/austrian-football-bundesliga.91fe2840.png"
+ },
+ "L83": {
+  "w": 302,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/south-korea/700x700/k-league-1.e050e629.png"
+ },
+ "SCI": {
+  "w": 242,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/italy/700x700/italian-super-cup.4364d07a.png"
+ },
+ "SUPERCOPA": {
+  "w": 298,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/spain/700x700/supercopa-de-espana.9dd7781a.png"
+ },
+ "TACA": {
+  "w": 360,
+  "h": 325,
+  "src": "https://assets.football-logos.cc/logos/portugal/700x700/taca-de-portugal.5ace9934.png"
+ },
+ "TURCUP": {
+  "w": 291,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/turkey/700x700/turkish-cup.e298a147.png"
+ },
+ "UCL": {
+  "w": 360,
+  "h": 350,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/uefa-champions-league.c16cec3d.png"
+ },
+ "UECL": {
+  "w": 360,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/uefa-conference-league.4a977457.png"
+ },
+ "UEL": {
+  "w": 254,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/uefa-europa-league.cec59481.png"
+ },
+ "UNL": {
+  "w": 239,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/uefa-nations-league.178b1e72.png"
+ },
+ "WC@2030": {
+  "w": 197,
+  "h": 360,
+  "src": "https://assets.football-logos.cc/logos/tournaments/700x700/fifa-world-cup-2030.773a4f9e.png"
+ }
+}

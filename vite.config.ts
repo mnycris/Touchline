@@ -33,8 +33,9 @@ export default defineConfig({
         navigateFallback: 'index.html',
         runtimeCaching: [
           {
-            // official EA headshots, PlayStyle icons and crests; SoFIFA mirror; football-logos.cc crests; Wikipedia photos
-            urlPattern: /^https:\/\/(ratings-images-prod\.pulse\.ea\.com|drop-assets\.ea\.com|cdn\.sofifa\.net|cdn\.futwiz\.com|cdn\.futbin\.com|assets\.football-logos\.cc|upload\.wikimedia\.org)\/.*/i,
+            // official EA headshots (FC 27 FUT Web App portraits, ratings-site photos), PlayStyle icons and crests; SoFIFA
+            // and FUTBIN/FUTWIZ mirrors; football-logos.cc crests; Wikipedia photos
+            urlPattern: /^https:\/\/((ratings-images-prod\.pulse\.ea\.com|drop-assets\.ea\.com|cdn\.sofifa\.net|cdn\.futwiz\.com|cdn\.futbin\.com|assets\.football-logos\.cc|upload\.wikimedia\.org)\/|www\.ea\.com\/ea-sports-fc\/ultimate-team\/web-app\/content\/).*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'football-images',

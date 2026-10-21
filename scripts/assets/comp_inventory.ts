@@ -1,76 +1,88 @@
-// Every competition in the game and what is known about its logo, written to docs/assets/competition-logos.md.
-// Bundled art is checked here (the file, its size, that it has a transparent background); remote sources are only
-// listed, because they are fetched on the device and can't be looked at from where this runs.
+// Every competition in the game and the logo it shows, written to docs/assets/competition-logos.md: bundled art (which
+// was retrieved, looked at and trimmed by scripts/assets/fetch_comp_logos.py + bundle_comp_logos.py), editions with a
+// logo of their own, and what is still unresolved, with why.
 // npx tsx scripts/assets/comp_inventory.ts <save>
 import fs from 'node:fs'
 import path from 'node:path'
 import { deserialize } from '../../src/services/saves'
 import compLogos from '../../src/data/compLogos.json'
-import crestsCC from '../../src/data/crestsCC.json'
 import treatments from '../../src/data/logoTreatments.json'
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..')
 const w = deserialize(fs.readFileSync(process.argv[2]))
-const LOGOS = compLogos as Record<string, { w: number; h: number }>
-const CC = (crestsCC as { comps: Record<string, string> }).comps
+const LOGOS = compLogos as Record<string, { w: number; h: number; src?: string }>
 const TREAT = (treatments as { comps: Record<string, string> }).comps
-// the Wikipedia articles looked up on the device for competitions with no other source (services/assets.ts)
+// looked up on the device from the competition's Wikipedia article (services/assets.ts compWikiQuery); Wikimedia
+// rate-limits the build environment's network, so these could not be retrieved or checked here
 const WIKI: Record<string, string> = {
-  CDR: 'Copa del Rey', SUPERCOPA: 'Supercopa de España', TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield',
-  SUPERTACA: 'Supertaça Cândido de Oliveira', CI: 'Coppa Italia', TACA: 'Taça de Portugal', SCOTCUP: 'Scottish Cup',
-  // tournaments: accepted on the device only when the article's image is a drawn logo of the tournament itself (no
-  // edition year in its file name, not a photograph of the trophy)
-  WC: 'FIFA World Cup', EURO: 'UEFA European Championship', UNL: 'UEFA Nations League', CA: 'Copa América',
-  AFCON: 'Africa Cup of Nations', ASIAN: 'AFC Asian Cup', GOLD: 'CONCACAF Gold Cup',
+  TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield', SUPERTACA: 'Supertaça Cândido de Oliveira', SCOTCUP: 'Scottish Cup',
+  CA: 'Copa América', AFCON: 'Africa Cup of Nations',
 }
-const comps = new Map<string, { key: string; name: string; format: string; country: string; clubs: number }>()
-for (const c of Object.values(w.competitions)) if (!comps.has(c.key)) comps.set(c.key, { key: c.key, name: c.name, format: c.format, country: c.country, clubs: c.clubs.length })
-// international tournaments the game stages in other seasons than the save's
-for (const [key, name] of [['WC', 'FIFA World Cup'], ['EURO', 'UEFA European Championship'], ['UNL', 'UEFA Nations League'], ['CA', 'Copa América'], ['AFCON', 'Africa Cup of Nations'], ['ASIAN', 'AFC Asian Cup'], ['GOLD', 'CONCACAF Gold Cup']]) {
-  if (!comps.has(key)) comps.set(key, { key, name, format: 'intl', country: 'International', clubs: 0 })
+const NONE: Record<string, string> = { INTF: 'friendlies have no competition logo' }
+const comps = new Map<string, { key: string; name: string; format: string; country: string }>()
+for (const c of Object.values(w.competitions)) if (!comps.has(c.key)) comps.set(c.key, { key: c.key, name: c.name, format: c.format, country: c.country })
+for (const [key, name] of [['WC', 'FIFA World Cup'], ['EURO', 'UEFA European Championship'], ['UNL', 'UEFA Nations League'], ['CA', 'Copa América'], ['AFCON', 'Africa Cup of Nations'], ['ASIAN', 'AFC Asian Cup'], ['GOLD', 'CONCACAF Gold Cup'], ['EUROQ', 'European Qualifiers']]) {
+  if (!comps.has(key)) comps.set(key, { key, name, format: 'intl', country: 'International' })
 }
 const order = { uefa: 0, intl: 1, league: 2, cup: 3, supercup: 4, playoff: 5 } as Record<string, number>
 const rows = [...comps.values()].sort((a, b) => (order[a.format] ?? 9) - (order[b.format] ?? 9) || a.country.localeCompare(b.country) || a.name.localeCompare(b.name))
-const tally = { bundled: 0, remote: 0, wiki: 0, none: 0 }
+const tally = { verified: 0, kept: 0, edition: 0, wiki: 0, none: 0 }
+const editions = (key: string) => Object.keys(LOGOS).filter((k) => k.startsWith(`${key}@`))
 const lines = rows.map((c) => {
-  const file = path.join(ROOT, 'public', 'assets', 'comps', `${c.key}.webp`)
-  const bundled = fs.existsSync(file) && LOGOS[c.key]
-  const status = bundled ? 'bundled' : CC[c.key] ? 'remote' : WIKI[c.key] ? 'wiki' : 'none'
+  const k = c.key
+  const ed = editions(k === 'EUROQ' ? 'EURO' : k)
+  let status: keyof typeof tally, shown: string, source: string
+  if (LOGOS[k]?.src?.startsWith('https://')) {
+    status = 'verified'; shown = `Bundled ${LOGOS[k].w}×${LOGOS[k].h}`; source = `[football-logos.cc](${LOGOS[k].src})`
+  } else if (LOGOS[k]) {
+    status = 'kept'; shown = `Bundled ${LOGOS[k].w}×${LOGOS[k].h} (earlier art)`; source = 'earlier bundle: the current identity is not on football-logos.cc'
+  } else if (ed.length) {
+    status = 'edition'; shown = ed.map((e) => `${e.split('@')[1]} edition bundled`).join(', ') + '; other editions: designed emblem'
+    source = ed.map((e) => `[football-logos.cc](${LOGOS[e].src})`).join(', ')
+  } else if (WIKI[k]) {
+    status = 'wiki'; shown = 'Wikipedia on the device if a drawn logo passes the checks, else designed emblem'; source = `Wikipedia: ${WIKI[k]} (unverified here)`
+  } else {
+    status = 'none'; shown = '**Designed emblem**'; source = NONE[k] || 'none found'
+  }
   tally[status]++
-  const b = bundled ? `✓ ${LOGOS[c.key].w}×${LOGOS[c.key].h}` : ''
-  const r = CC[c.key] ? `football-logos.cc (${CC[c.key].split('/')[1].replace(/\.[0-9a-f]+$/, '')})` : ''
-  const wk = !bundled && !CC[c.key] && WIKI[c.key] ? `Wikipedia: ${WIKI[c.key]}` : ''
-  const shown = { bundled: 'Bundled logo', remote: 'Remote logo (unverified here)', wiki: 'Wikipedia logo if one passes the checks, else emblem', none: '**No authentic logo: designed emblem**' }[status]
-  return `| ${c.key} | ${c.name} | ${c.format} | ${c.country || '—'} | ${b} | ${[r, wk].filter(Boolean).join('; ') || '—'} | ${TREAT[c.key] || '—'} | ${shown} |`
+  return `| ${k} | ${c.name} | ${c.country || '—'} | ${shown} | ${TREAT[k] || '—'} | ${source} |`
 })
 const md = `# Competition logos
 
-Every competition in the game (${rows.length}), from a save on ${w.date}, and where its logo comes from. Generated by
-\`scripts/assets/comp_inventory.ts\`.
+Every competition in the game (${rows.length}), from a save on ${w.date}, and the logo it shows. Generated by
+\`scripts/assets/comp_inventory.ts\`; checked on 2026-10-21 with full network access.
 
-- **Bundled**: the logo ships with the app (\`public/assets/comps\`), checked here: ${tally.bundled} competitions.
-- **Remote**: fetched on the device from football-logos.cc, with the bundled art (if any) behind it. ${tally.remote}
-  competitions have only this source. It could not be checked from the build environment, whose network policy
-  blocks the host, so these are listed as unverified rather than assumed to work.
-- **Wikipedia**: the logo from the competition's Wikipedia article, looked up on the device and accepted only when the
-  article is about a football competition and its image is a drawn logo (SVG or PNG, not a photograph of a trophy); for
-  international tournaments also only a logo of the tournament itself, never one edition's (no year in the file name):
-  ${tally.wiki}. Also unverified from the build environment. When nothing passes, the designed emblem stays.
-- **None**: no authentic logo is available to the app: ${tally.none}. These show a designed emblem in the
-  competition's colours with its initials (no trophy pictogram). It is a placeholder, not a substitute for the real mark.
-  The same emblem appears if a remote or Wikipedia logo fails to load on the device.
+- **Bundled, verified** (${tally.verified}): retrieved from football-logos.cc at 700px, looked at against the real
+  identity (current where a competition rebranded: the 2025 VriendenLoterij Eredivisie mark, the January 2026 Liga
+  Profesional mark), trimmed to the mark itself and bundled at a 360px long edge (\`public/assets/comps\`). The app
+  shows the bundled file first; it works offline and doesn't depend on any remote host.
+- **Bundled, earlier art** (${tally.kept}): the Roshn Saudi League's RSL mark and the A-League Men mark, which football-logos.cc
+  only has in older/other identities. Current, but 200px.
+- **Edition logos** (${tally.edition}): the game's EURO is played in June 2028 (UK & Ireland) and its World Cup in June 2030
+  (Spain, Portugal, Morocco), so those editions' own logos are bundled; the European Qualifiers and World Cup
+  qualifiers of those cycles show them too. Later editions show the designed emblem until their logos exist.
+- **Wikipedia on the device** (${tally.wiki}): not on football-logos.cc, and Wikimedia answered every request from the build
+  environment with HTTP 429 (rate limited, retry-after up to 600s) on 2026-10-21, so they could not be retrieved or
+  checked here. On the device the article's lead image is used only if it is a drawn logo (not a trophy photo) and,
+  for a tournament, not one edition's.
+- **Designed emblem** (${tally.none}): no authentic logo exists or none was found.
 
-"Dark surface" is how the logo is shown on the app's dark cards (\`scripts/assets/logo_treatments.py\`): light (shown
-in white), reverse (dark tone white, accents kept), edge (its own rim lifted), or as it is (—). No logo is put on a plate.
+"Dark surface" is how the logo is shown on the app's dark cards (\`scripts/assets/logo_treatments.py\`): light (its
+white version), reverse (dark tone white, colours kept), edge (its own rim lifted), or as it is (—). No logo is put on
+a plate. Official white variants on football-logos.cc exist only at 256px palette quality, so the white versions are
+made from the 700px masters.
 
-| Key | Competition | Format | Country | Bundled | Remote / lookup | Dark surface | Shown |
-|---|---|---|---|---|---|---|---|
+Usage: football-logos.cc states the logos belong to their clubs, leagues and federations and may be used for
+informational, editorial and non-commercial fan projects (https://football-logos.cc/license/). Touchline is a
+non-commercial fan game; a commercial release would need licences from the rights holders.
+
+| Key | Competition | Country | Shown | Dark surface | Source |
+|---|---|---|---|---|---|
 ${lines.join('\n')}
 `
-// the hand-written part of the document (from its first section after the table) is kept as it is
 const out = path.join(ROOT, 'docs', 'assets', 'competition-logos.md')
 const prev = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : ''
+// the hand-written part of the document (from its first section after the table) is kept as it is
 const tail = prev.indexOf('\n## ') >= 0 ? prev.slice(prev.indexOf('\n## ')) : ''
 fs.writeFileSync(out, md + tail)
 console.log(JSON.stringify(tally), rows.length)
-for (const c of rows) if (!LOGOS[c.key] && !CC[c.key] && !WIKI[c.key]) console.log('none:', c.key, c.name, c.format, c.country)

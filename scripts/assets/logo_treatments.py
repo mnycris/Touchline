@@ -32,9 +32,18 @@ DARK = 2.2  # contrast below this against the surface: lost on it
 CURATED = {
     'comps': {'UEL': 'reverse', 'L50': 'reverse', 'L83': 'reverse', 'L68': 'reverse', 'L41': 'light',
               # the Bundesliga wordmarks under the player, the "SERIE A" under its faceted A: dark type on the logo
-              'L19': 'reverse', 'L20': 'reverse', 'L31': 'reverse'},
+              'L19': 'reverse', 'L20': 'reverse', 'L31': 'reverse',
+              # dark type or a dark ground under coloured marks: the dark goes white, the colours stay (the Copa del
+              # Rey's purple and red, the Coppa Italia's tricolour, the Supercopa's red ring, the Taça's diamonds)
+              'CDR': 'reverse', 'CI': 'reverse', 'SUPERCOPA': 'reverse', 'SCI': 'reverse', 'TACA': 'reverse',
+              'UECL': 'reverse', 'UNL': 'reverse', 'L2012': 'reverse', 'L2149': 'reverse', 'L2076': 'reverse',
+              # single-colour navy marks, white on dark as their own white versions are (Eredivisie, Liga Portugal)
+              'BELCUP': 'light', 'L1': 'light', 'L10': 'light', 'L308': 'light',
+              # read as they are: the KNVB diamond and the FFF hexagon carry their own white outline
+              'KNVB': 'none', 'CDF': 'none'},
     # (Auckland's bright blue linework reads on dark as it is: neither white nor lifted)
-    'badges': {'4': 'reverse', '100087': 'reverse', '131739': 'none'},
+    # (OH Leuven's current crest is a white diamond with black type: it reads as it is)
+    'badges': {'4': 'reverse', '131739': 'none'},
 }
 
 # crests whose only available art has a white background baked in (Piast's gold-rimmed shield): the white outside the
@@ -187,15 +196,16 @@ def unmatte(im):
     return out
 
 
-# only part of the logo goes white: from this row down (the wordmark), the symbol above it keeps its own dark facets
-FROM_ROW = {'L31': 141}
+# only part of the logo goes white: from this far down (the wordmark, as a share of the height), the symbol above it
+# keeps its own dark facets
+FROM_ROW = {'L31': 0.765}
 
 
 def lighten(im, key=None):
     """Dark tones to white, smoothly (so anti-aliased edges stay clean); everything else as it is."""
     out = Image.new('RGBA', im.size)
     data = []
-    start = FROM_ROW.get(key, 0) * im.width
+    start = round(FROM_ROW.get(key, 0) * im.height) * im.width
     for i, (r, g, b, a) in enumerate(im.getdata()):
         if a == 0 or i < start:
             data.append((r, g, b, a) if a else (0, 0, 0, 0))
@@ -218,15 +228,17 @@ def main():
         for f in sorted(os.listdir(folder)):
             if not f.endswith('.webp') or f.endswith('.rev.webp') or f.endswith('.edge.webp'):
                 continue
-            key = f[:-5]
+            # (an edition's logo, EURO_2028.webp, is the key EURO@2028)
+            key = f[:-5].replace('_', '@')
+            stem = f[:-5]
             im = Image.open(os.path.join(folder, f)).convert('RGBA')
             if key in MATTED.get(kind, ()) and im.getpixel((0, 0))[3] == 255:
                 im = unmatte(im)
                 im.save(os.path.join(folder, f), 'WEBP', lossless=True, quality=100, method=6)
             t, share = classify(im)
             t = CURATED[kind].get(key, t)
-            rev = os.path.join(folder, f'{key}.rev.webp')
-            edge = os.path.join(folder, f'{key}.edge.webp')
+            rev = os.path.join(folder, f'{stem}.rev.webp')
+            edge = os.path.join(folder, f'{stem}.edge.webp')
             if t in ('light', 'reverse'):
                 lighten(im, key).save(rev, 'WEBP', lossless=True, quality=100, method=6)
             elif os.path.exists(rev):

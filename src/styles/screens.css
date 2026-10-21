@@ -2481,7 +2481,8 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 /* (no border on an identity tile: a transparent one let the bare field paint a rim around the art, and the top
    hairline of the big cards read as a seam at this size; a ring drawn over the art, on its curve, defines the edge) */
 .logo-tile.ci { border: 0; box-shadow: none; }
-.logo-tile.ci::before { inset: 0; height: auto; border-radius: inherit; background: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); z-index: 2; }
+/* the field is the tile: no ring or edge line drawn over its rim, where a 1px line reads as a coloured border */
+.logo-tile.ci::before { display: none; }
 .logo-tile.ci .ci-mark, .logo-tile.ci .ci-light { display: none; }
 .logo-tile.ci .comp-logo, .logo-tile.ci > svg { position: relative; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .3)); }
 .logo-tile.ci-white-logo .comp-logo { filter: brightness(0) invert(1) drop-shadow(0 2px 6px rgba(0, 0, 0, .25)); }

@@ -45,7 +45,8 @@ export function Hub() {
   const latestMsg = w.inbox.find((m) => !m.read) || w.inbox[0]
   const topNews = w.news.find((n) => n.userRelated) || w.news[0]
   const form = fixturesOf(w, club.id).filter((f) => f.played && f.result).slice(-5).map((f) => outcomeFor(f, club.id)!)
-  const pendingConv = w.conversations.filter((c) => !c.resolved)
+  // (a player who has left has nothing to ask: his request lapses on the next day's advance, and isn't shown until then)
+  const pendingConv = w.conversations.filter((c) => !c.resolved && (w.players[c.playerId]?.clubId === w.userClubId || w.players[c.playerId]?.loan?.fromClubId === w.userClubId))
 
   return (
     <Screen

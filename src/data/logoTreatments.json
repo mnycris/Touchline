@@ -1,25 +1,27 @@
 {
  "clubs": {
-  "100087": "reverse",
-  "112258": "edge",
-  "131735": "edge",
   "1786": "light",
   "18": "light",
   "1862": "light",
   "1960": "light",
-  "393": "light",
   "4": "reverse",
   "45": "light",
-  "605": "edge",
   "68": "light",
   "91": "light"
  },
  "comps": {
+  "BELCUP": "light",
+  "CDR": "reverse",
+  "CI": "reverse",
+  "L1": "light",
   "L10": "light",
   "L16": "light",
   "L17": "light",
   "L19": "reverse",
   "L20": "reverse",
+  "L2012": "reverse",
+  "L2076": "reverse",
+  "L2149": "reverse",
   "L308": "light",
   "L31": "reverse",
   "L351": "light",
@@ -27,7 +29,12 @@
   "L50": "reverse",
   "L68": "reverse",
   "L83": "reverse",
+  "SCI": "reverse",
+  "SUPERCOPA": "reverse",
+  "TACA": "reverse",
   "UCL": "light",
-  "UEL": "reverse"
+  "UECL": "reverse",
+  "UEL": "reverse",
+  "UNL": "reverse"
  }
 }

@@ -264,7 +264,8 @@ img { user-select: none; -webkit-user-drag: none; }
 .pos-chip { font-family: var(--display); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; padding: 3px 6px 2px; border-radius: 6px; color: #04070b; }
 .face { position: relative; overflow: hidden; flex: none; background: linear-gradient(180deg, rgba(var(--club-rgb), 0.55), rgba(8, 11, 18, 0.9)); }
 .face img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
-.badge-img { object-fit: contain; display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5)) drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.55)); }
+/* a crest as itself: a soft shadow to lift it off a coloured card, no outline or halo around its shape */
+.badge-img { object-fit: contain; display: block; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
 .flag { display: inline-block; border-radius: 3px; object-fit: cover; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14); flex: none; }
 /* national teams: a round flag with a hairline ring (drawn over the image) */
 .nt-badge { position: relative; flex: none; border-radius: 50%; overflow: hidden; background: #1b2029; }

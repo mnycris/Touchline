@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
-import { badgeHiRes, badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
+import { badgeHiRes, badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery, crestFit } from '../../services/assets'
 import { Silhouette } from './Silhouette'
 import { Icon } from '../icons/Icon'
 import { ovrColor } from '../../domain/ratings'
@@ -138,8 +138,8 @@ export function Badge({ club, size = 32, style }: { club?: Club; size?: number; 
   // the crest itself on the surface, nothing behind it (a crest that needs help on dark has its own art: badgeUrls)
   return (
     <div style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', position: 'relative', ...style }}>
-      <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: size, height: size }} fallback={<Crest club={club} size={size} />} />
-      <Sharpen url={badgeHiRes(club, size)} className="badge-img" style={{ objectFit: 'contain' }} />
+      <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: size, height: size, ...crestFit(club.id) }} fallback={<Crest club={club} size={size} />} />
+      <Sharpen url={badgeHiRes(club, size)} className="badge-img" style={{ objectFit: 'contain', ...crestFit(club.id) }} />
     </div>
   )
 }
