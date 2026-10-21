@@ -143,10 +143,11 @@ function useIndicator(value: unknown) {
   return [ref, pos] as const
 }
 
-export function Tabs<T extends string>({ items, value, onChange, sticky }: { items: { id: T; label: ReactNode; badge?: number }[]; value: T; onChange: (v: T) => void; sticky?: boolean }) {
+/** Sticky tabs must be a direct child of the screen (a wrapper would stop them sticking): space them with `style`. */
+export function Tabs<T extends string>({ items, value, onChange, sticky, style }: { items: { id: T; label: ReactNode; badge?: number }[]; value: T; onChange: (v: T) => void; sticky?: boolean; style?: React.CSSProperties }) {
   const [ref, pos] = useIndicator(value)
   return (
-    <div ref={ref} className={`tabs ${sticky ? 'sticky' : ''} ${pos ? 'has-ind' : ''}`}>
+    <div ref={ref} style={style} className={`tabs ${sticky ? 'sticky' : ''} ${pos ? 'has-ind' : ''}`}>
       {items.map((i) => (
         <button key={i.id} className={`tab ${value === i.id ? 'on' : ''}`} onClick={() => { haptic(); onChange(i.id) }}>
           {i.label}

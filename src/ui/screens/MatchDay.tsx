@@ -8,7 +8,7 @@ import type { Fixture, Player, TeamSheet, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { compIdentity, identityClass, identityVars, pageIdentity } from '../compIdentity'
 import { IdentityArt } from '../components/IdentityArt'
-import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
+import { Badge, CompLogo, Empty, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
 import { fmtDate, seasonLabel } from '../../domain/dates'
@@ -62,7 +62,17 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   // a match the manager is set to watch on the same day
   const watched = f ? watchList(w).map((id) => w.fixtures[id]).find((x) => x && !x.played && x.date === f.date) : undefined
   const lines = useMemo(() => (f ? storyLines(w, f) : []), [f?.id, w.date])
-  if (!f) return <Screen title="Match Day" back onBack={back} noNav><div className="pad muted">No match today.</div></Screen>
+  if (!f) {
+    // (only reached if the day's match has gone: point on to the next one rather than leave an empty page)
+    const next = fixturesOf(w, w.userClubId).find((x) => !x.played && x.date >= w.date)
+    const opp = next && w.clubs[next.home === w.userClubId ? next.away : next.home]
+    return (
+      <Screen title="Match Day" back onBack={back} noNav>
+        <Empty icon="calendar" title="No match today" text={next && opp ? `Next up: ${opp.name}, ${fmtDate(next.date, 'long')}.` : undefined}
+          action={next && <button className="btn sm" onClick={() => { haptic(); close(); open({ name: 'prematch', params: { id: next.id } }) }}><Icon name="eye" size={15} /> Preview it</button>} />
+      </Screen>
+    )
+  }
 
   const comp = w.competitions[f.compId]
   const ci = compIdentity(comp?.key)
@@ -176,9 +186,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
         </div>
       )}
 
-      <div style={{ marginTop: 10 }}>
-        <Tabs sticky items={[{ id: 'preview', label: 'Preview' }, { id: 'lineups', label: 'Line-ups' }, ...(ctxTable ? [{ id: 'table' as const, label: comp?.format === 'uefa' ? 'League phase' : 'Table' }] : []), ...(hasBracket ? [{ id: 'bracket' as const, label: 'Knockouts' }] : []), { id: 'h2h', label: 'H2H' }]} value={view} onChange={setTab} />
-      </div>
+      <Tabs sticky style={{ marginTop: 10 }} items={[{ id: 'preview', label: 'Preview' }, { id: 'lineups', label: 'Line-ups' }, ...(ctxTable ? [{ id: 'table' as const, label: comp?.format === 'uefa' ? 'League phase' : 'Table' }] : []), ...(hasBracket ? [{ id: 'bracket' as const, label: 'Knockouts' }] : []), { id: 'h2h', label: 'H2H' }]} value={view} onChange={setTab} />
 
       {view === 'preview' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
@@ -217,7 +225,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
             {[home.id, away.id].map((id) => <FormStrip key={id} w={w} clubId={id} />)}
           </div>
 
-          <KeyPlayers w={w} ids={[home.id, away.id]} />
+          <KeyPlayers w={w} ids={[home.id, away.id]} f={f} />
           <Absentees w={w} f={f} />
           <SeasonCompare w={w} a={home.id} b={away.id} />
 
@@ -278,10 +286,15 @@ export function FormStrip({ w, clubId }: { w: World; clubId: number }) {
   const go = useGame((s) => s.go)
   const games = fixturesOf(w, clubId).filter((x) => x.played && x.result).slice(-5)
   const club = w.clubs[clubId]
+  const n = (o: 'W' | 'D' | 'L') => games.filter((x) => outcomeFor(x, clubId) === o).length
   return (
-    <div className="row" style={{ gap: 8, marginBottom: 10 }}>
-      <Badge club={club} size={22} />
-      <div className="row grow" style={{ gap: 6, justifyContent: 'flex-end' }}>
+    <div className="fs-row">
+      <Badge club={club} size={26} />
+      <div className="fs-who">
+        <b className="small ellipsis">{club.short}</b>
+        {games.length > 0 && <span className="tiny dim num">{n('W')}W {n('D')}D {n('L')}L</span>}
+      </div>
+      <div className="fs-chips">
         {games.length === 0 && <span className="tiny dim">No games yet this season</span>}
         {games.map((x) => {
           const o = outcomeFor(x, clubId)!
@@ -298,10 +311,12 @@ export function FormStrip({ w, clubId }: { w: World; clubId: number }) {
   )
 }
 
-function KeyPlayers({ w, ids }: { w: World; ids: number[] }) {
+function KeyPlayers({ w, ids, f }: { w: World; ids: number[]; f: Fixture }) {
   const go = useGame((s) => s.go)
+  const comp = w.competitions[f.compId]
   const pickFor = (id: number) => {
-    const ps = rosterOf(w, id).filter((p) => !p.injury)
+    // only men who can play in this one (the unavailable are listed below)
+    const ps = rosterOf(w, id).filter((p) => !['injured', 'suspended', 'intl'].includes(playerStatus(w, p, comp).key))
     const withStats = ps.map((p) => ({ p, s: seasonLine(p) }))
     const played = withStats.filter((x) => x.s.n >= 2)
     if (played.length >= 3) return played.sort((a, b) => b.s.avg - a.s.avg).slice(0, 2)

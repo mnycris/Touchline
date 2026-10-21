@@ -883,7 +883,7 @@ function MatchReportBody({ w, f }: { w: World; f: Fixture }) {
         </div>
         <div className="tiny dim rp-venue"><Icon name="stadium" size={12} />{f.venue || (f.neutral ? 'Neutral venue' : home.stadium)} · {r.attendance.toLocaleString()} · {fmtDate(f.date, 'long')}</div>
       </div>
-      <div style={{ marginTop: 2 }}><Tabs sticky items={[{ id: 'summary', label: 'Summary' }, ...(hasLineups ? [{ id: 'lineups' as const, label: 'Line-ups' }] : []), { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} /></div>
+      <Tabs sticky style={{ marginTop: 2 }} items={[{ id: 'summary', label: 'Summary' }, ...(hasLineups ? [{ id: 'lineups' as const, label: 'Line-ups' }] : []), { id: 'stats', label: 'Stats' }]} value={tab} onChange={setTab} />
       {tab === 'summary' && (
         <div className="pad stack rp-tab" style={{ marginTop: 12 }}>
           {motm && (
@@ -954,34 +954,36 @@ function ReportTimeline({ w, r, onGoal }: { w: World; r: MatchResult; onGoal: (e
   rows.push({ kind: 'div', label: r.pens ? 'Pens' : 'FT', score: r.pens || r.score })
   return (
     <div className="card rp-tl">
-      {rows.map((row, i) => {
-        if (row.kind === 'div') return <div key={i} className="rp-div"><span>{row.label}{row.score ? ` ${row.score[0]}–${row.score[1]}` : ''}</span></div>
-        const e = row.e
-        const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
-        const p = e.player ? w.players[e.player] : undefined
-        const p2 = e.player2 ? w.players[e.player2] : undefined
-        const left = e.side === 0
-        const goal = isGoal(e)
-        const canReplay = goal && (!!e.chain?.length || (e.type === 'penGoal' && !!e.pen))
-        const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : e.type === 'penMiss' ? ' (pen missed)' : ''}`
-        const sub = e.type === 'sub' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{callName(p2?.name || '')}</span>
-          : goal && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : e.type === 'injury' ? 'Injured' : ''
-        const content = (
-          <div className="rp-side">
-            <span className="rp-ic">{goal ? <Ball size={17} own={e.type === 'owngoal'} /> : <Icon name={ic} size={16} color={col} />}{canReplay && <span className="rp-play" aria-hidden><Icon name="play" size={8} strokeWidth={3} /></span>}</span>
-            <div className="rp-txt">
-              <div className={`small b rp-line ${goal ? 'rp-scorer' : ''}`}>{e.type === 'sub' ? <Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} /> : null}<span className="ellipsis">{main}</span>{goal && e.score && <span className="rp-sc">{e.score[0]}–{e.score[1]}</span>}</div>
-              {sub && <div className="tiny dim ellipsis rp-sub">{sub}</div>}
+      <div className="rp-tl-rows">
+        {rows.map((row, i) => {
+          if (row.kind === 'div') return <div key={i} className="rp-div"><span>{row.label}{row.score ? ` ${row.score[0]}–${row.score[1]}` : ''}</span></div>
+          const e = row.e
+          const [ic, col] = EVENT_ICON[e.type] || ['info', 'var(--t3)']
+          const p = e.player ? w.players[e.player] : undefined
+          const p2 = e.player2 ? w.players[e.player2] : undefined
+          const left = e.side === 0
+          const goal = isGoal(e)
+          const canReplay = goal && (!!e.chain?.length || (e.type === 'penGoal' && !!e.pen))
+          const main = `${callName(p?.name || '')}${e.type === 'penGoal' ? ' (pen)' : e.type === 'owngoal' ? ' (OG)' : e.type === 'penMiss' ? ' (pen missed)' : ''}`
+          const sub = e.type === 'sub' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Icon name="arrowDown" size={10} color="var(--neg)" strokeWidth={3} />{callName(p2?.name || '')}</span>
+            : goal && p2 && e.type !== 'owngoal' ? <span className="row tight" style={{ gap: 3, justifyContent: left ? 'flex-start' : 'flex-end' }}><Boot size={12} />{callName(p2.name)}</span> : e.type === 'injury' ? 'Injured' : ''
+          const content = (
+            <div className="rp-side">
+              <span className="rp-ic">{goal ? <Ball size={17} own={e.type === 'owngoal'} /> : <Icon name={ic} size={16} color={col} />}{canReplay && <span className="rp-play" aria-hidden><Icon name="play" size={8} strokeWidth={3} /></span>}</span>
+              <div className="rp-txt">
+                <div className={`small b rp-line ${goal ? 'rp-scorer' : ''}`}>{e.type === 'sub' ? <Icon name="arrowUp" size={10} color="var(--pos)" strokeWidth={3} /> : null}<span className="ellipsis">{main}</span>{goal && e.score && <span className="rp-sc">{e.score[0]}–{e.score[1]}</span>}</div>
+                {sub && <div className="tiny dim ellipsis rp-sub">{sub}</div>}
+              </div>
             </div>
-          </div>
-        )
-        const body = left
-          ? <>{content}<span className="rp-min">{minLabel(e)}</span><span /></>
-          : <><span /><span className="rp-min">{minLabel(e)}</span>{content}</>
-        return canReplay
-          ? <button key={i} className={`rp-row ${left ? 'home' : 'away'} goal tap`} onClick={() => onGoal(e)} aria-label={`Replay ${main}'s goal`}>{body}</button>
-          : <div key={i} className={`rp-row ${left ? 'home' : 'away'} ${goal ? 'goal' : ''}`}>{body}</div>
-      })}
+          )
+          const body = left
+            ? <>{content}<span className="rp-min">{minLabel(e)}</span><span /></>
+            : <><span /><span className="rp-min">{minLabel(e)}</span>{content}</>
+          return canReplay
+            ? <button key={i} className={`rp-row ${left ? 'home' : 'away'} goal tap`} onClick={() => onGoal(e)} aria-label={`Replay ${main}'s goal`}>{body}</button>
+            : <div key={i} className={`rp-row ${left ? 'home' : 'away'} ${goal ? 'goal' : ''}`}>{body}</div>
+        })}
+      </div>
       {key.some((e) => isGoal(e) && e.chain?.length) && <div className="rp-hint tiny dim"><Icon name="play" size={11} /> Tap a goal to see how it happened</div>}
     </div>
   )

@@ -150,10 +150,12 @@ img { user-select: none; -webkit-user-drag: none; }
 /* ---------- top bar ---------- */
 .topbar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 30;
-  padding: calc(var(--sat) + 8px) 12px 8px;
-  display: flex; align-items: center; gap: 8px; height: calc(var(--sat) + 56px);
-  background: linear-gradient(180deg, rgba(5, 7, 12, 0.96) 55%, rgba(5, 7, 12, 0));
-  backdrop-filter: blur(10px);
+  padding: calc(var(--sat) + 8px) 12px 14px;
+  display: flex; align-items: center; gap: 8px; height: calc(var(--sat) + 62px);
+  /* solid behind the title and its subtitle (what scrolls under them never shows through the text), fading out only
+     in the strip below them */
+  background: linear-gradient(180deg, rgba(5, 7, 12, 0.96) 0%, rgba(5, 7, 12, 0.94) 82%, rgba(5, 7, 12, 0));
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
 }
 .topbar .title { font-family: var(--display); font-weight: 700; text-transform: uppercase; font-size: 19px; letter-spacing: 0.03em; }
 .topbar .title.long { font-size: 16.5px; letter-spacing: 0.02em; }

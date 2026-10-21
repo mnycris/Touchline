@@ -553,6 +553,12 @@ select.input option { background: #151b27; }
 .md-footer .btn.primary { font-size: 17px; }
 .prob-bar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; }
 .prob-bar i { display: block; height: 100%; }
+/* a club's last five: who, their record over them, then each result (oldest first) */
+.fs-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.fs-row + .fs-row { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.fs-who { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fs-chips { flex: none; display: flex; gap: 6px; justify-content: flex-end; }
+@media (max-width: 359px) { .fs-who { display: none; } .fs-chips { flex: 1 1 auto; gap: 4px; } .fs-chips .fc-score { min-width: 32px; padding: 3px 4px; } }
 .form-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .fc-score { font-family: var(--display); font-weight: 800; font-size: 13px; padding: 3px 6px; border-radius: 6px; min-width: 36px; text-align: center; color: #fff; }
 .fc-score.W { background: #13a85a; }
@@ -1433,7 +1439,9 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .rp-motm-stats span { display: inline-flex; align-items: center; gap: 4px; }
 /* timeline */
 .rp-tl { position: relative; padding: 6px 0; overflow: hidden; }
-.rp-tl::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line2); }
+.rp-tl-rows { position: relative; }
+/* the spine runs from the first minute to the full-time score and no further (not on through the hint below) */
+.rp-tl-rows::before { content: ''; position: absolute; left: 50%; top: 16px; bottom: 18px; width: 1px; background: var(--line2); }
 .rp-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 46px minmax(0, 1fr); align-items: center; width: 100%; min-height: 46px; padding: 3px 0; text-align: inherit; }
 .rp-side { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 0 8px; }
 .rp-row.home .rp-side { flex-direction: row-reverse; text-align: right; }

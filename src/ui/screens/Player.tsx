@@ -93,9 +93,7 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
       <PlayerActions w={w} p={p} mine={mine} />
       {mine && <Promises w={w} p={p} />}
 
-      <div style={{ marginTop: 14 }}>
-        <Tabs sticky items={[{ id: 'attributes', label: 'Attributes' }, { id: 'playstyles', label: 'PlayStyles' }, { id: 'stats', label: 'Stats' }, { id: 'career', label: 'Career' }, ...(mine ? [{ id: 'development' as Tab, label: 'Development' }] : [])]} value={tab} onChange={setTab} />
-      </div>
+      <Tabs sticky style={{ marginTop: 14 }} items={[{ id: 'attributes', label: 'Attributes' }, { id: 'playstyles', label: 'PlayStyles' }, { id: 'stats', label: 'Stats' }, { id: 'career', label: 'Career' }, ...(mine ? [{ id: 'development' as Tab, label: 'Development' }] : [])]} value={tab} onChange={setTab} />
       {tab === 'attributes' && <AttributesTab w={w} p={p} vis={vis} />}
       {tab === 'playstyles' && <PlayStylesTab p={p} vis={vis} />}
       {tab === 'stats' && <StatsTab w={w} p={p} />}
@@ -261,7 +259,7 @@ function AttributesTab({ w, p, vis }: { w: World; p: Player; vis: 'all' | 'parti
       <div className="attr-grid">
         {groups.map((g) => (
           <div key={g.key} className="card pad-card" style={{ padding: 12 }}>
-            <div className="row between"><span className="label">{g.label}</span><b className="num">{vis === 'none' ? '??' : Math.round(g.attrs.reduce((a, k) => a + p.attrs[A[k]], 0) / g.attrs.length)}</b></div>
+            <div className="row between"><span className="label">{g.label}</span><b className="num">{vis === 'none' ? '??' : fs.find((f) => f.key === g.key)?.value ?? Math.round(g.attrs.reduce((a, k) => a + p.attrs[A[k]], 0) / g.attrs.length)}</b></div>
             {g.attrs.map((k, i) => <StatRow key={k} label={ATTR_LABEL[k]} v={p.attrs[A[k]]} hidden={!known(k, i)} gain={gains.get(k)} />)}
           </div>
         ))}
