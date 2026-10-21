@@ -1433,8 +1433,9 @@ select.input option { background: #151b27; }
 .sm-ring { animation: smRing 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes smRing { 0% { opacity: .9; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.5); } }
 .sm-path line { animation: smPath .48s cubic-bezier(.3, .7, .3, 1) forwards; }
-.sm-fly { transform: translate(var(--x1), var(--y1)); animation: smFly .48s cubic-bezier(.3, .7, .3, 1) forwards; filter: drop-shadow(0 .4px .6px rgba(0, 0, 0, .7)); }
-@keyframes smFly { from { transform: translate(var(--x1), var(--y1)); } to { transform: translate(var(--x2), var(--y2)); } }
+/* (several shots piled on one spot: which of them is showing) */
+.sm-pile { padding: 3px 8px; border-radius: 999px; background: var(--s3); color: var(--t1); font-weight: 700; white-space: nowrap; animation: fadeIn .2s ease both; }
+.pms-pile { align-self: center; margin: 2px auto 6px; width: fit-content; }
 @keyframes smPath { to { stroke-dashoffset: 0; } }
 .sm-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; padding: 8px 0 2px; }
 .sm-legend span { display: inline-flex; align-items: center; gap: 5px; }

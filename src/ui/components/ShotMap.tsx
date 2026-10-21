@@ -1,8 +1,9 @@
 // FotMob-style shot map, drawn from what the simulation actually did: every shot where it was taken, sized by xG,
-// marked by outcome (goal, on target, off target, blocked, woodwork). Tap one and the ball travels its path to where it
-// really ended (the net, the keeper, the blocker, wide), and the goal frame beside it shows where it went in the goal
-// mouth, easing out to keep a wild one in view. It works live (it updates as shots come) and for one player alone.
-import { useMemo, useState } from 'react'
+// marked by outcome (goal, on target, off target, blocked, woodwork). Tap one and its path draws out from where it was
+// struck to where it really ended (the net, the keeper, the blocker, wide), and the goal frame beside it shows where it
+// went in the goal mouth, easing out to keep a wild one in view. Shots on top of each other are picked in turn: tapping
+// the same spot again moves to the next one there. It works live (it updates as shots come) and for one player alone.
+import { useId, useMemo, useState, type MouseEvent as RMouseEvent } from 'react'
 import type { MatchEvent, World } from '../../domain/types'
 import { PitchSurface, Markings } from './PitchSurface'
 import { Badge, Face } from './atoms'
@@ -86,17 +87,41 @@ function ShotMark({ s, cx, cy, rad, c }: { s: Shot; cx: number; cy: number; rad:
 }
 
 /**
- * The selected shot's flight: the line drawn from where it was struck to where the ball really stopped (a block
- * stops it at the blocker), with the ball travelling along it.
+ * The selected shot's flight: the line drawn out from where it was struck to where the ball really stopped (a block
+ * stops it at the blocker), strongest at the shot and fading toward where it ended. The shot's own mark is the ball.
  */
-function Flight({ x1, y1, x2, y2, c, own }: { x1: number; y1: number; x2: number; y2: number; c: string; own?: boolean }) {
+function Flight({ x1, y1, x2, y2, c }: { x1: number; y1: number; x2: number; y2: number; c: string }) {
   const len = Math.hypot(x2 - x1, y2 - y1)
+  const id = `smf${useId().replace(/[^a-zA-Z0-9]/g, '')}`
   return (
-    <g className="sm-path" style={{ ['--len' as any]: len.toFixed(1), ['--x1' as any]: `${x1}px`, ['--y1' as any]: `${y1}px`, ['--x2' as any]: `${x2}px`, ['--y2' as any]: `${y2}px` }}>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={c} strokeWidth=".6" strokeLinecap="round" strokeDasharray={len} strokeDashoffset={len} />
-      <g className="sm-fly"><BallG cx={0} cy={0} r={1.35} own={own} /></g>
+    <g className="sm-path">
+      <defs>
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1={x1} y1={y1} x2={x2} y2={y2}>
+          <stop offset="0" stopColor={c} stopOpacity="1" />
+          <stop offset="1" stopColor={c} stopOpacity=".28" />
+        </linearGradient>
+      </defs>
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={`url(#${id})`} strokeWidth=".6" strokeLinecap="round" strokeDasharray={len} strokeDashoffset={len} />
     </g>
   )
+}
+
+/** Where a tap lands, in the coordinates of the element it was made on (the map's own units). */
+function tapAt(e: RMouseEvent<SVGGraphicsElement>) {
+  const m = e.currentTarget.getScreenCTM()
+  return m ? new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()) : undefined
+}
+/**
+ * Which shot a tap means: of the marks under the finger, the nearest; tapping a pile of them again moves on to the next
+ * one in the pile (in the order they were taken), instead of picking the one already shown. Also how many are there.
+ */
+function pickAt(list: Shot[], x: number, y: number, cur?: Shot): { s: Shot; n: number; i: number } | undefined {
+  const d = (s: Shot) => Math.hypot(X(s.x) - x, Y(s.y) - y)
+  const under = list.filter((s) => d(s) <= rOf(s) + 2.2)
+  if (!under.length) return undefined
+  const pile = [...under].sort((a, b) => a.e.min - b.e.min || (a.e.add || 0) - (b.e.add || 0) || list.indexOf(a) - list.indexOf(b))
+  const s = cur && pile.includes(cur) && pile.length > 1 ? pile[(pile.indexOf(cur) + 1) % pile.length] : [...under].sort((a, b) => d(a) - d(b))[0]
+  return { s, n: pile.length, i: pile.indexOf(s) }
 }
 
 const X = (v: number) => (v / 100) * 105, Y = (v: number) => (v / 100) * 68
@@ -109,12 +134,24 @@ export function ShotMap({ w, events, home, away, colors, live }: { w: World; eve
   const list = all.filter((s) => half === 'all' || (half === '1' ? s.e.min <= 45 : s.e.min > 45))
   // the selection is a shot, not a position in the list, so it stays put as new shots arrive
   const [selE, setSelE] = useState<MatchEvent>()
+  // a tap on a pile of shots: which of how many is showing (cleared when a shot is picked another way)
+  const [pile, setPile] = useState<{ i: number; n: number }>()
   if (!all.length) return null
   const idx = Math.max(0, selE ? list.findIndex((s) => s.e === selE) : -1)
   const def = live ? list.length - 1 : Math.max(0, list.findIndex((s) => s.res === 'goal'))
   const cur = list[selE && list.some((s) => s.e === selE) ? idx : def]
   const curI = cur ? list.indexOf(cur) : 0
-  const move = (d: number) => { haptic(); setSelE(list[(curI + d + list.length) % list.length].e) }
+  const move = (d: number) => { haptic(); setPile(undefined); setSelE(list[(curI + d + list.length) % list.length].e) }
+  const tap = (e: RMouseEvent<SVGGraphicsElement>) => {
+    const at = tapAt(e)
+    const hit = at && pickAt(list, at.x, at.y, cur)
+    if (!hit) return
+    haptic()
+    setSelE(hit.s.e)
+    setPile(hit.n > 1 ? { i: hit.i, n: hit.n } : undefined)
+  }
+  // (the selected shot is drawn last, on top of any it overlaps)
+  const order = cur ? [...list.filter((s) => s !== cur), cur] : list
   const p = cur?.e.player ? w.players[cur.e.player] : undefined
   const club = cur ? w.clubs[cur.side === 0 ? home : away] : undefined
   const tally = (side: 0 | 1) => { const s = all.filter((x) => x.side === side); return { n: s.length, xg: s.reduce((a, x) => a + x.xg, 0) } }
@@ -125,22 +162,22 @@ export function ShotMap({ w, events, home, away, colors, live }: { w: World; eve
     <div className="card shotmap">
       <div className="card-h"><span className="label">Shot map{live ? <span className="sm-live">Live</span> : null}</span><span className="tiny dim">{th.n}–{ta.n} shots · xG {th.xg.toFixed(2)}–{ta.xg.toFixed(2)}</span></div>
       <div className="sm-seg">
-        {(['all', '1', '2'] as const).map((k) => <button key={k} className={half === k ? 'on' : ''} onClick={() => { haptic(); setHalf(k); setSelE(undefined) }}>{k === 'all' ? 'All' : k === '1' ? '1st half' : '2nd half'}</button>)}
+        {(['all', '1', '2'] as const).map((k) => <button key={k} className={half === k ? 'on' : ''} onClick={() => { haptic(); setHalf(k); setSelE(undefined); setPile(undefined) }}>{k === 'all' ? 'All' : k === '1' ? '1st half' : '2nd half'}</button>)}
       </div>
       <div className="sm-pitch">
         <PitchSurface goals pad={2.6} thin>
-          <svg className="sm-svg" viewBox={`-2.6 -2.6 ${105 + 5.2} ${68 + 5.2}`} preserveAspectRatio="none">
-            {list.map((s, i) => {
-              const rad = rOf(s)
+          <svg className="sm-svg" viewBox={`-2.6 -2.6 ${105 + 5.2} ${68 + 5.2}`} preserveAspectRatio="none" onClick={tap}>
+            {order.map((s) => {
+              const rad = rOf(s), i = list.indexOf(s)
               return (
-                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} onClick={() => { haptic(); setSelE(s.e) }} style={{ ['--d' as any]: `${Math.min(i, 20) * 18}ms` }}>
+                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} style={{ ['--d' as any]: `${Math.min(i, 20) * 18}ms` }}>
                   <circle cx={X(s.x)} cy={Y(s.y)} r={rad + 2.2} fill="transparent" />
                   {s === cur && <circle className="sm-ring" cx={X(s.x)} cy={Y(s.y)} r={rad + 1.3} fill="none" stroke={col(s)} strokeWidth=".45" />}
                   <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rad} c={col(s)} />
                 </g>
               )
             })}
-            {cur && <Flight key={`${half}:${curI}:${cur.e.min}`} x1={X(cur.x)} y1={Y(cur.y)} x2={X(cur.ex)} y2={Y(cur.ey)} c={col(cur)} own={cur.e.type === 'owngoal'} />}
+            {cur && <Flight key={`${half}:${curI}:${cur.e.min}`} x1={X(cur.x)} y1={Y(cur.y)} x2={X(cur.ex)} y2={Y(cur.ey)} c={col(cur)} />}
           </svg>
         </PitchSurface>
         <div className="sm-legend tiny dim">
@@ -156,7 +193,7 @@ export function ShotMap({ w, events, home, away, colors, live }: { w: World; eve
               <b className="sm-min">{cur.e.min}{cur.e.add ? `+${cur.e.add}` : ''}'</b>
               {p ? <><Face p={p} size={26} radius={13} club={club} /><span className="small b ellipsis">{callName(p.name)}</span></> : <span className="small dim">Shot</span>}
             </span>
-            <span className="tiny dim">{curI + 1}/{list.length}</span>
+            {pile ? <span className="sm-pile tiny" key={`p${curI}`}>{pile.i + 1} of {pile.n} here</span> : <span className="tiny dim">{curI + 1}/{list.length}</span>}
             <button className="iconbtn sm-nav" onClick={() => move(1)} aria-label="Next shot"><Icon name="forward" size={16} /></button>
           </div>
           <ShotBody s={cur} w={w} color={col(cur)} k={`${curI}${half}`} />
@@ -194,6 +231,7 @@ function ShotBody({ s, w, color, k }: { s: Shot; w: World; color: string; k: str
 export function PlayerShots({ w, events, player, color }: { w: World; events: MatchEvent[]; player: number; color: string }) {
   const mine = useMemo(() => shotsOf(events).filter((s) => s.e.player === player && s.e.type !== 'owngoal'), [events, events.length, player])
   const [sel, setSel] = useState(-1)
+  const [pile, setPile] = useState<{ i: number; n: number }>()
   if (!mine.length) return null
   // every shot turned to attack the right-hand goal
   const norm = (s: Shot) => (s.side === 0 ? s : { ...s, x: 100 - s.x, y: 100 - s.y, ex: 100 - s.ex, ey: 100 - s.ey })
@@ -201,6 +239,15 @@ export function PlayerShots({ w, events, player, color }: { w: World; events: Ma
   const cur = list[sel >= 0 && sel < list.length ? sel : Math.max(0, list.findIndex((s) => s.res === 'goal'))]
   const ci = list.indexOf(cur)
   const xg = list.reduce((a, s) => a + s.xg, 0)
+  const tap = (e: RMouseEvent<SVGGraphicsElement>) => {
+    const at = tapAt(e)
+    const hit = at && pickAt(list, at.x, at.y, cur)
+    if (!hit) return
+    haptic()
+    setSel(list.indexOf(hit.s))
+    setPile(hit.n > 1 ? { i: hit.i, n: hit.n } : undefined)
+  }
+  const order = [...list.filter((s) => s !== cur), cur]
   return (
     <div className="pmp-shots">
       <div className="pmp-hh"><span>Shots</span><span className="pmp-hh-n">{list.length} · xG <b>{xg.toFixed(2)}</b></span></div>
@@ -208,13 +255,13 @@ export function PlayerShots({ w, events, player, color }: { w: World; events: Ma
         <svg viewBox="-3.5 -4 75 58" className="pms-svg">
           <rect x="-4" y="-5" width="77" height="64" fill="var(--pitch)" />
           {/* the pitch turned so he attacks up the screen: across is the pitch's width, up is toward goal */}
-          <g transform="matrix(0 -1 1 0 0 105)">
+          <g transform="matrix(0 -1 1 0 0 105)" onClick={tap}>
             <Markings L={105} sw={0.9} />
             <path d="M105 30.34h2.2v7.32H105" fill="none" stroke="var(--pitch-line)" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
-            {list.map((s, i) => {
-              const rad = rOf(s)
+            {order.map((s) => {
+              const rad = rOf(s), i = list.indexOf(s)
               return (
-                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} onClick={() => { haptic(); setSel(i) }} style={{ ['--d' as any]: `${i * 30}ms` }}>
+                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} style={{ ['--d' as any]: `${i * 30}ms` }}>
                   <circle cx={X(s.x)} cy={Y(s.y)} r={rad + 2.2} fill="transparent" />
                   {s === cur && <circle className="sm-ring" cx={X(s.x)} cy={Y(s.y)} r={rad + 1.3} fill="none" stroke={color} strokeWidth=".45" />}
                   <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rad} c={color} />
@@ -229,11 +276,12 @@ export function PlayerShots({ w, events, player, color }: { w: World; events: Ma
         <>
           <div className="pms-pick">
             {list.map((s, i) => (
-              <button key={i} className={`pms-chip ${i === ci ? 'on' : ''}`} onClick={() => { haptic(); setSel(i) }}>
+              <button key={i} className={`pms-chip ${i === ci ? 'on' : ''}`} onClick={() => { haptic(); setPile(undefined); setSel(i) }}>
                 <b className="num">{s.e.min}{s.e.add ? `+${s.e.add}` : ''}'</b><span>{RESULT[s.res] === 'Hit the woodwork' ? 'Woodwork' : RESULT[s.res]}</span>
               </button>
             ))}
           </div>
+          {pile && <div className="sm-pile tiny pms-pile" key={`p${ci}`}>{pile.i + 1} of {pile.n} shots here · tap again for the next</div>}
           <ShotBody s={cur} w={w} color={color} k={String(ci)} />
         </>
       )}
