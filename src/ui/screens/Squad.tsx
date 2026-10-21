@@ -1,7 +1,7 @@
 import { useRemember } from '../memory'
 import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
-import type { Player, Position, World } from '../../domain/types'
+import type { Player, Position, Suspension, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, Face, Ovr, PosChip, Empty } from '../components/atoms'
 import { Chips, HubActions, Screen, Seg } from '../components/layout'
@@ -276,6 +276,14 @@ function LoanedOutSection({ w }: { w: World }) {
   )
 }
 
+const SCOPE_WORD: Record<Suspension['scope'], string> = { all: '', league: 'league', cup: 'cup', continental: 'European', intl: 'international' }
+/** "2 Champions League matches", "1 league match", "3 matches". */
+function suspensionText(w: World, s: Suspension) {
+  const comp = s.compId ? Object.values(w.competitions).find((c) => c.id === s.compId || (c.key === s.compId && c.season === w.season)) : undefined
+  const what = comp?.short || SCOPE_WORD[s.scope]
+  return `${s.matches} ${what ? `${what} ` : ''}match${s.matches > 1 ? 'es' : ''}`
+}
+
 export function SquadStatus() {
   const w = useWorld()
   const squad = rosterOf(w, w.userClubId)
@@ -294,7 +302,7 @@ export function SquadStatus() {
     <Screen title="Squad Status" back>
       {!inj.length && !sus.length && !tired.length && !unhappy.length && !intl.length && <Empty icon="check" title="All clear" text="Everyone is fit, available and happy." />}
       <Section title="Injured" list={inj} sub={(p) => `${p.injury!.type} · back ${fmtDate(p.injury!.until, 'dm')}`} />
-      <Section title="Suspended" list={sus} sub={(p) => p.suspensions.map((s) => `${s.matches} ${s.scope === 'all' ? 'match' : s.scope}${s.matches > 1 ? 'es' : ''}`).join(', ')} />
+      <Section title="Suspended" list={sus} sub={(p) => p.suspensions.map((s) => suspensionText(w, s)).join(', ')} />
       <Section title="International duty" list={intl} sub={(p) => { const nt = dutyTeam(w, p); const next = nt && fixturesOf(w, nt.id).find((f) => !f.played); return nt ? `${nt.short}${next ? ` · v ${w.clubs[next.home === nt.id ? next.away : next.home]?.short} ${fmtDate(next.date, 'dm')}` : ''}` : p.nation }} />
       <Section title="Low energy" list={tired} sub={(p) => `${Math.round(p.fitness)}% energy`} />
       <Section title="Unhappy" list={unhappy} sub={(p) => `${moraleLevel(p.morale)} · form ${formLabel(p)}`} />

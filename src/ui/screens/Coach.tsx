@@ -18,10 +18,10 @@ export function managerNews(w: World, m: Manager) {
   return w.news.filter((n) => n.quote?.by === m.name || n.headline.includes(m.name) || (n.kind === 'manager' && !!m.clubId && n.clubIds.includes(m.clubId) && (!m.appointed || n.date >= m.appointed)))
 }
 
-export function CoachProfile({ params }: { params: { id: number } }) {
+export function CoachProfile({ params }: { params?: { id: number } }) {
   const w = useWorld()
   const go = useGame((s) => s.go)
-  const m = w.managers[params.id]
+  const m = params ? w.managers[params.id] : undefined
   if (!m) return <Screen title="Manager" back><Empty icon="manager" title="Manager not found" /></Screen>
   const club = w.clubs[m.clubId]
   const st = club && !club.national ? standing(w, club.id) : undefined

@@ -95,7 +95,7 @@ export function TransferRow({ w, s, mine, onClick }: { w: World; s: TransferStor
       <div className="tr-meta">
         <div className="row tight" style={{ minWidth: 0 }}><b className="small ellipsis">{callName(p.name)}</b>{mine && <span className="tc-you sm">You</span>}</div>
         <div className="tr-note tiny">{last.note}</div>
-        <div className="row tight tiny" style={{ marginTop: 3, gap: 6 }}><span className={`tr-stage ${tone}`}>{STAGE_LABEL[s.stage]}</span>{fee && <b>{fee}</b>}<span className="dim">{ago(w, s.updated)}</span></div>
+        <div className="tr-line tiny"><span className={`tr-stage ${tone}`}>{STAGE_LABEL[s.stage]}</span>{fee && <b>{fee}</b>}<span className="dim">{ago(w, s.updated)}</span></div>
       </div>
     </button>
   )

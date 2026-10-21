@@ -68,9 +68,9 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
       {forMatch && <MatchSheetBar w={w} fixtureId={forMatch.id} />}
       {tab === 'lineup' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
-          <div className="row between">
-            <button className="btn sm" onClick={() => setFormOpen(true)}><Icon name="grid" size={16} /> {f.name}</button>
-            <div className="row tight tiny"><span className="dim">ATT</span><b>{chem.att}</b><span className="dim">MID</span><b>{chem.mid}</b><span className="dim">DEF</span><b>{chem.def}</b><Ovr v={chem.ovr} size="sm" /></div>
+          <div className="row between" style={{ gap: 8 }}>
+            <button className="btn sm" style={{ minWidth: 0, flexShrink: 1 }} onClick={() => setFormOpen(true)}><Icon name="grid" size={16} /> <span className="ellipsis" style={{ minWidth: 0 }}>{f.name}</span></button>
+            <div className="row tight tiny" style={{ flex: 'none' }}><span className="dim">ATT</span><b>{chem.att}</b><span className="dim">MID</span><b>{chem.mid}</b><span className="dim">DEF</span><b>{chem.def}</b><Ovr v={chem.ovr} size="sm" /></div>
           </div>
           <Pitch formation={f} spaced render={(i) => {
             const p = P(sheet.lineup[i])
