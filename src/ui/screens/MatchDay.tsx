@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Fixture, Player, TeamSheet, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { compIdentity, identityClass, identityVars } from '../compIdentity'
+import { compIdentity, identityClass, identityVars, pageIdentity } from '../compIdentity'
 import { IdentityArt } from '../components/IdentityArt'
 import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
@@ -67,6 +67,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
 
   const comp = w.competitions[f.compId]
   const ci = compIdentity(comp?.key)
+  // a big competition's match day is in its brand all the way down, as its own page is
+  const pi = ci ? pageIdentity(ci) : undefined
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const us: 0 | 1 = f.home === w.userClubId ? 0 : 1
   const club = w.clubs[w.userClubId]
@@ -120,7 +122,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const view = tab === 'table' && !ctxTable ? (hasBracket ? 'bracket' : 'preview') : tab === 'bracket' && !hasBracket ? (ctxTable ? 'table' : 'preview') : tab
   const colors = kitColors(home, away)
   return (
-    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={back} noNav style={kitVars(colors)}
+    <Screen title={isToday ? 'Match Day' : 'Match Preview'} sub={`${comp?.name} · ${f.roundName}`} back onBack={back} noNav className={pi ? `md-page ${pi.className}` : 'md-page'} style={{ ...pi?.style, ...kitVars(colors) }}
       right={w.meta.editMode ? <button className={`iconbtn edit-btn ${w.scripts?.[f.id] ? 'on' : ''}`} aria-label="Edit match" onClick={() => { haptic('medium'); useGame.getState().notify('Edit match', 'edit'); setScripting(true) }}><Icon name="edit" size={19} strokeWidth={2.1} /></button> : undefined}
       footer={isToday ? (
         <div className="md-footer">

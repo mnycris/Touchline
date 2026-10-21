@@ -359,6 +359,7 @@ html.rm *::before, html.rm *::after {
   transition-duration: 1ms !important; transition-delay: 0s !important; scroll-behavior: auto !important;
 }
 html.rm .ci-light { opacity: 0 !important; }
+html.rm .ci::before { background-position: -40% 0, 0 0 !important; }
 
 /* ---------- the club's fog at the top of the screens (App.tsx ClubFog) ----------
    Soft light in the club's colours, drifting slowly the way the main menu's does, but quieter: three blobs of the

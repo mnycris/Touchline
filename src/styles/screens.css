@@ -2365,12 +2365,27 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   background: var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent)); }
 /* a logo shown in white on a coloured field: the competition's own version for it (LALIGA on its coral) */
 .ci-white-logo .comp-logo { filter: brightness(0) invert(1); }
-/* the light of the big nights: a slow sweep across the field, a spectrum turning through the starball */
-.ci-light { inset: -40% -60%; opacity: 0; background: linear-gradient(100deg, transparent 43%, rgba(255, 255, 255, .1) 50%, transparent 57%); }
-.ci-sheen .ci-light, .ci-prism .ci-light { opacity: 1; animation: ci-sweep 12s cubic-bezier(.45, 0, .2, 1) infinite; }
-@keyframes ci-sweep { 0%, 16% { transform: translateX(-42%); } 66%, 100% { transform: translateX(42%); } }
+/* the light of the big nights: now and then light passes over the field the way it crosses glossy card, a faint wide
+   bloom around a fine bright core, at the angle of the identity's own lines and in its own tint (--ci-sheen), adding
+   light to the colours under it rather than laying grey over them. One quick eased pass a moment after the card
+   appears, then every nine seconds, and the hairline along the top catches it as it crosses. */
+.ci { --ci-sheen: 255, 255, 255; }
+.ci-light { inset: -40% -60%; opacity: 0; mix-blend-mode: screen;
+  background: linear-gradient(112deg, transparent 36%, rgba(var(--ci-sheen), .025) 42%, rgba(var(--ci-sheen), .07) 46.5%,
+    rgba(var(--ci-sheen), .2) 49.4%, rgba(var(--ci-sheen), .26) 50%, rgba(var(--ci-sheen), .2) 50.6%,
+    rgba(var(--ci-sheen), .07) 53.5%, rgba(var(--ci-sheen), .025) 58%, transparent 64%); }
+.ci-sheen .ci-light, .ci-prism .ci-light { opacity: 1; animation: ci-sweep 9s 1.1s cubic-bezier(.6, 0, .3, 1) infinite both; }
+@keyframes ci-sweep { 0% { transform: translateX(-46%); } 21%, 100% { transform: translateX(46%); } }
+.ci-sheen::before, .ci-prism::before {
+  background: linear-gradient(90deg, transparent, rgba(var(--ci-sheen), .95) 50%, transparent) -40% 0 / 26% 100% no-repeat,
+    var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent));
+  animation: ci-edge-glint 9s 1.1s cubic-bezier(.6, 0, .3, 1) infinite both; }
+@keyframes ci-edge-glint { 0%, 3% { background-position: -40% 0, 0 0; } 17%, 100% { background-position: 140% 0, 0 0; } }
+.ci-DFB, .ci-CDR, .ci-WC { --ci-sheen: 255, 228, 168; }
+.ci-EURO { --ci-sheen: 214, 228, 255; }
+.ci-UCL { --ci-sheen: 226, 232, 255; }
 @keyframes ci-hue { from { filter: blur(5px) hue-rotate(0deg); } to { filter: blur(5px) hue-rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .ci .ci-light, .ci .ci-mark { animation: none !important; } .ci .ci-light { opacity: 0 !important; } }
+@media (prefers-reduced-motion: reduce) { .ci .ci-light, .ci .ci-mark, .ci::before { animation: none !important; } .ci .ci-light { opacity: 0 !important; } }
 
 /* Champions League: "Kick of Light" (2024-27). The starball's night blue (#00004b, from the logo); white light
    split into a spectrum through the starball, its glass catching the light */
@@ -2495,6 +2510,18 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
 .md-head.ci-FACUP { --ci-md-op: .2; }
+/* match day in the competition's identity (.cis, as its own page): the band runs into the page instead of stopping on
+   a grey slab, and the actions and the kick-off bar take the brand's tint and accent */
+.md-page.cis .md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .16) 0%, rgba(0, 0, 0, .3) 52%, var(--bg) 100%), var(--ci-field); }
+.md-page.cis .md-head.ci-white-logo { background: linear-gradient(180deg, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, .42) 52%, var(--bg) 100%), var(--ci-field); }
+.md-page.cis .md-act { background: linear-gradient(180deg, rgba(var(--cis-rgb), .16), rgba(var(--cis-rgb), .07)), var(--s1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .2); }
+.md-page.cis .md-act:active { background: linear-gradient(180deg, rgba(var(--cis-rgb), .26), rgba(var(--cis-rgb), .12)), var(--s1); }
+.md-page.cis .md-act svg { color: var(--ci-acc); }
+.md-page.cis .md-act.own { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ci-acc) 60%, transparent); }
+.md-page.cis .md-countdown { background: linear-gradient(180deg, rgba(var(--cis-rgb), .18), rgba(var(--cis-rgb), .08)), var(--s2); color: #fff; box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .22); }
+.md-page.cis .md-countdown svg { color: var(--ci-acc); }
+/* (Play match keeps the app's own green: it is the same action on every match day) */
+.md-page.cis .md-footer .btn:not(.primary) { background: linear-gradient(180deg, rgba(var(--cis-rgb), .2), rgba(var(--cis-rgb), .09)), var(--s2); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .24); }
 .md-head.ci-white-logo { background: linear-gradient(180deg, rgba(0, 0, 0, .3) 0%, rgba(0, 0, 0, .44) 55%, var(--s1) 97%), var(--ci-field); }
 
 /* ---------- narrow phones (320–359px: iPhone SE and the like): the same layouts, made to fit ---------- */

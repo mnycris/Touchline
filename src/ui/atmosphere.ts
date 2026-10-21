@@ -34,6 +34,11 @@ export function atmosphereFor(w: World, r: Route | undefined): Atmosphere | unde
     const ci = compIdentity(c.key)
     return ci ? ci.fog : NEUTRAL
   }
+  if (r.name === 'prematch' && p?.id != null) {
+    // match day is lit by the competition when it has a brand, by the manager's own club otherwise
+    const f = w.fixtures[String(p.id)]
+    return compIdentity(f && w.competitions[f.compId]?.key)?.fog
+  }
   if (r.name === 'club' && p?.id != null) {
     const club = w.clubs[Number(p.id)]
     return club && club.id !== w.userClubId ? clubAir(club) : undefined

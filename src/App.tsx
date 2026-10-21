@@ -92,6 +92,9 @@ function Career() {
   const ovKey = ov ? `ov:${overlay.length}:${ov.name}` : ''
   const layerIn = useEnterClass(layerKey, 'layer')
   const ovIn = useEnterClass(ovKey, 'overlay')
+  // an overlay has the air of what it is about when that is something of its own (a competition's match day, a
+  // competition or another club opened from one); otherwise it keeps the plain top it always had
+  const ovAtmo = ov ? atmosphereFor(useGame.getState().world!, ov) : undefined
   return (
     <>
       <div className={`layer ${layerIn}`} key={layerKey}>
@@ -105,6 +108,7 @@ function Career() {
       <Spotlight />
       {Ov && (
         <div className={`overlay ${ovIn}`} key={ovKey}>
+          {ovAtmo && <ClubFog atmo={ovAtmo} />}
           <ViewKey.Provider value={viewKeyFor('ov', overlay.length, ov.name, ov.params)}>
             <Ov params={ov.params} />
           </ViewKey.Provider>
