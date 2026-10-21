@@ -163,8 +163,8 @@ const HOLD = 700
 const faceOf = new Map<number, string>()
 
 // the headshot that worked for each player, remembered across sessions so a later launch goes straight to it (no walk
-// through sources that fail, no silhouette flashing to a face). A current-season photo is kept; an older one is
-// tried again after two weeks, in case a newer one has been published since.
+// through sources that fail, no silhouette flashing to a face). Only a current-season (FC 27) face is used that way
+// (see storedFace).
 // (v2: the order changed to this season's FC 27 faces first; a remembered older photo is forgotten)
 const FACE_KEY = 'opus:faces:v2'
 const CURRENT = /\/2027\/fut\/|\/27_\d+\.png|fifa27|fc27/
@@ -180,10 +180,12 @@ function rememberFace(playerId: number, url: string) {
   window.clearTimeout(faceTimer)
   faceTimer = window.setTimeout(() => { try { localStorage.setItem(FACE_KEY, JSON.stringify(faceStore)) } catch { /* quota */ } }, 2000)
 }
+/** A face remembered from an earlier session, only if it is this season's: an older one (FC 26, a 2024/25 photo) is
+ *  never shown ahead of the FC 27 sources, which are tried again every session (a scan that failed once, or was
+ *  published since, then takes over), and falls back to the older face only if they still fail. */
 function storedFace(playerId: number): string | undefined {
   const e = faceStore[playerId]
-  if (!e) return undefined
-  return CURRENT.test(e[0]) || Date.now() - e[1] < 14 * 864e5 ? e[0] : undefined
+  return e && CURRENT.test(e[0]) ? e[0] : undefined
 }
 
 export function markLoaded(url: string, playerId?: number) {

@@ -7,7 +7,9 @@ import type { MatchSim } from '../../engine/match/engine'
 import { callName } from '../../engine/match/commentary'
 import { chanceLabel, observe, spanOf, type Involvement, type Obs, type Span } from '../../engine/match/analysis'
 import { Icon } from '../icons/Icon'
-import { haptic } from '../../store/game'
+import { haptic, useGame } from '../../store/game'
+import { SHOUT, advise, setShouts, shoutsOn, toggleShout } from '../shouts'
+import { describeChange } from '../tacticsGuide'
 
 const TONE_ICON: Record<Obs['tone'], string> = { good: 'pos', bad: 'neg', neutral: 'neu' }
 /** our colour and theirs, from the match kits (home or away) */
@@ -168,6 +170,7 @@ export function HalfTimeReport({ sim, w, side, names, seed, onManage, onClose }:
         <button className="htr-x" onClick={() => { haptic(); onClose() }} aria-label="Close the report"><Icon name="close" size={16} /></button>
       </div>
       <Strip sp={r.span} names={names} />
+      <HalfTimeCall sim={sim} side={side} onSubs={() => onManage()} />
       <div className="htr-list">
         {head.length ? head.map((o) => <ObsRow key={o.key} o={o} onTap={o.player ? () => onManage(o.player) : undefined} />)
           : <div className="htr-quiet small muted">An even half with nothing out of the ordinary in the numbers.</div>}
@@ -185,6 +188,36 @@ export function HalfTimeReport({ sim, w, side, names, seed, onManage, onClose }:
         <button className="btn sm" onClick={() => { haptic(); onManage() }}><Icon name="tactics" size={15} /> Make changes</button>
       </div>
       <div className="tiny dim htr-note">{et ? 'The match so far.' : 'One half is a small sample: these are tendencies, not verdicts.'} Substitutions at the break don't use a window.</div>
+    </div>
+  )
+}
+
+/** The assistant's one call at the break, with its reason, made with one tap (and taken back the same way). */
+function HalfTimeCall({ sim, side, onSubs }: { sim: MatchSim; side: 0 | 1; onSubs: () => void }) {
+  const [made, setMade] = useState<string>()
+  const st = shoutsOn(sim, side)
+  const a = advise(sim, side, st.on)[0]
+  if (!a && !made) return null
+  const call = (id: Parameters<typeof toggleShout>[1]) => {
+    haptic('medium')
+    const before = { ...sim.sideTactics(side) }
+    const next = setShouts(sim, side, st.base, toggleShout(st.on, id))
+    sim.setTactics(side, next, false)
+    const text = describeChange(before, next)
+    if (text) sim.applyChange(side, text, { tactics: before, formation: sim.sideFormation(side) })
+    setMade(SHOUT[id].label)
+    useGame.getState().notify(`${SHOUT[id].label}: ${SHOUT[id].does.toLowerCase()}`, 'ok')
+  }
+  if (made) return <div className="htr-call made"><Icon name="check" size={15} color="var(--pos)" /><span className="small"><b>{made}</b> for the second half.</span></div>
+  return (
+    <div className={`htr-call ${a.tone}`}>
+      <span className="htr-call-i"><Icon name="chat" size={15} /></span>
+      <div className="grow" style={{ minWidth: 0 }}>
+        <div className="small b">{a.text}</div>
+        {a.why && <div className="tiny dim" style={{ marginTop: 2 }}>{a.why}</div>}
+      </div>
+      {a.shout && <button className="btn xs htr-call-do" onClick={() => call(a.shout!)}><Icon name={SHOUT[a.shout].icon} size={13} /> {SHOUT[a.shout].label}</button>}
+      {a.subs && <button className="btn xs htr-call-do" onClick={() => { haptic(); onSubs() }}><Icon name="sub" size={13} /> Changes</button>}
     </div>
   )
 }

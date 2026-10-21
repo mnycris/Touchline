@@ -209,8 +209,18 @@ const STAR_USE = 0.5
 const PASS_SKILL = 0.055
 /** How much of the last minutes' momentum carries into this one (see frame). */
 const MOM_CARRY = 0.45
+/** Seconds on the ball in a minute that count as one unit of pressure in the momentum graph (see frame). */
+const MOM_BALL = 75
 /** Men more (or fewer) who join an attack per step of mentality (see commit). */
 const COMMIT_MENT = 0.75
+/** How quickly pressing drains a side: each point of pressing above 50 adds 1/PRESS_DRAIN to its work rate. */
+const PRESS_DRAIN = 120
+/** How out of shape a press played through can be left at most (see dis). */
+const PRESS_BEATEN = 0.8
+/** How much the man on the ball's press resistance decides whether a challenge comes in at all (see pressDuel). */
+const PRESS_RES_K = 0.7
+/** The extra cost of every point of energy below 62 (physical) or 55 (technique and decisions). */
+const TIRED_K = 0.001
 /** How readily a man pressed hard in his own half clears it rather than trying to play out (see decide). */
 const HOOF = 2.5
 /** How strongly being pressed in his own half turns a man to the long ball (see decide), by how badly he copes with it. */
@@ -356,6 +366,8 @@ class Side {
   subsUsed = 0
   windowsUsed = 0
   aiMentality = 0
+  /** what an AI manager last read from the game (see aiRead), and the changes he has already made */
+  readAt = { lostOwn: 0, oppCtrShots: 0, done: [] as string[] }
   stats = emptyTeamStats()
   possSec = 0
   minSec = 0
@@ -619,9 +631,10 @@ export class MatchSim {
   private cond(l: LP) {
     const e = l.energy
     const S = this.sides?.[l.side]
-    const phyE = e >= 80 ? 1 : 1 - (80 - e) * 0.0033
-    const tecE = 1 - Math.max(0, 70 - e) * 0.0025
-    const menE = 1 - Math.max(0, 65 - e) * 0.003
+    // (tiredness bites harder the emptier the tank: the last few per cent cost more than the first)
+    const phyE = e >= 80 ? 1 : 1 - (80 - e) * 0.0033 - Math.max(0, 62 - e) * TIRED_K
+    const tecE = 1 - Math.max(0, 70 - e) * 0.0025 - Math.max(0, 55 - e) * TIRED_K * 0.6
+    const menE = 1 - Math.max(0, 65 - e) * 0.003 - Math.max(0, 55 - e) * TIRED_K * 0.6
     const sharp = clamp(l.p.sharpness, 0, 100) / 100
     const mor = 0.98 + 0.04 * ((clamp(l.p.morale, 0, 100) - 50) / 50)
     const big = this.ctx.importance >= 3 ? 1 + (l.p.hidden.bigMatch - 50) / 1500 : 1
@@ -1896,7 +1909,9 @@ export class MatchSim {
   private pressDuel(c: LP, d: LP, pr: number): number {
     const Yt = this.sides[d.side].tactics
     if (MatchSim.dbg && d.side === this.cpSide && this.cp > 0.05) { dbg(`s${d.side}.cpTry`); dbg(`s${d.side}.cpPr`, pr) }
-    const pCh = 0.155 * pr * (1 + d.bias.dw * 0.3) * (Yt.defApproach === 'Aggressive' ? 1.2 : 1) * (inBox(this.b) ? 1.6 : 1) * (d.side === this.cpSide ? 1 + 1 * this.cp : 1)
+    // (a composed, technical man on the ball sees the press coming and moves it on before it arrives; a poor one is
+    // caught on it: a press bites on the sides that can't play through it)
+    const pCh = 0.155 * pr * Math.pow(this.pressRes(c), PRESS_RES_K) * (1 + d.bias.dw * 0.3) * (Yt.defApproach === 'Aggressive' ? 1.2 : 1) * (inBox(this.b) ? 1.6 : 1) * (d.side === this.cpSide ? 1 + 1 * this.cp : 1)
     if (this.rng.next() >= pCh) return -1
     const X = this.sides[this.ps], Y = this.sides[1 - this.ps]
     c.st.duels++
@@ -2262,14 +2277,17 @@ export class MatchSim {
       this.chain.oneOnOne = false
       if (kind === 'switch') this.note('switch', 1, { p: callName(c.p.name), q: callName(r.p.name), t: X.name })
       // played through the press: the men who stepped out to win it are now behind the ball and the side pressing is out
-      // of shape for a few seconds, in proportion to how many it sent and how high
+      // of shape for a few seconds, in proportion to how many it sent, how high, and how much room its line leaves
+      // behind. Beaten high up with a high line behind it, that is the break a press always risks: the side through it
+      // goes at the space at once
       if (pr > 0.35 && from.x < 62 && to.x - from.x > 9 && Y.shape.pressing > 40) {
-        const beaten = clamp(0.22 + 0.3 * (Y.shape.pressing - 40) / 60 + 0.15 * Math.max(0, Y.shape.block || 0), 0, 0.62)
+        const beaten = clamp(0.22 + 0.36 * (Y.shape.pressing - 40) / 60 + 0.15 * Math.max(0, Y.shape.block || 0) + Math.max(0, Y.shape.lineHeight - 50) / 220, 0, PRESS_BEATEN)
         if (beaten > this.dis) {
           this.lossAt.clear()
           for (const l of Y.on) if (l.pos !== 'GK') this.lossAt.set(l, flip(l.at))
           this.lossBall = flip(from)
           this.dis = beaten
+          if (beaten >= COUNTER_ON - 0.08 && to.x < 72) { this.counter = true; X.led.counters++ }
           if (MatchSim.dbg) { dbg(`s${X.idx}.pressBroken`); dbg(`s${X.idx}.pressBrokenK`, beaten) }
         }
       }
@@ -3607,7 +3625,9 @@ export class MatchSim {
       for (const l of s.on) if (l.pos !== 'GK') { sk += this.e(l, A.defAwareness) * 0.45 + this.e(l, A.reactions) * 0.35 + this.e(l, A.stamina) * 0.2 * (l.energy / 100) + 4; n++ }
       s.shiftK = n ? clamp(1 + (sk / n - this.ref) / 45, 0.65, 1.3) : 1
       const t = s.tactics
-      const tacF = 1 + (s.shape.pressing - 50) / 130 + (t.tempo - 50) / 240 + (s.on.length < 11 ? 0.06 : 0)
+      // hunting the ball all game is the most tiring thing a side can be asked to do (and going in on every ball, and
+      // squeezing up behind it, add to it): a pressing side runs on empty in the last half hour unless it is rotated
+      const tacF = 1 + (s.shape.pressing - 50) / PRESS_DRAIN + (t.tempo - 50) / 240 + (t.defApproach === 'Aggressive' ? 0.04 : t.defApproach === 'High' ? 0.016 : 0) + (s.on.length < 11 ? 0.06 : 0)
       for (const lp of s.on) {
         lp.st.mins++
         lp.gm[lp.g] = (lp.gm[lp.g] || 0) + 1
@@ -3692,6 +3712,7 @@ export class MatchSim {
           if (target < 0 && effLead > 0 && this.minute > 80 && (s.input.managerVision === 'Park the Bus' || this.rng.next() < 0.3)) s.tactics.timeWasting = true
         }
       }
+      if (!s.input.controlledByUser && (this.minute === 20 || this.minute === 35 || this.minute === 52 || this.minute === 68)) this.aiRead(s)
       if (!auto) continue
       if (this.minute < 55 || !this.canSub(s.idx)) continue
       const windows = [60 + s.idx * 2, 70 + s.idx, 80, 87]
@@ -3720,6 +3741,40 @@ export class MatchSim {
           if (def && (out.g === 'W' || out.g === 'ST' || out.g === 'AM') && this.rng.next() < 0.35) inn = def
         }
         if (inn && inn.p.ovr >= out.p.ovr - 12) this.substitute(s.idx, out.p.id, inn.p.id)
+      }
+    }
+  }
+
+  /**
+   * An AI manager reads the game every quarter of an hour or so and answers what the other side is doing to him, the
+   * way managers do from the touchline: pressed into losing it at the back, he goes longer over the press; caught on
+   * the break, he drops his line and stops pressing so high; needing a goal against a high line with quick men of his
+   * own, he looks in behind it. Each answer once a match, and it stays: the other side has to answer back.
+   */
+  private aiRead(s: Side) {
+    const o = this.sides[1 - s.idx]
+    const r = s.readAt
+    const lostOwn = s.led.lost[0] - r.lostOwn
+    const oppCtr = (o.led.by.counter?.[0] || 0) - r.oppCtrShots
+    r.lostOwn = s.led.lost[0]
+    r.oppCtrShots = o.led.by.counter?.[0] || 0
+    const t = s.tactics
+    const say = (x: string) => { if (this.ctx.commentary && this.crng.next() < 0.8) this.push({ min: this.minute, type: 'tactic', side: s.idx, text: line(this.crng, 'tactic', { t: s.name, x }) }) }
+    const once = (k: string) => (r.done.includes(k) ? false : (r.done.push(k), true))
+    if (lostOwn >= 4 && o.shape.pressing >= 62 && t.buildUp !== 'Long Ball' && once('press')) {
+      s.tactics = { ...t, buildUp: 'Long Ball' }
+      this.reshape(s)
+      say('longer balls over the press')
+    } else if (oppCtr >= 2 && (t.lineHeight > 45 || t.pressing > 50) && once('breaks')) {
+      s.tactics = { ...t, lineHeight: Math.max(20, t.lineHeight - 10), pressing: Math.max(15, t.pressing - 12) }
+      this.reshape(s)
+      say('a deeper line against the breaks')
+    } else if (o.shape.lineHeight >= 70 && this.lead(s) <= 0 && this.minute >= 35 && t.chanceCreation !== 'Forward Runs' && once('behind')) {
+      const quick = s.on.filter((l) => (l.g === 'ST' || l.g === 'W') && this.pace(l) > this.ref + 4).length
+      if (quick >= 1) {
+        s.tactics = { ...t, chanceCreation: 'Forward Runs' }
+        this.reshape(s)
+        say('balls in behind the high line')
       }
     }
   }
@@ -3765,9 +3820,11 @@ export class MatchSim {
     const tot = H.minSec + Aw.minSec
     const p = tot > 0 ? H.minSec / tot : 0.5
     // momentum is pressure, as the match graphs show it: the chances and set pieces a side had this minute and its
-    // time on the ball in the other half (most of all in the final third), not the ball kept at the back; carried over
-    // a few minutes, so a side camped in the other half shows as a spell, not a coin toss from one minute to the next
-    const press = (s: Side) => s.threat + s.minFinal / 13 + s.minHalf / 40
+    // time on the ball in the other half (most of all in the final third); and, a little, simply having the ball, so a
+    // side that keeps it is seen to be in control even when it isn't threatening, and one that barely has it doesn't
+    // own the graph on the strength of a few quick breaks. Carried over a few minutes, so a side camped in the other
+    // half shows as a spell, not a coin toss from one minute to the next
+    const press = (s: Side) => s.threat + s.minFinal / 13 + s.minHalf / 40 + s.minSec / MOM_BALL
     const raw = Math.tanh((press(H) - press(Aw)) * 1.1)
     this.momS = this.momS * MOM_CARRY + raw * (1 - MOM_CARRY)
     const mom = clamp(this.momS, -1, 1)

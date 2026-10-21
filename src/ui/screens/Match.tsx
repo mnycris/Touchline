@@ -22,6 +22,7 @@ import { underWhite } from '../theme'
 import { ScriptEditor } from '../components/ScriptEditor'
 import { Presence } from '../components/Presence'
 import { TacticsBoard } from '../components/TacticsBoard'
+import { Touchline } from '../components/Touchline'
 import { syncOthers } from '../../engine/world/liveDay'
 import { isWatched, setWatched } from '../../engine/world/advance'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
@@ -625,7 +626,7 @@ export function RatingBadge({ v, motm }: { v: number; motm?: boolean }) {
 
 // ---------------------------------------------------------------------------- manage sheet
 function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolean; onClose: () => void; sim: MatchSim; side: 0 | 1; w: World; initialOut?: number }) {
-  const [tab, setTab] = useState<'subs' | 'tactics' | 'formation' | 'analysis'>('subs')
+  const [tab, setTab] = useState<'touch' | 'subs' | 'tactics' | 'formation' | 'analysis'>('touch')
   const [out, setOut] = useState<number>()
   const [, force] = useReducer((x: number) => x + 1, 0)
   const waiting = sim.injuredWaiting.filter((x) => x.side === side).map((x) => x.lp.p.id)
@@ -713,7 +714,13 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
   const benchSorted = [...bench].sort((a, b) => (outR ? posRating(w.players[b], outR.pos) - posRating(w.players[a], outR.pos) : w.players[b].ovr - w.players[a].ovr))
   return (
     <Sheet open={open} onClose={() => { if (waiting.length && sim.canSub(side) && bench.length) { useGame.getState().notify('Replace the injured player first', 'err'); return } ; if (waiting.length) sim.autoResolveInjuries(); settle(); onClose() }} title="Manage Team">
-      <Seg items={[{ id: 'subs', label: `Subs (${sim.subsLeft(side)})` }, { id: 'tactics', label: 'Tactics' }, { id: 'formation', label: 'Shape' }, { id: 'analysis', label: 'Analysis' }]} value={tab} onChange={setTab} />
+      <Seg items={[{ id: 'touch', label: 'Touchline' }, { id: 'subs', label: `Subs (${sim.subsLeft(side)})` }, { id: 'tactics', label: 'Tactics' }, { id: 'formation', label: 'Shape' }, { id: 'analysis', label: 'Analysis' }]} value={tab} onChange={setTab} />
+      {tab === 'touch' && (
+        <div style={{ marginTop: 12, ...kitVars(kitColors(w.clubs[sim.home.clubId], w.clubs[sim.away.clubId])), ['--us-c' as any]: side === 0 ? 'var(--home-c)' : 'var(--away-c)', ['--th-c' as any]: side === 0 ? 'var(--away-c)' : 'var(--home-c)' }}>
+          {undoBar}
+          <Touchline sim={sim} side={side} w={w} onSet={(next) => setT(next)} onSubs={() => setTab('subs')} onBoard={() => setTab('tactics')} />
+        </div>
+      )}
       {tab === 'subs' && (
         <div style={{ marginTop: 12 }}>
           {waiting.length > 0 && <div className="card pad-card small" style={{ background: 'rgba(255,77,94,.1)', marginBottom: 10 }}><b className="neg">Injury:</b> {waiting.map((id) => w.players[id]?.name).join(', ')} can't continue. Choose a replacement.</div>}

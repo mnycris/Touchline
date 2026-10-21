@@ -85,7 +85,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
     options: [
       { id: 'low', label: 'Low', text: 'Hold the shape and save legs: their defenders and midfielders have time on the ball.' },
       { id: 'mid', label: 'Medium', text: 'The nearest man steps out in midfield.' },
-      { id: 'high', label: 'Relentless', text: 'The nearest man sprints out to the ball everywhere, a second one closes the next pass, and straight after losing it you counter-press. Sides that can\'t play through it kick it long or clear it, so you get it straight back: more of the ball, in their half. Your legs go sooner.' },
+      { id: 'high', label: 'Relentless', text: 'The nearest man sprints out to the ball everywhere, a second one closes the next pass, and straight after losing it you counter-press. Sides that can\'t play through it kick it long or clear it, so you get it straight back: more of the ball, in their half. But it is the most tiring thing you can ask (rotate, or the last half hour and the next game suffer), a technical side passes round it, and a press that is played through with a high line behind it leaves them running at your back four.' },
     ],
     gives: ['The ball won back higher up and kept there: a hard press is the surest way to more possession and fewer chances against. Mistakes forced from players who are poor under pressure.'],
     costs: ['Energy: the biggest drain in the game, and it carries into the next match. A beaten press leaves the men who stepped out behind the ball.'],
@@ -277,7 +277,8 @@ export function tendencies(t: TeamTactics): Tendency[] {
   const dir = (t.buildUp === 'Long Ball' ? 1 : t.buildUp === 'Counter' ? 0.6 : t.buildUp === 'Short Passing' ? -0.5 : 0)
     + (t.chanceCreation === 'Direct Passing' ? 0.6 : t.chanceCreation === 'Forward Runs' ? 0.35 : t.chanceCreation === 'Possession' ? -0.6 : 0) + (t.tempo - 50) / 45
   const expo = MI(t) * 0.08 + (t.lineHeight - 50) / 220 + (t.width - 50) / 400 + (t.playersInBox - 5) * 0.03
-  const energy = (t.pressing - 50) / 130 + (t.tempo - 50) / 240
+  // (as the engine drains it: see fatigue in engine/match/engine.ts)
+  const energy = (t.pressing - 50) / 120 + (t.tempo - 50) / 240 + (t.defApproach === 'Aggressive' ? 0.04 : t.defApproach === 'High' ? 0.016 : 0)
   const press = t.pressing / 100 + (t.defApproach === 'Aggressive' ? 0.12 : t.defApproach === 'High' ? 0.06 : t.defApproach === 'Deep' ? -0.15 : 0)
   // (measured: scripts/qa/engine-lab.ts tactics, a strong and a mid-table side; pressing wins the ball back, so it
   // keeps it too)
