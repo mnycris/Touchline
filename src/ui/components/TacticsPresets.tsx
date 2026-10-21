@@ -2,18 +2,13 @@
 // choosing one is an informed decision rather than a label.
 import { useState } from 'react'
 import type { TeamTactics } from '../../domain/types'
-import { DEFAULT_TACTICS, VISION_TACTICS } from '../../domain/constants'
-import { PRESET_INFO, presetSettings } from '../tacticsGuide'
+import { VISION_TACTICS } from '../../domain/constants'
+import { PRESET_INFO, presetOf, presetSettings, presetTactics } from '../tacticsGuide'
 import { haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Sheet } from './layout'
 
-/** The tactics a preset gives (the manager's mentality is kept). */
-export const presetTactics = (name: string, t: TeamTactics): TeamTactics => ({ ...DEFAULT_TACTICS, ...VISION_TACTICS[name], mentality: t.mentality, timeWasting: t.timeWasting })
-
-const KEYS: (keyof TeamTactics)[] = ['buildUp', 'defApproach', 'lineHeight', 'width', 'tempo', 'pressing', 'chanceCreation', 'playersInBox']
-/** The preset the current settings are, if any. */
-export const presetOf = (t: TeamTactics) => Object.keys(VISION_TACTICS).find((n) => { const p = presetTactics(n, t); return KEYS.every((k) => p[k] === t[k]) })
+export { presetOf, presetTactics }
 
 export function PresetPicker({ t, onApply }: { t: TeamTactics; onApply: (p: TeamTactics) => void }) {
   const [open, setOpen] = useState<string>()

@@ -2,7 +2,7 @@
 // measured runs (scripts/qa/engine-lab.ts tactics / formations). Each control gets a short line for every setting, what it
 // gives and costs, a few bullets on what changes in the engine, and the tendencies it moves. Tendencies only, no ratings.
 import type { TeamTactics } from '../domain/types'
-import { MENTALITIES } from '../domain/constants'
+import { DEFAULT_TACTICS, MENTALITIES, VISION_TACTICS } from '../domain/constants'
 
 export type TacticKey = 'mentality' | 'defApproach' | 'lineHeight' | 'pressing' | 'offsideTrap' | 'buildUp' | 'chanceCreation' | 'width' | 'tempo' | 'playersInBox' | 'corners' | 'freeKicks' | 'timeWasting' | 'roles'
 
@@ -374,6 +374,13 @@ export const PRESET_INFO: Record<string, { tag: string; identity: string; needs:
     risk: 'A stretched shape leaves gaps in the middle when the ball is lost.',
   },
 }
+
+/** The tactics a preset gives (the manager's mentality and time wasting are kept). */
+export const presetTactics = (name: string, t: TeamTactics): TeamTactics => ({ ...DEFAULT_TACTICS, ...VISION_TACTICS[name], mentality: t.mentality, timeWasting: t.timeWasting })
+
+const PRESET_KEYS: (keyof TeamTactics)[] = ['buildUp', 'defApproach', 'lineHeight', 'width', 'tempo', 'pressing', 'chanceCreation', 'playersInBox']
+/** The preset the current settings are, if any. */
+export const presetOf = (t: TeamTactics) => Object.keys(VISION_TACTICS).find((n) => { const p = presetTactics(n, t); return PRESET_KEYS.every((k) => p[k] === t[k]) })
 
 /** The settings a preset sets, in words, for showing what it actually is. */
 export function presetSettings(t: TeamTactics): { key: keyof TeamTactics; label: string; value: string }[] {

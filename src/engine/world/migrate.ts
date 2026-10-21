@@ -13,6 +13,8 @@ import { rebuildReputations } from './reputation'
 import { migrateHonours } from './honours'
 import { sortTable } from '../competitions/tables'
 import { dedupeNumbers, dropFromSheets } from './roster'
+import { fillGaps } from '../match/selection'
+import { BENCH_SIZE } from '../../domain/constants'
 import { fillThinSquads } from './squadFill'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
@@ -123,6 +125,10 @@ export function repairWorld(w: World): number {
     // (a national team's sheets hold its call-ups, who play their club football elsewhere)
     if (!c.national) for (const s of [...c.sheets, ...Object.values(c.matchSheets || {})]) {
       for (const id of [...s.lineup, ...s.bench]) if (id && w.players[id]?.clubId !== c.id) { dropFromSheets(c, id); n++ }
+    }
+    // the manager's sheets with places left open by players who left (until 4.2 they stayed open until kick-off)
+    if (c.id === w.userClubId && !c.national) for (const s of [...c.sheets, ...Object.values(c.matchSheets || {})]) {
+      if (s.lineup.some((id) => !id) || s.bench.length < BENCH_SIZE) n += fillGaps(w, c, s)
     }
     // two players at a club in the same shirt (each summer's AI youth intake took 40, 41 and 42 regardless, until 4.2)
     if (!c.national) n += dedupeNumbers(w, c.id)

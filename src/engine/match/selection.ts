@@ -312,6 +312,44 @@ export function sheetFor(club: Club, fixtureId?: string): TeamSheet {
   return (fixtureId && club.matchSheets?.[fixtureId]) || mainSheet(club)
 }
 
+/**
+ * Fill a sheet's empty places, and any held by a player no longer at the club, with the best of the squad for each
+ * position (fit players first), then top the bench back up and keep the captain and set-piece takers in the XI. Returns
+ * how many places in the XI it filled. \`gone\` is a player leaving now, not to be picked even if still on the books.
+ */
+export function fillGaps(w: World, club: Club, s: TeamSheet, gone?: number): number {
+  const f = formationOf(s.formation)
+  const squad = squadOf(w, club.id).filter((p) => p.id !== gone)
+  const here = new Set(squad.map((p) => p.id))
+  const used = new Set(s.lineup.filter((id) => here.has(id)))
+  let filled = 0
+  for (let i = 0; i < f.slots.length; i++) {
+    if (here.has(s.lineup[i])) continue
+    let best = 0, bs = -1e9
+    for (const q of squad) {
+      if (used.has(q.id) || (f.slots[i].pos === 'GK') !== (q.positions[0] === 'GK')) continue
+      const v = posRating(q, f.slots[i].pos) - (isAvailable(w, q) ? 0 : 30) - (100 - q.fitness) * 0.1
+      if (v > bs) { bs = v; best = q.id }
+    }
+    s.lineup[i] = best
+    if (best) { used.add(best); filled++ }
+  }
+  s.bench = s.bench.filter((id) => here.has(id) && !used.has(id))
+  // (the sheet is the squad the manager wants: someone away for now still makes it, after the fit players; the
+  // kick-off checks stand in for whoever can't play on the day)
+  const avail = (p: Player) => (isAvailable(w, p) ? 1 : 0)
+  for (const p of [...squad].sort((a, b) => avail(b) - avail(a) || b.ovr - a.ovr)) {
+    if (s.bench.length >= BENCH_SIZE) break
+    if (!used.has(p.id) && !s.bench.includes(p.id)) s.bench.push(p.id)
+  }
+  const xi = s.lineup.filter(Boolean)
+  const takers = setPieceTakers(w, xi)
+  for (const k of ['captain', 'viceCaptain', 'penalties', 'freeKicks', 'cornersL', 'cornersR'] as const) {
+    if (!xi.includes(s[k] as number)) (s as unknown as Record<string, number>)[k] = takers[k]
+  }
+  return filled
+}
+
 /** The match's own sheet, made from the main sheet the first time the match day screen changes something. */
 export function matchSheetOf(club: Club, fixtureId: string): TeamSheet {
   const ms = (club.matchSheets ||= {})

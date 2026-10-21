@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import type { TeamTactics } from '../../domain/types'
 import { MENTALITIES } from '../../domain/constants'
 import { haptic } from '../../store/game'
+import { ATTITUDE, matchAttitude } from '../teamAdvice'
 import { Seg, Slider } from './layout'
 import { Icon } from '../icons/Icon'
 import { HalfMarkings } from './PitchSurface'
@@ -136,6 +137,8 @@ export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTa
   const left = game ? Math.max(0, 90 - game.minute) : 0
   const hint = !game ? '' : game.minute < 1 ? '' : diff > 0 && left <= 20 ? `You lead with ${left}' left.` : diff < 0 && left <= 25 ? `You're behind with ${left}' left.` : game.reds[game.side] > game.reds[1 - game.side] ? 'You are down to ten.' : game.reds[1 - game.side] > game.reds[game.side] ? 'They are down to ten: time to push?' : ''
   const suggest = !game ? undefined : diff > 0 && left <= 20 ? 'protect' : diff < 0 && left <= 25 ? 'chase' : undefined
+  // in a match: the attitude the score and the clock call for
+  const adv = game ? matchAttitude(game.score, game.side, game.minute, game.reds) : undefined
   return (
     <div className="stack tb" style={{ gap: 12 }}>
       {game && (
@@ -152,16 +155,23 @@ export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTa
       )}
 
       <div className="card pad-card">
-        <div className="row between"><div className="label row tight">Mentality <GuideButton k="mentality" t={t} /></div><span className="tiny b" style={{ color: 'var(--t1)' }}>{t.mentality}</span></div>
+        <div className="row between"><div className="label row tight">Attitude <GuideButton k="mentality" t={t} /></div><span className="tiny dim">Mentality: <b className="t1">{t.mentality}</b></span></div>
         <div className="tb-ment" style={{ ['--i' as any]: mi }}>
           <div className="tb-ment-track" />
           {MENTALITIES.map((m, i) => (
             <button key={m} className={i === mi ? 'on' : ''} onClick={() => set({ mentality: m })} aria-label={m}>
-              <span className="display">{['UD', 'D', 'B', 'A', 'UA'][i]}</span>
+              <span className="display">{ATTITUDE[m].label}</span>
             </button>
           ))}
         </div>
         <div className="tiny dim" style={{ marginTop: 8, minHeight: 28 }}>{MENT_TEXT[t.mentality]}</div>
+        {adv && (
+          <div className={`to-rec ${adv.suggest === t.mentality ? 'ok' : ''}`} style={{ marginBottom: 0, marginTop: 4 }}>
+            {adv.suggest === t.mentality && <Icon name="check" size={16} />}
+            <div className="small">{adv.why}</div>
+            {adv.suggest !== t.mentality && <button className="btn sm club" onClick={() => set({ mentality: adv.suggest })}>{ATTITUDE[adv.suggest].label}</button>}
+          </div>
+        )}
       </div>
 
       <Board title="Out of possession" icon="shield" diagram={<DefDiagram t={t} />} sub={DEF_PRESET[t.defApproach].text}>

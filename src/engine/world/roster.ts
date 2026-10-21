@@ -1,4 +1,6 @@
 import type { Club, Player, World } from '../../domain/types'
+// (a cycle with selection, which reads the rosters: only functions cross it, used after both have loaded)
+import { fillGaps } from '../match/selection'
 
 // Derived club -> players index (not persisted). Invalidate with touchRoster() whenever
 // a player's club or academy status changes.
@@ -44,7 +46,8 @@ export function dedupeNumbers(w: World, clubId: number): number {
   return clash.length
 }
 /** A player who leaves a club leaves its team sheets too, every sheet and each match's own copy: his place in the
- * XI is left open for the next pick (the match-day checks fill it, and pass his armband and set pieces on). */
+ * XI is left open for the next pick (an AI club picks for each match; the manager's own sheets are filled at once by
+ * setPlayerClub, so his team sheet never shows a hole). */
 export function dropFromSheets(club: Club | undefined, id: number) {
   if (!club) return
   for (const s of [...(club.sheets || []), ...Object.values(club.matchSheets || {})]) {
@@ -54,6 +57,15 @@ export function dropFromSheets(club: Club | undefined, id: number) {
 }
 
 export function setPlayerClub(w: World, p: Player, clubId: number) {
+  const from = p.clubId
+  moveClub(w, p, clubId)
+  // the manager's own sheets: the best of the rest takes a leaver's place straight away, in the XI or on the bench,
+  // and a new arrival fills a place still open
+  const mine = from !== clubId && (from === w.userClubId || clubId === w.userClubId) ? w.clubs[w.userClubId] : undefined
+  if (mine && !mine.national) for (const s of [...mine.sheets, ...Object.values(mine.matchSheets || {})]) fillGaps(w, mine, s)
+}
+
+function moveClub(w: World, p: Player, clubId: number) {
   // whatever the move (a transfer, a loan and its return, a release, a contract running out), the old club's
   // sheets let him go
   if (p.clubId !== clubId) dropFromSheets(w.clubs[p.clubId], p.id)

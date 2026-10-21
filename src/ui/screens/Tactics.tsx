@@ -8,6 +8,7 @@ import { Screen, Seg, Sheet, Slider, Tabs } from '../components/layout'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { PresetPicker } from '../components/TacticsPresets'
 import { GuideButton } from '../components/TacticsGuide'
+import { TeamOverview, type TeamTab } from '../components/TeamOverview'
 import { roleTendencies } from '../tacticsGuide'
 import { FOCUS_BIAS, ROLE_BIAS } from '../../engine/match/engine'
 import { Pitch } from '../components/Pitch'
@@ -30,7 +31,8 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
   const fx = params?.fixtureId ? w.fixtures[params.fixtureId] : undefined
   const forMatch = fx && !fx.played ? fx : undefined
   const sheet = forMatch ? sheetFor(club, forMatch.id) : mainSheet(club)
-  const [tab, setTab] = useRemember<'lineup' | 'roles' | 'tactics' | 'setpieces' | 'presets'>('tab', 'lineup')
+  // (opens on the overview: what to do, in plain words; the detail is one tab away)
+  const [tab, setTab] = useRemember<TeamTab>('tab', 'overview')
   const [sel, setSel] = useState<Sel>()
   const [formOpen, setFormOpen] = useState(false)
   const [roleSlot, setRoleSlot] = useState<number>()
@@ -64,8 +66,9 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
 
   return (
     <Screen title="Team Sheet" sub={forMatch ? `This match only · ${f.name}` : `${sheet.name} · ${f.name}`} back right={<button className="btn xs club" onClick={autoPick}><Icon name="refresh" size={14} /> Auto</button>}>
-      <Tabs sticky items={[{ id: 'lineup', label: 'Line-up' }, { id: 'roles', label: 'Roles' }, { id: 'tactics', label: 'Tactics' }, { id: 'setpieces', label: 'Set Pieces' }, { id: 'presets', label: 'Sheets' }]} value={tab} onChange={setTab} />
+      <Tabs sticky items={[{ id: 'overview', label: 'Overview' }, { id: 'lineup', label: 'Line-up' }, { id: 'roles', label: 'Roles' }, { id: 'tactics', label: 'Tactics' }, { id: 'more', label: 'More' }]} value={tab} onChange={setTab} />
       {forMatch && <MatchSheetBar w={w} fixtureId={forMatch.id} />}
+      {tab === 'overview' && <TeamOverview w={w} sheet={sheet} forMatch={forMatch} edit={edit} onAuto={autoPick} goTab={(t) => { haptic(); setTab(t) }} />}
       {tab === 'lineup' && (
         <div className="pad stack" style={{ marginTop: 12 }}>
           <div className="row between" style={{ gap: 8 }}>
@@ -105,7 +108,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
       )}
       {tab === 'roles' && (
         <div className="pad" style={{ marginTop: 12 }}>
-          <div className="row between tiny dim" style={{ marginBottom: 8 }}><span>Tap a player to change his role and duty.</span><span className="row tight">What roles do <GuideButton k="roles" /></span></div>
+          <div className="row between tiny dim" style={{ marginBottom: 8 }}><span>Tap a player to change their role and duty.</span><span className="row tight">What roles do <GuideButton k="roles" /></span></div>
           <div className="card list">
             {f.slots.map((s, i) => {
               const p = P(sheet.lineup[i])
@@ -135,8 +138,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
           <TacticsPanel t={sheet.tactics} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />
         </>
       )}
-      {tab === 'setpieces' && <SetPieces w={w} sheet={sheet} edit={edit} />}
-      {tab === 'presets' && <Presets w={w} fixtureId={forMatch?.id} />}
+      {tab === 'more' && <><div className="pad" style={{ marginTop: 14, marginBottom: -4 }}><div className="label">Set pieces</div></div><SetPieces w={w} sheet={sheet} edit={edit} /><div className="pad" style={{ marginTop: 18, marginBottom: -4 }}><div className="label">Saved teams</div></div><Presets w={w} fixtureId={forMatch?.id} /></>}
 
       <Sheet open={formOpen} onClose={() => setFormOpen(false)} title="Formation">
         <div className="formation-grid">

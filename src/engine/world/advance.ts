@@ -26,6 +26,8 @@ import { advancePlayoff, createPlayoffs, leagueFinished, seasonRollover } from '
 import { postNews, sendInbox, staffNames } from './messages'
 import { rollInjury } from './matchRunner'
 import { rosterOf, wageBill } from './roster'
+import { fillGaps } from '../match/selection'
+import { BENCH_SIZE } from '../../domain/constants'
 import { processPendingDeals } from './userActions'
 import { advanceIntl, championIntlNews, intlAfterMatch, intlDaily } from './international'
 import { aOrAn } from '../../domain/words'
@@ -189,6 +191,19 @@ function drawNews(w: World, comp: Competition, stage?: string) {
     body: `You have been drawn against ${opp.name} in the ${comp.short} ${next.name.toLowerCase()}. ${next.legs === 2 ? `First leg: ${fmtDate(next.date, 'dm')}.` : `The tie will be played on ${fmtDate(f.date, 'dm')}${f.neutral && f.venue ? ` at ${f.venue}` : f.home === w.userClubId ? ' at home' : ' away'}.`}`,
     actions: [{ label: 'View Competition', action: 'openComp', payload: comp.id, primary: true }], compId: comp.id, clubId: opp.id, image: { kind: 'comp', id: comp.logoKey || comp.key },
   })
+}
+
+/**
+ * The manager's team sheets never show a gap: whoever came or went today (a sale, a contract run out, a loan back, a
+ * youngster promoted, a squad topped up in the summer), an open place in the XI or on the bench goes to the best of
+ * the rest. (Moves through setPlayerClub are filled at once; this catches the rest by the end of the day.)
+ */
+function keepSheetsFull(w: World) {
+  const c = w.clubs[w.userClubId]
+  if (!c || c.national || w.flags.unemployed) return
+  for (const s of [...c.sheets, ...Object.values(c.matchSheets || {})]) {
+    if (s.lineup.some((id) => !id || w.players[id]?.clubId !== c.id) || s.bench.length < BENCH_SIZE) fillGaps(w, c, s)
+  }
 }
 
 // ---------------------------------------------------------------- daily loop
@@ -419,11 +434,13 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
     if (uf) return result('match', uf)
     simulateDay(w, rng)
     endOfDay(w, rng)
+    keepSheetsFull(w)
     // season end
     // (a summer tournament keeps the season open until its final, at the latest 30 June)
     if (w.date >= `${w.season + 1}-06-30` || (w.date >= `${w.season + 1}-06-01` && allPlayed(w))) {
       if (!allPlayed(w)) { simulateRemaining(w, rng) }
       seasonRollover(w, rng)
+      keepSheetsFull(w)
       resetFixtureIndexes(w)
       generateNewSeasonInbox(w)
       return result('season-end')
