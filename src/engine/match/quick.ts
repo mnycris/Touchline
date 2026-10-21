@@ -288,7 +288,8 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       r += q.st.goals * (0.95 * GOAL_W[g] + 0.05) + q.st.assists * 0.5 + q.st.keyPasses * 0.06 + (q.st.shots - q.st.goals) * 0.01
       r += (q.st.tackles + q.st.interceptions) * 0.06
       if (conceded === 0) r += CLEAN_SHEET[g] * Math.min(1, q.mins / 90) * (q.mins >= 60 ? 1 : 0.4)
-      if (g === 'GK') r += ((q.st.xgotFaced || 0) - conceded) * 0.55 + q.st.saves * 0.04
+      // (a keeper is judged on the goals he let in as well as on the ones he kept out, as in the full engine)
+      if (g === 'GK') r += ((q.st.xgotFaced || 0) - conceded) * 0.42 + q.st.saves * 0.04 - conceded * 0.14 + 0.1
       else if (g === 'CB' || g === 'FB') r -= conceded * 0.06
       r += (res > 0 ? 0.16 : res < 0 ? -0.1 : 0.02) * Math.min(1, q.mins / 90)
       if (q.st.yellow) r -= 0.2

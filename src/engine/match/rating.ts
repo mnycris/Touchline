@@ -34,7 +34,7 @@ export const RP = {
   snuffed: 0.009,
   errorShot: -0.35, errorGoal: -0.85, penConceded: -0.45, ownGoal: -0.7, foul: -0.02,
   yellow: -0.2, secondYellow: -0.9, red: -1.35,
-  save: 0.07, saveXgot: 0.55, concededGk: -0.12, concededGkXgot: -0.24, claim: 0.05, punch: 0.028, sweep: 0.04, penSave: 0.7,
+  save: 0.07, saveXgot: 0.55, concededGk: -0.36, concededGkXgot: -0.22, claim: 0.05, punch: 0.028, sweep: 0.04, penSave: 0.7,
   gkDistOk: 0.003, gkDistFail: -0.01,
   concededDef: -0.06, concededDm: -0.03,
 }
@@ -43,14 +43,14 @@ export const RP = {
  * Positional par: the rating points an average player earns per 90 minutes in each group, from his actions alone
  * (calibrated with scripts/qa/rating-par.ts). A player is rated on what he does beyond it.
  */
-export const PAR: Record<RG, number> = { GK: 0.46, CB: 0.54, FB: 0.56, DM: 0.72, CM: 0.96, AM: 1.29, W: 0.98, ST: 0.84 }
+export const PAR: Record<RG, number> = { GK: 0.26, CB: 0.86, FB: 0.68, DM: 1.34, CM: 1.43, AM: 1.21, W: 0.88, ST: 0.78 }
 /** How strongly actions move the rating in each group (defenders' work is quieter but decides games). */
 export const GAIN: Record<RG, number> = { GK: 1, CB: 1.15, FB: 1.15, DM: 1.1, CM: 1, AM: 1, W: 1, ST: 1 }
 /** What an average full match is worth above the 6.0 starting point, before the result and a clean sheet. */
-export const LIFT = 0.8
+export const LIFT = 0.72
 
 /** Clean-sheet value (full 90) by group; applied progressively with minutes played. */
-export const CLEAN_SHEET: Record<RG, number> = { GK: 0.45, CB: 0.36, FB: 0.3, DM: 0.12, CM: 0.04, AM: 0, W: 0, ST: 0 }
+export const CLEAN_SHEET: Record<RG, number> = { GK: 0.12, CB: 0.36, FB: 0.3, DM: 0.12, CM: 0.04, AM: 0, W: 0, ST: 0 }
 
 export interface RateInput {
   /** rating points from his actions, net of his positional par so far */

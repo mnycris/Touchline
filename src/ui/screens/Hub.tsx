@@ -309,10 +309,14 @@ function CalendarStrip({ w }: { w: World }) {
         const f = fx.find((x) => x.date === d)
         const isDeadline = win.some((x) => x.close === d)
         const isOpen = win.some((x) => x.open === d)
-        // a match he is watching (green) or a followed club's (gold), as on the calendar
+        // a match he is watching shows its two crests, a followed club's match that club's crest; on a day of his own
+        // match a small mark in the corner says there is one too (as on the calendar: green watched, gold followed)
         const others = calendarOthers(w, d)
         const busy = !!f || isDeadline || isOpen
-        const tags = others.length ? <span className={`cal-tags ${busy ? 'corner' : ''}`}>{others.some((x) => x.watch) && <i className="w" />}{others.some((x) => !x.watch) && <i className="f" />}</span> : null
+        const pick = others.find((x) => x.watch) || others[0]
+        const tags = !pick ? null : busy ? <span className="cal-tags corner">{others.some((x) => x.watch) && <i className="w" />}{others.some((x) => !x.watch) && <i className="f" />}</span>
+          : pick.watch ? <span className="cal-vs" aria-label="A match you're watching"><Badge club={w.clubs[pick.f.home]} size={15} /><Badge club={w.clubs[pick.f.away]} size={15} /></span>
+          : <span className="cal-fol" aria-label="A club you follow plays"><Badge club={w.clubs[pick.club!]} size={15} /><Icon name="star" size={10} color="var(--gold)" /></span>
         return (
           <div key={d} className={`cal-day ${i === 0 ? 'today' : ''} ${f ? 'match' : ''}`}>
             <div className="tiny dim b">{WD[weekday(d)]}</div>

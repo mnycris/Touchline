@@ -325,8 +325,16 @@ button.card.cal-strip { display: grid; }
 /* a match he is watching (green) and a followed club's (gold) */
 .cal-tags { display: inline-flex; align-items: center; gap: 3px; }
 .cal-tags i { display: block; width: 6px; height: 6px; border-radius: 50%; }
-.cal-tags i.w { background: var(--acc); box-shadow: 0 0 6px rgba(var(--acc-rgb), .75); }
-.cal-tags i.f { background: var(--gold); box-shadow: 0 0 6px rgba(244, 197, 66, .6); }
+/* flat, small and quiet: a mark, not a light */
+.cal-tags i.w { background: var(--acc); }
+.cal-tags i.f { background: var(--gold); }
+/* Central's week: a watched match as its two crests overlapping, a followed club's match as its crest */
+.cal-vs { display: inline-flex; align-items: center; }
+.cal-vs > * + * { margin-left: -4px; }
+/* (smaller and quieter than a crest on one of his own match days, with the follow star on it) */
+.cal-fol { position: relative; display: inline-grid; place-items: center; }
+.cal-fol > :first-child { opacity: .78; }
+.cal-fol > svg { position: absolute; right: -5px; bottom: -3px; filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .9)); }
 .cal-tags.corner { position: absolute; top: 5px; right: 5px; }
 .cal-tags.corner i { width: 5px; height: 5px; }
 .cal-agenda { overflow: hidden; }
@@ -2439,8 +2447,12 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 /* fine grain over the field: no banding in the gradients, the finish of printed and broadcast graphics */
 .ci::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
   background: url(/assets/fx/grain.png) 0 0 / 160px 160px; mix-blend-mode: overlay; opacity: var(--ci-grain, .3); }
-.ci::before { content: ''; position: absolute; inset: 0 0 auto; height: var(--ci-edge-h, 1px); z-index: 1; pointer-events: none;
-  background: var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent)); }
+/* the hairline in the identity's colours along the top, drawn as a strip of a layer the card's own shape (rounded like
+   it), so it keeps to the corners by itself: Safari stops clipping to a parent's rounded corners while the light sweep
+   runs (it moves the layers above the animated one onto the GPU), and a line the card alone clipped popped out past
+   them each time the light came */
+.ci::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent)) top / 100% var(--ci-edge-h, 1px) no-repeat; }
 /* a logo shown in white on a coloured field: the competition's own version for it (LALIGA on its coral) */
 .ci-white-logo .comp-logo { filter: brightness(0) invert(1); }
 /* the light of the big nights: once in a while a faint, soft light drifts across the field, at the angle of the
