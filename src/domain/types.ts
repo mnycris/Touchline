@@ -819,6 +819,11 @@ export interface SeasonArchive {
   topScorers: Record<string, [number, number][]>
   transfersIn: number
   transfersOut: number
+  /** the manager's club's league position after each of its league matches (from 4.2) */
+  userRun?: number[]
+  /** name and position of everyone who played for the manager's club that season, kept for the Season Review after
+   *  retirements take players out of the world (from 4.2) */
+  people?: Record<number, [string, string]>
 }
 
 // ---------------------------------------------------------------- settings

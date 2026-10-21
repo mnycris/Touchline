@@ -221,7 +221,7 @@ export function ManagerCareer() {
             <div className="mc-cab">
               {cabinet.map((t) => (
                 <div key={t.key} className="mc-trophy">
-                  <div className="mc-tr-logo"><CompLogo k={t.key} size={44} name={t.name} />{t.seasons.length > 1 && <span className="mc-x">×{t.seasons.length}</span>}</div>
+                  <div className="mc-tr-logo"><CompLogo k={t.key} size={36} name={t.name} />{t.seasons.length > 1 && <span className="mc-x">×{t.seasons.length}</span>}</div>
                   <span className="tiny b ellipsis2" style={{ textAlign: 'center' }}>{t.name}</span>
                   <span className="tiny dim" style={{ textAlign: 'center' }}>{t.seasons.sort().map((s) => seasonLabel(s)).join(', ')}</span>
                 </div>
@@ -301,7 +301,7 @@ export function ManagerCareer() {
             {c.next.length > 0 && <div className="mc-next"><Icon name="flag" size={13} /><span>Next: {c.next.join(' · ')}</span></div>}
             <div className="mc-tl">
               {c.milestones.slice(0, 14).map((m, i) => (
-                <button key={i} className="mc-ms" disabled={!m.fixtureId} onClick={() => m.fixtureId && go({ name: 'fixture', params: { id: m.fixtureId } })}>
+                <button key={i} className={`mc-ms${m.icon === 'trophy' ? ' gold' : ''}`} disabled={!m.fixtureId} onClick={() => m.fixtureId && go({ name: 'fixture', params: { id: m.fixtureId } })}>
                   <span className={`mc-dot ${m.icon === 'trophy' ? 'gold' : ''}`}><Icon name={m.icon} size={12} /></span>
                   <span className="grow" style={{ minWidth: 0, textAlign: 'left' }}><span className="small b" style={{ display: 'block' }}>{m.text}</span><span className="tiny dim">{fmtDate(m.date.slice(0, 10), 'long')}</span></span>
                 </button>
@@ -436,57 +436,6 @@ export function Awards() {
           ))}
         </div>
       )}
-    </Screen>
-  )
-}
-
-// ============================================================================ season review
-export function SeasonReview({ params }: { params: { season: number } }) {
-  const w = useWorld()
-  const close = useGame((s) => s.closeAll)
-  const a = w.archive.find((x) => x.season === params.season) || w.archive[w.archive.length - 1]
-  if (!a) return <Screen title="Season Review" back onBack={close} noNav><Empty icon="season" title="No review available" /></Screen>
-  const club = w.clubs[a.userClubId]
-  const objs = w.board.objectives.filter((o) => o.season === a.season)
-  const won = Object.entries(a.winners).filter(([, c]) => c === a.userClubId)
-  const lgKey = Object.keys(a.tables).find((k) => a.tables[k].some((r) => r.clubId === a.userClubId))
-  // the manager's own league first
-  const awards = [...a.awards].sort((x, y) => Number(y.compKey === lgKey) - Number(x.compKey === lgKey)).slice(0, 12)
-  return (
-    <Screen title="Season Review" sub={seasonLabel(a.season)} back onBack={close} noNav>
-      <div className="pad stack fade-up">
-        <div className="hero" style={{ padding: 18, textAlign: 'center' }}>
-          {won.length ? <Fx kind="confetti" /> : <Fx kind="beams" />}
-          <div style={{ position: 'relative', zIndex: 1 }} className="col center">
-            <Badge club={club} size={84} />
-            <div className="h1" style={{ marginTop: 10 }}>{a.userFinish ? `${ordinal(a.userFinish)} place` : 'Season complete'}</div>
-            <div className="small" style={{ opacity: 0.85, marginTop: 6 }}>{club?.name} · {seasonLabel(a.season)}</div>
-            {won.length > 0 && <div className="row" style={{ gap: 10, marginTop: 12 }}>{won.map(([k]) => <div key={k} className="col center" style={{ gap: 4 }}><CompLogo k={k.replace(/-\d+$/, '')} size={36} /><Icon name="trophy" size={16} color="var(--gold)" /></div>)}</div>}
-          </div>
-        </div>
-        {objs.length > 0 && (
-          <div className="card list">
-            <div className="card-h"><span className="label">Board objectives</span><span className="tiny dim">{objs.filter((o) => o.status === 'complete').length}/{objs.length} met</span></div>
-            {objs.map((o) => <div key={o.id} className="li" style={{ minHeight: 44 }}><Icon name={o.status === 'complete' ? 'check' : 'close'} size={16} color={o.status === 'complete' ? 'var(--pos)' : 'var(--neg)'} /><div className="meta small">{o.text}</div><span className={`prio p-${o.priority.replace(' ', '')}`}>{o.priority}</span></div>)}
-          </div>
-        )}
-        {lgKey && (
-          <div className="card">
-            <div className="card-h"><span className="label">Final table</span></div>
-            <table className="tbl"><tbody>
-              {a.tables[lgKey].slice(0, 20).map((r, i) => <tr key={r.clubId} className={r.clubId === a.userClubId ? 'me' : ''}><td style={{ width: 28 }}>{i + 1}</td><td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={18} /><span className="ellipsis" style={{ maxWidth: 150 }}>{w.clubs[r.clubId]?.short}</span></div></td><td>{r.p}</td><td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td><td className="b">{r.pts}</td></tr>)}
-            </tbody></table>
-          </div>
-        )}
-        {awards.length > 0 && (
-          <div className="card list">
-            <div className="card-h"><span className="label">Season awards</span></div>
-            {awards.map((x) => { const p = x.playerId ? w.players[x.playerId] : undefined; return <div key={x.id} className="li"><Icon name="medal" size={18} color="var(--gold)" /><div className="meta"><div className="t small">{x.name}</div><div className="s">{p?.name || x.managerName}{x.value ? ` · ${x.value}` : ''}</div></div>{p ? <Face p={p} size={34} radius={9} club={w.clubs[p.clubId]} /> : x.clubId && w.clubs[x.clubId] ? <Badge club={w.clubs[x.clubId]} size={30} /> : null}</div> })}
-          </div>
-        )}
-        <div className="card pad-card small muted">Contracts have expired, loans have ended, retiring players have hung up their boots and the {seasonLabel(w.season)} fixtures are out. Your new budget is {fmtMoney(w.clubs[w.userClubId]?.finance.transferBudget || 0)}.</div>
-        <button className="btn primary block" onClick={close}>Start {seasonLabel(w.season)}</button>
-      </div>
     </Screen>
   )
 }

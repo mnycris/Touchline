@@ -17,7 +17,8 @@ import { TrainingScreen, DevelopmentScreen } from './screens/Training'
 import { SeasonHub, CompScreen, ClubProfile, CalendarScreen } from './screens/Competitions'
 import { TransferHub, Search, Scouting, Negotiation, Renewal, TransferHistory } from './screens/Transfers'
 import { Academy } from './screens/Academy'
-import { Office, ManagerCareer, Jobs, Awards, SeasonReview, CareerSettingsScreen } from './screens/Office'
+import { Office, ManagerCareer, Jobs, Awards, CareerSettingsScreen } from './screens/Office'
+import { SeasonReview } from './screens/SeasonReview'
 
 export const TAB_ROOT: Record<Tab, ComponentType> = {
   central: Hub,

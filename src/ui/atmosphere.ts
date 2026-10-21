@@ -38,6 +38,12 @@ export function atmosphereFor(w: World, r: Route | undefined): Atmosphere | unde
     const club = w.clubs[Number(p.id)]
     return club && club.id !== w.userClubId ? clubAir(club) : undefined
   }
+  if (r.name === 'seasonReview') {
+    // a season managed somewhere else is reviewed in that club's air
+    const a = w.archive.find((x) => x.season === (r.params as { season?: number } | undefined)?.season)
+    const club = a && w.clubs[a.userClubId]
+    return club && club.id !== w.userClubId ? clubAir(club) : undefined
+  }
   if (r.name === 'player' && p?.id != null) {
     const pl = w.players[Number(p.id)]
     const club = pl && w.clubs[pl.clubId]

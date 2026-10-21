@@ -10,6 +10,9 @@ import { seasonLabel } from '../../domain/dates'
 import { sortTable } from '../../engine/competitions/tables'
 import { compLogoKey } from '../selectors'
 import { haptic, useGame } from '../../store/game'
+import { compIdentity } from '../compIdentity'
+import { callName } from '../../engine/match/commentary'
+import { ordinalOf } from '../../domain/words'
 
 interface Piece { x: number; y: number; vx: number; vy: number; r: number; vr: number; flip: number; vf: number; w: number; h: number; c: string; shape: 0 | 1 | 2; life: number; wait: number }
 
@@ -94,6 +97,11 @@ export function Celebration({ w }: { w: World }) {
   if (!c) return null
   const club = w.clubs[w.userClubId]
   const kit = club.kit?.[0] || '#1fd67a', kit2 = club.kit?.[1] || '#ffffff'
+  const ci = compIdentity(c.key)
+  const won = w.flags.celebrate?.date as string | undefined
+  // the word on the trophy: a league's champions, a cup's winners, a play-off's promotion
+  const kicker = c.format === 'playoff' ? 'Promoted' : c.format === 'league' || c.key === 'UCL' ? 'Champions' : 'Winners'
+  const mine = (id: string) => { const f = w.fixtures[id]; return f && (f.home === w.userClubId || f.away === w.userClubId) ? f : undefined }
   // how it was won
   const story = (() => {
     if (c.format === 'league') {
@@ -101,17 +109,41 @@ export function Celebration({ w }: { w: World }) {
       const me = t.find((r) => r.clubId === w.userClubId)
       if (!me) return undefined
       const gap = t[1] ? me.pts - t[1].pts : 0
-      return { line: `${me.pts} points${gap > 0 ? ` · ${gap} clear of ${w.clubs[t[1].clubId]?.short}` : ''}`, chips: [`W${me.w} D${me.d} L${me.l}`, `${me.gf} scored`, `${me.ga} conceded`] }
+      const left = won ? c.fixtures.map(mine).filter((f) => f && f.date > won).length : 0
+      const decider = c.fixtures.map(mine).filter((f) => f?.played && (!won || f.date <= won)).sort((x, y) => y!.date.localeCompare(x!.date))[0]
+      return {
+        line: `${me.pts} points${gap > 0 ? ` · ${gap} clear of ${w.clubs[t[1].clubId]?.short}` : ''}`,
+        line2: !won ? undefined : left > 0 ? `Sealed with ${left} ${left === 1 ? 'game' : 'games'} to spare` : 'Decided on the final day',
+        chips: [`W${me.w} D${me.d} L${me.l}`, `${me.gf} scored`, `${me.ga} conceded`],
+        decider,
+      }
     }
     const fin = c.rounds[c.rounds.length - 1]
-    const f = fin?.fixtures.map((id) => w.fixtures[id]).find((x) => x?.played && x.result)
+    const f = fin?.fixtures.map((id) => w.fixtures[id]).filter((x) => x?.played && x.result).pop()
     if (!f?.result) return undefined
     const home = f.home === w.userClubId
+    const side = home ? 0 : 1
     const opp = w.clubs[home ? f.away : f.home]
     const [a, b] = home ? f.result.score : [f.result.score[1], f.result.score[0]]
     const pens = f.result.pens ? (home ? f.result.pens : [f.result.pens[1], f.result.pens[0]]) : undefined
-    return { line: `Beat ${opp?.short} ${a}–${b}${pens ? ` (${pens[0]}–${pens[1]} pens)` : ''} in the final${f.venue ? ` · ${f.venue}` : ''}`, chips: [] as string[] }
+    // who scored it: the club's goals in the final (an own goal by the other side counts for it)
+    const by = new Map<string, string[]>()
+    for (const e of f.result.events) {
+      if (!(((e.type === 'goal' || e.type === 'penGoal') && e.side === side) || (e.type === 'owngoal' && e.side !== side))) continue
+      const p = e.player ? w.players[e.player] : undefined
+      if (!p) continue
+      const k = e.type === 'owngoal' ? `${callName(p.name)} (o.g.)` : callName(p.name)
+      by.set(k, [...(by.get(k) || []), `${e.min}\u2019${e.type === 'penGoal' ? ' pen' : ''}`])
+    }
+    const scorers = [...by].map(([k, mins]) => `${k} ${mins.join(', ')}`)
+    return { line: `Beat ${opp?.short} ${a}–${b}${pens ? ` (${pens[0]}–${pens[1]} pens)` : ''} in the final${f.venue ? ` · ${f.venue}` : ''}`, line2: scorers.length ? scorers.join(' · ') : undefined, chips: [] as string[], decider: f }
   })()
+  // who lifts it: the club's captain in the match that won it
+  const capId = story?.decider?.result?.captains?.[story.decider.home === w.userClubId ? 0 : 1]
+  const captain = capId ? w.players[capId] : undefined
+  // which one this is for the manager
+  const nth = w.user.trophies.filter((t) => t.compKey === c.key).length
+  const tally = w.user.trophies.length === 1 ? 'Your first trophy as a manager' : nth > 1 ? `Your ${ordinalOf(nth)} ${c.short || c.name}` : undefined
   const leave = () => {
     if (leaving) return
     haptic('medium')
@@ -121,19 +153,21 @@ export function Celebration({ w }: { w: World }) {
   }
   return (
     <div className={`cel-wrap ${leaving ? 'out' : ''}`}>
-      <div className="cel" style={{ ['--k1' as any]: kit, ['--k2' as any]: kit2 }}>
-        <div className="cel-bg" aria-hidden><i className="cel-glow" /><i className="cel-beam l" /><i className="cel-beam r" /><i className="cel-motes" /></div>
+      <div className={`cel${ci ? ' has-ci' : ''}`} style={{ ['--k1' as any]: kit, ['--k2' as any]: kit2, ...(ci ? { ['--ci-rgb' as any]: ci.rgb, ...(ci.mark ? { ['--cel-mark' as any]: `url(${import.meta.env.BASE_URL || '/'}assets/marks/${ci.mark}.svg)`, ['--cel-ar' as any]: ci.ar || 1 } : {}) } : {}) }}>
+        <div className="cel-bg" aria-hidden>{ci?.mark && <i className="cel-mark" />}<i className="cel-glow" /><i className="cel-beam l" /><i className="cel-beam r" /><i className="cel-motes" /></div>
         <Confetti colors={['#F4C542', '#FFE38A', '#ffffff', kit, kit2, '#F4C542']} fire={fire} reduce={reduce} />
         <div className="cel-body" onClick={() => { haptic(); setFire((x) => x + 1) }}>
           <div className="cel-trophy">
             <span className="cel-ring" />
             <CompLogo k={compLogoKey(c)} size={62} name={c.name} />
           </div>
-          <div className="cel-kicker"><Icon name="trophy" size={13} color="#F4C542" />Champions<Icon name="trophy" size={13} color="#F4C542" /></div>
+          <div className="cel-kicker"><Icon name="trophy" size={13} color="#F4C542" />{kicker}<Icon name="trophy" size={13} color="#F4C542" /></div>
           <div className="cel-title">{c.name}</div>
           <div className="cel-club"><Badge club={club} size={22} /><b>{club.name}</b><span className="dim">· {seasonLabel(c.season)}</span></div>
           {story && <div className="cel-story">{story.line}</div>}
+          {story?.line2 && <div className="cel-story s2">{story.line2}</div>}
           {story && story.chips.length > 0 && <div className="cel-chips">{story.chips.map((x) => <span key={x}>{x}</span>)}</div>}
+          {(captain || tally) && <div className="cel-lift">{captain && <span>Lifted by <b>{captain.name}</b></span>}{captain && tally && <i />}{tally && <span>{tally}</span>}</div>}
         </div>
         <button className="cel-go" onClick={leave} disabled={leaving}>Celebrate & continue</button>
       </div>
