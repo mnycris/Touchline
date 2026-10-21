@@ -233,19 +233,21 @@ export function MomentumGraph({ data, goals, colors, live, et }: { data: [number
   const ht = data.findIndex((d) => d[0] >= 46)
   const ft = data.findIndex((d) => d[0] >= 91)
   return (
-    <svg className="mom-graph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-      <line x1="0" y1={mid} x2={W} y2={mid} stroke="rgba(255,255,255,.12)" strokeWidth=".6" />
-      {ht > 0 && <line x1={ht * bw} y1="2" x2={ht * bw} y2={H - 2} stroke="rgba(255,255,255,.18)" strokeDasharray="2 2" strokeWidth=".6" />}
-      {ft > 0 && <line x1={ft * bw} y1="2" x2={ft * bw} y2={H - 2} stroke="rgba(255,255,255,.18)" strokeDasharray="2 2" strokeWidth=".6" />}
-      {sm.map((v, i) => {
-        const h = Math.max(0.6, Math.pow(Math.abs(v), 0.6) * (mid - 7))
-        return <rect key={i} x={i * bw + bw * 0.12} width={bw * 0.76} y={v >= 0 ? mid - h : mid} height={h} rx={bw * 0.2} fill={onDark(v >= 0 ? colors[0] : colors[1])} opacity={0.92} />
-      })}
-      {goals.map((g, i) => {
-        const x = (idxOf(g.key) + 0.5) * bw
-        return <g key={i} transform={`translate(${x - 4} ${g.side === 0 ? 0 : H - 8})`}><circle cx="4" cy="4" r="4" fill="#fff" /><circle cx="4" cy="4" r="1.6" fill="#15181c" /></g>
-      })}
-      {live && data.length > 0 && <rect x={data.length * bw} y="3" width="1" height={H - 6} fill="var(--acc)" />}
-    </svg>
+    <div className="mom-graph-w">
+      <svg className="mom-graph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+        <line x1="0" y1={mid} x2={W} y2={mid} stroke="rgba(255,255,255,.12)" strokeWidth=".6" />
+        {ht > 0 && <line x1={ht * bw} y1="2" x2={ht * bw} y2={H - 2} stroke="rgba(255,255,255,.18)" strokeDasharray="2 2" strokeWidth=".6" />}
+        {ft > 0 && <line x1={ft * bw} y1="2" x2={ft * bw} y2={H - 2} stroke="rgba(255,255,255,.18)" strokeDasharray="2 2" strokeWidth=".6" />}
+        {sm.map((v, i) => {
+          const h = Math.max(0.6, Math.pow(Math.abs(v), 0.6) * (mid - 7))
+          return <rect key={i} x={i * bw + bw * 0.12} width={bw * 0.76} y={v >= 0 ? mid - h : mid} height={h} rx={bw * 0.2} fill={onDark(v >= 0 ? colors[0] : colors[1])} opacity={0.92} />
+        })}
+        {live && data.length > 0 && <rect x={data.length * bw} y="3" width="1" height={H - 6} fill="var(--acc)" />}
+      </svg>
+      {/* the goals as balls laid over the graph (the graph is stretched to its box; a ball drawn in it would be too) */}
+      {goals.map((g, i) => (
+        <span key={i} className={`mom-goal ${g.side === 0 ? 'h' : 'a'}`} style={{ left: `${((idxOf(g.key) + 0.5) * bw / W) * 100}%` }}><Ball size={13} /></span>
+      ))}
+    </div>
   )
 }

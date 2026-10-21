@@ -106,6 +106,17 @@ function Flight({ x1, y1, x2, y2, c }: { x1: number; y1: number; x2: number; y2:
   )
 }
 
+/** The picked shot drawn again on top of everything (the line, any shots it overlaps), ringed. Taps go through it. */
+function SelMark({ s, c }: { s: Shot; c: string }) {
+  const rad = rOf(s)
+  return (
+    <g className="sm-top" pointerEvents="none">
+      <circle className="sm-ring" cx={X(s.x)} cy={Y(s.y)} r={rad + 1.3} fill="none" stroke={c} strokeWidth=".45" />
+      <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rad} c={c} />
+    </g>
+  )
+}
+
 /** Where a tap lands, in the coordinates of the element it was made on (the map's own units). */
 function tapAt(e: RMouseEvent<SVGGraphicsElement>) {
   const m = e.currentTarget.getScreenCTM()
@@ -150,8 +161,6 @@ export function ShotMap({ w, events, home, away, colors, live }: { w: World; eve
     setSelE(hit.s.e)
     setPile(hit.n > 1 ? { i: hit.i, n: hit.n } : undefined)
   }
-  // (the selected shot is drawn last, on top of any it overlaps)
-  const order = cur ? [...list.filter((s) => s !== cur), cur] : list
   const p = cur?.e.player ? w.players[cur.e.player] : undefined
   const club = cur ? w.clubs[cur.side === 0 ? home : away] : undefined
   const tally = (side: 0 | 1) => { const s = all.filter((x) => x.side === side); return { n: s.length, xg: s.reduce((a, x) => a + x.xg, 0) } }
@@ -167,17 +176,15 @@ export function ShotMap({ w, events, home, away, colors, live }: { w: World; eve
       <div className="sm-pitch">
         <PitchSurface goals pad={2.6} thin>
           <svg className="sm-svg" viewBox={`-2.6 -2.6 ${105 + 5.2} ${68 + 5.2}`} preserveAspectRatio="none" onClick={tap}>
-            {order.map((s) => {
-              const rad = rOf(s), i = list.indexOf(s)
-              return (
-                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} style={{ ['--d' as any]: `${Math.min(i, 20) * 18}ms` }}>
-                  <circle cx={X(s.x)} cy={Y(s.y)} r={rad + 2.2} fill="transparent" />
-                  {s === cur && <circle className="sm-ring" cx={X(s.x)} cy={Y(s.y)} r={rad + 1.3} fill="none" stroke={col(s)} strokeWidth=".45" />}
-                  <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rad} c={col(s)} />
-                </g>
-              )
-            })}
+            {/* (always in the same order: moving a mark in the document would replay every mark's entrance) */}
+            {list.map((s, i) => (
+              <g key={i} className="sm-shot" style={{ ['--d' as any]: `${Math.min(i, 20) * 18}ms` }}>
+                <circle cx={X(s.x)} cy={Y(s.y)} r={rOf(s) + 2.2} fill="transparent" />
+                <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rOf(s)} c={col(s)} />
+              </g>
+            ))}
             {cur && <Flight key={`${half}:${curI}:${cur.e.min}`} x1={X(cur.x)} y1={Y(cur.y)} x2={X(cur.ex)} y2={Y(cur.ey)} c={col(cur)} />}
+            {cur && <SelMark s={cur} c={col(cur)} />}
           </svg>
         </PitchSurface>
         <div className="sm-legend tiny dim">
@@ -247,7 +254,6 @@ export function PlayerShots({ w, events, player, color }: { w: World; events: Ma
     setSel(list.indexOf(hit.s))
     setPile(hit.n > 1 ? { i: hit.i, n: hit.n } : undefined)
   }
-  const order = [...list.filter((s) => s !== cur), cur]
   return (
     <div className="pmp-shots">
       <div className="pmp-hh"><span>Shots</span><span className="pmp-hh-n">{list.length} · xG <b>{xg.toFixed(2)}</b></span></div>
@@ -258,17 +264,14 @@ export function PlayerShots({ w, events, player, color }: { w: World; events: Ma
           <g transform="matrix(0 -1 1 0 0 105)" onClick={tap}>
             <Markings L={105} sw={0.9} />
             <path d="M105 30.34h2.2v7.32H105" fill="none" stroke="var(--pitch-line)" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
-            {order.map((s) => {
-              const rad = rOf(s), i = list.indexOf(s)
-              return (
-                <g key={i} className={`sm-shot ${s === cur ? 'sel' : ''}`} style={{ ['--d' as any]: `${i * 30}ms` }}>
-                  <circle cx={X(s.x)} cy={Y(s.y)} r={rad + 2.2} fill="transparent" />
-                  {s === cur && <circle className="sm-ring" cx={X(s.x)} cy={Y(s.y)} r={rad + 1.3} fill="none" stroke={color} strokeWidth=".45" />}
-                  <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rad} c={color} />
-                </g>
-              )
-            })}
+            {list.map((s, i) => (
+              <g key={i} className="sm-shot" style={{ ['--d' as any]: `${i * 30}ms` }}>
+                <circle cx={X(s.x)} cy={Y(s.y)} r={rOf(s) + 2.2} fill="transparent" />
+                <ShotMark s={s} cx={X(s.x)} cy={Y(s.y)} rad={rOf(s)} c={color} />
+              </g>
+            ))}
             {cur && <Flight key={ci} x1={X(cur.x)} y1={Y(cur.y)} x2={X(cur.ex)} y2={Y(cur.ey)} c={color} />}
+            {cur && <SelMark s={cur} c={color} />}
           </g>
         </svg>
       </div>

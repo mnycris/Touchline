@@ -35,7 +35,7 @@ await map.screenshot({ path: `${OUT}/map-default.png` })
 // the closest pair of shot marks on screen
 const pair = await page.evaluate(() => {
   const els = [...document.querySelectorAll('.shotmap .sm-svg .sm-shot')]
-  const pts = els.map((g) => { const r = g.querySelector('circle:not([fill="transparent"])')?.getBoundingClientRect() || g.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })
+  const pts = els.map((g) => { const r = g.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 } })
   let best
   for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
     const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y)
@@ -49,8 +49,10 @@ const who = async () => (await page.locator('.shotmap .sm-who').first().innerTex
 if (pair) {
   for (let k = 0; k < 4; k++) {
     await page.mouse.click(pair.x, pair.y)
+    // a tap must only change the chosen shot: no mark replays its entrance
+    const replay = await page.evaluate(() => document.getAnimations().filter((a) => a.animationName === 'smIn' && a.playState === 'running').length)
     await page.waitForTimeout(650)
-    console.log(`tap ${k + 1}: ${await who()}`)
+    console.log(`tap ${k + 1}: ${await who()} (entrances replayed: ${replay})`)
     await map.screenshot({ path: `${OUT}/map-tap-${k + 1}.png` })
   }
 }

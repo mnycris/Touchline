@@ -655,7 +655,13 @@ select.input option { background: #151b27; }
 .lp-net.l { left: 0; background: radial-gradient(90% 60% at 0% 50%, rgba(255, 255, 255, 0.55), transparent 70%); }
 @keyframes netFlash { 0%, 100% { opacity: 0; } 10%, 60% { opacity: 1; } }
 .mom-wrap { padding: 6px 10px 6px; background: #070a10; border-bottom: 1px solid var(--line); }
+.mom-graph-w { position: relative; }
 .mom-graph { display: block; width: 100%; height: 44px; }
+/* a goal on the momentum graph: a ball above the bars for the home side, below for the away side */
+.mom-goal { position: absolute; transform: translateX(-50%); display: grid; place-items: center; line-height: 0; pointer-events: none; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+.mom-goal.h { top: -5px; }
+.mom-goal.a { bottom: -5px; }
+.mom-goal svg { display: block; }
 .card .mom-graph { height: 64px; }
 
 /* --- goal card --- */
@@ -1429,7 +1435,7 @@ select.input option { background: #151b27; }
 .sm-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .sm-shot { cursor: pointer; animation: smIn .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: var(--d); transform-box: fill-box; transform-origin: center; }
 @keyframes smIn { from { opacity: 0; transform: scale(.4); } }
-.sm-shot.sel circle:not(.sm-ring) { filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, .6)); }
+.sm-top > :not(.sm-ring) { filter: drop-shadow(0 0 1.2px rgba(255, 255, 255, .6)); }
 .sm-ring { animation: smRing 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes smRing { 0% { opacity: .9; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.5); } }
 .sm-path line { animation: smPath .48s cubic-bezier(.3, .7, .3, 1) forwards; }
