@@ -8,6 +8,12 @@ import treatments from '../data/logoTreatments.json'
 import { managerMatches } from '../domain/identity'
 
 const BASE = import.meta.env.BASE_URL || '/'
+/**
+ * A bundled file as a full URL, for a CSS url() set from script. The app is built with relative paths and served from
+ * a folder (GitHub Pages puts it under the repository's name), so a root path like /assets/... misses it, and a
+ * relative one in a custom property can be resolved against the stylesheet that uses it rather than the page.
+ */
+export const assetHref = (path: string) => new URL(`${BASE}${path}`, document.baseURI).href
 const CC = 'https://assets.football-logos.cc/logos'
 const EA = 'https://ratings-images-prod.pulse.ea.com'
 const CREST_CC = (crestsCC as { clubs: Record<string, string>; comps: Record<string, string> })

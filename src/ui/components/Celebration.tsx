@@ -14,6 +14,7 @@ import { compIdentity } from '../compIdentity'
 import { callName } from '../../engine/match/commentary'
 import { ordinalOf } from '../../domain/words'
 import { leagueDecided } from '../../engine/world/review'
+import { assetHref } from '../../services/assets'
 
 interface Piece { x: number; y: number; vx: number; vy: number; r: number; vr: number; flip: number; vf: number; w: number; h: number; c: string; shape: 0 | 1 | 2; life: number; wait: number; z: number }
 
@@ -173,7 +174,7 @@ export function Celebration({ w }: { w: World }) {
   }
   return (
     <div className={`cel-wrap ${leaving ? 'out' : ''}`}>
-      <div className={`cel${ci ? ' has-ci' : ''}`} style={{ ['--k1' as any]: kit, ['--k2' as any]: kit2, ...(ci ? { ['--ci-rgb' as any]: ci.rgb, ...(ci.mark ? { ['--cel-mark' as any]: `url(${import.meta.env.BASE_URL || '/'}assets/marks/${ci.mark}.svg)`, ['--cel-ar' as any]: ci.ar || 1 } : {}) } : {}) }}>
+      <div className={`cel${ci ? ' has-ci' : ''}`} style={{ ['--k1' as any]: kit, ['--k2' as any]: kit2, ...(ci ? { ['--ci-rgb' as any]: ci.rgb, ...(ci.mark ? { ['--cel-mark' as any]: `url(${assetHref(`assets/marks/${ci.mark}.svg`)})`, ['--cel-ar' as any]: ci.ar || 1 } : {}) } : {}) }}>
         <div className="cel-bg" aria-hidden>{ci?.mark && <i className="cel-mark" />}<i className="cel-glow" /><i className="cel-beam l" /><i className="cel-beam r" /><i className="cel-motes" /></div>
         <Confetti colors={['#F4C542', '#FFE38A', '#ffffff', kit, kit2, '#F4C542']} fire={fire} reduce={reduce} />
         <div className="cel-body" onClick={() => { haptic(); setFire((x) => x + 1) }}>

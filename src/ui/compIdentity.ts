@@ -12,6 +12,7 @@
 //   FA Cup             navy and red, the trophy;  Carabao Cup  green and white, gold
 // The colours and art themselves live in screens.css under .ci-<id>. Every other competition keeps the standard look.
 import type { CSSProperties } from 'react'
+import { assetHref } from '../services/assets'
 
 export interface CompIdentity {
   /** the identity's class in screens.css: .ci-<id> */
@@ -59,7 +60,7 @@ export const compIdentity = (key?: string): CompIdentity | undefined => (key ? I
 /** The identity's accent and mark as CSS variables for the elements that carry it. */
 export const identityVars = (ci: CompIdentity): CSSProperties => ({
   ['--ci-acc' as string]: ci.accent,
-  ...(ci.mark ? { ['--ci-mark' as string]: `url(/assets/marks/${ci.mark}.svg)`, ['--ci-ar' as string]: ci.ar } : {}),
+  ...(ci.mark ? { ['--ci-mark' as string]: `url(${assetHref(`assets/marks/${ci.mark}.svg`)})`, ['--ci-ar' as string]: ci.ar } : {}),
 })
 
 /** A competition's own page in its identity (see .cis in screens.css): its tabs, selections, cards and small type. */
