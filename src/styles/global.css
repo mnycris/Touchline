@@ -100,7 +100,12 @@ img { user-select: none; -webkit-user-drag: none; }
   overflow: hidden;
   background: radial-gradient(120% 50% at 50% -12%, rgba(var(--club-rgb), 0.22), transparent 60%), var(--bg);
   isolation: isolate;
+  /* an app, not a page: a long press doesn't select the label under the finger or open a link/image callout */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
+.app input, .app textarea, .app [contenteditable] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 @media (min-width: 521px) {
   body { background: #020305; }
   .app { box-shadow: 0 0 0 1px var(--line), 0 30px 80px rgba(0, 0, 0, 0.6); }

@@ -9,11 +9,13 @@ import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 import { initNavFx, useEnterClass } from './ui/navFx'
 import { initMotionClass } from './ui/motion'
+import { initSwipeBack } from './ui/swipeBack'
 import { Presence } from './ui/components/Presence'
 import { Spotlight } from './ui/components/Spotlight'
 
 initNavFx()
 initMotionClass()
+initSwipeBack()
 
 export default function App() {
   const world = useGame((s) => s.world)

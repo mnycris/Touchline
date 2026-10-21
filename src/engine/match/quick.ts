@@ -70,7 +70,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   const str = [strength(home, rng, boost(0)), strength(away, rng, boost(1))]
   const gap = str[0] - str[1] + (ctx.neutral ? 0 : 2)
   const k = (g: number) => (g >= 0 ? 0.056 * g : 0.068 * g)
-  const lam = [1.26 * Math.exp(k(gap)) * Math.exp(rng.normal(0, 0.1)), 1.26 * Math.exp(k(-gap)) * Math.exp(rng.normal(0, 0.1))]
+  const lam = [1.35 * Math.exp(k(gap)) * Math.exp(rng.normal(0, 0.1)), 1.35 * Math.exp(k(-gap)) * Math.exp(rng.normal(0, 0.1))]
   // --- players and minutes
   const ps: QP[] = []
   const events: MatchEvent[] = []

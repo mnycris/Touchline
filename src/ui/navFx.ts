@@ -44,15 +44,42 @@ function snapshot(el: HTMLElement): HTMLElement {
   return ghost
 }
 
-function place(el: HTMLElement | null, host: string, cls: string, ms: number) {
+type Ghost = HTMLElement & { _scrolls?: [HTMLElement, number, number][] }
+/** Put a snapshot back where its scroll positions apply (they are lost whenever it leaves the document). */
+export function restoreScrolls(g: HTMLElement) { for (const [n, t, l] of (g as Ghost)._scrolls || []) { n.scrollTop = t; n.scrollLeft = l } }
+
+/**
+ * The screens left behind on the way forward, as they were left, keyed by where they sat: the interactive swipe
+ * back (see swipeBack) shows the one beneath under the screen being pulled away. A handful at most.
+ */
+const kept = new Map<string, HTMLElement>()
+function keep(key: string, g: HTMLElement) {
+  kept.delete(key)
+  kept.set(key, g)
+  while (kept.size > 12) kept.delete(kept.keys().next().value!)
+}
+const layerKeyOf = (s: S, depth: number) => `${s.tab}:${depth}:${s.stacks[s.tab][depth - 1]?.name ?? 'root'}`
+/** The snapshot of the screen beneath the one showing (if it was left by navigating forward from it). */
+export function keptBeneath(s: S): HTMLElement | undefined {
+  if (s.overlay.length > 1) return kept.get(`ov:${s.overlay.length - 1}:${s.overlay[s.overlay.length - 2].name}`)
+  if (s.overlay.length) return undefined
+  const d = s.stacks[s.tab].length
+  return d ? kept.get(layerKeyOf(s, d - 1)) : undefined
+}
+let skip = false
+/** The next navigation has already been animated (by the finger): don't animate it again. (Only straight away: a
+ * Back button that asks first and navigates later animates as usual.) */
+export function skipNextGhost() { skip = true; window.setTimeout(() => { skip = false }, 400) }
+
+function place(el: HTMLElement | null, host: string, cls: string, ms: number, keepAs?: string) {
   const h = document.getElementById(host)
   if (!el || !h) return
   const ghost = snapshot(el)
   ghost.classList.remove('layer-in', 'layer-in-tab', 'overlay-in')
   ghost.classList.add('ghost', cls)
   h.appendChild(ghost)
-  for (const [n, t, l] of (ghost as HTMLElement & { _scrolls?: [HTMLElement, number, number][] })._scrolls || []) { n.scrollTop = t; n.scrollLeft = l }
-  window.setTimeout(() => ghost.remove(), ms)
+  restoreScrolls(ghost)
+  window.setTimeout(() => { ghost.remove(); if (keepAs) { ghost.classList.remove(cls); keep(keepAs, ghost) } }, ms)
 }
 
 /** Start listening (once, at app start). */
@@ -61,15 +88,17 @@ export function initNavFx() {
     const d = s.world && p.world && s.saveId === p.saveId ? decide(s, p) : undefined
     if (!d) { if (s.saveId !== p.saveId) dir = 'none'; return }
     dir = d
-    if (reduced()) return
+    if (skip) { skip = false; return }
     const layer = document.querySelector<HTMLElement>('.app > .layer')
     const overlays = document.querySelectorAll<HTMLElement>('.app > .overlay')
     const topOv = overlays[overlays.length - 1] || null
-    if (d === 'back') place(layer, 'fx-over', 'ghost-back', 240)
-    else if (d === 'fwd') place(layer, 'fx-under', 'ghost-hold', 300)
-    else if (d === 'tab') place(layer, 'fx-under', 'ghost-hold', 220)
-    else if (d === 'close') place(topOv, 'fx-over', 'ghost-close', 240)
-    else if (d === 'open' && topOv) place(topOv, 'fx-over', 'ghost-hold-ov', 340)
+    // (with less motion nothing animates, but the screen left is still kept for the swipe back)
+    const ms = (n: number) => (reduced() ? 0 : n)
+    if (d === 'back') { if (!reduced()) place(layer, 'fx-over', 'ghost-back', 240) }
+    else if (d === 'fwd') place(layer, 'fx-under', 'ghost-hold', ms(300), layerKeyOf(p, p.stacks[p.tab].length))
+    else if (d === 'tab') { if (!reduced()) place(layer, 'fx-under', 'ghost-hold', 220) }
+    else if (d === 'close') { if (!reduced()) place(topOv, 'fx-over', 'ghost-close', 240) }
+    else if (d === 'open' && topOv) place(topOv, 'fx-over', 'ghost-hold-ov', ms(340), `ov:${p.overlay.length}:${p.overlay[p.overlay.length - 1].name}`)
   })
 }
 
