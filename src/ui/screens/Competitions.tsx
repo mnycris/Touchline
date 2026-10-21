@@ -5,7 +5,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Club, Competition, Fixture, Player, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
-import { compIdentity, identityClass, identityVars } from '../compIdentity'
+import { compIdentity, identityClass, identityVars, pageIdentity } from '../compIdentity'
 import { IdentityArt } from '../components/IdentityArt'
 import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
@@ -279,6 +279,9 @@ export function CompScreen({ params }: { params: { id: string } }) {
   const hasKO = !!c && (c.rounds.length > 0 || c.intl?.kind === 'tournament')
   const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : c?.intl ? 'fixtures' : 'bracket')
   if (!c) return <Screen title="Competition" back><Empty icon="trophy" title="Competition not found" /></Screen>
+  // the big competitions' pages carry their brand all the way down, not just in the title card
+  const ci = compIdentity(c.key)
+  const pi = ci ? pageIdentity(ci) : undefined
   const items = [
     ...(hasTable ? [{ id: 'table' as const, label: c.format === 'uefa' ? 'League Phase' : groups ? 'Groups' : 'Table' }] : []),
     { id: 'fixtures' as const, label: 'Fixtures' },
@@ -286,7 +289,7 @@ export function CompScreen({ params }: { params: { id: string } }) {
     { id: 'stats' as const, label: 'Stats' },
   ]
   return (
-    <Screen title={<div className="row" style={{ gap: 10, minWidth: 0 }}><CompLogo k={compLogoKey(c)} size={30} name={c.name} /><div style={{ minWidth: 0 }}><div className="title ellipsis">{c.short}</div><div className="tiny dim ellipsis" style={{ marginTop: 1 }}>{c.name !== c.short ? `${c.name} · ` : ''}{seasonLabel(c.season)}</div></div></div>} back right={<FollowBtn w={w} kind="comp" id={c.key} name={c.name} />}>
+    <Screen title={<div className="row" style={{ gap: 10, minWidth: 0 }}><CompLogo k={compLogoKey(c)} size={30} name={c.name} /><div style={{ minWidth: 0 }}><div className="title ellipsis">{c.short}</div><div className="tiny dim ellipsis" style={{ marginTop: 1 }}>{c.name !== c.short ? `${c.name} · ` : ''}{seasonLabel(c.season)}</div></div></div>} back right={<FollowBtn w={w} kind="comp" id={c.key} name={c.name} />} className={`comp-page${pi ? ` ${pi.className}` : ''}`} style={pi?.style}>
       <CompHero w={w} c={c} />
       <Tabs sticky items={items} value={tab} onChange={setTab} />
       {tab === 'table' && (groups ? <GroupTables w={w} c={c} /> : <TableView w={w} c={c} />)}

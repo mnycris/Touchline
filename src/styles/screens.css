@@ -2334,6 +2334,21 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
    placed (--ci-mark-fill, --ci-mark-op; --ci-mw its width against the box, --ci-mx right offset, --ci-my, --ci-mr), and a
    hairline in its colours along the top (--ci-edge). The marks are traced from the genuine logos
    (scripts/assets/comp_marks.py); the colours are sampled from those logos or taken from the brands' descriptions. */
+/* ---------- a competition's own page in its identity (see pageIdentity): its accent marks what is chosen, its colour
+   tints the surfaces and its night sits behind the sticky tabs, so the title card isn't a brand pasted onto a generic
+   page. Results, zones and the manager's own club keep their usual colours: they mean the same thing everywhere. */
+.cis .tabs.sticky { background: color-mix(in srgb, var(--cis-deep) 90%, transparent); border-bottom-color: rgba(var(--cis-rgb), .3); }
+.cis .tabs-ind, .cis .tab.on::after { background: var(--ci-acc); box-shadow: 0 0 14px rgba(var(--cis-rgb), .75); }
+.cis .tab.on { color: #fff; }
+.cis .seg { background: rgba(var(--cis-rgb), .08); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .14); }
+.cis .seg-ind, .cis .seg:not(.has-ind) > button.on { background: rgba(var(--cis-rgb), .3); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .5); }
+.cis .card { background: linear-gradient(180deg, rgba(var(--cis-rgb), .1), rgba(var(--cis-rgb), .03) 160px, rgba(var(--cis-rgb), 0) 420px), var(--s1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .13); }
+.cis .tbl th { color: color-mix(in srgb, var(--ci-acc) 55%, var(--t3)); }
+.cis .tbl td { border-top-color: rgba(var(--cis-rgb), .1); }
+.cis .iconbtn { background: rgba(var(--cis-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .22); }
+.cis .label, .cis .kicker { color: var(--ci-acc); }
+/* on a competition's own page its logo on every fixture says nothing */
+.comp-page .fixture-row .comp-logo, .comp-page .fixture-row .logo-plate.comp { display: none !important; }
 .ci { position: relative; overflow: hidden; isolation: isolate; background: var(--ci-field, #12151b); }
 .ci-art { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; border-radius: inherit; }
 .ci-art > i { position: absolute; display: block; }
@@ -2462,7 +2477,10 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .comp-hero .ch-chip-t { color: rgba(255, 255, 255, .82); }
 
 /* the Season page's tile: the field and its light, the logo on it */
-.logo-tile.ci { border-color: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .1); }
+/* (no border on an identity tile: a transparent one let the bare field paint a rim around the art, and the top
+   hairline of the big cards read as a seam at this size; a ring drawn over the art, on its curve, defines the edge) */
+.logo-tile.ci { border: 0; box-shadow: none; }
+.logo-tile.ci::before { inset: 0; height: auto; border-radius: inherit; background: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12); z-index: 2; }
 .logo-tile.ci .ci-mark, .logo-tile.ci .ci-light { display: none; }
 .logo-tile.ci .comp-logo, .logo-tile.ci > svg { position: relative; filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .3)); }
 .logo-tile.ci-white-logo .comp-logo { filter: brightness(0) invert(1) drop-shadow(0 2px 6px rgba(0, 0, 0, .25)); }
@@ -2470,7 +2488,7 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .logo-tile.ci-FACUP { --ci-field: linear-gradient(125deg, #091634 0%, #0e2150 55%, #142c66 100%); }
 
 /* Match Day: the band at the top in the competition's brand, deepened under the badges, into the page below */
-.md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, .34) 55%, var(--s1) 97%), var(--ci-field); border-bottom-color: transparent; }
+.md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .18) 0%, rgba(0, 0, 0, .34) 55%, var(--s1) 97%), var(--ci-field); border-bottom: 0; }
 .md-head.ci-band .ci-art { -webkit-mask-image: linear-gradient(#000 35%, transparent 96%); mask-image: linear-gradient(#000 35%, transparent 96%); }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }

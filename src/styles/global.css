@@ -366,12 +366,13 @@ html.rm .ci-light { opacity: 0 !important; }
 .club-fog { position: absolute; left: 0; right: 0; top: 0; height: min(58vh, 460px); overflow: hidden; pointer-events: none; z-index: 0;
   -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent 100%); mask-image: linear-gradient(180deg, #000 30%, transparent 100%); }
 .club-fog i { position: absolute; display: block; border-radius: 50%; will-change: transform; animation-delay: var(--fog-t, 0s); animation-timing-function: ease-in-out; animation-iteration-count: infinite; animation-direction: alternate; }
+/* its colours: the club's by default, or the screen's own (--fog-1 body, --fog-2c light, --fog-3c shadow; see atmosphere) */
 .club-fog .f1 { width: 95%; height: 70%; left: -22%; top: -22%; animation-name: fog1; animation-duration: 23s;
-  background: radial-gradient(closest-side, rgba(var(--club-rgb), .5), rgba(var(--club-rgb), .18) 55%, transparent); }
+  background: radial-gradient(closest-side, rgba(var(--fog-1, var(--club-rgb)), .5), rgba(var(--fog-1, var(--club-rgb)), .18) 55%, transparent); }
 .club-fog .f2 { width: 80%; height: 62%; right: -24%; top: -18%; animation-name: fog2; animation-duration: 29s;
-  background: radial-gradient(closest-side, color-mix(in srgb, rgb(var(--club-rgb)) 62%, #fff 38%) 0%, transparent 72%); opacity: .3; }
+  background: radial-gradient(closest-side, var(--fog-2c, color-mix(in srgb, rgb(var(--club-rgb)) 62%, #fff 38%)) 0%, transparent 72%); opacity: .3; }
 .club-fog .f3 { width: 70%; height: 58%; left: 18%; top: 4%; animation-name: fog3; animation-duration: 37s;
-  background: radial-gradient(closest-side, color-mix(in srgb, rgb(var(--club-rgb)) 70%, #000 30%) 0%, transparent 70%); opacity: .55; }
+  background: radial-gradient(closest-side, var(--fog-3c, color-mix(in srgb, rgb(var(--club-rgb)) 70%, #000 30%)) 0%, transparent 70%); opacity: .55; }
 @keyframes fog1 { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(18%, 6%) scale(1.12); } 100% { transform: translate(30%, -4%) scale(.94); } }
 @keyframes fog2 { 0% { transform: translate(0, 0) scale(1.04); } 50% { transform: translate(-20%, 10%) scale(.9); } 100% { transform: translate(-8%, -6%) scale(1.14); } }
 @keyframes fog3 { 0% { transform: translate(0, 0) scale(.92); } 50% { transform: translate(-16%, -8%) scale(1.1); } 100% { transform: translate(14%, -12%) scale(1); } }

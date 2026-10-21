@@ -12,6 +12,7 @@ import { initMotionClass } from './ui/motion'
 import { initSwipeBack } from './ui/swipeBack'
 import { Presence } from './ui/components/Presence'
 import { Spotlight } from './ui/components/Spotlight'
+import { atmosphereFor, atmosphereVars, type Atmosphere } from './ui/atmosphere'
 
 initNavFx()
 initMotionClass()
@@ -94,7 +95,7 @@ function Career() {
   return (
     <>
       <div className={`layer ${layerIn}`} key={layerKey}>
-        <ClubFog />
+        <ClubFog atmo={atmosphereFor(useGame.getState().world!, top)} />
         <ViewKey.Provider value={viewKeyFor(tab, stack.length, top?.name ?? 'root', top?.params)}>
           {View ? <View params={top!.params} /> : <Root />}
         </ViewKey.Provider>
@@ -113,12 +114,13 @@ function Career() {
   )
 }
 
-/** The club's colours in the air at the top of every screen, drifting slowly, after the main menu's ambient light.
- * Each screen has its own (screens are opaque for their transitions); the phase comes from the page clock, so the fog
- * carries on where it was instead of restarting with each screen. */
-function ClubFog() {
+/** Colour in the air at the top of every screen, drifting slowly, after the main menu's ambient light: the club's,
+ * or whatever the screen is about (a competition's brand, another club's colours; see atmosphere). Each screen has its
+ * own (screens are opaque for their transitions); the phase comes from the page clock, so the fog carries on where it
+ * was instead of restarting with each screen. */
+function ClubFog({ atmo }: { atmo?: Atmosphere }) {
   const [t] = useState(() => `${-(performance.now() / 1000).toFixed(2)}s`)
-  return <div className="club-fog" aria-hidden style={{ ['--fog-t' as string]: t }}><i className="f1" /><i className="f2" /><i className="f3" /></div>
+  return <div className="club-fog" aria-hidden style={{ ['--fog-t' as string]: t, ...(atmo ? atmosphereVars(atmo) : {}) }}><i className="f1" /><i className="f2" /><i className="f3" /></div>
 }
 
 function Toast() {
