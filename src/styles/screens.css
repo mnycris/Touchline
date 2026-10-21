@@ -2390,6 +2390,32 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .cis .tbl td { border-top-color: rgba(var(--cis-rgb), .1); }
 .cis .iconbtn { background: rgba(var(--cis-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .22); }
 .cis .label, .cis .kicker { color: var(--ci-acc); }
+/* chips (rounds, filters) in the identity: the chosen one in its accent */
+.cis .chip { background: rgba(var(--cis-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .18); }
+.cis .chip.on { background: var(--ci-acc); color: #0b0d12; box-shadow: 0 0 16px color-mix(in srgb, var(--ci-acc) 35%, transparent); }
+.cis .score-pill { background: rgba(var(--cis-rgb), .16); }
+/* the knockouts in the identity, as the league phase is: the tree on the competition's own night, its lines and the
+   round being played in its accent, every tie a card of the brand */
+.cis .bk { position: relative; padding: 2px 0 6px; background: radial-gradient(90% 60% at 80% 0%, rgba(var(--cis-rgb), .22), transparent 70%), radial-gradient(70% 50% at 0% 100%, rgba(var(--cis-rgb), .12), transparent 70%), linear-gradient(180deg, color-mix(in srgb, var(--cis-deep) 85%, var(--bg)), var(--bg));
+  border-top: 1px solid rgba(var(--cis-rgb), .22); border-bottom: 1px solid rgba(var(--cis-rgb), .14); }
+.cis .bk::before { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: repeating-linear-gradient(90deg, rgba(var(--cis-rgb), .06) 0 1px, transparent 1px 44px); -webkit-mask-image: linear-gradient(180deg, #000, transparent 85%); mask-image: linear-gradient(180deg, #000, transparent 85%); }
+.cis .bk-line { stroke: rgba(var(--cis-rgb), .3); }
+.cis .bk-line.went { stroke: color-mix(in srgb, var(--ci-acc) 65%, transparent); }
+.cis .bk-line.mine { stroke: var(--ci-acc); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--ci-acc) 70%, transparent)); }
+.cis .bk-head .b { color: #fff; }
+.cis .bk-head.cur .b { color: var(--ci-acc); }
+.cis .bk-now { background: color-mix(in srgb, var(--ci-acc) 20%, transparent); color: var(--ci-acc); }
+.cis .bk-tie { background: linear-gradient(180deg, rgba(var(--cis-rgb), .2), rgba(var(--cis-rgb), .07)), var(--s1); border-color: rgba(var(--cis-rgb), .3); box-shadow: 0 8px 20px -14px rgba(0, 0, 0, .9); }
+.cis .bk-tie:not(:disabled):active { background: linear-gradient(180deg, rgba(var(--cis-rgb), .3), rgba(var(--cis-rgb), .12)), var(--s1); }
+.cis .bk-tie.mine { box-shadow: inset 3px 0 0 var(--ci-acc), 0 0 0 1px color-mix(in srgb, var(--ci-acc) 45%, transparent), 0 0 18px -6px color-mix(in srgb, var(--ci-acc) 60%, transparent); }
+.cis .bk-tie.draw { background: rgba(var(--cis-rgb), .04); border-color: rgba(var(--cis-rgb), .22); }
+.cis .bk-row.me span.small { color: var(--ci-acc); }
+.cis .bk-agg { background: rgba(var(--cis-rgb), .22); color: #fff; }
+.cis .bk-maybe i { border-color: rgba(var(--cis-rgb), .45); }
+.cis .bk-champ { background: radial-gradient(120% 90% at 50% 0%, rgba(245, 196, 81, .2), color-mix(in srgb, var(--cis-deep) 80%, var(--s1)) 72%); }
+.cis .bk-champ.mine { box-shadow: 0 0 0 1px var(--ci-acc), 0 0 22px -6px var(--ci-acc); }
+.cis .bk-line-row.mine { box-shadow: inset 3px 0 0 var(--ci-acc); }
 /* on a competition's own page its logo on every fixture says nothing */
 .comp-page .fixture-row .comp-logo { display: none !important; }
 .ci { position: relative; overflow: hidden; isolation: isolate; background: var(--ci-field, #12151b); }
