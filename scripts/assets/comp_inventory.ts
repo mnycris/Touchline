@@ -18,6 +18,10 @@ const TREAT = (treatments as { comps: Record<string, string> }).comps
 const WIKI: Record<string, string> = {
   CDR: 'Copa del Rey', SUPERCOPA: 'Supercopa de España', TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield',
   SUPERTACA: 'Supertaça Cândido de Oliveira', CI: 'Coppa Italia', TACA: 'Taça de Portugal', SCOTCUP: 'Scottish Cup',
+  // tournaments: accepted on the device only when the article's image is a drawn logo of the tournament itself (no
+  // edition year in its file name, not a photograph of the trophy)
+  WC: 'FIFA World Cup', EURO: 'UEFA European Championship', UNL: 'UEFA Nations League', CA: 'Copa América',
+  AFCON: 'Africa Cup of Nations', ASIAN: 'AFC Asian Cup', GOLD: 'CONCACAF Gold Cup',
 }
 const comps = new Map<string, { key: string; name: string; format: string; country: string; clubs: number }>()
 for (const c of Object.values(w.competitions)) if (!comps.has(c.key)) comps.set(c.key, { key: c.key, name: c.name, format: c.format, country: c.country, clubs: c.clubs.length })
@@ -36,7 +40,7 @@ const lines = rows.map((c) => {
   const b = bundled ? `✓ ${LOGOS[c.key].w}×${LOGOS[c.key].h}` : ''
   const r = CC[c.key] ? `football-logos.cc (${CC[c.key].split('/')[1].replace(/\.[0-9a-f]+$/, '')})` : ''
   const wk = !bundled && !CC[c.key] && WIKI[c.key] ? `Wikipedia: ${WIKI[c.key]}` : ''
-  const shown = { bundled: 'Bundled logo', remote: 'Remote logo (unverified here)', wiki: 'Wikipedia logo, looked up on device', none: '**No authentic logo: designed emblem**' }[status]
+  const shown = { bundled: 'Bundled logo', remote: 'Remote logo (unverified here)', wiki: 'Wikipedia logo if one passes the checks, else emblem', none: '**No authentic logo: designed emblem**' }[status]
   return `| ${c.key} | ${c.name} | ${c.format} | ${c.country || '—'} | ${b} | ${[r, wk].filter(Boolean).join('; ') || '—'} | ${TREAT[c.key] || '—'} | ${shown} |`
 })
 const md = `# Competition logos
@@ -49,18 +53,24 @@ Every competition in the game (${rows.length}), from a save on ${w.date}, and wh
   competitions have only this source. It could not be checked from the build environment, whose network policy
   blocks the host, so these are listed as unverified rather than assumed to work.
 - **Wikipedia**: the logo from the competition's Wikipedia article, looked up on the device and accepted only when the
-  article is about a football competition: ${tally.wiki}. Also unverified from the build environment.
+  article is about a football competition and its image is a drawn logo (SVG or PNG, not a photograph of a trophy); for
+  international tournaments also only a logo of the tournament itself, never one edition's (no year in the file name):
+  ${tally.wiki}. Also unverified from the build environment. When nothing passes, the designed emblem stays.
 - **None**: no authentic logo is available to the app: ${tally.none}. These show a designed emblem in the
   competition's colours with its initials (no trophy pictogram). It is a placeholder, not a substitute for the real mark.
   The same emblem appears if a remote or Wikipedia logo fails to load on the device.
 
 "Dark surface" is how the logo is shown on the app's dark cards (\`scripts/assets/logo_treatments.py\`): light (shown
-in white), reverse (dark tone white, accents kept), plate (own colours on a neutral plate), or as it is (—).
+in white), reverse (dark tone white, accents kept), edge (its own rim lifted), or as it is (—). No logo is put on a plate.
 
 | Key | Competition | Format | Country | Bundled | Remote / lookup | Dark surface | Shown |
 |---|---|---|---|---|---|---|---|
 ${lines.join('\n')}
 `
-fs.writeFileSync(path.join(ROOT, 'docs', 'assets', 'competition-logos.md'), md)
+// the hand-written part of the document (from its first section after the table) is kept as it is
+const out = path.join(ROOT, 'docs', 'assets', 'competition-logos.md')
+const prev = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : ''
+const tail = prev.indexOf('\n## ') >= 0 ? prev.slice(prev.indexOf('\n## ')) : ''
+fs.writeFileSync(out, md + tail)
 console.log(JSON.stringify(tally), rows.length)
 for (const c of rows) if (!LOGOS[c.key] && !CC[c.key] && !WIKI[c.key]) console.log('none:', c.key, c.name, c.format, c.country)

@@ -223,7 +223,14 @@ function sharpWiki(thumb: string, orig?: { source?: string; width?: number }) {
   return orig?.source || thumb
 }
 
-export interface WikiQuery { key: string; titles: string[]; verify: (description: string, extract: string) => boolean; asIs?: boolean }
+export interface WikiQuery {
+  key: string
+  titles: string[]
+  verify: (description: string, extract: string) => boolean
+  asIs?: boolean
+  /** the lead image itself must pass this too (its file URL): an article can be right and its picture still not a logo */
+  image?: (url: string) => boolean
+}
 
 /** Resolve a verified Wikipedia lead image (thumbnail) for a person. Cached per device; null when none verifies. */
 export function wikiPhoto(q: WikiQuery): Promise<string | null> {
@@ -238,7 +245,7 @@ export function wikiPhoto(q: WikiQuery): Promise<string | null> {
         const j = await res.json()
         if (j.type === 'disambiguation') continue
         const img: string | undefined = j.thumbnail?.source
-        if (img && q.verify(String(j.description || ''), String(j.extract || ''))) {
+        if (img && q.verify(String(j.description || ''), String(j.extract || '')) && (!q.image || q.image(String(j.originalimage?.source || img)))) {
           wikiCache[q.key] = sharpWiki(img, j.originalimage)
           persist()
           return wikiCache[q.key]
@@ -259,10 +266,29 @@ const COMP_WIKI: Record<string, string> = {
   CDR: 'Copa del Rey', SUPERCOPA: 'Supercopa de España', TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield',
   SUPERTACA: 'Supertaça Cândido de Oliveira', CI: 'Coppa Italia', TACA: 'Taça de Portugal', SCOTCUP: 'Scottish Cup',
 }
+// international tournaments re-brand every edition: only a logo for the tournament itself will do, never the logo of
+// one edition (a "2024" in the file name: the game's tournaments are later ones) and never a photo of the trophy
+const INTL_WIKI: Record<string, string> = {
+  WC: 'FIFA World Cup', EURO: 'UEFA European Championship', UNL: 'UEFA Nations League', CA: 'Copa América',
+  AFCON: 'Africa Cup of Nations', ASIAN: 'AFC Asian Cup', GOLD: 'CONCACAF Gold Cup',
+}
+// a logo is drawn (an SVG or PNG); the lead image of a cup's article is sometimes a photograph of its trophy
+const isDrawn = (url: string) => /\.(svg|png)(\/|$|\?)/i.test(url)
+const fileName = (url: string) => decodeURIComponent(url.split('/').filter((s) => /\.(svg|png|jpe?g|gif|webp)$/i.test(s))[0] || url).replace(/_/g, ' ')
 export function compWikiQuery(key: string): WikiQuery | undefined {
-  const t = COMP_WIKI[key.replace(/-\d+$/, '')]
+  const base = key.replace(/-\d+$/, '')
+  const intl = INTL_WIKI[base]
+  const t = COMP_WIKI[base] || intl
   if (!t) return undefined
-  return { key: `c:${t}`, titles: [t], asIs: true, verify: (d, e) => /football|soccer|cup|super ?cup|competition|tournament/i.test(`${d} ${e.slice(0, 200)}`) }
+  return {
+    key: `c2:${t}`,
+    titles: [t],
+    asIs: true,
+    verify: (d, e) => /football|soccer|cup|super ?cup|competition|tournament|championship/i.test(`${d} ${e.slice(0, 200)}`),
+    image: intl
+      ? (u) => isDrawn(u) && /logo|emblem|wordmark/i.test(fileName(u)) && !/(?<!\()\b(19|20)\d\d\b(?!\))/.test(fileName(u))
+      : isDrawn,
+  }
 }
 
 /**
