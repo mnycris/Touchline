@@ -46,15 +46,9 @@ MARKS = {
     'L16': ('L16', 0, 126, 'alpha'),
     'L17': ('L17', 0, 127, 'alpha'),
     'FACUP': ('FACUP', 0, 124, 'alpha'),
-    # the Pro League's bull in its shield; the EFL's ball of dots (one for all three divisions); Liga Portugal's
-    # symbol without "LIGA PORTUGAL"; the Eredivisie "e" in its ring without the sponsor's name; the Conference League
-    # trophy between its green brackets
-    'L4': ('L4', 0, 360, 'alpha'),
-    'EFL': ('L14', 160, 268, 'dots', {'x': (85, 202)}),
-    'L308': ('L308', 0, 360, 'alpha', {'big': 0.12}),
-    'L10': ('L10', 0, 360, 'alpha', {'big': 0.12}),
-    'UECL': ('UECL', 0, 184, 'dark', {'x': (95, 265), 'notrim': True}),
-    'UECL2': ('UECL', 0, 184, 'green', {'x': (95, 265), 'notrim': True}),
+    # the Conference League trophy on its own, without its green brackets (the Pro League's bull, the EFL's ball,
+    # Liga Portugal's symbol and the Eredivisie's emblem come from vector logos instead: see svg_parts.py, efl_ball.py)
+    'UECL': ('UECL', 0, 184, 'dark', {'x': (95, 265)}),
 }
 
 # Simple Icons "Premier League" (CC0 icon data; the mark is the Premier League's), viewBox 0 0 24 24

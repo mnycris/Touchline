@@ -2477,16 +2477,14 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   --ci-mw: .5; --ci-mx: -15%; --ci-my: 8%; --ci-mark-op: .95;
   --ci-mark-fill: linear-gradient(165deg, #ffb066 0%, #ff7a12 32%, #ff6900 58%, #a83f00 100%);
   --ci-edge: linear-gradient(90deg, transparent, #ff6900 35%, #ffb066 65%, transparent); }
-/* Conference League: black and bright green (#00b810, from the logo); its trophy in silver between the green brackets,
-   on planes of light */
-.ci-UECL { --ci-field: radial-gradient(75% 115% at 100% 0%, rgba(0, 200, 40, .36), transparent 62%), radial-gradient(50% 80% at 88% 110%, rgba(0, 184, 16, .16), transparent 70%), linear-gradient(135deg, #0c120d 0%, #060907 58%, #020302 100%);
-  --ci-glow: linear-gradient(112deg, transparent 50%, rgba(44, 240, 124, .12) 50.4%, rgba(44, 240, 124, .02) 59%, transparent 59.4%), linear-gradient(112deg, transparent 64%, rgba(44, 240, 124, .08) 64.4%, transparent 71%);
-  --ci-mw: .36; --ci-mx: 1%; --ci-my: 7%; --ci-mark-op: 1;
-  --ci-mark-fill: linear-gradient(172deg, #ffffff 0%, #dfe6e1 30%, #a7b2ab 62%, #5f6b64 100%);
-  --ci-mark2-fill: linear-gradient(180deg, #6dff94 0%, #2cf07c 30%, #00b810 70%, #04801a 100%);
+/* Conference League: black and bright green (#00b810, from the logo); its trophy alone, large and cropped as the Europa
+   League's is, lit green from the top and falling away into the dark where the text runs */
+.ci-UECL { --ci-field: radial-gradient(90% 130% at 100% 100%, rgba(0, 200, 40, .3) 0%, rgba(0, 184, 16, .07) 45%, transparent 70%), linear-gradient(135deg, #101511 0%, #090b0a 55%, #040504 100%);
+  --ci-glow: radial-gradient(34% 60% at 86% 30%, rgba(60, 245, 138, .2), transparent 70%);
+  --ci-mw: .32; --ci-mx: -2%; --ci-my: 18%; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(180deg, #d2ffdf 0%, #4cf796 20%, #10cf3c 42%, #02902a 64%, #034216 84%, #021f0b 100%);
   --ci-sheen: 170, 255, 200;
   --ci-edge: linear-gradient(90deg, transparent, #2cf07c 40%, #b5ffd0 55%, transparent); }
-.ci-UECL .ci-mark2 { filter: drop-shadow(0 0 10px rgba(0, 220, 60, .55)); }
 /* Premier League: purple (#37003c) and the three gradient tones of the 2023 refresh (lime green, sky purple, purple
    red); the lion, heroic, as a cut-out against the colour */
 .ci-L13 { --ci-field: radial-gradient(70% 120% at 110% -15%, #00ff85 0%, rgba(0, 255, 133, 0) 58%), radial-gradient(65% 110% at 104% 62%, #04f5ff 0%, rgba(4, 245, 255, 0) 56%), radial-gradient(85% 120% at 78% 125%, #e90052 0%, rgba(233, 0, 82, 0) 62%), radial-gradient(55% 90% at 64% 38%, #963cff 0%, rgba(150, 60, 255, 0) 70%), #37003c;
@@ -2522,34 +2520,52 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .ci-L17 { --ci-field: radial-gradient(85% 130% at 106% -6%, #7b3cff 0%, #6a2ef0 26%, rgba(106, 46, 240, 0) 62%), radial-gradient(55% 85% at 92% 116%, rgba(31, 224, 192, .75) 0%, rgba(31, 224, 192, 0) 62%), linear-gradient(135deg, #202127 0%, #16171c 55%, #0f1013 100%);
   --ci-mark-fill: linear-gradient(200deg, #9a66ff 0%, #6a2ef0 42%, #17a993 78%, #1fe0c0 100%);
   --ci-edge: linear-gradient(90deg, transparent, #7b3cff 35%, #1fe0c0 70%, transparent); }
-/* EFL: its navy (#283070, from the dots of the logo) and its ball of dots, large and cropped, in each division's
-   colour: Championship gold (#b09840), League One silver, League Two red (#b81830) */
-.ci-L14, .ci-L60, .ci-L61 { --ci-mw: .5; --ci-mx: -12%; --ci-my: 10%; --ci-mr: -10deg; --ci-mark-op: .95;
-  --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(var(--efl-c), .3), transparent 62%), radial-gradient(60% 90% at 0% 110%, rgba(4, 8, 30, .7), transparent 70%), linear-gradient(125deg, #0d1235 0%, #19225a 52%, #283070 100%);
-  --ci-glow: radial-gradient(42% 70% at 86% 46%, rgba(var(--efl-c), .2), transparent 70%);
+/* EFL: its navy (#283271, from the logo) and its ball of 72 dots, one for every club, large. As in each division's own
+   logo, its 24 are lit in its colour (Championship gold, League One silver, League Two red) and the other 48 stay in
+   the ball, faint; the ball is turned so that the division's own third sits in the free corner at the top right. The
+   dots are the logo's own (scripts/assets/efl_ball.py), the light on them kept falling from the top left whatever the
+   turn. */
+.ci-L14, .ci-L60, .ci-L61 { --ci-mw: .46; --ci-mx: -4%; --ci-my: 2%; --ci-mark-op: 1;
+  --ci-mark-fill: rgba(140, 160, 255, .15);
+  --ci-mark2-fill: linear-gradient(calc(160deg - var(--ci-mr)), var(--efl-1) 0%, var(--efl-2) 30%, var(--efl-3) 62%, var(--efl-4) 100%);
+  --ci-field: radial-gradient(70% 120% at 100% 0%, rgba(var(--efl-c), .2), transparent 60%), radial-gradient(60% 90% at 0% 110%, rgba(4, 8, 30, .6), transparent 70%), linear-gradient(125deg, #0a0f2e 0%, #141c4f 55%, #222b6a 100%);
+  --ci-glow: radial-gradient(24% 48% at 86% 28%, rgba(var(--efl-c), .16), transparent 70%);
   --ci-edge: linear-gradient(90deg, transparent, rgb(var(--efl-c)) 40%, rgba(255, 255, 255, .8) 55%, transparent); }
-.ci-L14 { --efl-c: 214, 182, 92; --ci-mark-fill: linear-gradient(155deg, #f6e3a0 0%, #d9b85c 38%, #b09840 62%, #6e5a1c 100%); }
-.ci-L60 { --efl-c: 190, 198, 214; --ci-mark-fill: linear-gradient(155deg, #ffffff 0%, #d4d9e2 38%, #9aa1ad 64%, #5c6370 100%); }
-.ci-L61 { --efl-c: 232, 52, 78; --ci-mark-fill: linear-gradient(155deg, #ff8a96 0%, #e43048 38%, #b81830 64%, #6e0a18 100%); }
-/* Jupiler Pro League: the bull in its shield, in the logo's red (#f81040), on black; Belgium's colours along the top */
-.ci-L4 { --ci-field: radial-gradient(80% 125% at 100% 0%, rgba(248, 16, 64, .42), transparent 62%), radial-gradient(50% 80% at 100% 100%, rgba(120, 0, 30, .4), transparent 70%), linear-gradient(135deg, #1b0b10 0%, #0f070a 55%, #060304 100%);
-  --ci-glow: linear-gradient(115deg, transparent 58%, rgba(255, 80, 120, .1) 58.4%, transparent 68%);
-  --ci-mw: .31; --ci-mx: 3%; --ci-my: 9%; --ci-mr: 4deg; --ci-mark-op: 1;
-  --ci-mark-fill: linear-gradient(165deg, #ff7a96 0%, #f81040 42%, #b8082e 72%, #6a0219 100%);
+.ci-L14 { --ci-mr: 23deg; --efl-c: 214, 182, 92; --efl-1: #fff1bd; --efl-2: #e8c867; --efl-3: #b8963c; --efl-4: #6e5418; }
+.ci-L60 { --ci-mr: 143deg; --efl-c: 200, 206, 220; --efl-1: #ffffff; --efl-2: #e1e5ec; --efl-3: #a5acb8; --efl-4: #5c6370; }
+.ci-L61 { --ci-mr: -112deg; --efl-c: 232, 52, 78; --efl-1: #ffa0ab; --efl-2: #ff3d57; --efl-3: #c8102e; --efl-4: #6e0a18; }
+/* Jupiler Pro League: the bull in its shield (the logo's own outline), in the logo's red (#ff1740) on black, large
+   and cropped as the Europa League's trophy is, falling into the dark where the text runs; Belgium's colours along
+   the top */
+.ci-L4 { --ci-field: radial-gradient(90% 130% at 100% 100%, rgba(248, 16, 64, .34) 0%, rgba(248, 16, 64, .08) 45%, transparent 70%), linear-gradient(135deg, #1a0e11 0%, #0d0809 55%, #050404 100%);
+  --ci-glow: radial-gradient(34% 60% at 84% 26%, rgba(255, 60, 100, .18), transparent 70%);
+  --ci-mw: .54; --ci-mx: -22%; --ci-my: 5%; --ci-mr: -6deg; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(180deg, #ffb3c2 0%, #ff4870 18%, #f81040 40%, #b0062c 62%, #5e0217 82%, #2a010a 100%);
   --ci-edge: linear-gradient(90deg, #111 0 33.3%, #fdda24 33.3% 66.6%, #ef3340 66.6%); --ci-edge-h: 2px; }
-/* Liga Portugal: navy (#002058, from the logo) lit with electric blue, its symbol tall at the right; Portugal's green
-   and red along the top */
-.ci-L308 { --ci-field: radial-gradient(75% 120% at 100% 0%, rgba(47, 123, 255, .42), transparent 62%), radial-gradient(60% 90% at 0% 110%, rgba(0, 6, 24, .7), transparent 70%), linear-gradient(125deg, #000c26 0%, #00174a 50%, #002a6e 100%);
-  --ci-glow: linear-gradient(118deg, transparent 52%, rgba(120, 180, 255, .1) 52.4%, transparent 62%);
-  --ci-mw: .25; --ci-mx: -2%; --ci-my: 22%; --ci-mark-op: .95;
-  --ci-mark-fill: linear-gradient(175deg, #b9dbff 0%, #5ea6ff 30%, #2b6dff 60%, rgba(0, 42, 110, .3) 100%);
+/* Liga Portugal: navy (#00235a, from the logo) lit with electric blue; its symbol (drawn from the Lusitano horse) whole
+   and tall at the right, over blue-and-white azulejo tiles that fade in towards it; Portugal's green and red along the
+   top */
+.ci-L308 { --ci-field: radial-gradient(75% 120% at 100% 0%, rgba(47, 123, 255, .38), transparent 62%), radial-gradient(60% 90% at 0% 110%, rgba(0, 6, 24, .7), transparent 70%), linear-gradient(125deg, #000c26 0%, #00174a 50%, #002a6e 100%);
+  --ci-glow: radial-gradient(30% 60% at 86% 40%, rgba(80, 150, 255, .26), transparent 70%);
+  --ci-mw: .3; --ci-mx: 2%; --ci-my: 12%; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(172deg, #e4f2ff 0%, #8cc4ff 18%, #3d86ff 42%, #1b52d6 62%, #0c2f86 80%, rgba(10, 36, 110, .35) 100%);
   --ci-edge: linear-gradient(90deg, #046a38 0 40%, #da291c 40%); --ci-edge-h: 2px; }
-/* Eredivisie: navy (#002068, from the logo), the "e" in its ring large in Dutch orange; the Dutch flag along the top */
-.ci-L10 { --ci-field: radial-gradient(70% 115% at 100% 0%, rgba(255, 122, 0, .32), transparent 60%), radial-gradient(60% 90% at 0% 110%, rgba(0, 6, 26, .7), transparent 70%), linear-gradient(125deg, #000d2c 0%, #001852 52%, #00226e 100%);
-  --ci-glow: radial-gradient(40% 70% at 84% 46%, rgba(255, 140, 40, .16), transparent 70%);
-  --ci-mw: .48; --ci-mx: -13%; --ci-my: 12%; --ci-mark-op: .9;
-  --ci-mark-fill: linear-gradient(155deg, #ffc27a 0%, #ff8a1e 40%, #f06a00 66%, #9a3a00 100%);
+.ci-L308 .ci-art::before { content: ''; position: absolute; inset: 0; background: url(/assets/fx/azulejo.svg) 0 0 / 36px 36px; opacity: .4;
+  -webkit-mask-image: radial-gradient(60% 120% at 88% 40%, #000 0%, rgba(0, 0, 0, .5) 45%, transparent 80%); mask-image: radial-gradient(60% 120% at 88% 40%, #000 0%, rgba(0, 0, 0, .5) 45%, transparent 80%); }
+/* Eredivisie: Dutch orange, lit from the top right, and its emblem large: the ring in the logo's navy (#002f63), the
+   "e" in white; the Dutch flag along the top. Small type on the orange in white. */
+.ci-L10 { --ci-field: radial-gradient(70% 120% at 100% 0%, #ffae4a 0%, rgba(255, 140, 30, 0) 62%), linear-gradient(118deg, #c84000 0%, #e85a00 38%, #ff7a12 72%, #ff9330 100%);
+  --ci-glow: radial-gradient(60% 110% at 0% 100%, rgba(110, 26, 0, .38), transparent 70%);
+  --ci-mw: .54; --ci-mx: -14%; --ci-my: -14%; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(160deg, #24479e 0%, #0d2a72 50%, #061848 100%);
+  --ci-mark2-fill: linear-gradient(160deg, #ffffff 0%, #eef1f7 55%, #c3cbdb 100%);
   --ci-edge: linear-gradient(90deg, #ae1c28 0 33.3%, #ffffff 33.3% 66.6%, #21468b 66.6%); --ci-edge-h: 2px; }
+.ci.ci-L10 { --ci-acc: #ffffff !important; }
+.comp-hero.ci-L10 .ch-chip-l { color: rgba(255, 255, 255, .86); }
+.comp-hero.ci-L10 .ch-chip-t { color: #fff; }
+.comp-hero.ci-L10 .ch-prog { background: rgba(80, 20, 0, .28); }
+/* (and on its match day's orange band, the date under the kick-off time in white, not grey) */
+.md-head.ci-L10 .dim { color: rgba(255, 255, 255, .82); }
 /* Emirates FA Cup: navy and red (the 2020 identity's panels), the trophy in silver */
 .ci-FACUP { --ci-field: linear-gradient(104deg, transparent 66%, #c8102e 66.2%, #a20c24 100%), linear-gradient(125deg, #091634 0%, #0e2150 55%, #142c66 100%);
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
