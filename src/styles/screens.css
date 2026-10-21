@@ -2508,38 +2508,138 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 
 /* ============================================================================ season review */
 /* a finished season in chapters: the headline in the club's colours, then one idea per chapter, number first */
-.season-review .sr-body { padding-top: 6px; padding-bottom: 28px; }
-.sr-hero { position: relative; margin: 6px 16px 0; border-radius: 22px; overflow: hidden; isolation: isolate;
+.season-review .sr-body { padding-top: 12px; padding-bottom: 28px; }
+/* the cover: full width, lit by the season's mood; its own identity, not a competition card's */
+.season-review { --sr-acc: color-mix(in srgb, var(--sr) 65%, #fff); }
+.sr-cover { position: relative; overflow: hidden; isolation: isolate; color: #fff;
+  /* the floodlights' colour and strength, by how the season went */
+  --beam: 255, 255, 255; --beam-op: .5; }
+.sr-cover.m-glory { --beam: 255, 222, 150; --beam-op: 1; }
+.sr-cover.m-triumph { --beam: 255, 226, 166; --beam-op: .85; }
+.sr-cover.m-success { --beam-op: .6; }
+.sr-cover.m-struggle { --beam: 196, 206, 222; --beam-op: .32; }
+.sr-cover.m-fall { --beam: 170, 184, 204; --beam-op: .22; }
+.sr-cv-bg { position: absolute; inset: 0; z-index: -1; }
+.sr-cv-bg > * { position: absolute; display: block; }
+/* the club's colour, lit from above and deepened toward the page */
+.sr-cv-light { inset: 0; background:
+  radial-gradient(110% 62% at 50% -8%, rgba(var(--sr-rgb), .42), rgba(var(--sr-rgb), .12) 58%, transparent 80%),
+  linear-gradient(180deg, color-mix(in srgb, var(--sr) 18%, #090a0f) 0%, #08090d 82%); animation: srFade .7s ease both; }
+@keyframes srFade { from { opacity: 0; } }
+/* two floodlights off the top corners, crossing over the headline; they come on as the cover opens */
+.sr-cv-beams { inset: -4% -20% 20%; opacity: var(--beam-op); mix-blend-mode: screen; filter: blur(3px);
   background:
-    repeating-linear-gradient(118deg, rgba(255, 255, 255, 0.035) 0 2px, transparent 2px 15px),
-    radial-gradient(120% 85% at 85% -5%, rgba(var(--sr-rgb), 0.95), transparent 62%),
-    linear-gradient(168deg, rgba(var(--sr-rgb), 0.7) 0%, #07090d 82%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
-.sr-hero > .fx { z-index: 0; }
-.sr-hero-in { position: relative; z-index: 1; padding: 16px 18px 18px; color: #fff; }
-.sr-kick { display: flex; justify-content: space-between; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.78; }
-.sr-club { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
-.sr-finish { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; }
-.sr-ord { font-family: var(--display); font-weight: 800; font-size: 118px; line-height: 0.8; letter-spacing: -0.02em; text-shadow: 0 8px 34px rgba(0, 0, 0, 0.35); animation: pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
-.sr-ord sup { font-size: 0.34em; vertical-align: top; position: relative; top: 0.14em; margin-left: 2px; letter-spacing: 0; }
-.sr-ord.sm { font-size: 44px; }
-.sr-of { font-family: var(--display); font-weight: 600; font-size: 18px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.7; }
-.sr-verdict { display: inline-block; margin-top: 12px; padding: 6px 12px 5px; border-radius: 999px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: 0.18em; text-transform: uppercase; }
-.sr-verdict.t-gold, .sr-pill.t-gold { background: linear-gradient(180deg, #ffe89a, #f4c542 55%, #d9a521); color: #2a1d00; }
-.sr-verdict.t-good, .sr-pill.t-good { background: rgba(46, 229, 138, 0.16); color: var(--pos); }
-.sr-verdict.t-bad { background: rgba(255, 77, 94, 0.2); color: #ff8a95; }
-.sr-verdict.t-plain { background: rgba(255, 255, 255, 0.14); color: #fff; }
-.sr-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 7px; margin-top: 12px; font-size: 13px; color: rgba(255, 255, 255, 0.88); }
-.sr-line > i { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0.55; }
-.sr-trophies { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
-.sr-medal { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 66px; }
-.sr-medal-ring { width: 58px; height: 58px; padding: 3px; border-radius: 50%; background: conic-gradient(from 200deg, #fff2bd, #c9971f, #ffe58a, #9c6f0e, #ffeaa0, #b98516, #fff2bd); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); }
+    radial-gradient(10% 7% at 13% 0%, rgba(var(--beam), .7), transparent 72%),
+    radial-gradient(10% 7% at 89% 0%, rgba(var(--beam), .6), transparent 72%),
+    radial-gradient(46% 24% at 50% 32%, rgba(var(--beam), .2), transparent 72%),
+    conic-gradient(from 0deg at 13% 0%, transparent 131deg, rgba(var(--beam), .16) 137deg, rgba(var(--beam), .5) 141deg, rgba(var(--beam), .16) 145deg, transparent 151deg),
+    conic-gradient(from 0deg at 89% 0%, transparent 208deg, rgba(var(--beam), .14) 214deg, rgba(var(--beam), .44) 218deg, rgba(var(--beam), .14) 222deg, transparent 228deg);
+  -webkit-mask-image: linear-gradient(#000 6%, rgba(0, 0, 0, .55) 40%, transparent 66%); mask-image: linear-gradient(#000 6%, rgba(0, 0, 0, .55) 40%, transparent 66%);
+  animation: srLights 1.4s .1s both; }
+@keyframes srLights { 0% { opacity: 0; } 14% { opacity: calc(var(--beam-op) * .55); } 22% { opacity: calc(var(--beam-op) * .2); } 34% { opacity: calc(var(--beam-op) * .8); } 100% { opacity: var(--beam-op); } }
+/* a title's lights sway a touch, as if the night were still going */
+.m-glory .sr-cv-beams, .m-triumph .sr-cv-beams { transform-origin: 50% 0; animation: srLights 1.4s .1s both, srSway 9s 1.6s ease-in-out infinite alternate; }
+@keyframes srSway { from { transform: rotate(-1.2deg); } to { transform: rotate(1.2deg); } }
+/* relegation: the lights go out */
+.m-fall .sr-cv-beams { animation: srLightsOut 2.4s .2s both; }
+@keyframes srLightsOut { 0% { opacity: .9; } 40% { opacity: .7; } 48% { opacity: .3; } 56% { opacity: .55; } 100% { opacity: var(--beam-op); } }
+.sr-cv-crest { right: -30%; top: 6%; width: 300px; height: 300px; opacity: .16; mix-blend-mode: luminosity;
+  transform: translateY(calc(var(--sy, 0) * .26px)) rotate(-8deg); animation: srCrest 1.5s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes srCrest { from { opacity: 0; transform: rotate(-4deg) scale(1.08); } }
+.sr-cv-crest .badge-img { filter: none; }
+.sr-cv-grain { inset: 0; background: url(/assets/fx/grain.png) 0 0 / 160px 160px; mix-blend-mode: overlay; opacity: .3; }
+.sr-cv-fade { left: 0; right: 0; bottom: 0; height: 46%; background: linear-gradient(180deg, transparent, rgba(8, 9, 13, .9) 78%); }
+/* how the season feels: colour drains out of a struggle; relegation is cold and grey */
+.m-struggle .sr-cv-light { filter: saturate(.35) brightness(.78); }
+.m-struggle .sr-cv-crest { filter: grayscale(.8); opacity: .12; }
+.m-fall .sr-cv-light { background: radial-gradient(110% 60% at 50% -8%, rgba(122, 134, 152, .42), rgba(64, 74, 90, .14) 56%, transparent 80%), linear-gradient(180deg, #0c0e13, #08090c 82%); }
+.m-fall .sr-cv-crest { filter: grayscale(1); opacity: .08; }
+.sr-cv-in { position: relative; z-index: 1; padding: 16px 20px 14px; }
+/* the ticker tape falls behind the type and is gone before the numbers */
+.sr-cover > .cel-confetti { z-index: 0; -webkit-mask-image: linear-gradient(#000 0 28%, transparent 56%); mask-image: linear-gradient(#000 0 28%, transparent 56%); }
+.sr-cv-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255, 255, 255, .85); animation: fadeUp .5s .1s both; }
+.sr-cv-club { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sr-cv-year { flex: none; font-size: 11.5px; color: rgba(255, 255, 255, .62); }
+/* the season in a word or two, as large as its longest word allows */
+.sr-cv-head { margin: 50px 0 0; font-family: var(--display); font-weight: 800; text-transform: uppercase; line-height: .86; letter-spacing: -.005em;
+  font-size: min(104px, max(46px, calc((100vw - 40px) / (var(--len) * .5)))); text-wrap: balance; animation: srHead .85s .2s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes srHead { from { opacity: 0; transform: translateY(26px); } }
+.m-glory .sr-cv-head, .m-triumph .sr-cv-head { color: transparent; -webkit-background-clip: text; background-clip: text; background-size: 260% 100%;
+  background-image: linear-gradient(100deg, #fff3c4 0%, #ffd45e 26%, #fff8e0 40%, #e3a92a 58%, #fff0bc 76%, #f7c443 100%);
+  animation: srHead .85s .2s cubic-bezier(.2, .8, .2, 1) both, srFoil 3.4s 1.05s ease-in-out both; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, .35)); }
+@keyframes srFoil { from { background-position: 100% 0; } to { background-position: 0 0; } }
+/* second place: silver, not gold */
+.m-success .sr-cv-head { color: #fff; text-shadow: 0 8px 30px rgba(0, 0, 0, .3); }
+.m-success.runner .sr-cv-head { color: transparent; -webkit-background-clip: text; background-clip: text; background-size: 260% 100%; text-shadow: none;
+  background-image: linear-gradient(100deg, #ffffff 0%, #c9d0da 28%, #f6f8fb 44%, #9aa3b0 62%, #eef1f5 80%, #c3cad4 100%);
+  animation: srHead .85s .2s cubic-bezier(.2, .8, .2, 1) both, srFoil 3.4s 1.05s ease-in-out both; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, .35)); }
+.m-steady .sr-cv-head { color: #fff; text-shadow: 0 8px 30px rgba(0, 0, 0, .3); }
+.m-struggle .sr-cv-head { color: #d3d8df; }
+.m-fall .sr-cv-head { color: transparent; -webkit-text-stroke: 1.5px rgba(214, 220, 228, .78); }
+.sr-cv-kicker { margin: 12px 0 0; font-size: 15px; line-height: 1.35; color: rgba(255, 255, 255, .86); max-width: 94%; animation: fadeUp .55s .45s both; }
+.m-fall .sr-cv-kicker, .m-struggle .sr-cv-kicker { color: rgba(225, 230, 236, .72); }
+.sr-cv-silver { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.sr-medal { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 64px; animation: srMedal .6s cubic-bezier(.2, 1.25, .35, 1) both; }
+@keyframes srMedal { from { opacity: 0; transform: scale(.6) translateY(8px); } }
+.sr-medal-ring { position: relative; overflow: hidden; width: 56px; height: 56px; padding: 3px; border-radius: 50%; background: conic-gradient(from 200deg, #fff2bd, #c9971f, #ffe58a, #9c6f0e, #ffeaa0, #b98516, #fff2bd); box-shadow: 0 8px 20px rgba(0, 0, 0, .4); }
+.sr-medal.silver .sr-medal-ring { background: conic-gradient(from 200deg, #ffffff, #9aa3ae, #e9edf2, #6f7884, #f4f6f9, #8c95a1, #ffffff); }
+.sr-medal-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, .55) 50%, transparent 65%); transform: translateX(-120%); animation: srSheen 1.1s 1.3s ease-in-out both; }
+@keyframes srSheen { to { transform: translateX(120%); } }
 .sr-medal-disc { width: 100%; height: 100%; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 35% 30%, #232833, #0d1016 70%); }
-.sr-medal-n { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); text-align: center; line-height: 1.05; }
-
+.sr-medal-n { font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--gold); text-align: center; line-height: 1.05; }
+.sr-medal.silver .sr-medal-n { color: #c9d0da; }
+.sr-cv-rail { display: grid; grid-template-columns: .9fr .9fr 1.35fr 1fr; margin-top: 28px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .14); animation: fadeUp .55s .6s both; }
+.sr-cv-rail > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sr-cv-rail > div + div { padding-left: clamp(7px, 2.6vw, 10px); border-left: 1px solid rgba(255, 255, 255, .1); }
+/* (sized to the phone: four figures and a W·D·L like 25·12·1 fit side by side from 320px) */
+.sr-cv-rail b { font-family: var(--display); font-weight: 800; font-size: clamp(21px, 7.2vw, 28px); line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sr-cv-rail b sup { font-size: .5em; vertical-align: top; position: relative; top: .12em; margin-left: 1px; }
+.sr-cv-rail b i { font-style: normal; opacity: .4; margin: 0 clamp(1px, .5vw, 2px); font-weight: 600; }
+.sr-cv-rail span { font-size: clamp(9px, 2.6vw, 10px); letter-spacing: .05em; text-transform: uppercase; color: rgba(255, 255, 255, .6); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the season as one waveform: wins in the season's light, defeats below the line */
+/* (wins in white, not the club's colour: a red club's wins would read as its defeats) */
+.sr-wave { display: block; width: 100%; height: auto; margin-top: 18px; overflow: visible; --wv-w: rgba(255, 255, 255, .9); }
+.m-glory .sr-wave, .m-triumph .sr-wave { --wv-w: #f2c64e; }
+.m-struggle .sr-wave, .m-fall .sr-wave { --wv-w: #c3cad4; }
+.sr-wave .wv-base { stroke: rgba(255, 255, 255, .16); stroke-width: 1; }
+.sr-wave .wv-tick { stroke: rgba(255, 255, 255, .22); }
+.sr-wave .wv-m { fill: rgba(255, 255, 255, .42); font-family: var(--display); font-weight: 700; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; }
+.sr-wave rect { transform-box: fill-box; transform-origin: 50% 100%; animation: srBar .5s cubic-bezier(.2, .9, .3, 1.2) both; animation-delay: calc(950ms + var(--i) * 13ms); }
+.sr-wave .wv-w { fill: var(--wv-w); }
+.sr-wave .wv-d { fill: rgba(255, 255, 255, .5); transform-origin: 50% 50%; }
+.sr-wave .wv-l { fill: #ff6f7d; opacity: .75; transform-origin: 50% 0; }
+.m-fall .sr-wave .wv-l, .m-struggle .sr-wave .wv-l { fill: #e35d6a; }
+@keyframes srBar { from { transform: scaleY(0); } }
+.sr-wave .wv-mk { animation: srMark .5s cubic-bezier(.2, 1.3, .4, 1) both; animation-delay: calc(1200ms + var(--i) * 13ms); }
+.sr-wave .wv-mk.gold { fill: #ffd86b; filter: drop-shadow(0 0 4px rgba(255, 210, 90, .9)); }
+.sr-wave .wv-mk.silver { fill: #e4e8ee; filter: drop-shadow(0 0 3px rgba(230, 236, 244, .7)); }
+.sr-wave .wv-mk.down { fill: #ff6f7d; }
+@keyframes srMark { from { opacity: 0; transform: scale(0); } }
+.sr-wave .wv-mk { transform-box: fill-box; transform-origin: 50% 50%; }
+html.rm .sr-wave rect, html.rm .sr-wave .wv-mk, html.rm .sr-cv-beams { animation: none; }
+/* the league's own band under the cover, in its identity */
+.sr-cv-band { position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; height: 50px; padding: 0 20px; background: rgba(255, 255, 255, .05); animation: srBand .6s .72s cubic-bezier(.2, .8, .2, 1) both; }
+.sr-cv-band.ci { background: var(--ci-field); }
+@keyframes srBand { from { opacity: 0; transform: translateY(10px); } }
+.sr-band-n { flex: 1; min-width: 0; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-band-s { display: inline-flex; align-items: center; gap: 6px; flex: none; font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--ci-acc, rgba(255, 255, 255, .85)); }
+.sr-cv-band.won .sr-band-s { color: #f6c84c; }
+.m-fall .sr-cv-band { filter: saturate(.35) brightness(.85); }
+/* the facts under the cover */
+.sr-notes { margin: 4px 0 4px; padding: 2px 14px; border-radius: var(--r-lg); background: var(--s1); animation: fadeUp .5s .8s both; }
+.sr-note { display: flex; align-items: center; gap: 10px; padding: 11px 0; font-size: 13.5px; color: var(--t2); }
+.sr-note + .sr-note { border-top: 1px solid var(--line); }
+.sr-note > svg { flex: none; color: var(--t3); }
+.sr-note.good > svg { color: var(--sr-acc); }
+.sr-note.good > span { color: var(--t1); }
+/* chapters rise in as they are reached */
+.sr-rv { opacity: 0; transform: translateY(16px); transition: opacity .6s cubic-bezier(.2, .8, .2, 1), transform .6s cubic-bezier(.2, .8, .2, 1); }
+.sr-rv.in { opacity: 1; transform: none; }
+html.rm .sr-rv { opacity: 1; transform: none; transition: none; }
 .sr-ch { margin-top: 10px; }
 .sr-chh { display: flex; align-items: baseline; gap: 10px; margin: 6px 2px 10px; }
-.sr-chn { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.08em; color: color-mix(in srgb, var(--sr) 65%, #fff); }
+.sr-chn { font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: 0.08em; color: var(--sr-acc); }
+.sr-chh:not(:has(.sr-cha))::after { content: ''; flex: 1; align-self: center; height: 1px; margin-left: 4px; background: linear-gradient(90deg, rgba(255, 255, 255, .12), transparent); }
 .sr-cht { font-family: var(--display); font-weight: 700; font-size: 21px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--t1); }
 .sr-cha { margin-left: auto; align-self: center; display: inline-flex; }
 

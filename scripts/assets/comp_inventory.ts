@@ -15,8 +15,8 @@ const TREAT = (treatments as { comps: Record<string, string> }).comps
 // looked up on the device from the competition's Wikipedia article (services/assets.ts compWikiQuery); Wikimedia
 // rate-limits the build environment's network, so these could not be retrieved or checked here
 const WIKI: Record<string, string> = {
-  TDC: 'Trophée des Champions', JCS: 'Johan Cruyff Shield', SUPERTACA: 'Supertaça Cândido de Oliveira', SCOTCUP: 'Scottish Cup',
-  CA: 'Copa América', AFCON: 'Africa Cup of Nations',
+  JCS: 'Johan Cruyff Shield (no lead image)', SUPERTACA: 'Supertaça Cândido de Oliveira (no lead image)',
+  SCOTCUP: 'Scottish Cup (its lead image is a photo of the trophy: rejected)', CA: 'Copa América (no lead image)',
 }
 const NONE: Record<string, string> = { INTF: 'friendlies have no competition logo' }
 const comps = new Map<string, { key: string; name: string; format: string; country: string }>()
@@ -33,7 +33,7 @@ const lines = rows.map((c) => {
   const ed = editions(k === 'EUROQ' ? 'EURO' : k)
   let status: keyof typeof tally, shown: string, source: string
   if (LOGOS[k]?.src?.startsWith('https://')) {
-    status = 'verified'; shown = `Bundled ${LOGOS[k].w}×${LOGOS[k].h}`; source = `[football-logos.cc](${LOGOS[k].src})`
+    status = 'verified'; shown = `Bundled ${LOGOS[k].w}×${LOGOS[k].h}`; source = `[${new URL(LOGOS[k].src!).hostname.replace(/^www\./, '')}](${LOGOS[k].src})`
   } else if (LOGOS[k]) {
     status = 'kept'; shown = `Bundled ${LOGOS[k].w}×${LOGOS[k].h} (earlier art)`; source = 'earlier bundle: the current identity is not on football-logos.cc'
   } else if (ed.length) {
@@ -61,10 +61,11 @@ Every competition in the game (${rows.length}), from a save on ${w.date}, and th
 - **Edition logos** (${tally.edition}): the game's EURO is played in June 2028 (UK & Ireland) and its World Cup in June 2030
   (Spain, Portugal, Morocco), so those editions' own logos are bundled; the European Qualifiers and World Cup
   qualifiers of those cycles show them too. Later editions show the designed emblem until their logos exist.
-- **Wikipedia on the device** (${tally.wiki}): not on football-logos.cc, and Wikimedia answered every request from the build
-  environment with HTTP 429 (rate limited, retry-after up to 600s) on 2026-10-21, so they could not be retrieved or
-  checked here. On the device the article's lead image is used only if it is a drawn logo (not a trophy photo) and,
-  for a tournament, not one edition's.
+- **Wikipedia on the device** (${tally.wiki}): not on football-logos.cc, and Wikipedia has no usable logo for them (checked
+  2026-10-21: no lead image, or a photo of the trophy). The device still looks, and uses an article's lead image only if
+  it is a drawn logo (not a trophy photo) and, for a tournament, not one edition's; otherwise the designed emblem.
+  The Trophée des Champions (Wikimedia Commons, 2024 logo) and the Africa Cup of Nations (its generic CAF/TotalEnergies
+  logo on Wikipedia) were retrieved from Wikimedia and are bundled.
 - **Designed emblem** (${tally.none}): no authentic logo exists or none was found.
 
 "Dark surface" is how the logo is shown on the app's dark cards (\`scripts/assets/logo_treatments.py\`): light (its

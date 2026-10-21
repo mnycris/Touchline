@@ -13,11 +13,16 @@ import { haptic, useGame } from '../../store/game'
 import { compIdentity } from '../compIdentity'
 import { callName } from '../../engine/match/commentary'
 import { ordinalOf } from '../../domain/words'
+import { leagueDecided } from '../../engine/world/review'
 
-interface Piece { x: number; y: number; vx: number; vy: number; r: number; vr: number; flip: number; vf: number; w: number; h: number; c: string; shape: 0 | 1 | 2; life: number; wait: number }
+interface Piece { x: number; y: number; vx: number; vy: number; r: number; vr: number; flip: number; vf: number; w: number; h: number; c: string; shape: 0 | 1 | 2; life: number; wait: number; z: number }
 
-/** Confetti on a canvas: bursts from two cannons, then pieces flutter down and come to rest out of view. */
-function Confetti({ colors, fire, reduce }: { colors: string[]; fire: number; reduce: boolean }) {
+/**
+ * Confetti on a canvas: bursts from two cannons, then pieces flutter down and come to rest out of view. A shower is
+ * ticker tape let go above the frame instead: fewer pieces, at different depths (the far ones smaller, dimmer and
+ * slower), drifting down through it once.
+ */
+export function Confetti({ colors, fire, reduce, shower }: { colors: string[]; fire: number; reduce: boolean; shower?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null)
   const pieces = useRef<Piece[]>([])
   const raf = useRef(0)
@@ -40,12 +45,26 @@ function Confetti({ colors, fire, reduce }: { colors: string[]; fire: number; re
           pieces.current.push({
             x: side < 0 ? 6 : W - 6, y: H + 4, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp,
             r: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 0.3, flip: Math.random() * Math.PI * 2, vf: 0.08 + Math.random() * 0.14,
-            w: shape === 1 ? 3 : 6 + Math.random() * 4, h: shape === 1 ? 16 + Math.random() * 10 : 9 + Math.random() * 5, c: colors[Math.floor(Math.random() * colors.length)], shape, life: 0, wait: Math.random() * (big ? 16 : 8),
+            w: shape === 1 ? 3 : 6 + Math.random() * 4, h: shape === 1 ? 16 + Math.random() * 10 : 9 + Math.random() * 5, c: colors[Math.floor(Math.random() * colors.length)], shape, life: 0, wait: Math.random() * (big ? 16 : 8), z: 1,
           })
         }
       }
     }
-    burst(fire === 0)
+    const rain = () => {
+      const n = Math.round(38 * Math.min(1.3, Math.max(0.7, (W * H) / 150000)))
+      for (let i = 0; i < n; i++) {
+        const z = 0.45 + Math.random() * 0.55
+        const shape = (Math.random() < 0.14 ? 1 : 0) as Piece['shape']
+        pieces.current.push({
+          x: Math.random() * W, y: -12 - Math.random() * 40, vx: (Math.random() - 0.5) * 0.6, vy: 0.4 + Math.random() * 0.5,
+          r: Math.random() * Math.PI * 2, vr: (Math.random() - 0.5) * 0.12, flip: Math.random() * Math.PI * 2, vf: 0.05 + Math.random() * 0.1,
+          w: (shape === 1 ? 3 : 5 + Math.random() * 3) * z, h: (shape === 1 ? 14 + Math.random() * 8 : 8 + Math.random() * 4) * z, c: colors[Math.floor(Math.random() * colors.length)], shape, life: 0,
+          // let go over a couple of seconds, the near ones last
+          wait: Math.random() * 150 * (1.2 - z * 0.4), z,
+        })
+      }
+    }
+    if (shower) rain(); else burst(fire === 0)
     let last = performance.now(), wind = 0
     const loop = (now: number) => {
       const dt = Math.min(2.2, (now - last) / 16.67)
@@ -60,7 +79,7 @@ function Confetti({ colors, fire, reduce }: { colors: string[]; fire: number; re
         p.vx = p.vx * drag ** dt + wind * dt
         p.vy = p.vy * drag ** dt + 0.15 * dt
         // falling pieces flutter: terminal speed and a sideways sway as they flip
-        if (p.vy > 1.15) p.vy = 1.15 + (p.vy - 1.15) * 0.8
+        if (p.vy > 1.15 * p.z) p.vy = 1.15 * p.z + (p.vy - 1.15 * p.z) * 0.8
         p.flip += p.vf * dt
         p.r += p.vr * dt
         p.x += (p.vx + Math.sin(p.flip) * 0.6) * dt
@@ -70,7 +89,7 @@ function Confetti({ colors, fire, reduce }: { colors: string[]; fire: number; re
         g.translate(p.x, p.y)
         g.rotate(p.r)
         g.scale(p.shape === 2 ? 1 : sx, 1)
-        g.globalAlpha = Math.min(1, 0.4 + Math.abs(sx) * 0.6) * Math.min(1, (H + 30 - p.y) / 40)
+        g.globalAlpha = Math.min(1, 0.4 + Math.abs(sx) * 0.6) * Math.min(1, (H + 30 - p.y) / 40) * (0.35 + 0.65 * p.z)
         g.fillStyle = p.c
         if (p.shape === 2) { g.beginPath(); g.arc(0, 0, 3.2, 0, Math.PI * 2); g.fill() }
         else if (p.shape === 1) { g.beginPath(); g.moveTo(-p.w / 2, -p.h / 2); g.quadraticCurveTo(p.w * 2.2, 0, -p.w / 2, p.h / 2); g.lineTo(p.w / 2, p.h / 2); g.quadraticCurveTo(p.w * 2.6, 0, p.w / 2, -p.h / 2); g.closePath(); g.fill() }
@@ -109,11 +128,12 @@ export function Celebration({ w }: { w: World }) {
       const me = t.find((r) => r.clubId === w.userClubId)
       if (!me) return undefined
       const gap = t[1] ? me.pts - t[1].pts : 0
-      const left = won ? c.fixtures.map(mine).filter((f) => f && f.date > won).length : 0
+      // when nobody could catch the club any more (the celebration itself comes when the league ends)
+      const left = leagueDecided(w, c, w.userClubId, 0)?.title
       const decider = c.fixtures.map(mine).filter((f) => f?.played && (!won || f.date <= won)).sort((x, y) => y!.date.localeCompare(x!.date))[0]
       return {
         line: `${me.pts} points${gap > 0 ? ` · ${gap} clear of ${w.clubs[t[1].clubId]?.short}` : ''}`,
-        line2: !won ? undefined : left > 0 ? `Sealed with ${left} ${left === 1 ? 'game' : 'games'} to spare` : 'Decided on the final day',
+        line2: left == null ? undefined : left > 0 ? `Sealed with ${left} ${left === 1 ? 'game' : 'games'} to spare` : 'Decided on the final day',
         chips: [`W${me.w} D${me.d} L${me.l}`, `${me.gf} scored`, `${me.ga} conceded`],
         decider,
       }

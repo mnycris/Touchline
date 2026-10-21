@@ -824,6 +824,12 @@ export interface SeasonArchive {
   /** name and position of everyone who played for the manager's club that season, kept for the Season Review after
    *  retirements take players out of the world (from 4.2) */
   people?: Record<number, [string, string]>
+  /** the club's league position the season before, in the same league (from 4.2; for the career's first season, the
+   *  real 2025/26 table) */
+  prevFinish?: number
+  /** when the club's league fate was settled, as its own league games still to play then (0: on the final day): the
+   *  title, safety or the drop (from 4.2; worked out at the rollover, while every club's fixtures still exist) */
+  decided?: { title?: number; safe?: number; drop?: number }
 }
 
 // ---------------------------------------------------------------- settings

@@ -1,4 +1,9 @@
 {
+ "AFCON": {
+  "w": 264,
+  "h": 353,
+  "src": "https://en.wikipedia.org/wiki/File:Africa_Cup_of_Nation_official_logo.png"
+ },
  "ASIAN": {
   "w": 229,
   "h": 360,
@@ -248,6 +253,11 @@
   "w": 360,
   "h": 325,
   "src": "https://assets.football-logos.cc/logos/portugal/700x700/taca-de-portugal.5ace9934.png"
+ },
+ "TDC": {
+  "w": 227,
+  "h": 360,
+  "src": "https://commons.wikimedia.org/wiki/File:Troph%C3%A9e_des_Champions_logo_(2024).svg"
  },
  "TURCUP": {
   "w": 291,

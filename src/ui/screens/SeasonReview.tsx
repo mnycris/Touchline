@@ -2,16 +2,18 @@
 // per chapter, the number first and the words after it: where you finished and what you won, the season in numbers,
 // the run that got you there, the nights worth remembering, every competition, the players who carried it, what the
 // board asked for, the final table, the league's honours and the window. Everything opens what it is about.
-import { useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { Club, World } from '../../domain/types'
 import { seasonLabel, fmtDate } from '../../domain/dates'
 import { ordinalOf } from '../../domain/words'
 import { fmtMoney } from '../../domain/finance'
-import { seasonReview, type Review, type SquadLine } from '../../engine/world/review'
+import { seasonReview, type Mood, type Review, type SquadLine } from '../../engine/world/review'
 import { useGame, useWorld } from '../../store/game'
 import { Screen } from '../components/layout'
-import { Fx } from '../components/Fx'
-import { Badge, CompLogo, Empty, Face } from '../components/atoms'
+import { Badge, CompLogo, CountUp, Empty, Face } from '../components/atoms'
+import { Confetti } from '../components/Celebration'
+import { compIdentity, identityVars } from '../compIdentity'
+import { useLessMotion } from '../motion'
 import { Icon } from '../icons/Icon'
 import { clubAccent, hexToRgb } from '../theme'
 import { compLogoKey } from '../selectors'
@@ -25,22 +27,24 @@ export function SeasonReview({ params }: { params: { season: number } }) {
   const back = useGame((s) => s.back)
   const a = w.archive.find((x) => x.season === params.season) || w.archive[w.archive.length - 1]
   const r = useMemo(() => (a ? seasonReview(w, a) : undefined), [w, a])
+  useReveal()
   const leave = inOverlay ? closeAll : back
   if (!a || !r) return <Screen title="Season Review" back onBack={leave} noNav><Empty icon="season" title="No review available" /></Screen>
   const acc = clubAccent(r.club)
-  const vars = { ['--sr' as string]: acc, ['--sr-rgb' as string]: hexToRgb(acc).join(', ') } as CSSProperties
+  const vars = { ['--sr' as string]: acc, ['--sr-rgb' as string]: hexToRgb(acc).join(', '), ...(MOOD_ACC[r.story.mood] ? { ['--sr-acc' as string]: MOOD_ACC[r.story.mood] } : {}) } as CSSProperties
   const justEnded = inOverlay && a.season === w.season - 1
   let ch = 0
   const chapter = (title: string, body: ReactNode, aside?: ReactNode) => (
-    <section className="sr-ch fade-up" style={{ animationDelay: `${Math.min(6, ++ch) * 60}ms` }}>
-      <div className="sr-chh"><span className="sr-chn">{String(ch).padStart(2, '0')}</span><span className="sr-cht">{title}</span>{aside && <span className="sr-cha">{aside}</span>}</div>
+    <section className="sr-ch sr-rv">
+      <div className="sr-chh"><span className="sr-chn">{String(++ch).padStart(2, '0')}</span><span className="sr-cht">{title}</span>{aside && <span className="sr-cha">{aside}</span>}</div>
       {body}
     </section>
   )
   return (
-    <Screen title="Season Review" sub={seasonLabel(a.season)} back onBack={leave} noNav className="season-review" style={vars}>
-      <Hero w={w} r={r} />
+    <Screen title="Season Review" sub={seasonLabel(a.season)} back onBack={leave} noNav className={`season-review m-${r.story.mood}`} style={vars}>
+      <Cover w={w} r={r} />
       <div className="pad stack sr-body">
+        <Notes r={r} />
         {chapter('The season in numbers', <Numbers r={r} />)}
         {r.run.length > 0 && chapter(r.run.every((m) => m.pos) ? 'The run' : 'The points race', <Run w={w} r={r} />, r.league?.comp && <CompLogo k={compLogoKey(r.league.comp)} size={18} name={r.league.comp.name} />)}
         {(r.facts.biggestWin || r.facts.heaviestDefeat) && chapter('Nights to remember', <Nights w={w} r={r} />)}
@@ -51,7 +55,7 @@ export function SeasonReview({ params }: { params: { season: number } }) {
         {r.awards.length > 0 && chapter('The league’s honours', <Honours w={w} r={r} />)}
         {(r.transfers.in > 0 || r.transfers.out > 0) && chapter('The window', <Window w={w} r={r} />)}
         {justEnded ? (
-          <div className="sr-next fade-up">
+          <div className="sr-next sr-rv">
             <div className="label">Next</div>
             <div className="h2" style={{ marginTop: 4 }}>{seasonLabel(w.season)}</div>
             <div className="small muted" style={{ marginTop: 6 }}>Contracts have expired, loans have ended, retiring players have hung up their boots and the fixtures are out. Your budget: <b className="t1">{fmtMoney(w.clubs[w.userClubId]?.finance.transferBudget || 0)}</b>.</div>
@@ -65,48 +69,157 @@ export function SeasonReview({ params }: { params: { season: number } }) {
   )
 }
 
-// ---------------------------------------------------------------------------- 00 the headline
-function Hero({ w, r }: { w: World; r: Review }) {
+// ---------------------------------------------------------------------------- 00 the cover
+// The season's cover, a night under the floodlights: lit by how it went (warm gold for a title, the club's own light
+// for a good season, dimmed for a struggle, the lights going out on a relegation), the club's crest as a watermark,
+// the season in a word or two set as large as it fits, the line that explains it, the medals, the numbers that settle
+// it, every match of the season as one waveform, and the league's own band underneath.
+const MOOD_ACC: Record<Mood, string> = { glory: '#f4c542', triumph: '#f4c542', success: '', steady: '', struggle: '#9aa3ae', fall: '#8d97a6' }
+
+function Cover({ w, r }: { w: World; r: Review }) {
+  const reduce = useLessMotion()
+  const ref = useRef<HTMLElement>(null)
   const lg = r.league
-  const won = r.trophies.length > 0
-  const pts = lg?.row ? lg.row.pts - (lg.row.ded || 0) : 0
-  const gap = !lg ? '' : lg.finish === 1
-    ? lg.gapBelow ? `${lg.gapBelow} clear of ${w.clubs[lg.table[1].clubId]?.short}` : `top on goal difference`
-    : lg.gapAbove === 0 ? `level on points with ${w.clubs[lg.table[lg.finish - 2].clubId]?.short}` : `${lg.gapAbove} behind ${w.clubs[lg.table[lg.finish - 2].clubId]?.short}`
-  const tone = lg?.verdict === 'Champions' || lg?.verdict === 'Promoted' ? 'gold' : lg?.verdict === 'Relegated' ? 'bad' : lg?.verdict === 'Champions League' || lg?.verdict === 'Europe' ? 'good' : 'plain'
+  const s = r.story
+  // the crest drifts a little slower than the page
+  useEffect(() => {
+    const el = ref.current
+    const sc = el?.closest('.screen') as HTMLElement | null
+    if (!el || !sc || reduce) return
+    let raf = 0
+    const on = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => el.style.setProperty('--sy', String(Math.min(600, sc.scrollTop)))) }
+    sc.addEventListener('scroll', on, { passive: true })
+    return () => { sc.removeEventListener('scroll', on); cancelAnimationFrame(raf) }
+  }, [reduce])
+  const ci = lg ? compIdentity(lg.key) : undefined
+  const pts = lg ? lg.row.pts - (lg.row.ded || 0) : 0
+  const gd = lg ? lg.row.gf - lg.row.ga : 0
+  const longest = Math.max(...s.headline.split(/\s+/).map((x) => x.length))
+  // (a super cup earns its medal, not a shower of ticker tape)
+  const won = s.majors > 0
+  // the medals: what was won, then the finals lost
+  const medals = [
+    ...r.trophies.map((t) => ({ key: t.key, comp: t.comp, tone: 'gold' })),
+    ...r.comps.filter((c) => c.tone === 'silver' && c.comp.format !== 'league' && !r.trophies.some((t) => t.key === c.comp.key)).map((c) => ({ key: c.comp.key, comp: c.comp, tone: 'silver' })),
+  ]
+  const kit = r.club.kit?.[0] || '#ffffff', kit2 = r.club.kit?.[1] || '#ffffff'
+  const champion = lg?.finish === 1
+  // which season this is at the club, counting back through the seasons managed here without a break
+  let year = 0
+  for (let y = r.season; w.archive.some((x) => x.season === y && x.userClubId === r.club.id); y--) year++
   return (
-    <div className="sr-hero">
-      {won ? <Fx kind="confetti" /> : <Fx kind="beams" />}
-      <div className="sr-hero-in">
-        <div className="sr-kick"><span>Season review</span><span>{seasonLabel(r.season)}</span></div>
-        <div className="sr-club"><Badge club={r.club} size={44} /><span className="h3">{r.club.name}</span></div>
-        {lg ? (
-          <>
-            <div className="sr-finish">
-              <span className="sr-ord">{lg.finish}<sup>{ordinalOf(lg.finish).replace(/^\d+/, '')}</sup></span>
-              <span className="sr-of">of {lg.size}</span>
-            </div>
-            <div className={`sr-verdict t-${tone}`}>{lg.verdict}</div>
-            <div className="sr-line">
-              {lg.comp && <CompLogo k={compLogoKey(lg.comp)} size={20} name={lg.comp.name} />}
-              <span>{lg.comp?.name || 'League'}</span><i />
-              <b>{pts} pts</b><i /><span>{gap}</span>
-            </div>
-          </>
-        ) : <div className="sr-ord sm">Season complete</div>}
-        {won && (
-          <div className="sr-trophies">
-            {r.trophies.map((t) => (
-              <div key={t.key} className="sr-medal">
-                <span className="sr-medal-ring"><span className="sr-medal-disc"><CompLogo k={t.comp ? compLogoKey(t.comp) : t.key.replace(/-\d+$/, '')} size={32} name={t.comp?.name} /></span></span>
-                <span className="sr-medal-n">{t.comp?.short || t.key}</span>
+    <section ref={ref} className={`sr-cover m-${s.mood}${lg?.finish === 2 && !won ? ' runner' : ''}`} style={{ ['--len' as string]: longest }}>
+      <div className="sr-cv-bg" aria-hidden>
+        <i className="sr-cv-light" />
+        <i className="sr-cv-beams" />
+        <div className="sr-cv-crest"><Badge club={r.club} size={300} /></div>
+        <i className="sr-cv-grain" />
+        <i className="sr-cv-fade" />
+      </div>
+      {won && <Confetti colors={['#F4C542', '#FFE38A', '#ffffff', kit, kit2, '#F4C542']} fire={0} reduce={reduce} shower />}
+      <div className="sr-cv-in">
+        <div className="sr-cv-top">
+          <span className="sr-cv-club"><Badge club={r.club} size={22} />{r.club.name}</span>
+          {year > 0 && <span className="sr-cv-year">{ordinalOf(year)} season</span>}
+        </div>
+        <h1 className="sr-cv-head">{s.headline}</h1>
+        {s.kicker && <p className="sr-cv-kicker">{s.kicker}</p>}
+        {medals.length > 0 && (
+          <div className="sr-cv-silver">
+            {medals.map((m, i) => (
+              <div key={m.key} className={`sr-medal ${m.tone}`} style={{ animationDelay: `${700 + i * 110}ms` }}>
+                <span className="sr-medal-ring"><span className="sr-medal-disc"><CompLogo k={m.comp ? compLogoKey(m.comp) : m.key.replace(/-\d+$/, '')} size={30} name={m.comp?.name} /></span></span>
+                <span className="sr-medal-n">{m.comp?.short || m.key}</span>
               </div>
             ))}
           </div>
         )}
+        {lg && (
+          <div className="sr-cv-rail">
+            <div><b>{lg.finish}<sup>{ordinalOf(lg.finish).replace(/^\d+/, '')}</sup></b><span>of {lg.size}</span></div>
+            <div><b><CountUp value={pts} from={0} ms={reduce ? 0 : 900} /></b><span>points</span></div>
+            <div><b>{lg.row.w}<i>·</i>{lg.row.d}<i>·</i>{lg.row.l}</b><span>W · D · L</span></div>
+            <div><b>{gd > 0 ? '+' : ''}{gd}</b><span>goal diff.</span></div>
+          </div>
+        )}
+        {r.games.length > 2 && <Wave r={r} />}
       </div>
+      {lg && (
+        <div className={`sr-cv-band ${ci ? `ci ci-${ci.id}${ci.whiteLogo ? ' ci-white-logo' : ''}` : ''}${champion ? ' won' : ''}`} style={ci ? identityVars(ci) : undefined}>
+          {lg.comp && <CompLogo k={compLogoKey(lg.comp)} size={24} name={lg.comp.name} />}
+          <span className="sr-band-n">{lg.comp?.name || 'League'}</span>
+          <span className="sr-band-s">{champion ? <><Icon name="trophy" size={13} />Champions</> : `${ordinalOf(lg.finish)} of ${lg.size}`}</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const dayOf = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5
+
+/**
+ * Every match of the season on the calendar it was played to, as one waveform: a win rises by its margin, a defeat
+ * falls by it, a draw is a beat on the line; the nights that won (or lost) something carry a mark. Drawn in once,
+ * left to right, the way the season went.
+ */
+function Wave({ r }: { r: Review }) {
+  const g = r.games
+  const W = 340, BASE = 34, H = 62
+  const d0 = dayOf(g[0].date), d1 = dayOf(g[g.length - 1].date)
+  const span = Math.max(1, d1 - d0)
+  const x = (d: string) => 4 + ((dayOf(d) - d0) / span) * (W - 8)
+  const bw = Math.max(1.6, Math.min(3.2, ((W - 8) / g.length) * 0.6))
+  // the months the season ran through, at their first day
+  const months: { x: number; t: string }[] = []
+  const first = new Date(Date.UTC(+g[0].date.slice(0, 4), +g[0].date.slice(5, 7), 1))
+  for (let m = first; m.getTime() / 864e5 <= d1; m = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth() + 1, 1))) {
+    months.push({ x: 4 + ((m.getTime() / 864e5 - d0) / span) * (W - 8), t: MONTHS[m.getUTCMonth()] })
+  }
+  return (
+    <svg className="sr-wave" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Every match of the season: ${r.record.w} won, ${r.record.d} drawn, ${r.record.l} lost`}>
+      <line className="wv-base" x1="0" x2={W} y1={BASE} y2={BASE} />
+      {months.map((m) => <line key={m.t + m.x} className="wv-tick" x1={m.x} x2={m.x} y1={BASE + 24} y2={BASE + 27} />)}
+      {months.map((m) => (m.x + 16 < W ? <text key={m.t + m.x} className="wv-m" x={m.x + 3} y={H - 1}>{m.t}</text> : null))}
+      {g.map((m, i) => {
+        const cx = x(m.date)
+        const up = m.res === 'W' ? 6 + 5 * Math.min(4, m.margin) : 0
+        const dn = m.res === 'L' ? 5 + 4 * Math.min(4, m.margin) : 0
+        const style = { ['--i' as string]: i } as CSSProperties
+        return (
+          <g key={i}>
+            {m.res === 'W' && <rect className="wv-w" x={cx - bw / 2} y={BASE - up} width={bw} height={up - 1} rx={bw / 2} style={style} />}
+            {m.res === 'L' && <rect className="wv-l" x={cx - bw / 2} y={BASE + 1} width={bw} height={dn} rx={bw / 2} style={style} />}
+            {m.res === 'D' && <rect className="wv-d" x={cx - bw / 2} y={BASE - 2.5} width={bw} height={5} rx={bw / 2} style={style} />}
+            {m.mark && <circle className={`wv-mk ${m.mark}`} cx={cx} cy={m.mark === 'down' ? BASE + dn + 6 : BASE - Math.max(up, 3) - 6} r="2.6" style={style} />}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+/** The facts that make the season this one, under the cover. */
+function Notes({ r }: { r: Review }) {
+  if (!r.story.notes.length) return null
+  return (
+    <div className="sr-notes">
+      {r.story.notes.map((n) => (
+        <div key={n.text} className={`sr-note${n.good ? ' good' : ''}`}><Icon name={n.icon} size={14} /><span>{n.text}</span></div>
+      ))}
     </div>
   )
+}
+
+/** Chapters rise into view as they are reached, not all at once off-screen. */
+function useReveal() {
+  useEffect(() => {
+    const els = Array.from(document.querySelectorAll<HTMLElement>('.season-review .sr-rv:not(.in)'))
+    if (typeof IntersectionObserver === 'undefined') { els.forEach((e) => e.classList.add('in')); return }
+    const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target) } }), { rootMargin: '0px 0px -24px 0px', threshold: 0 })
+    els.forEach((e) => io.observe(e))
+    return () => io.disconnect()
+  })
 }
 
 // ---------------------------------------------------------------------------- 01 the numbers
@@ -344,7 +457,7 @@ function Honours({ w, r }: { w: World; r: Review }) {
             {p ? <Face p={p} size={44} radius={13} club={club} /> : club ? <Badge club={club} size={40} /> : <Icon name="medal" size={26} color="var(--gold)" />}
             <span className="sr-hon-n">{x.name.replace(lgName, '').trim()}</span>
             <span className="small b ellipsis" style={{ maxWidth: '100%' }}>{p?.name || x.managerName || club?.name}</span>
-            {x.value ? <span className="tiny dim">{x.value}</span> : null}
+            {x.value ? <span className="tiny dim">{x.value} {/Glove/.test(x.name) ? 'clean sheets' : /Playmaker/.test(x.name) ? 'assists' : /Boot/.test(x.name) ? 'goals' : ''}</span> : null}
           </button>
         )
       })}

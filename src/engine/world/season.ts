@@ -20,7 +20,7 @@ import { generateProspect } from './scouting'
 import { fillThinSquads } from './squadFill'
 import { seasonReputation } from './reputation'
 import { registerTrophy } from './honours'
-import { leagueRun } from './review'
+import { leagueDecided, leagueRun } from './review'
 
 // ---------------------------------------------------------------- playoffs
 export function leagueFinished(w: World, comp: Competition) {
@@ -137,6 +137,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     // (after each of its own matches; the last point is the official finish, tie-breaks included)
     archive.userRun = leagueRun(w, userLeague, w.userClubId)
     if (archive.userRun.length && archive.userFinish) archive.userRun[archive.userRun.length - 1] = archive.userFinish
+    archive.decided = leagueDecided(w, userLeague, w.userClubId, userLeague.rules?.rele || 0)
   }
   // everyone who played for the club this season, by name (some of them retire below)
   archive.people = {}
@@ -147,6 +148,8 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
   }
   archive.transfersIn = w.transfers.history.filter((t) => t.season === season && t.to === w.userClubId).length
   archive.transfersOut = w.transfers.history.filter((t) => t.season === season && t.from === w.userClubId).length
+  // (last season's finish, before this one replaces it)
+  archive.prevFinish = w.clubs[w.userClubId]?.lastSeasonPos
   // ---- prize money & reputation
   for (const comp of Object.values(w.competitions)) {
     if (comp.season !== season || comp.format !== 'league' || !comp.table) continue

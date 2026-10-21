@@ -37,6 +37,8 @@ CURATED = {
               # Rey's purple and red, the Coppa Italia's tricolour, the Supercopa's red ring, the Taça's diamonds)
               'CDR': 'reverse', 'CI': 'reverse', 'SUPERCOPA': 'reverse', 'SCI': 'reverse', 'TACA': 'reverse',
               'UECL': 'reverse', 'UNL': 'reverse', 'L2012': 'reverse', 'L2149': 'reverse', 'L2076': 'reverse',
+              # the Trophée des Champions' grey wordmark under its gold bars
+              'TDC': 'reverse',
               # single-colour navy marks, white on dark as their own white versions are (Eredivisie, Liga Portugal)
               'BELCUP': 'light', 'L1': 'light', 'L10': 'light', 'L308': 'light',
               # read as they are: the KNVB diamond and the FFF hexagon carry their own white outline

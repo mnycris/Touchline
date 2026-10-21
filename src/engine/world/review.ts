@@ -6,7 +6,25 @@ import type { Club, Competition, Fixture, Objective, SeasonArchive, StandingRow,
 import { ageOn } from '../../domain/dates'
 import { ordinalOf } from '../../domain/words'
 
-export type Verdict = 'Champions' | 'Promoted' | 'Champions League' | 'Europe' | 'Top half' | 'Survived' | 'Relegated' | 'Play-offs'
+export type Verdict = 'Champions' | 'Promoted' | 'Champions League' | 'Europe' | 'Top half' | 'Survived' | 'Relegated' | 'Play-offs' | 'Relegation play-off'
+
+/**
+ * How the season feels, from the record books: a title or the big European cup is glory; a cup or promotion a triumph;
+ * second place or the Champions League a success; Europe or the top half steady; a fight against the drop a struggle;
+ * relegation a fall. The Season Review is lit and worded by it.
+ */
+export type Mood = 'glory' | 'triumph' | 'success' | 'steady' | 'struggle' | 'fall'
+export interface Story {
+  mood: Mood
+  /** the season in a word or two, the way a back page would put it */
+  headline: string
+  /** the line under it: what the headline means here */
+  kicker: string
+  /** up to three facts that make this season this one (each true of the save) */
+  notes: { icon: string; text: string; good?: boolean }[]
+  /** major trophies (a super cup is not one) */
+  majors: number
+}
 
 export interface RunMatch { res: 'W' | 'D' | 'L'; pts: number; pos?: number; opp: number; gf: number; ga: number; home: boolean; fixtureId: string }
 export interface CompRun { comp: Competition; outcome: string; tone: 'gold' | 'silver' | 'good' | 'plain' | 'bad'; order: number }
@@ -20,6 +38,9 @@ export interface Review {
   trophies: { key: string; comp?: Competition }[]
   record: { p: number; w: number; d: number; l: number; gf: number; ga: number; cs: number }
   run: RunMatch[]
+  /** every match of the season in order, for the cover's waveform: the result, its margin and the moments that won
+   *  (or lost) something: a final, the night the title or the drop was settled */
+  games: { date: string; res: 'W' | 'D' | 'L'; margin: number; mark?: 'gold' | 'silver' | 'down' }[]
   facts: { biggestWin?: Highlight; heaviestDefeat?: Highlight; unbeaten: number; winStreak: number; comebacks: number; homeRecord: [number, number, number]; awayRecord: [number, number, number] }
   comps: CompRun[]
   squad: SquadLine[]
@@ -31,6 +52,7 @@ export interface Review {
   objectives: Objective[]
   awards: Award[]
   transfers: { in: number; out: number; spent: number; received: number; biggestIn?: { name: string; fee: number; from: number }; biggestOut?: { name: string; fee: number; to: number } }
+  story: Story
 }
 
 const seasonOf = (f: Fixture) => Number(f.compId.split('-').pop())
@@ -53,12 +75,51 @@ export function leagueRun(w: World, comp: Competition, clubId: number): number[]
   return out
 }
 
+/**
+ * When the club's league fate was settled, counted in its own league games still to play (0: on the final day): the
+ * title once nobody could catch it, safety once enough clubs below could no longer pass it, the drop once it could no
+ * longer climb out. A tie on points could still go either way, so only a clear margin settles anything.
+ */
+export function leagueDecided(w: World, comp: Competition, clubId: number, rele: number): SeasonArchive['decided'] {
+  // (after a rollover only the club's own fixtures are left, which can't settle anything)
+  if (!comp.fixtures.length || comp.fixtures.some((id) => !w.fixtures[id])) return undefined
+  const fx = comp.fixtures.map((id) => w.fixtures[id]).filter((f): f is Fixture => !!f?.played && !!f.result).sort((a, b) => a.date.localeCompare(b.date))
+  const t = new Map<number, { pts: number; left: number }>(comp.clubs.map((id) => [id, { pts: 0, left: 0 }]))
+  for (const id of comp.fixtures) {
+    const f = w.fixtures[id]
+    if (!f) continue
+    const h = t.get(f.home), a = t.get(f.away)
+    if (h) h.left++
+    if (a) a.left++
+  }
+  const me = t.get(clubId)
+  if (!me || !fx.length) return undefined
+  const out: NonNullable<SeasonArchive['decided']> = {}
+  const others = [...t.entries()].filter(([id]) => id !== clubId).map(([, r]) => r)
+  for (let i = 0; i < fx.length; i++) {
+    const f = fx[i]
+    const [a, b] = f.result!.score
+    const h = t.get(f.home), x = t.get(f.away)
+    if (!h || !x) continue
+    h.left--; x.left--
+    if (a > b) h.pts += 3; else if (a < b) x.pts += 3; else { h.pts++; x.pts++ }
+    // (a day's matches all count before anything is settled)
+    if (fx[i + 1]?.date === f.date) continue
+    const best = me.pts + 3 * me.left
+    if (out.title == null && others.every((r) => r.pts + 3 * r.left < me.pts)) out.title = me.left
+    if (rele && out.safe == null && others.filter((r) => r.pts + 3 * r.left < me.pts).length >= rele) out.safe = me.left
+    if (rele && out.drop == null && others.filter((r) => r.pts > best).length >= t.size - rele) out.drop = me.left
+  }
+  return out
+}
+
 function verdictOf(finish: number, size: number, comp: Competition | undefined, won: boolean, tier: number): Verdict {
   const r = comp?.rules || {}
   if (finish === 1) return won || tier <= 1 ? 'Champions' : 'Promoted'
   if (r.promo && finish <= r.promo) return 'Promoted'
   if (r.playoff && finish >= r.playoff[0] && finish <= r.playoff[1]) return 'Play-offs'
   if (r.rele && finish > size - r.rele) return 'Relegated'
+  if (r.releplayoff && finish === r.releplayoff) return 'Relegation play-off'
   const eu = r.uefa?.[finish - 1]
   if (eu === 'UCL' || (r.ucl && finish <= r.ucl)) return 'Champions League'
   if (eu || ((r.uel || r.uecl) && finish <= (r.ucl || 0) + (r.uel || 0) + (r.uecl || 0))) return 'Europe'
@@ -212,10 +273,25 @@ export function seasonReview(w: World, a: SeasonArchive): Review {
   const ins = moves.filter((t) => t.to === clubId), outs = moves.filter((t) => t.from === clubId)
   const top = <T extends { fee: number }>(xs: T[]) => [...xs].sort((x, y) => y.fee - x.fee)[0]
   const bi = top(ins), bo = top(outs)
+  const trophies = Object.entries(a.winners).filter(([, c]) => c === clubId).map(([key]) => ({ key, comp: comps.find((c) => c.key === key) }))
+
+  // ---- the season's every match, and the ones that decided something
+  const marks = new Map<string, 'gold' | 'silver' | 'down'>()
+  for (const c of compRuns) {
+    if (c.comp.format === 'league' || (c.tone !== 'gold' && c.tone !== 'silver')) continue
+    const last = mine.filter((f) => f.compId === c.comp.id).pop()
+    if (last) marks.set(last.id, c.tone)
+  }
+  const settled = (n?: number) => (n != null ? leagueFx[leagueFx.length - 1 - n]?.id : undefined)
+  const titleNight = league?.finish === 1 ? settled(a.decided?.title) : undefined
+  const dropNight = league?.verdict === 'Relegated' ? settled(a.decided?.drop) : undefined
+  if (titleNight) marks.set(titleNight, 'gold')
+  if (dropNight) marks.set(dropNight, 'down')
+  const games = mine.map((f) => { const [gf, ga] = forAgainst(f); return { date: f.date, res: resOf(f), margin: Math.abs(gf - ga), mark: marks.get(f.id) } })
   return {
-    season: a.season, club, league,
-    trophies: Object.entries(a.winners).filter(([, c]) => c === clubId).map(([key]) => ({ key, comp: comps.find((c) => c.key === key) })),
-    record, run,
+    season: a.season, club, league, trophies,
+    story: storyOf(w, a, league, trophies, compRuns, run, objectives),
+    record, run, games,
     facts: { biggestWin, heaviestDefeat, unbeaten, winStreak, comebacks, homeRecord: home, awayRecord: away },
     comps: compRuns, squad, standout, topScorer, topCreator, ironMan, breakout, objectives, awards,
     transfers: {
@@ -225,4 +301,103 @@ export function seasonReview(w: World, a: SeasonArchive): Review {
       biggestOut: bo && bo.fee > 0 ? { name: bo.playerName, fee: bo.fee, to: bo.to } : undefined,
     },
   }
+}
+
+const ORD = ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth', 'Eleventh', 'Twelfth',
+  'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth', 'Eighteenth', 'Nineteenth', 'Twentieth', 'Twenty-first',
+  'Twenty-second', 'Twenty-third', 'Twenty-fourth']
+const word = (n: number) => ORD[n] || ordinalOf(n)
+const plural = (n: number, s: string) => `${n} ${s}${n === 1 ? '' : 's'}`
+const lc = (s: string) => s.charAt(0).toLowerCase() + s.slice(1)
+const listOf = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`)
+
+/** The season's headline, its mood and the few facts that make it this season, all from the save's own records. */
+function storyOf(w: World, a: SeasonArchive, lg: Review['league'], trophies: Review['trophies'], comps: CompRun[], run: RunMatch[], objectives: Objective[]): Story {
+  const clubId = a.userClubId
+  const majorsWon = trophies.filter((t) => t.comp?.format !== 'supercup' && !/SHIELD|SUPER|TDC|JCS|SCI|DFLSC/.test(t.key))
+  const cupsWon = majorsWon.filter((t) => t.comp?.format !== 'league')
+  const cupNames = cupsWon.map((t) => t.comp?.short || t.key)
+  const notes: Story['notes'] = []
+  const lgName = lg?.comp?.short || lg?.comp?.name || 'league'
+  let mood: Mood = 'steady', headline = 'Season complete', kicker = ''
+  const europe = cupsWon.find((t) => t.key === 'UCL')
+  const promotedPO = lg?.comp?.leagueId ? Object.values(w.competitions).find((c) => c.key === `PO${lg.comp!.leagueId}` && c.season === a.season && c.winner === clubId) : undefined
+  if (lg) {
+    const { finish, size, verdict, zones } = lg
+    const pts = (row: StandingRow) => row.pts - (row.ded || 0)
+    const me = pts(lg.row)
+    if (finish === 1) {
+      mood = 'glory'
+      headline = cupsWon.length >= 2 ? 'The treble' : cupsWon.length === 1 ? 'The double' : 'Champions'
+      const second = lg.table[1]
+      const gap = second ? me - pts(second) : 0
+      const rival = second ? w.clubs[second.clubId]?.short : undefined
+      kicker = cupsWon.length ? `${lgName} and ${listOf(cupNames)}` : !rival ? `${lgName} champions` : gap > 0 ? `${plural(gap, 'point')} clear of ${rival}` : `Level with ${rival}, champions on goal difference`
+      if (verdict === 'Promoted' || (zones.promo && finish <= zones.promo)) kicker += ' · promoted'
+    } else if (europe) {
+      mood = 'glory'; headline = 'Champions of Europe'; kicker = `${europe.comp?.name || 'Champions League'} winners · ${ordinalOf(finish)} in the ${lgName}`
+    } else if (verdict === 'Promoted' || promotedPO) {
+      mood = 'triumph'; headline = 'Promoted'; kicker = promotedPO ? `Up through the play-offs · ${ordinalOf(finish)} in the ${lgName}` : `${ordinalOf(finish)} in the ${lgName}`
+    } else if (cupsWon.length) {
+      mood = 'triumph'; headline = cupsWon.length >= 2 ? 'Cup double' : 'Cup winners'; kicker = `${listOf(cupNames)} · ${ordinalOf(finish)} in the ${lgName}`
+    } else if (finish === 2) {
+      mood = 'success'; headline = 'Runners-up'
+      const above = lg.table[0]
+      const gap = pts(above) - me
+      kicker = gap > 0 ? `${plural(gap, 'point')} behind ${w.clubs[above.clubId]?.short || 'the champions'}`
+        : (above.gf - above.ga) !== (lg.row.gf - lg.row.ga) ? `Level on points with ${w.clubs[above.clubId]?.short}, second on goal difference`
+        : `Level on points with ${w.clubs[above.clubId]?.short}, second on tie-breaks`
+    } else if (verdict === 'Relegated') {
+      mood = 'fall'; headline = 'Relegated'
+      const safe = lg.table[size - zones.rele - 1]
+      const short = safe ? pts(safe) - me : 0
+      kicker = `${ordinalOf(finish)} of ${size}${short > 0 ? ` · ${plural(short, 'point')} from safety` : ''}`
+    } else if (verdict === 'Relegation play-off') {
+      mood = 'struggle'; headline = 'Play-off'; kicker = 'Into the relegation play-off'
+    } else if (verdict === 'Play-offs') {
+      mood = 'steady'; headline = word(finish); kicker = 'Into the promotion play-offs'
+    } else {
+      headline = word(finish)
+      if (verdict === 'Champions League') { mood = 'success'; kicker = 'Champions League football secured' }
+      else if (verdict === 'Europe') { mood = 'steady'; kicker = 'Into Europe' }
+      else if (verdict === 'Top half') { mood = 'steady'; kicker = 'A top-half finish' }
+      else {
+        // the bottom half: how close the drop came
+        const drop = zones.rele ? lg.table[size - zones.rele] : undefined
+        const margin = drop ? me - pts(drop) : 99
+        if (margin <= 3) { mood = 'struggle'; headline = 'Survived'; kicker = `${ordinalOf(finish)} · safe by ${plural(margin, 'point')}` }
+        else { mood = finish > size * 0.7 ? 'struggle' : 'steady'; kicker = 'A bottom-half finish' }
+      }
+    }
+    // when it was settled (recorded at the rollover from every club's results; older seasons don't have it)
+    const dec = a.decided
+    const games = (n: number) => plural(n, 'game')
+    if (finish === 1 && dec?.title != null) notes.push({ icon: 'trophy', text: dec.title > 0 ? `Title sealed with ${games(dec.title)} to spare` : 'Title decided on the final day', good: true })
+    if (verdict === 'Relegated' && dec?.drop != null) notes.push({ icon: 'arrowDown', text: dec.drop > 0 ? `Relegation confirmed with ${games(dec.drop)} left` : 'Relegated on the final day' })
+    if (mood === 'struggle' && dec?.safe != null) notes.push({ icon: 'shield', text: dec.safe > 0 ? `Safety sealed with ${games(dec.safe)} to spare` : 'Safety sealed on the final day', good: true })
+    if (lg.row.l === 0 && lg.row.p >= 10) notes.push({ icon: 'shield', text: 'Unbeaten in the league', good: true })
+    if (me >= 100) notes.push({ icon: 'star', text: `${me} points: a century`, good: true })
+    // the board's league target
+    const target = objectives.find((o) => o.metric === 'leaguePos')
+    if (target) {
+      // (a place to finish in can be beaten; qualifying, staying up or winning is only ever met)
+      if (finish < target.target && /^Finish/.test(target.text)) notes.push({ icon: 'board', text: `Board's target beaten: ${lc(target.text)}`, good: true })
+      else if (finish <= target.target) notes.push({ icon: 'board', text: `Board's target met: ${lc(target.text)}`, good: true })
+      else notes.push({ icon: 'board', text: `Short of the board's target: ${lc(target.text)}` })
+    }
+    // last season, in the same league
+    const prevArch = w.archive.find((x) => x.season === a.season - 1)
+    const prevPos = prevArch ? (prevArch.tables[lg.key]?.findIndex((r) => r.clubId === clubId) ?? -1) + 1 || undefined : a.prevFinish
+    if (prevPos) {
+      const d = prevPos - finish
+      notes.push({ icon: d > 0 ? 'arrowUp' : d < 0 ? 'arrowDown' : 'minus', text: d > 0 ? `Up ${plural(d, 'place')} on last season (${ordinalOf(prevPos)})` : d < 0 ? `Down ${plural(-d, 'place')} on last season (${ordinalOf(prevPos)})` : `${ordinalOf(prevPos)} again, as last season`, good: d > 0 })
+    }
+  } else if (cupsWon.length) {
+    mood = 'triumph'; headline = 'Cup winners'; kicker = listOf(cupNames)
+  }
+  // the manager's own landmarks
+  // (the season's trophies from its archive; the manager's earlier ones from their record)
+  if (trophies.length && !w.user.trophies.some((t) => t.season < a.season)) notes.unshift({ icon: 'medal', text: trophies.length > 1 ? 'Your first trophies as a manager' : 'Your first trophy as a manager', good: true })
+  void comps
+  return { mood, headline, kicker, notes: notes.slice(0, 3), majors: majorsWon.length }
 }
