@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
-import { badgeHiRes, badgeUrls, clubLogoTreatment, compLogoTreatment, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
+import { badgeHiRes, badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery } from '../../services/assets'
 import { Silhouette } from './Silhouette'
 import { Icon } from '../icons/Icon'
 import { ovrColor } from '../../domain/ratings'
@@ -135,13 +135,11 @@ export function Badge({ club, size = 32, style }: { club?: Club; size?: number; 
       </div>
     )
   }
-  // a badge whose outline would vanish on the dark surface sits on a small neutral plate, in its own colours
-  const plate = clubLogoTreatment(club.id) === 'plate'
-  const inner = plate ? Math.round(size * 0.8) : size
+  // the crest itself on the surface, nothing behind it (a crest that needs help on dark has its own art: badgeUrls)
   return (
-    <div className={plate ? 'logo-plate' : undefined} style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', position: 'relative', ...style }}>
-      <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: inner, height: inner }} fallback={<Crest club={club} size={inner} />} />
-      <Sharpen url={badgeHiRes(club, size)} className="badge-img" style={plate ? { objectFit: 'contain', inset: (size - inner) / 2, width: inner, height: inner } : { objectFit: 'contain' }} />
+    <div style={{ width: size, height: size, flex: 'none', display: 'grid', placeItems: 'center', position: 'relative', ...style }}>
+      <ImgChain srcs={badgeUrls(club)} alt={club.name} className="badge-img" style={{ width: size, height: size }} fallback={<Crest club={club} size={size} />} />
+      <Sharpen url={badgeHiRes(club, size)} className="badge-img" style={{ objectFit: 'contain' }} />
     </div>
   )
 }
@@ -159,8 +157,7 @@ export function CompLogo({ k, size = 32, name, color }: { k: string; size?: numb
   const wiki = useWiki(wq, !!wq)
   const srcs = direct.length ? direct : wiki ? [wiki] : []
   if (srcs.length) {
-    const img = <ImgChain srcs={srcs} alt={name || k} className="comp-logo" style={{ height: compLogoTreatment(k) === 'plate' ? size * 0.8 : size, maxWidth: size * 1.6, objectFit: 'contain', display: 'block' }} fallback={<CompEmblem k={k} size={size} name={name} color={color} />} />
-    return compLogoTreatment(k) === 'plate' ? <span className="logo-plate comp" style={{ height: size, minWidth: size }}>{img}</span> : img
+    return <ImgChain srcs={srcs} alt={name || k} className="comp-logo" style={{ height: size, maxWidth: size * 1.6, objectFit: 'contain', display: 'block' }} fallback={<CompEmblem k={k} size={size} name={name} color={color} />} />
   }
   return <CompEmblem k={k} size={size} name={name} color={color} />
 }

@@ -3,15 +3,18 @@
 Every bundled crest and competition logo is measured against the card surface (#16191f): the share of its visible
 pixels that would disappear into it (WCAG contrast under 2.2). Then:
 
-  none     it reads well as it is (most logos)
+  none     it reads well as it is (most logos, and multicolour crests with a dark outline: Inter, Flamengo, Atlético
+           are recognised by what is inside the outline, so they are shown exactly as they are, with no plate or glow)
   light    a single dark colour (Juventus, the Champions League starball, Ligue 1): shown in white, its official
            treatment on dark backgrounds, made here by turning the dark tone white and keeping the shape
   reverse  a dark main colour with coloured accents (Europa League, Bolton): the dark tone turns white, the accents
            keep their colours, as the marks' own dark-background versions do
-  plate    a multicolour badge with dark areas (Flamengo, Lecce): authentic colours kept, on a small neutral plate
+  edge     a multicolour crest that is dark almost all over (Gwangju's maroon phoenix, Auckland's navy shield): its own
+           outer rim is lifted to a lighter shade of itself, just enough for the silhouette to read; nothing is added
 
-'reverse' can't be told from 'plate' by pixels alone (a white Flamengo shield would be wrong), so it is curated below
-after looking at the contact sheet. Writes src/data/logoTreatments.json and public/assets/{badges,comps}/<key>.rev.webp.
+'reverse' can't be told from a dark multicolour crest by pixels alone (a white Flamengo shield would be wrong), so it
+is curated below after looking at the contact sheet. Writes src/data/logoTreatments.json and
+public/assets/{badges,comps}/<key>.rev.webp (light, reverse) and <key>.edge.webp (edge).
 
     python3 scripts/assets/logo_treatments.py [contact-sheet.png]
 """
@@ -30,8 +33,13 @@ CURATED = {
     'comps': {'UEL': 'reverse', 'L50': 'reverse', 'L83': 'reverse', 'L68': 'reverse', 'L41': 'light',
               # the Bundesliga wordmarks under the player, the "SERIE A" under its faceted A: dark type on the logo
               'L19': 'reverse', 'L20': 'reverse', 'L31': 'reverse'},
-    'badges': {'4': 'reverse', '100087': 'reverse', '131739': 'plate'},
+    # (Auckland's bright blue linework reads on dark as it is: neither white nor lifted)
+    'badges': {'4': 'reverse', '100087': 'reverse', '131739': 'none'},
 }
+
+# crests whose only available art has a white background baked in (Piast's gold-rimmed shield): the white outside the
+# rim is taken out of the bundled file itself, once (a file whose corners are already transparent is left alone)
+MATTED = {'badges': {'111086'}}
 
 
 def lin(c):
@@ -80,11 +88,103 @@ def classify(im):
     # only a near-black or navy mark goes white; a deep red or blue one would turn pastel, so it keeps its colour
     if share > 0.96 and depth / max(1, dark) < 1.55:
         return 'light', share
-    if share > 0.96:
-        return 'plate', share
-    if share >= 0.35 and rim >= 0.6:
-        return 'plate', share
+    # dark all over (not just a dark outline round coloured contents): the rim needs lifting for the shape to read
+    if share > 0.96 or (share >= 0.35 and rim >= 0.6 and mean_contrast(im) < EDGE_BELOW):
+        return 'edge', share
     return 'none', share
+
+
+EDGE_BELOW = 2.0  # mean contrast of the visible pixels against the surface, under which a crest dissolves into it
+
+
+def mean_contrast(im):
+    px = [p for p in im.getdata() if p[3] >= 128]
+    return sum(contrast(p[:3]) for p in px) / max(1, len(px))
+
+
+def dist_from_outside(im):
+    """For every pixel, how many steps it is from the transparency around the logo (0 outside it)."""
+    from collections import deque
+    w, h = im.size
+    a = im.getchannel('A').load()
+    INF = 10 ** 9
+    d = [[INF] * w for _ in range(h)]
+    q = deque()
+    for y in range(h):
+        for x in range(w):
+            if a[x, y] < 100 or x in (0, w - 1) or y in (0, h - 1):
+                d[y][x] = 0 if a[x, y] < 100 else 1
+                q.append((x, y))
+    while q:
+        x, y = q.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and d[ny][nx] > d[y][x] + 1:
+                d[ny][nx] = d[y][x] + 1
+                q.append((nx, ny))
+    return d
+
+
+def lift_rim(im, target=2.0):
+    """The crest's own outer rim, where it is dark, lifted to a lighter shade of itself until it reads on the
+    surface. Only a thin band along the outline changes; the rest of the crest is exactly as it was."""
+    w, h = im.size
+    d = dist_from_outside(im)
+    band = max(2, round(w * 0.028))
+    px = im.load()
+    out = im.copy()
+    po = out.load()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a == 0 or d[y][x] > band or contrast((r, g, b)) >= target:
+                continue
+            for step in range(1, 41):
+                k = step / 40
+                rr, gg, bb = r + (200 - r) * k, g + (205 - g) * k, b + (215 - b) * k
+                if contrast((rr, gg, bb)) >= target:
+                    break
+            fade = 1 if d[y][x] < band else 0.5
+            po[x, y] = (round(r + (rr - r) * fade), round(g + (gg - g) * fade), round(b + (bb - b) * fade), a)
+    return out
+
+
+def unmatte(im):
+    """The white around a crest made transparent: everything near-white that joins the image's border, plus the
+    anti-aliased edge where it meets the crest, which keeps its own colour with the white taken out of it. White inside
+    the crest's outline (a white shield) is not reached and stays."""
+    from collections import deque
+    w, h = im.size
+    px = im.load()
+    out = im.copy()
+    po = out.load()
+    outside = [[False] * w for _ in range(h)]
+    border = [(x, y) for x in range(w) for y in (0, h - 1)] + [(x, y) for y in range(h) for x in (0, w - 1)]
+    q = deque((x, y) for x, y in border if min(px[x, y][:3]) > 225)
+    for x, y in q:
+        outside[y][x] = True
+    while q:
+        x, y = q.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < w and 0 <= ny < h and not outside[ny][nx] and min(px[nx, ny][:3]) > 225:
+                outside[ny][nx] = True
+                q.append((nx, ny))
+    near = lambda x, y: any(outside[y + dy][x + dx] for dx in (-1, 0, 1) for dy in (-1, 0, 1) if 0 <= x + dx < w and 0 <= y + dy < h)
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if outside[y][x]:
+                po[x, y] = (0, 0, 0, 0)
+            elif near(x, y):
+                # an edge pixel is crest colour mixed with white: alpha from how far its darkest channel is from white
+                k = max(0.0, min(1.0, (255 - min(r, g, b)) / 150))
+                if k < 0.04:
+                    po[x, y] = (0, 0, 0, 0)
+                else:
+                    un = lambda c: max(0, min(255, round((c - 255 * (1 - k)) / k)))
+                    po[x, y] = (un(r), un(g), un(b), round(a * k))
+    return out
 
 
 # only part of the logo goes white: from this row down (the wordmark), the symbol above it keeps its own dark facets
@@ -116,17 +216,25 @@ def main():
     for kind, key_of in (('comps', 'comps'), ('badges', 'clubs')):
         folder = os.path.join(ROOT, 'public', 'assets', kind)
         for f in sorted(os.listdir(folder)):
-            if not f.endswith('.webp') or f.endswith('.rev.webp'):
+            if not f.endswith('.webp') or f.endswith('.rev.webp') or f.endswith('.edge.webp'):
                 continue
             key = f[:-5]
             im = Image.open(os.path.join(folder, f)).convert('RGBA')
+            if key in MATTED.get(kind, ()) and im.getpixel((0, 0))[3] == 255:
+                im = unmatte(im)
+                im.save(os.path.join(folder, f), 'WEBP', lossless=True, quality=100, method=6)
             t, share = classify(im)
             t = CURATED[kind].get(key, t)
             rev = os.path.join(folder, f'{key}.rev.webp')
+            edge = os.path.join(folder, f'{key}.edge.webp')
             if t in ('light', 'reverse'):
                 lighten(im, key).save(rev, 'WEBP', lossless=True, quality=100, method=6)
             elif os.path.exists(rev):
                 os.remove(rev)
+            if t == 'edge':
+                lift_rim(im).save(edge, 'WEBP', lossless=True, quality=100, method=6)
+            elif os.path.exists(edge):
+                os.remove(edge)
             if t != 'none':
                 result[key_of][key] = t
                 sheet_items.append((kind, key, t, im))
@@ -152,11 +260,8 @@ def contact(items, path):
         x0, y0 = (i % cols) * cw, (i // cols) * ch
         a = im.copy(); a.thumbnail((80, 80))
         sheet.paste(a, (x0 + 10 + (80 - a.width) // 2, y0 + 10 + (80 - a.height) // 2), a)
-        if t in ('light', 'reverse'):
-            b = lighten(im, key); b.thumbnail((80, 80))
-        else:
-            b = im.copy(); b.thumbnail((68, 68))
-            dr.rounded_rectangle((x0 + 112, y0 + 6, x0 + 200, y0 + 94), radius=22, fill=(0x22, 0x26, 0x2D))
+        b = lighten(im, key) if t in ('light', 'reverse') else lift_rim(im) if t == 'edge' else im.copy()
+        b.thumbnail((80, 80))
         sheet.paste(b, (x0 + 116 + (80 - b.width) // 2, y0 + 10 + (80 - b.height) // 2), b)
         dr.text((x0 + 10, y0 + 104), f'{key} · {t}', fill=(200, 205, 215))
     sheet.save(path)
