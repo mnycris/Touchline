@@ -7,7 +7,8 @@ import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { compLogoKey, fixturesOf, leagueOf, nextFixture, opponent, outcomeFor, scoreLine, tableAround, userClub, lastResult, playerStatus } from '../selectors'
-import { ZONE_COLOR, zoneFor, sortTable } from '../../engine/competitions/tables'
+import { ZONE_COLOR, zoneFor, sortTable, previousPositions } from '../../engine/competitions/tables'
+import { MoveArrow } from './FifaRanking'
 import { rosterOf } from '../../engine/world/roster'
 import { currentWindow } from '../../engine/competitions/calendar'
 import { unreadCount } from '../../engine/world/messages'
@@ -325,6 +326,7 @@ function MiniTable({ w }: { w: World }) {
   const go = useGame((s) => s.go)
   const comp = leagueOf(w, w.userClubId)!
   const rows = tableAround(w, comp, w.userClubId, 2)
+  const prev = previousPositions(w, comp)
   const total = comp.table?.length || 20
   return (
     <button className="card tap" onClick={() => go({ name: 'comp', params: { id: comp.id } })}>
@@ -333,13 +335,13 @@ function MiniTable({ w }: { w: World }) {
         <span className="tiny dim">Matchday {Math.max(...(comp.table || []).map((r) => r.p), 0)}</span>
       </div>
       <table className="tbl">
-        <thead><tr><th style={{ width: 30 }}>#</th><th className="l">Club</th><th>P</th><th>GD</th><th>PTS</th></tr></thead>
+        <thead><tr><th style={{ width: prev ? 44 : 30 }}>#</th><th className="l">Club</th><th>P</th><th>GD</th><th>PTS</th></tr></thead>
         <tbody>
           {rows.map((r) => {
             const z = zoneFor(w, comp, r.pos, total)
             return (
               <tr key={r.clubId} className={r.clubId === w.userClubId ? 'me' : ''}>
-                <td><span className="zone-num" style={{ borderColor: ZONE_COLOR[z] }}>{r.pos}</span></td>
+                <td><span className="tbl-pos"><span className="zone-num" style={{ borderColor: ZONE_COLOR[z] }}>{r.pos}</span>{prev?.has(r.clubId) && <MoveArrow move={prev.get(r.clubId)! - r.pos} size={9} />}</span></td>
                 <td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={20} /><span className="ellipsis b" style={{ maxWidth: 150 }}>{w.clubs[r.clubId].short}</span></div></td>
                 <td>{r.p}</td><td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td><td className="b">{r.pts - (r.ded || 0)}</td>
               </tr>

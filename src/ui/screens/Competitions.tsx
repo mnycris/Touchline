@@ -12,7 +12,7 @@ import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
-import { sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
+import { previousPositions, sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
 import { compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
 import { FixtureRow } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
@@ -384,6 +384,8 @@ export function TableView({ w, c, compact, highlight }: { w: World; c: Competiti
   const go = useGame((s) => s.go)
   const [mode, setMode] = useRemember<'short' | 'full' | 'form'>('tableMode', 'short', 'global')
   const t = sortTable(w, c)
+  // who moved since the last matchday (only once there is one to compare with)
+  const prev = useMemo(() => previousPositions(w, c), [c.id, w.date, useGame.getState().v])
   const zones = new Map<Zone, true>()
   t.forEach((_, i) => { const z = zoneFor(w, c, i + 1, t.length); if (z) zones.set(z, true) })
   return (
@@ -391,15 +393,15 @@ export function TableView({ w, c, compact, highlight }: { w: World; c: Competiti
       {!compact && <Seg small items={[{ id: 'short', label: 'Short' }, { id: 'full', label: 'Full' }, { id: 'form', label: 'Form' }]} value={mode} onChange={setMode} />}
       <div className="card" style={{ marginTop: 10 }}>
         <table className="tbl">
-          <thead><tr><th style={{ width: 28 }}>#</th><th className="l">Club</th><th>P</th>{mode === 'full' && <><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></>}{mode === 'form' ? <th>Form</th> : <th>GD</th>}<th>Pts</th></tr></thead>
+          <thead><tr><th style={{ width: prev ? (mode === 'full' ? 36 : 44) : 28 }}>#</th><th className="l">Club</th><th>P</th>{mode === 'full' && <><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></>}{mode === 'form' ? <th>Form</th> : <th>GD</th>}<th>Pts</th></tr></thead>
           <tbody>
             {t.map((r, i) => {
               const z = zoneFor(w, c, i + 1, t.length)
               const next = zoneFor(w, c, i + 2, t.length)
               return (
                 <tr key={r.clubId} className={`${r.clubId === w.userClubId || highlight?.includes(r.clubId) ? 'me' : ''} ${next !== z && i < t.length - 1 ? 'zone-break' : ''}`} onClick={() => go({ name: 'club', params: { id: r.clubId } })}>
-                  <td><span className="zone-num" style={{ borderColor: ZONE_COLOR[z] }}>{i + 1}</span></td>
-                  <td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={20} /><span className="ellipsis b" style={{ maxWidth: mode === 'full' ? 88 : 150 }}>{w.clubs[r.clubId]?.short}</span></div></td>
+                  <td><span className={`tbl-pos ${mode === 'full' ? 'tight' : ''}`}><span className="zone-num" style={{ borderColor: ZONE_COLOR[z] }}>{i + 1}</span>{prev?.has(r.clubId) && <MoveArrow move={prev.get(r.clubId)! - (i + 1)} size={9} />}</span></td>
+                  <td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={20} /><span className="ellipsis b" style={{ maxWidth: mode === 'full' ? (prev ? 64 : 88) : 150 }}>{w.clubs[r.clubId]?.short}</span></div></td>
                   <td>{r.p}</td>
                   {mode === 'full' && <><td>{r.w}</td><td>{r.d}</td><td>{r.l}</td><td>{r.gf}</td><td>{r.ga}</td></>}
                   {mode === 'form' ? <td><FormPips form={r.form.slice(-5)} /></td> : <td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td>}
@@ -768,6 +770,7 @@ function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
   const scorer = players.map((p) => ({ p, l: line(p) })).filter((x) => x.l.g > 0).sort((a, b) => b.l.g - a.l.g)[0]
   const key = (rated.length ? rated.slice(0, 3) : players.map((p) => ({ p, l: line(p) })).sort((a, b) => b.p.ovr - a.p.ovr).slice(0, 3))
   const xiSheet = clubId === w.userClubId ? (c.sheets.find((s) => s.id === c.activeSheet) || c.sheets[0]) : sideInput(w, clubId, lg, false).sheet
+  const prev = lg ? previousPositions(w, lg) : undefined
   return (
     <div className="pad stack" style={{ marginTop: 10 }}>
       {next && <div className="card"><div className="card-h"><span className="label">Next match</span></div><div className="list"><FixtureRow w={w} f={next} clubId={clubId} /></div></div>}
@@ -776,8 +779,8 @@ function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
         <div className="card">
           <div className="card-h"><div className="row tight"><CompLogo k={compLogoKey(lg)} size={18} name={lg.name} /><span className="label">{lg.short}</span></div></div>
           <table className="tbl">
-            <thead><tr><th style={{ width: 28 }}>#</th><th className="l">Club</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
-            <tbody>{around.map((r) => <tr key={r.clubId} className={r.clubId === clubId ? 'me' : ''} onClick={() => r.clubId !== clubId && go({ name: 'club', params: { id: r.clubId } })}><td>{r.pos}</td><td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={18} /><span className="ellipsis b">{w.clubs[r.clubId]?.short}</span></div></td><td>{r.p}</td><td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td><td className="b">{r.pts - (r.ded || 0)}</td></tr>)}</tbody>
+            <thead><tr><th style={{ width: prev ? 44 : 28 }}>#</th><th className="l">Club</th><th>P</th><th>GD</th><th>Pts</th></tr></thead>
+            <tbody>{around.map((r) => <tr key={r.clubId} className={r.clubId === clubId ? 'me' : ''} onClick={() => r.clubId !== clubId && go({ name: 'club', params: { id: r.clubId } })}><td><span className="tbl-pos">{r.pos}{prev?.has(r.clubId) && <MoveArrow move={prev.get(r.clubId)! - r.pos} size={9} />}</span></td><td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={18} /><span className="ellipsis b">{w.clubs[r.clubId]?.short}</span></div></td><td>{r.p}</td><td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td><td className="b">{r.pts - (r.ded || 0)}</td></tr>)}</tbody>
           </table>
         </div>
       )}

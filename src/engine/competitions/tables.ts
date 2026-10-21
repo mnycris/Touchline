@@ -55,6 +55,41 @@ function headToHead(w: World, comp: Competition, a: number, b: number): number {
   return ga - gb
 }
 
+const matchdayOf = (roundName: string) => { const m = roundName.match(/(?:Matchday|MD)\s*(\d+)\s*$/i); return m ? Number(m[1]) : undefined }
+
+/**
+ * Where each club stood before the latest matchday, to show who moved: the table with that matchday's results taken
+ * back out. Undefined when there is nothing honest to compare with: no matchday before it yet (the start of a
+ * season), or a table without matchdays. A postponed game from an earlier matchday counts as already in the table.
+ */
+export function previousPositions(w: World, comp: Competition): Map<number, number> | undefined {
+  if (!comp.table?.length) return undefined
+  let last = 0
+  const played: [Fixture, number][] = []
+  for (const id of comp.fixtures) {
+    const f = w.fixtures[id]
+    if (!f?.played || !f.result || f.tieId) continue
+    const md = matchdayOf(f.roundName)
+    if (md == null) continue
+    played.push([f, md])
+    if (md > last) last = md
+  }
+  if (last < 2) return undefined
+  const rows = new Map(comp.table.map((r) => [r.clubId, { ...r, form: [] as StandingRow['form'] }]))
+  for (const [f, md] of played) {
+    if (md !== last) continue
+    const h = rows.get(f.home), a = rows.get(f.away)
+    if (!h || !a) continue
+    const [hs, as] = f.result!.score
+    h.p--; a.p--
+    h.gf -= hs; h.ga -= as; a.gf -= as; a.ga -= hs
+    if (hs > as) { h.w--; a.l--; h.pts -= 3 } else if (hs < as) { a.w--; h.l--; a.pts -= 3 } else { h.d--; a.d--; h.pts--; a.pts-- }
+  }
+  const prev = new Map<number, number>()
+  sortTable(w, comp, [...rows.values()]).forEach((r, i) => prev.set(r.clubId, i + 1))
+  return prev
+}
+
 export function sortedTable(w: World, comp: Competition): StandingRow[] {
   return sortTable(w, comp)
 }
