@@ -2460,9 +2460,11 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 /* Bundesliga: red (#d20515, from the logo), white and silver after the trophy; the logo's player, in red */
 .ci-L19, .ci-L20 { --ci-field: linear-gradient(135deg, #1e1f23 0%, #131417 50%, #08090a 100%);
   --ci-glow: linear-gradient(118deg, transparent 20%, rgba(255, 255, 255, .07) 33%, rgba(255, 255, 255, 0) 42%), radial-gradient(55% 90% at 100% 55%, rgba(210, 5, 21, .36), transparent 70%);
-  --ci-mw: .5; --ci-mx: -11%; --ci-my: 9%; --ci-mark-op: 1;
+  --ci-mw: .36; --ci-mx: 2%; --ci-my: 3%; --ci-mark-op: 1;
   --ci-mark-fill: linear-gradient(160deg, #ff3443 0%, #d20515 50%, #8f000d 100%);
   --ci-edge: linear-gradient(90deg, transparent, #c9ced6 25%, #ffffff 50%, #c9ced6 75%, transparent); }
+/* (the whole player, ball and all, inside the card: the 2. Bundesliga's mark also carries its ground line and "2") */
+.ci-L20 { --ci-mw: .4; --ci-mx: 0%; --ci-my: 9%; }
 /* Serie A: navy (#1a1659) and azure (#0070f8), both from the logo; its faceted "A"; the tricolore of its strip */
 .ci-L31 { --ci-field: linear-gradient(122deg, #0d0a3a 0%, #1a1659 34%, #10379d 70%, #0062e0 92%, #0a78ff 100%);
   --ci-glow: radial-gradient(50% 80% at 92% 8%, rgba(120, 200, 255, .3), transparent 65%);
@@ -2547,6 +2549,9 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
 .md-head.ci-FACUP { --ci-md-op: .2; }
+/* the Bundesliga's player is a figure, not a pattern: behind the badges and the kick-off time he is only clutter, so
+   the band keeps the field, its red light and the logo above the badges */
+.md-head.ci-L19 .ci-mark, .md-head.ci-L20 .ci-mark { display: none; }
 /* match day in the competition's identity (.cis, as its own page): the band runs into the page instead of stopping on
    a grey slab, and the actions and the kick-off bar take the brand's tint and accent */
 .md-page.cis .md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .16) 0%, rgba(0, 0, 0, .3) 52%, var(--bg) 100%), var(--ci-field); }

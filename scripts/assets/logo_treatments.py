@@ -199,8 +199,8 @@ def unmatte(im):
 
 
 # only part of the logo goes white: from this far down (the wordmark, as a share of the height), the symbol above it
-# keeps its own dark facets
-FROM_ROW = {'L31': 0.765}
+# keeps its own dark facets (Serie A's "A"; the 3. Liga's black player on his white disc, which would vanish into it)
+FROM_ROW = {'L31': 0.765, 'L2076': 0.82}
 
 
 def lighten(im, key=None):
