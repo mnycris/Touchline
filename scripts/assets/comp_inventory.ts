@@ -12,8 +12,8 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../.
 const w = deserialize(fs.readFileSync(process.argv[2]))
 const LOGOS = compLogos as Record<string, { w: number; h: number; src?: string }>
 const TREAT = (treatments as { comps: Record<string, string> }).comps
-// looked up on the device from the competition's Wikipedia article (services/assets.ts compWikiQuery); Wikimedia
-// rate-limits the build environment's network, so these could not be retrieved or checked here
+// looked up on the device from the competition's Wikipedia article (services/assets.ts compWikiQuery); each article
+// was checked on 2026-10-21 and has no usable logo, so the device ends on the designed emblem unless that changes
 const WIKI: Record<string, string> = {
   JCS: 'Johan Cruyff Shield (no lead image)', SUPERTACA: 'Supertaça Cândido de Oliveira (no lead image)',
   SCOTCUP: 'Scottish Cup (its lead image is a photo of the trophy: rejected)', CA: 'Copa América (no lead image)',
@@ -40,7 +40,7 @@ const lines = rows.map((c) => {
     status = 'edition'; shown = ed.map((e) => `${e.split('@')[1]} edition bundled`).join(', ') + '; other editions: designed emblem'
     source = ed.map((e) => `[football-logos.cc](${LOGOS[e].src})`).join(', ')
   } else if (WIKI[k]) {
-    status = 'wiki'; shown = 'Wikipedia on the device if a drawn logo passes the checks, else designed emblem'; source = `Wikipedia: ${WIKI[k]} (unverified here)`
+    status = 'wiki'; shown = 'Wikipedia on the device if a drawn logo passes the checks, else designed emblem'; source = `Wikipedia, checked 2026-10-21: ${WIKI[k]}`
   } else {
     status = 'none'; shown = '**Designed emblem**'; source = NONE[k] || 'none found'
   }

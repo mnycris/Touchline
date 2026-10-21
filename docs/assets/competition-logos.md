@@ -36,7 +36,7 @@ non-commercial fan game; a commercial release would need licences from the right
 | ASIAN | AFC Asian Cup | International | Bundled 229×360 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/tournaments/700x700/afc-asian-cup.e51b1ad8.png) |
 | AFCON | Africa Cup of Nations | International | Bundled 264×353 | — | [en.wikipedia.org](https://en.wikipedia.org/wiki/File:Africa_Cup_of_Nation_official_logo.png) |
 | GOLD | CONCACAF Gold Cup | International | Bundled 360×143 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/tournaments/700x700/concacaf-gold-cup.4fcfb627.png) |
-| CA | Copa América | International | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia: Copa América (no lead image) (unverified here) |
+| CA | Copa América | International | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia, checked 2026-10-21: Copa América (no lead image) |
 | EUROQ | European Qualifiers | International | 2028 edition bundled; other editions: designed emblem | — | [football-logos.cc](https://assets.football-logos.cc/logos/tournaments/700x700/uefa-euro-2028.803d4112.png) |
 | WC | FIFA World Cup | International | 2030 edition bundled; other editions: designed emblem | — | [football-logos.cc](https://assets.football-logos.cc/logos/tournaments/700x700/fifa-world-cup-2030.773a4f9e.png) |
 | INTF | International Friendlies | International | **Designed emblem** | — | friendlies have no competition logo |
@@ -84,15 +84,15 @@ non-commercial fan game; a commercial release would need licences from the right
 | CI | Coppa Italia Frecciarossa | Italy | Bundled 311×360 | reverse | [assets.football-logos.cc](https://assets.football-logos.cc/logos/italy/700x700/coppa-italia.a62c208e.png) |
 | KNVB | KNVB Beker | Netherlands | Bundled 360×360 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/netherlands/700x700/knvb-cup.a908d441.png) |
 | TACA | Taça de Portugal | Portugal | Bundled 360×325 | reverse | [assets.football-logos.cc](https://assets.football-logos.cc/logos/portugal/700x700/taca-de-portugal.5ace9934.png) |
-| SCOTCUP | Scottish Cup | Scotland | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia: Scottish Cup (its lead image is a photo of the trophy: rejected) (unverified here) |
+| SCOTCUP | Scottish Cup | Scotland | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia, checked 2026-10-21: Scottish Cup (its lead image is a photo of the trophy: rejected) |
 | CDR | Copa del Rey | Spain | Bundled 342×360 | reverse | [assets.football-logos.cc](https://assets.football-logos.cc/logos/spain/700x700/copa-del-rey.a3ebbbe0.png) |
 | TURCUP | Türkiye Kupası | Türkiye | Bundled 291×360 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/turkey/700x700/turkish-cup.e298a147.png) |
 | COMMSHIELD | FA Community Shield | England | Bundled 360×360 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/england/700x700/fa-community-shield.6c1793a2.png) |
 | TDC | Trophée des Champions | France | Bundled 227×360 | reverse | [commons.wikimedia.org](https://commons.wikimedia.org/wiki/File:Troph%C3%A9e_des_Champions_logo_(2024).svg) |
 | DFLSC | Franz Beckenbauer Supercup | Germany | Bundled 256×360 | — | [assets.football-logos.cc](https://assets.football-logos.cc/logos/germany/700x700/franz-beckenbauer-supercup.8b104317.png) |
 | SCI | Supercoppa Italiana | Italy | Bundled 242×360 | reverse | [assets.football-logos.cc](https://assets.football-logos.cc/logos/italy/700x700/italian-super-cup.4364d07a.png) |
-| JCS | Johan Cruijff Schaal | Netherlands | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia: Johan Cruyff Shield (no lead image) (unverified here) |
-| SUPERTACA | Supertaça Cândido de Oliveira | Portugal | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia: Supertaça Cândido de Oliveira (no lead image) (unverified here) |
+| JCS | Johan Cruijff Schaal | Netherlands | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia, checked 2026-10-21: Johan Cruyff Shield (no lead image) |
+| SUPERTACA | Supertaça Cândido de Oliveira | Portugal | Wikipedia on the device if a drawn logo passes the checks, else designed emblem | — | Wikipedia, checked 2026-10-21: Supertaça Cândido de Oliveira (no lead image) |
 | SUPERCOPA | Supercopa de España | Spain | Bundled 298×360 | reverse | [assets.football-logos.cc](https://assets.football-logos.cc/logos/spain/700x700/supercopa-de-espana.9dd7781a.png) |
 
 ## Competition identities
@@ -140,11 +140,22 @@ show two different crests. All 472 with current art were rebuilt from it (Vaduz 
 crest). Crests are transparent (none has a baked background), and each crest's margin was measured so every crest
 fills its box the same way (`src/data/crestFit.json`).
 
+## Manager portraits (checked 2026-10-21)
+
+Managers are shown from their Wikipedia article's lead image on the device (`services/assets.ts managerWikiQuery`),
+accepted only when the article is about the same person (a football manager or coach, with their nationality or one of
+their clubs named; `scripts/qa/manager-photos.ts` tests that check). Sixteen were retrieved and looked at, from Arteta
+and Guardiola down to the second tiers: every one was the right person and current enough. Some lead images are wide
+shots (on a touchline, at a press table) where the face is small; the app fills its square avatar from them, held at 20% from the
+top of the frame (`.avatar img`, where a head usually is), and nothing was guessed beyond that: there is no licensed source of tight, current manager headshots, so those
+stay as Wikipedia has them. Managers without an article, or whose article fails the check, show initials.
+
 ## Seeing remote images from the build environment
 
 With full network access (2026-10-21) every image host is reachable through the environment's proxy, with three
 exceptions that are the providers' own decisions, not the environment's: SoFIFA (Cloudflare bot block, HTTP 403),
-Wikimedia (`en.wikipedia.org`, `commons.wikimedia.org`, `upload.wikimedia.org`: HTTP 429 rate limit on every request,
-with a policy-compliant User-Agent), and EA's FC26/FC27 ratings-portrait paths (S3 403: they don't exist). The headless
+Wikimedia (`en.wikipedia.org`, `commons.wikimedia.org`, `upload.wikimedia.org`: HTTP 429 on bursts of requests even
+with a policy-compliant User-Agent; a slow queue that honours `Retry-After` gets through, which is how the Trophée des
+Champions and Africa Cup of Nations logos and the Wikipedia checks above were done), and EA's FC26/FC27 ratings-portrait paths (S3 403: they don't exist). The headless
 browser needs the proxy passed to it (`scripts/qa/load-save.mjs` does) and the proxy's CA in its NSS store
 (`certutil -d sql:$HOME/.pki/nssdb -A -t "C,," -n proxy-ca -i <ca.pem>`).
