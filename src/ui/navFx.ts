@@ -98,7 +98,8 @@ export function initNavFx() {
     else if (d === 'fwd') place(layer, 'fx-under', 'ghost-hold', ms(300), layerKeyOf(p, p.stacks[p.tab].length))
     else if (d === 'tab') { if (!reduced()) place(layer, 'fx-under', 'ghost-hold', 220) }
     else if (d === 'close') { if (!reduced()) place(topOv, 'fx-over', 'ghost-close', 240) }
-    else if (d === 'open' && topOv) place(topOv, 'fx-over', 'ghost-hold-ov', ms(340), `ov:${p.overlay.length}:${p.overlay[p.overlay.length - 1].name}`)
+    // (only an overlay of the stack is held: the screen on top can be something else, a live match among them)
+    else if (d === 'open' && topOv && p.overlay.length) place(topOv, 'fx-over', 'ghost-hold-ov', ms(340), `ov:${p.overlay.length}:${p.overlay[p.overlay.length - 1].name}`)
   })
 }
 
