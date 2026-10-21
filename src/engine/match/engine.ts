@@ -159,6 +159,8 @@ interface LP {
   apri: number
   /** how often a wide man comes inside off the flank: his foot, then his role */
   cutK: number
+  /** how much his side looks for him in attack, from his rating against his team-mates' (see Side.refresh) */
+  star: number
   /** scratch points reused by the layout */
   q1: Pt
   q2: Pt
@@ -187,6 +189,21 @@ const CARD_POS: Record<RG, number> = { GK: 0.8, CB: 1.9, FB: 1.65, DM: 1, CM: 0.
 
 /** How much each position gets the ball in general circulation (centre-backs and full-backs see a lot of it). */
 const DEMAND: Record<RG, number> = { GK: 1, CB: 1.85, FB: 1.3, DM: 1.2, CM: 0.82, AM: 0.55, W: 0.78, ST: 1 }
+
+/**
+ * How much a position's standing in the side turns into getting the ball in attack: the wide forwards and the No. 10
+ * are who a side plays through; the striker is the end of most moves already, whoever he is, and defenders are not the
+ * outlet.
+ */
+export const STAR_G: Record<RG, number> = { GK: 0, CB: 0, FB: 0.2, DM: 0.2, CM: 0.6, AM: 1, W: 1, ST: 0.15 }
+/**
+ * In attack, how strongly the ball is looked for the side's best players (see Side.refresh). It decides who is on the
+ * ball when the chance comes, not how readily a man shoots: the best finishers already get more of the side's goals,
+ * and more shots on top of that only adds goals the side would never have scored.
+ */
+const STAR_USE = 0.5
+/** A ball in behind from deep is mostly hope: who plays the through balls that come off is the man between the lines. */
+const THRU_FROM: Record<RG, number> = { GK: -1.5, CB: -0.9, FB: -0.3, DM: -0.3, CM: 0, AM: 0, W: 0, ST: 0 }
 
 const LN_DEMAND = Object.fromEntries(Object.entries(DEMAND).map(([k, v]) => [k, Math.log(v)])) as Record<RG, number>
 
@@ -345,6 +362,11 @@ class Side {
     this.on = this.lps.filter((l) => l.on)
     this.gk = this.on.find((l) => l.pos === 'GK')
     const sts = this.on.filter((l) => l.g === 'ST')
+    // a side plays through its best players: the better a man is than the men around him, the more the ball is
+    // looked for him in attack (a modest side's best forward is its outlet as much as a big club's star is theirs)
+    const out = this.on.filter((l) => l.pos !== 'GK')
+    const mean = out.reduce((a, l) => a + posRating(l.p, l.pos), 0) / Math.max(1, out.length)
+    for (const l of this.on) l.star = (STAR_G[l.g] ?? 0) * clamp((posRating(l.p, l.pos) - mean) / 4, -1, 1.8)
     this.dropST = sts.length >= 2 ? sts.reduce((a, b) => ((POCKET[b.role] ?? 0) - b.apri * 0.1 > (POCKET[a.role] ?? 0) - a.apri * 0.1 ? b : a)) : undefined
   }
   get name() { return this.input.short }
@@ -515,7 +537,7 @@ export class MatchSim {
     for (const k of p.playstylesPlus) if (PS_KEYS.includes(k)) ps[k] = 6
     const lp: LP = {
       p, side, slot, pos, g: RGROUP[pos], role, focus, energy: clamp(p.fitness, 20, 100), on, yellow: false, red: false, injured: false,
-      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, pd: 0, ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, apri: 0, cutK: 0, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
+      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, pd: 0, ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, apri: 0, cutK: 0, star: 0, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
     }
     this.placed(lp)
     return lp
@@ -1955,7 +1977,7 @@ export class MatchSim {
         const runner = r.g === 'W' ? 0.3 : r.g === 'ST' ? 0.1 : r.g === 'AM' ? 0.15 : r.g === 'CM' ? -0.5 : -1.2
         const pz = this.pace(r) / this.ref
         // and the more room there is behind the line, the more often it is looked for
-        lw = lnThru + runner + 2 * Math.log(pz) + 4 * Math.log(clamp((90 - lineX) / 14, 0.12, 3)) - 0.3 + r.bias.bx
+        lw = lnThru + runner + 2 * Math.log(pz) + 4 * Math.log(clamp((90 - lineX) / 14, 0.12, 3)) - 0.3 + r.bias.bx + THRU_FROM[c.g]
       } else if (d > 30 && Math.abs(r.at.y - b.y) > 40) {
         kind = 'switch'
         lw = lnSwitch
@@ -1993,6 +2015,8 @@ export class MatchSim {
       // (how much each position sees of the ball in circulation; in the last third it is where he is and how free
       // that decides who gets it, not his position)
       lw += Math.log(open) + LN_DEMAND[r.g] * (to.x < 62 ? 1 : to.x < 78 ? 0.6 : 0.25) + (fwd < -30 ? -30 : fwd > fc ? fc : fwd) * fp + r.bias.rw
+      // the side's best players are looked for, more the nearer the goal
+      if (r.star) lw += r.star * STAR_USE * (to.x >= 62 ? 1 : to.x >= 45 ? 0.5 : 0.15)
       if (r.bias.bx && inBox(r.at)) lw += Math.log(Math.max(0.3, 1 + r.bias.bx * 0.5))
       // the midfielder arriving late in the middle is the man nobody has picked up
       if ((r.g === 'CM' || r.g === 'DM') && r.at.x > 78 && Math.abs(r.at.y - 50) < 20) lw += 0.6
@@ -2089,7 +2113,7 @@ export class MatchSim {
       if (!late && r.at.x < 76) continue
       const to = late ? { x: 81 + this.rng.next() * 6, y: 38 + this.rng.next() * 24 } : { x: clamp(r.at.x, 82, 92), y: clamp(r.at.y, 36, 64) }
       const open = clamp((this.nearestD(Y.on, to) - 0.5) / 6 + (late ? 0.2 : 0), 0.05, 1)
-      opts.push({ r, to, open, w: open * open * Math.max(0.3, 1 + r.bias.bx) * (this.fin(r) / this.ref) * (late ? (r.g === 'CM' || r.g === 'AM' ? 1.6 : r.g === 'DM' ? 0.8 : 1) : 1) })
+      opts.push({ r, to, open, w: open * open * Math.max(0.3, 1 + r.bias.bx) * (this.fin(r) / this.ref) * (late ? (r.g === 'CM' || r.g === 'AM' ? 1.6 : r.g === 'DM' ? 0.8 : 1) : 1) * Math.exp(r.star * STAR_USE) })
     }
     if (!opts.length) return undefined
     return this.rng.weighted(opts, (o) => o.w)

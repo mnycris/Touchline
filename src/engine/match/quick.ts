@@ -11,7 +11,7 @@ import { A } from '../../domain/types'
 import { Rng, clamp } from '../../domain/rng'
 import { formationOf } from '../../domain/constants'
 import { posRating } from '../../domain/ratings'
-import type { MatchContext, SideInput } from './engine'
+import { STAR_G, type MatchContext, type SideInput } from './engine'
 import { CLEAN_SHEET, GOAL_W, RGROUP, type RG } from './rating'
 import { keeperQuality, penaltyChance, takerQuality } from './penalty'
 
@@ -31,13 +31,15 @@ const K_REF: Record<RG, number> = { GK: 40, CB: 74, FB: 51, DM: 55, CM: 63, AM: 
 const PASS_W: Record<RG, number> = { GK: 0.28, CB: 1.25, FB: 1.1, DM: 1.2, CM: 1.45, AM: 1.2, W: 0.95, ST: 0.55 }
 const DEF_W: Record<RG, number> = { GK: 0, CB: 1, FB: 1, DM: 1.3, CM: 1, AM: 0.6, W: 0.65, ST: 0.5 }
 
-interface QP { p: Player; pos: Position; g: RG; side: 0 | 1; mins: number; on: number; off: number; st: MatchPlayerStats }
+interface QP { p: Player; pos: Position; g: RG; side: 0 | 1; mins: number; on: number; off: number; st: MatchPlayerStats; star: number }
 
 /** How often a player gets a shot away: his position's rate, sharpened by the attributes that win chances there. */
 function shotW(q: QP): number {
   const a = q.p.attrs
+  // (a side plays through its best players, as in the action engine: see Side.refresh there)
+  const use = Math.exp(0.3 * q.star)
   const k = q.g === 'CB' ? a[A.heading] * 0.6 + a[A.jumping] * 0.4 : a[A.finishing] * 0.45 + a[A.positioning] * 0.35 + a[A.longShots] * 0.2
-  return SHOT90[q.g] * Math.pow(Math.max(30, k) / K_REF[q.g], 1.5)
+  return SHOT90[q.g] * Math.pow(Math.max(30, k) / K_REF[q.g], 1.5) * use
 }
 /** How likely a shot of his goes in: the quality of chance his position gets, and his finishing (or heading). */
 function finishW(q: QP): number {
@@ -81,7 +83,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       const p = s.players[id]
       if (!p) return
       const pos = f.slots[slot]?.pos || p.positions[0]
-      ps.push({ p, pos, g: RGROUP[pos], side: i, mins: 90, on: 0, off: 90, st: blank(p.id, i, pos, true) })
+      ps.push({ p, pos, g: RGROUP[pos], side: i, mins: 90, on: 0, off: 90, st: blank(p.id, i, pos, true), star: 0 })
     })
     // substitutions: tired and poor-form players make way for the freshest like-for-like options
     const nSubs = clamp(Math.round(rng.normal(4, 0.8)), 2, 5)
@@ -96,11 +98,17 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       out.off = minute
       out.mins = minute
       out.st.subOff = minute
-      const q: QP = { p: inn, pos: out.pos, g: out.g, side: i, mins: 90 - minute, on: minute, off: 90, st: blank(inn.id, i, out.pos, false) }
+      const q: QP = { p: inn, pos: out.pos, g: out.g, side: i, mins: 90 - minute, on: minute, off: 90, st: blank(inn.id, i, out.pos, false), star: 0 }
       q.st.subOn = minute
       ps.push(q)
       events.push({ min: minute, type: 'sub', side: i, player: inn.id, player2: out.p.id, text: '' })
     }
+  }
+  // how much each side looks for each man in attack: his rating against his team-mates' (as the action engine does)
+  for (const i of [0, 1] as const) {
+    const out = ps.filter((q) => q.side === i && q.on === 0 && q.g !== 'GK')
+    const mean = out.reduce((a, q) => a + posRating(q.p, q.pos), 0) / Math.max(1, out.length)
+    for (const q of ps) if (q.side === i) q.star = (STAR_G[q.g] ?? 0) * clamp((posRating(q.p, q.pos) - mean) / 4, -1, 1.8)
   }
   const onAt = (q: QP, m: number) => q.on <= m && q.off >= m
   // penalties: the designated taker if he is on, else the best taker on the pitch, against the keeper on the day,
@@ -142,7 +150,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
       let assister: QP | undefined
       if (rng.next() < 0.72) {
         const pool = mates.filter((q) => q !== scorer)
-        if (pool.length) assister = rng.weighted(pool, (q) => ASSIST_W[q.g] * Math.pow(Math.max(30, q.p.attrs[A.vision] * 0.5 + q.p.attrs[A.shortPassing] * 0.3 + q.p.attrs[A.crossing] * 0.2) / 70, 4))
+        if (pool.length) assister = rng.weighted(pool, (q) => ASSIST_W[q.g] * Math.pow(Math.max(30, q.p.attrs[A.vision] * 0.5 + q.p.attrs[A.shortPassing] * 0.3 + q.p.attrs[A.crossing] * 0.2) / 70, 4) * Math.exp(0.5 * q.star))
         if (assister) { assister.st.assists++; assister.st.keyPasses++ }
       }
       events.push({ min: minute, type: 'goal', side, player: scorer.p.id, player2: assister?.p.id, text: '', big: true })
