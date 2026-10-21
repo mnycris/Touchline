@@ -1,5 +1,5 @@
 import type { Club, Competition, Player, Position, SlotRole, TeamSheet, TeamTactics, World } from '../../domain/types'
-import { BENCH_SIZE, DEFAULT_TACTICS, FORMATIONS, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
+import { BENCH_SIZE, DEFAULT_TACTICS, FORMATIONS, MENTALITIES, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
 import { A } from '../../domain/types'
 import { bestRole, posRating, roleFit } from '../../domain/ratings'
 import { rosterOf } from '../world/roster'
@@ -222,13 +222,46 @@ export function buildSheet(w: World, club: Club, formationId: string, tactics: T
 }
 
 /** Refreshes an AI club's sheet before a match (injuries, fatigue, rotation for cups). */
-export function aiMatchSheet(w: World, club: Club, comp?: Competition): TeamSheet {
+export function aiMatchSheet(w: World, club: Club, comp?: Competition, vs?: MatchUp): TeamSheet {
   const mgr = w.managers[club.managerId]
   const formation = formationOf(mgr?.formation || '4-3-3 Holding').id
   const base = club.sheets.find((s) => s.id === club.activeSheet) || club.sheets[0]
-  const tactics = base?.tactics || tacticsForManager(mgr?.vision || 'Balanced', formation)
+  let tactics = base?.tactics || tacticsForManager(mgr?.vision || 'Balanced', formation)
+  if (vs) tactics = contextTactics(w, club, tactics, vs)
   const rotate = comp && (comp.format === 'cup' && comp.key !== 'FACUP' ? 1 : comp.format === 'cup' ? 0.6 : 0)
   return buildSheet(w, club, formation, tactics, { comp, rotate: rotate || 0, flexible: true })
+}
+
+/** The other side and where the game is played, for the AI manager's set-up (see contextTactics). */
+export interface MatchUp { opp: number; venue: 'home' | 'away' | 'neutral' }
+
+/** How far each kind of manager bends his usual game to the opponent (1: a pragmatist; low: a man of convictions). */
+const BENDS: Record<string, number> = { Gegenpress: 0.45, Possession: 0.5, 'Park the Bus': 0.3, 'Counter-Attack': 0.8, Direct: 0.8, 'Wing Play': 0.8, Balanced: 1 }
+
+/**
+ * How an AI manager sets up for this particular game. Against a clearly stronger side, more so away from home, he
+ * sits deeper, presses less and commits fewer men forward; against a clearly weaker one he pushes on. How far he
+ * bends depends on his convictions: a pressing or possession coach mostly sticks to his game, a pragmatist adapts.
+ * It is a starting point: during the match the state of the game moves him on from it.
+ */
+export function contextTactics(w: World, club: Club, t: TeamTactics, vs: MatchUp): TeamTactics {
+  const opp = w.clubs[vs.opp]
+  if (!opp) return t
+  const edge = (club.squadAvg || 70) - (opp.squadAvg || 70) + (vs.venue === 'home' ? 1.5 : vs.venue === 'away' ? -1.5 : 0)
+  let shift = edge < -2.5 ? -Math.min(2, (-edge - 2.5) / 4) : edge > 3.5 ? Math.min(1, (edge - 3.5) / 5) : 0
+  shift *= BENDS[w.managers[club.managerId]?.vision || 'Balanced'] ?? 1
+  if (Math.abs(shift) < 0.25) return t
+  const m = Math.max(0, Math.min(MENTALITIES.length - 1, MENTALITIES.indexOf(t.mentality) + Math.round(shift)))
+  const out: TeamTactics = {
+    ...t,
+    mentality: MENTALITIES[m],
+    lineHeight: Math.round(Math.max(15, Math.min(85, t.lineHeight + shift * 7))),
+    pressing: Math.round(Math.max(10, Math.min(95, t.pressing + shift * 7))),
+    playersInBox: Math.max(2, Math.min(9, t.playersInBox + Math.round(shift * 0.8))),
+  }
+  // a side bracing itself does not engage high up the pitch
+  if (shift <= -1 && (t.defApproach === 'High' || t.defApproach === 'Aggressive')) out.defApproach = 'Balanced'
+  return out
 }
 
 /** Validate a user sheet against current availability; auto-fill gaps with the best alternative. */

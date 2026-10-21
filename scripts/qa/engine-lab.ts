@@ -14,7 +14,7 @@ import { DEFAULT_TACTICS, FORMATIONS, VISION_TACTICS } from '../../src/domain/co
 import { buildSheet } from '../../src/engine/match/selection'
 import { MatchSim } from '../../src/engine/match/engine'
 import { quickSim } from '../../src/engine/match/quick'
-import { matchContext, sideInput } from '../../src/engine/world/matchRunner'
+import { matchContext, matchUp, sideInput } from '../../src/engine/world/matchRunner'
 import { viewOf, type LedgerView } from '../../src/engine/match/ledger'
 import { hashString } from '../../src/domain/rng'
 
@@ -40,8 +40,9 @@ export function play(w: World, homeId: number, awayId: number, seed: number, opt
   const f: Fixture = { id: `lab:${homeId}:${awayId}:${seed}`, compId: comp?.id || '', home: homeId, away: awayId, date: '2026-10-10', played: false } as Fixture
   const ctx = matchContext(w, f, !!opts.detail)
   ctx.userSide = -1
-  const home = sideInput(w, homeId, comp, false)
-  const away = sideInput(w, awayId, comp, false)
+  // each AI side sets up for this opponent and venue, as in the game (see contextTactics)
+  const home = sideInput(w, homeId, comp, false, undefined, f.id, matchUp(f, 0))
+  const away = sideInput(w, awayId, comp, false, undefined, f.id, matchUp(f, 1))
   if (opts.formation) {
     const s = opts.patchSide === 1 ? away : home
     const b = buildSheet(w, w.clubs[s.clubId], opts.formation, s.sheet.tactics, { comp })

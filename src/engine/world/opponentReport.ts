@@ -3,7 +3,7 @@
 // conceded, who is in form, who is missing. Compared against their league's averages where that says something, and,
 // for a fixture, against the manager's own side the way the match engine compares players.
 import type { Club, Competition, Fixture, MatchEvent, Player, TeamTactics, TeamMatchStats, World } from '../../domain/types'
-import { sideInput } from './matchRunner'
+import { matchUp, sideInput } from './matchRunner'
 import { isSuspendedFor } from '../match/selection'
 import { formationOf, POS_GROUP } from '../../domain/constants'
 import { A } from '../../domain/types'
@@ -177,7 +177,8 @@ export function opponentReport(w: World, clubId: number, forComp?: Competition, 
   }
   const profile: StyleRow[] = league && fx.length >= 3 ? PROFILE.map((m, i) => ({ id: m.id, group: m.group, label: m.label, dp: m.dp, unit: m.unit, v: prof[i].n ? prof[i].s / prof[i].n : NaN, avg: lgProf[i].n ? lgProf[i].s / lgProf[i].n : NaN }))
     .filter((x) => Number.isFinite(x.v) && Number.isFinite(x.avg) && x.avg > 0) : []
-  const inp = sideInput(w, clubId, forComp || lgComp, clubId === w.userClubId)
+  // how they will set up for this game, if there is one (an AI manager adapts to the opponent, see contextTactics)
+  const inp = sideInput(w, clubId, forComp || lgComp, clubId === w.userClubId, undefined, fixture?.id, fixture ? matchUp(fixture, fixture.home === clubId ? 0 : 1) : undefined)
   const t = inp.sheet.tactics
   const style = { possession: sums.possession / n, shots: sums.shots / n, xg: sums.xg / n, xga: sums.xga / n, crosses: detailed ? sums.crosses / detailed : 0, longBalls: detailed ? sums.longBalls / detailed : 0, pressing: t.pressing, line: t.lineHeight, width: t.width, tempo: t.tempo }
   const formations = [...forms.entries()].map(([id, k]) => ({ name: formationOf(id).name, n: k })).sort((a, b) => b.n - a.n)

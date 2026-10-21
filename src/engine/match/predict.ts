@@ -4,7 +4,7 @@
 import type { Fixture, World } from '../../domain/types'
 import { posRating } from '../../domain/ratings'
 import { formationOf } from '../../domain/constants'
-import { sideInput } from '../world/matchRunner'
+import { matchUp, sideInput } from '../world/matchRunner'
 import { isSuspendedFor } from './selection'
 import { clamp, type Rng } from '../../domain/rng'
 
@@ -30,7 +30,7 @@ function outlook(w: World, f: Fixture, side: 0 | 1): Omit<SideOutlook, 'xg'> {
   const id = side ? f.away : f.home
   const club = w.clubs[id]
   const comp = w.competitions[f.compId]
-  const inp = sideInput(w, id, comp, id === w.userClubId, w.scripts?.[f.id]?.lineups?.[String(side) as '0' | '1'], f.id)
+  const inp = sideInput(w, id, comp, id === w.userClubId, w.scripts?.[f.id]?.lineups?.[String(side) as '0' | '1'], f.id, matchUp(f, side))
   const slots = formationOf(inp.sheet.formation).slots
   const xiPlayers = inp.sheet.lineup.map((pid) => inp.players[pid]).filter(Boolean)
   const rated = xiPlayers.map((p, i) => posRating(p, slots[i]?.pos || p.positions[0]))
@@ -59,11 +59,11 @@ export function predictFixture(w: World, f: Fixture): Prediction {
   const h2h = headToHead(w, f)
   // head-to-head counts, lightly: a side that keeps beating this opponent gets a small edge
   const h2hEdge = clamp((h2h.w - h2h.l) * 0.35, -1.2, 1.2)
-  // fitted to the match engine's results (scripts/qa/predict-fit.ts): goals rise ~10% per rating point of edge
+  // fitted to the match engine's results (scripts/qa/predict-fit.ts): goals rise ~7% per rating point of edge
   const diff = eff(h) - eff(a) + h2hEdge
-  const [bh, ba] = f.neutral ? [1.06, 1.06] : [1.18, 0.94]
-  const lh = clamp(bh * Math.exp(diff * 0.094), 0.15, 5)
-  const la = clamp(ba * Math.exp(-diff * 0.094), 0.12, 4.6)
+  const [bh, ba] = f.neutral ? [1.28, 1.28] : [1.42, 1.15]
+  const lh = clamp(bh * Math.exp(diff * 0.066), 0.15, 5)
+  const la = clamp(ba * Math.exp(-diff * 0.066), 0.12, 4.6)
   let pH = 0, pD = 0, pA = 0, best = 0, likely: [number, number] = [1, 1]
   for (let i = 0; i <= 9; i++) for (let j = 0; j <= 9; j++) {
     const p = poisson(lh, i) * poisson(la, j)

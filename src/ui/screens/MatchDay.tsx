@@ -12,7 +12,7 @@ import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
 import { fmtDate, seasonLabel } from '../../domain/dates'
-import { attendanceFor, createSim, sideInput } from '../../engine/world/matchRunner'
+import { attendanceFor, createSim, matchUp, sideInput } from '../../engine/world/matchRunner'
 import { inkOn, kitColors, kitVars } from '../components/LivePitch'
 import { onDark } from '../theme'
 import { matchSheetOf, sheetFor, validateSheet } from '../../engine/match/selection'
@@ -75,7 +75,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const ownSheet = !!club.matchSheets?.[f.id]
   const { sheet: valid, issues } = validateSheet(w, club, sheet, comp)
   const oppId = us === 0 ? f.away : f.home
-  const oppSheet = sideInput(w, oppId, comp, false).sheet
+  const oppSheet = sideInput(w, oppId, comp, false, undefined, f.id, matchUp(f, us === 0 ? 1 : 0)).sheet
   const ourSide = sideFromSheet(w, club.id, valid, comp, 'Your XI')
   const oppSide = sideFromSheet(w, oppId, oppSheet, comp, 'Predicted')
   const homeSide = us === 0 ? ourSide : oppSide, awaySide = us === 0 ? oppSide : ourSide

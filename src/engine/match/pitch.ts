@@ -66,7 +66,8 @@ export interface ShotContext { header?: boolean; oneOnOne?: boolean; counter?: b
 
 export function chanceXg(p: Pt, c: ShotContext): number {
   let xg = baseXg(p)
-  if (c.header) xg *= c.setPiece ? 0.52 : 0.5
+  // (a header from a dead ball is contested in a packed box)
+  if (c.header) xg *= c.setPiece ? 0.46 : 0.5
   if (c.volley) xg *= 0.75
   if (c.cutback) xg *= 1.25
   if (c.rebound) xg *= 1.2

@@ -4,7 +4,7 @@ import { addDays } from '../../domain/dates'
 import { INJURIES } from '../../domain/constants'
 import { MatchSim, type MatchContext, type SideInput } from '../match/engine'
 import { quickSim } from '../match/quick'
-import { aiMatchSheet, sheetFor, validateSheet } from '../match/selection'
+import { aiMatchSheet, sheetFor, validateSheet, type MatchUp } from '../match/selection'
 import { aggregateBefore } from '../competitions/cups'
 import { applyResultToTable } from '../competitions/tables'
 import { rosterOf } from './roster'
@@ -59,10 +59,11 @@ export function matchContext(w: World, f: Fixture, commentary: boolean): MatchCo
   }
 }
 
-export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean, scripted?: { formation: string; lineup: number[]; bench: number[] }, fixtureId?: string): SideInput {
+export function sideInput(w: World, clubId: number, comp: Competition | undefined, user: boolean, scripted?: { formation: string; lineup: number[]; bench: number[] }, fixtureId?: string, vs?: MatchUp): SideInput {
   const club = w.clubs[clubId]
-  // the manager's side plays with the sheet set for this match on its match day screen, if there is one
-  let sheet = user ? sheetFor(club, fixtureId) : aiMatchSheet(w, club, comp)
+  // the manager's side plays with the sheet set for this match on its match day screen, if there is one; an AI side
+  // sets up for this opponent (see contextTactics)
+  let sheet = user ? sheetFor(club, fixtureId) : aiMatchSheet(w, club, comp, vs)
   if (user) sheet = validateSheet(w, club, sheet, comp).sheet
   // Edit Mode line-up for an AI side: the chosen XI in the chosen shape, roles and duties from the AI's own sheet logic
   // (a national side picks from its called-up squad)
@@ -79,6 +80,11 @@ export function sideInput(w: World, clubId: number, comp: Competition | undefine
   return { clubId, name: club.name, short: club.short, sheet, players, controlledByUser: user, managerVision: mgr?.vision }
 }
 
+/** Who a side faces in a fixture and where: what an AI manager sets up for. */
+export function matchUp(f: Pick<Fixture, 'home' | 'away' | 'neutral'>, side: 0 | 1): MatchUp {
+  return { opp: side === 0 ? f.away : f.home, venue: f.neutral ? 'neutral' : side === 0 ? 'home' : 'away' }
+}
+
 /** `detail` keeps commentary, action log and heat maps (live, watched and user-relevant matches). */
 export function createSim(w: World, f: Fixture, userLive: boolean, detail = userLive || f.userInvolved === true || !!w.scripts?.[f.id]): MatchSim {
   const comp = w.competitions[f.compId]
@@ -86,8 +92,8 @@ export function createSim(w: World, f: Fixture, userLive: boolean, detail = user
   ctx.assistantSubs = !!w.flags.assistantSubs
   const script = w.scripts?.[f.id]
   if (script) ctx.script = script
-  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId, script?.lineups?.['0'], f.id)
-  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId, script?.lineups?.['1'], f.id)
+  const home = sideInput(w, f.home, comp, userLive && f.home === w.userClubId, script?.lineups?.['0'], f.id, matchUp(f, 0))
+  const away = sideInput(w, f.away, comp, userLive && f.away === w.userClubId, script?.lineups?.['1'], f.id, matchUp(f, 1))
   return new MatchSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
 }
 
@@ -125,8 +131,8 @@ export function simulateFixture(w: World, f: Fixture, deep = isDeepFixture(w, f)
   if (!deep) {
     const comp = w.competitions[f.compId]
     const ctx = matchContext(w, f, false)
-    const home = sideInput(w, f.home, comp, false)
-    const away = sideInput(w, f.away, comp, false)
+    const home = sideInput(w, f.home, comp, false, undefined, f.id, matchUp(f, 0))
+    const away = sideInput(w, f.away, comp, false, undefined, f.id, matchUp(f, 1))
     return quickSim(home, away, ctx, hashString(`${w.meta.seed}:${f.id}`))
   }
   const sim = createSim(w, f, false)
