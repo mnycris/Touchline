@@ -239,12 +239,12 @@ export function MatchLineup({ w, home, away, onTap, sel, mode = 'live', benchTit
 }
 
 /** One XI on a full-length pitch, attacking upwards (team selection, manage team). */
-export function TeamLineup({ w, side, onTap, sel, mode = 'sheet', energy, children }: { w: World; side: LSide; onTap?: (t: LineupTap) => void; sel?: number; mode?: 'live' | 'sheet'; energy?: boolean; children?: ReactNode }) {
+export function TeamLineup({ w, side, onTap, sel, mode = 'sheet', energy, aspect = 0.8, children }: { w: World; side: LSide; onTap?: (t: LineupTap) => void; sel?: number; mode?: 'live' | 'sheet'; energy?: boolean; aspect?: number; children?: ReactNode }) {
   const tops = slotTops(side.formation, 90, 11)
   return (
     <div className="fl-wrap">
       <TeamBar s={side} />
-      <PitchSurface vertical aspect={0.8} pad={2.5} chevron className="fl-pitch one">
+      <PitchSurface vertical aspect={aspect} pad={2.5} chevron className="fl-pitch one">
         {side.xi.map((s, i) => s && <PlNode key={s.id} w={w} s={s} club={side.club} mode={mode} energy={energy} left={clampX(side.formation.slots[i].x)} top={tops[i]} sel={sel === s.id} onTap={onTap ? () => onTap({ side: 0, id: s.id, slot: i }) : undefined} />)}
         {side.xi.map((s, i) => !s && <div key={`e${i}`} className="fl-empty" style={{ left: `${clampX(side.formation.slots[i].x)}%`, top: `${tops[i]}%` }} onClick={onTap ? () => onTap({ side: 0, id: 0, slot: i }) : undefined}><Icon name="plus" size={16} /><span>{side.formation.slots[i].label}</span></div>)}
       </PitchSurface>

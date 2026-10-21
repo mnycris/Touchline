@@ -2785,21 +2785,65 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 /* the assistant's plain-words view: what to do now, who plays, how, and with what attitude */
 .to .to-h { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
 .to-sec { padding: 14px; }
-.to-ast { padding: 14px 14px 15px; background: linear-gradient(150deg, rgba(var(--club-rgb), .2), rgba(var(--club-rgb), .04) 60%), var(--s1); box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), .22); }
-.to-ast.urgent { background: linear-gradient(150deg, rgba(255, 176, 32, .16), rgba(255, 176, 32, .03) 60%), var(--s1); box-shadow: inset 0 0 0 1px rgba(255, 176, 32, .3); }
-.to-ast-who { display: flex; align-items: center; gap: 8px; }
-.to-ast-av { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; flex: none; font-family: var(--display); font-weight: 800; font-size: 12px; color: #fff; background: rgba(var(--club-rgb), .55); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
-.to-ast-say { margin: 10px 0 4px; font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 1.15; letter-spacing: .01em; color: var(--t1); }
-.to-ast.ready .to-ast-say::before { content: '✓'; display: inline-block; margin-right: 8px; color: var(--pos); }
-/* the XI in its lines on a strip of turf: compact, the full pitch is in Line-up */
-.to-xi { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-bottom: 10px; padding: 12px 6px; border-radius: 14px;
-  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, .025) 0 26px, transparent 26px 52px), linear-gradient(180deg, #17402c, #12331f); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); }
-.to-xi-line { display: flex; justify-content: space-evenly; }
-.to-pl { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 64px; }
-.to-pl-n { max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
-.to-pl-n.warn { color: var(--warn); }
-.to-pl-f { position: relative; display: block; }
-.to-pl-empty { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 1.5px dashed rgba(255, 176, 32, .85); color: var(--warn); }
+/* the next match: both crests, the odds as they stand with this team, and the assistant's verdict */
+.to-hero { padding: 14px 14px 15px; overflow: hidden; position: relative;
+  background: radial-gradient(120% 90% at 0% 0%, rgba(var(--club-rgb), .32), transparent 60%), radial-gradient(90% 80% at 100% 0%, rgba(255, 255, 255, .05), transparent 60%), var(--s1);
+  box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), .24); }
+.to-hero.urgent { box-shadow: inset 0 0 0 1px rgba(255, 176, 32, .35); }
+.to-hero-k { text-align: center; color: var(--t2); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: 10.5px; }
+.to-vs { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; margin: 12px 0 14px; }
+.to-vs-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.to-vs-side > b { font-family: var(--display); font-size: 17px; letter-spacing: .02em; text-transform: uppercase; max-width: 100%; }
+.to-vs-mid .display { font-size: 15px; color: var(--t3); letter-spacing: .12em; }
+.to-xi-r { font-size: 11px; color: var(--t2); padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .06); }
+.to-xi-r b { color: var(--t1); font-family: var(--display); font-size: 13px; }
+.to-odds-bar { display: flex; gap: 3px; height: 8px; border-radius: 999px; overflow: hidden; }
+.to-odds-bar i { display: block; min-width: 4px; flex-basis: 0; }
+.to-odds-bar i.w { background: rgb(var(--club-rgb)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .15); }
+.to-odds-bar i.d { background: #59616e; }
+.to-odds-bar i.l { background: #3a4049; }
+.to-odds-k { display: flex; justify-content: space-between; margin-top: 6px; color: var(--t2); }
+.to-odds-k b { color: var(--t1); font-family: var(--display); font-size: 14px; }
+.to-say { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .07); }
+.to-hero > .to-say:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.to-ast-av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; flex: none; font-family: var(--display); font-weight: 800; font-size: 12px; color: #fff; background: rgba(var(--club-rgb), .6); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.to-say-t { margin: 3px 0 2px; font-size: 14.5px; font-weight: 600; line-height: 1.35; color: var(--t1); }
+.to-hero.urgent .to-say-t { color: var(--warn); }
+/* the XI on the match-day pitch */
+.to-pitch { display: flex; flex-direction: column; gap: 10px; }
+.to-pitch .fl-wrap { border-radius: 18px; }
+/* how the team plays: the style in use, what it does, and the others to try */
+.to-style-card { padding: 14px; }
+.to-link { display: inline-flex; align-items: center; gap: 2px; color: var(--club2); }
+.to-now { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 12px; border-radius: 14px;
+  background: linear-gradient(120deg, rgba(var(--club-rgb), .26), rgba(var(--club-rgb), .06)); box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), .3); }
+.to-now-n { font-size: 26px; line-height: 1; letter-spacing: .02em; text-transform: uppercase; color: #fff; }
+.to-now .small { margin-top: 3px; }
+.to-now-fit { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.to-tend { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+.to-tend-r { display: grid; grid-template-columns: 104px 1fr 70px; align-items: center; gap: 10px; }
+.to-tend-r > .tiny:first-child { color: var(--t2); font-weight: 600; }
+.to-tend-m { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, .07); overflow: hidden; }
+.to-tend-m i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, rgba(var(--club-rgb), .55), rgb(var(--club-rgb))); transition: width .45s cubic-bezier(.2, .8, .2, 1); }
+.to-tend-v { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.to-other-h { margin: 2px 0 8px; }
+.to-chips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -14px; padding: 0 14px 2px; scrollbar-width: none; }
+.to-chips::-webkit-scrollbar { display: none; }
+.to-chip { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 9px 12px 10px; border-radius: 12px; background: rgba(255, 255, 255, .04); box-shadow: inset 0 0 0 1px var(--line); transition: transform .12s, background .2s; }
+.to-chip:active { transform: scale(.97); }
+.to-chip b { font-size: 13px; color: var(--t1); white-space: nowrap; }
+.to-chip.on { background: rgba(var(--club-rgb), .16); box-shadow: inset 0 0 0 1.5px rgba(var(--club-rgb), .6); }
+.to-chip.rec { box-shadow: inset 0 0 0 1.5px rgba(46, 229, 138, .45); }
+/* attitude: five steps from holding on to all out, the suggested one marked */
+.to-risk { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding-top: 16px; }
+.to-risk-b { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0 0 2px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .02em; line-height: 1.1; color: var(--t3); text-align: center; }
+.to-risk-b > i { display: block; width: 100%; height: 10px; border-radius: 3px; opacity: .32; transition: opacity .2s, transform .2s, box-shadow .2s; }
+.to-risk-b:first-child > i { border-radius: 999px 3px 3px 999px; }
+.to-risk-b:last-child > i { border-radius: 3px 999px 999px 3px; }
+.to-risk-b.m0 > i { background: #2f6fd6; } .to-risk-b.m1 > i { background: #4f8be0; } .to-risk-b.m2 > i { background: #7c8594; } .to-risk-b.m3 > i { background: #e0646d; } .to-risk-b.m4 > i { background: #d8434f; }
+.to-risk-b.on { color: var(--t1); }
+.to-risk-b.on > i { opacity: 1; transform: scaleY(1.5); box-shadow: 0 0 12px rgba(255, 255, 255, .12); }
+.to-risk-sug { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-family: var(--body); font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--pos); white-space: nowrap; }
 .to-rec { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: rgba(var(--club-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), .2); }
 .to-rec > .small { flex: 1 1 200px; min-width: 0; color: var(--t2); }
 .to-rec > .small b { color: var(--t1); }
@@ -2809,23 +2853,9 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 .to-rec.warn { background: rgba(255, 176, 32, .07); box-shadow: inset 0 0 0 1px rgba(255, 176, 32, .22); }
 .to-rec > svg { flex: none; align-self: flex-start; margin-top: 2px; }
 .to-rec.warn > svg { color: var(--warn); }
-.to-styles { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.to-style { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 12px; text-align: left; background: rgba(255, 255, 255, .03); box-shadow: inset 0 0 0 1px var(--line); transition: transform .12s, background .2s; }
-.to-style:active { transform: scale(.98); }
-.to-style.on { background: rgba(var(--club-rgb), .14); box-shadow: inset 0 0 0 1.5px rgba(var(--club-rgb), .55); }
-.to-style-t { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.to-style-t b { font-size: 14px; color: var(--t1); }
-.to-style-f { display: flex; align-items: center; gap: 8px; flex: none; }
-.to-inuse { font-family: var(--display); font-weight: 700; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--club2); }
 .to-stars { display: inline-flex; gap: 3px; }
 .to-stars i { width: 7px; height: 7px; border-radius: 50%; background: rgba(255, 255, 255, .14); }
 .to-stars i.on { background: var(--gold); box-shadow: 0 0 6px rgba(244, 197, 66, .45); }
-.to-att { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 10px; padding: 4px; border-radius: 12px; background: var(--s2); }
-.to-att-b { padding: 9px 2px; border-radius: 9px; font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: .02em; line-height: 1.1; color: var(--t2); transition: background .2s, color .2s; }
-.to-att-b.on { color: #fff; }
-.to-att-b.on.m0, .to-att-b.on.m1 { background: #2f6fd6; }
-.to-att-b.on.m2 { background: #5a6270; }
-.to-att-b.on.m3, .to-att-b.on.m4 { background: #d8434f; }
 .to-note { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
 .to-note:first-of-type { border-top: 0; padding-top: 0; }
 .to-note > svg { flex: none; }

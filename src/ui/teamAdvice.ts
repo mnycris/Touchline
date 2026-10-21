@@ -6,7 +6,7 @@ import type { Fixture, Mentality, Player, Position, TeamSheet, World } from '../
 import { attr, posRating } from '../domain/ratings'
 import { formationOf, POS_GROUP } from '../domain/constants'
 import { buildSheet, isAvailable } from '../engine/match/selection'
-import { predictFixture } from '../engine/match/predict'
+import { predictFixture, type Prediction } from '../engine/match/predict'
 import { callName } from '../engine/match/commentary'
 
 // ---------------------------------------------------------------- what the players are good at
@@ -255,8 +255,8 @@ export const ATTITUDE: Record<Mentality, { label: string; text: string }> = {
 export interface AttitudeAdvice { fixture: Fixture; opp: string; venue: string; pWin: number; pLoss: number; suggest: Mentality; why: string }
 
 /** How to approach the match, from its prediction: push on as favourites, stay compact as underdogs. */
-export function attitudeFor(w: World, f: Fixture): AttitudeAdvice {
-  const pr = predictFixture(w, f)
+export function attitudeFor(w: World, f: Fixture, pred?: Prediction): AttitudeAdvice {
+  const pr = pred || predictFixture(w, f)
   const home = f.home === w.userClubId
   const pWin = home ? pr.pHome : pr.pAway, pLoss = home ? pr.pAway : pr.pHome
   const opp = w.clubs[home ? f.away : f.home]?.short || 'them'
