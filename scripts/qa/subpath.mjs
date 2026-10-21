@@ -51,7 +51,7 @@ for (let i = 0; i < n; i++) {
   if (!ms.length) console.log(`     ${name.trim()}: no identity mark on this card`)
   await page.screenshot({ path: `${OUT}/comp-${i}.png`, clip: { x: 0, y: 0, width: 390, height: 420 } })
   // (the screens kept for transitions are aria-hidden, so the role query finds the live one)
-  await page.getByRole('button', { name: 'Back' }).last().click()
+  await page.getByRole('button', { name: 'Back', exact: true }).last().click()
   await page.waitForTimeout(700)
 }
 for (const m of misses) { bad++; console.log(`FAIL request ${m}`) }

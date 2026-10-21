@@ -202,6 +202,28 @@ export function isLoaded(url: string) { return loaded.has(url) }
 /** The headshot that already worked for this player this session. */
 export function knownFace(playerId: number) { return faceOf.get(playerId) ?? storedFace(playerId) }
 
+/**
+ * Fetch a player's headshot before any screen shows it, walking the sources exactly as a face on screen would, so the
+ * first visit to a squad list shows faces at once instead of silhouettes fading to faces.
+ */
+export function preloadFace(p: Pick<Player, 'id' | 'regen'>, css = 48): Promise<void> {
+  const known = knownFace(p.id)
+  if (known && loaded.has(known)) return Promise.resolve()
+  const urls = (known ? [known, ...faceUrls(p, css).filter((u) => u !== known)] : faceUrls(p, css)).filter((u) => !failed.has(u))
+  return new Promise((resolve) => {
+    const at = (i: number) => {
+      if (i >= urls.length) { resolve(); return }
+      const im = new Image()
+      im.referrerPolicy = 'no-referrer'
+      im.decoding = 'async'
+      im.onload = () => { markLoaded(urls[i], p.id); resolve() }
+      im.onerror = () => { markFailed(urls[i]); at(i + 1) }
+      im.src = urls[i]
+    }
+    at(0)
+  })
+}
+
 // per-device reliability of each image source
 const SRC_KEY = 'opus:imgsrc:v1'
 let srcStats: Record<string, { ok: number; fail: number }> = {}

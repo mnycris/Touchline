@@ -277,7 +277,9 @@ export function CompScreen({ params }: { params: { id: string } }) {
   // a UEFA league phase is one 36-club table (its draw pots are kept in `groups` only for the record)
   const groups = c?.format !== 'uefa' && !!c?.groups && Object.keys(c.groups).length > 0
   const hasKO = !!c && (c.rounds.length > 0 || c.intl?.kind === 'tournament')
-  const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', hasTable ? 'table' : c?.intl ? 'fixtures' : 'bracket')
+  // once a league phase (or a tournament's groups) is over, the knockouts are what's on: the page opens there
+  const pastTable = !!c && hasKO && (c.format === 'uefa' ? c.rounds.some((r) => r.drawn) : c.intl?.kind === 'tournament' ? c.intl.stage !== 'groups' : false)
+  const [tab, setTab] = useRemember<'table' | 'fixtures' | 'bracket' | 'stats'>('tab', pastTable ? 'bracket' : hasTable ? 'table' : c?.intl ? 'fixtures' : 'bracket')
   if (!c) return <Screen title="Competition" back><Empty icon="trophy" title="Competition not found" /></Screen>
   // the big competitions' pages carry their brand all the way down, not just in the title card
   const ci = compIdentity(c.key)

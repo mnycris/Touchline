@@ -166,6 +166,9 @@ function spreadOf(w: World, delta: Delta) {
   return sp
 }
 
+/** The measuring done once per world, in two pieces, to do ahead of the first visit to the Team screen. */
+export const warmTeamAdvice = (w: World): (() => void)[] => [() => normsOf(w), () => spreadOf(w, deltaOf(w))]
+
 /** How each way of playing suits this XI. Balanced is the neutral base: an ordinary fit for any squad. */
 export function styleFits(w: World, s: TeamSheet): StyleFit[] {
   const delta = deltaOf(w)

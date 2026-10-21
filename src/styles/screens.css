@@ -2365,27 +2365,22 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   background: var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent)); }
 /* a logo shown in white on a coloured field: the competition's own version for it (LALIGA on its coral) */
 .ci-white-logo .comp-logo { filter: brightness(0) invert(1); }
-/* the light of the big nights: now and then light passes over the field the way it crosses glossy card, a faint wide
-   bloom around a fine bright core, at the angle of the identity's own lines and in its own tint (--ci-sheen), adding
-   light to the colours under it rather than laying grey over them. One quick eased pass a moment after the card
-   appears, then every nine seconds, and the hairline along the top catches it as it crosses. */
+/* the light of the big nights: once in a while a faint, soft light drifts across the field, at the angle of the
+   identity's own lines and in its own tint (--ci-sheen); no hard core, no glint, just the card catching the light.
+   One slow pass a few seconds after the card appears, then one every twenty seconds. */
 .ci { --ci-sheen: 255, 255, 255; }
-.ci-light { inset: -40% -60%; opacity: 0; mix-blend-mode: screen;
-  background: linear-gradient(112deg, transparent 36%, rgba(var(--ci-sheen), .025) 42%, rgba(var(--ci-sheen), .07) 46.5%,
-    rgba(var(--ci-sheen), .2) 49.4%, rgba(var(--ci-sheen), .26) 50%, rgba(var(--ci-sheen), .2) 50.6%,
-    rgba(var(--ci-sheen), .07) 53.5%, rgba(var(--ci-sheen), .025) 58%, transparent 64%); }
-.ci-sheen .ci-light, .ci-prism .ci-light { opacity: 1; animation: ci-sweep 9s 1.1s cubic-bezier(.6, 0, .3, 1) infinite both; }
-@keyframes ci-sweep { 0% { transform: translateX(-46%); } 21%, 100% { transform: translateX(46%); } }
-.ci-sheen::before, .ci-prism::before {
-  background: linear-gradient(90deg, transparent, rgba(var(--ci-sheen), .95) 50%, transparent) -40% 0 / 26% 100% no-repeat,
-    var(--ci-edge, linear-gradient(90deg, transparent, rgba(255, 255, 255, .3) 50%, transparent));
-  animation: ci-edge-glint 9s 1.1s cubic-bezier(.6, 0, .3, 1) infinite both; }
-@keyframes ci-edge-glint { 0%, 3% { background-position: -40% 0, 0 0; } 17%, 100% { background-position: 140% 0, 0 0; } }
+/* (Safari clips an animated layer to the box, not its rounded corners, unless its container is masked) */
+.ci-art { -webkit-mask-image: -webkit-radial-gradient(white, black); }
+.ci-light { inset: -40% -60%; opacity: 0;
+  background: linear-gradient(112deg, transparent 34%, rgba(var(--ci-sheen), .025) 41%, rgba(var(--ci-sheen), .07) 47%,
+    rgba(var(--ci-sheen), .09) 50%, rgba(var(--ci-sheen), .07) 53%, rgba(var(--ci-sheen), .025) 59%, transparent 66%); }
+.ci-sheen .ci-light, .ci-prism .ci-light { opacity: 1; animation: ci-sweep 20s 2.8s cubic-bezier(.45, 0, .3, 1) infinite both; }
+@keyframes ci-sweep { 0% { transform: translateX(-48%); opacity: 0; } 2% { opacity: 1; } 13% { opacity: 1; } 15%, 100% { transform: translateX(48%); opacity: 0; } }
 .ci-DFB, .ci-CDR, .ci-WC { --ci-sheen: 255, 228, 168; }
 .ci-EURO { --ci-sheen: 214, 228, 255; }
 .ci-UCL { --ci-sheen: 226, 232, 255; }
 @keyframes ci-hue { from { filter: blur(5px) hue-rotate(0deg); } to { filter: blur(5px) hue-rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .ci .ci-light, .ci .ci-mark, .ci::before { animation: none !important; } .ci .ci-light { opacity: 0 !important; } }
+@media (prefers-reduced-motion: reduce) { .ci .ci-light, .ci .ci-mark { animation: none !important; } .ci .ci-light { opacity: 0 !important; } }
 
 /* Champions League: "Kick of Light" (2024-27). The starball's night blue (#00004b, from the logo); white light
    split into a spectrum through the starball, its glass catching the light */

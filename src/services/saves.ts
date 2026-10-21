@@ -76,9 +76,21 @@ export function deserialize(b: Uint8Array): World {
   return JSON.parse(strFromU8(gunzipSync(b)))
 }
 
-/** Compression runs off the main thread (fflate spawns a worker), so autosave doesn't stall the UI. */
-function serializeAsync(w: World): Promise<Uint8Array> {
-  const bytes = strToU8(JSON.stringify(w))
+// Saves are 40–60 MB of JSON. The browser's own gzip and text codecs (CompressionStream, Response.text) do the
+// compressing and the UTF-8 work natively and off the main thread where it can; fflate (in a worker) and TextDecoder are
+// the fallback for browsers without them. Both write and read plain gzip, so every save opens either way.
+const native = typeof CompressionStream !== 'undefined' && typeof DecompressionStream !== 'undefined' && typeof Response !== 'undefined'
+const utf8 = typeof TextDecoder !== 'undefined' ? new TextDecoder() : undefined
+
+async function serializeAsync(w: World): Promise<Uint8Array> {
+  const json = JSON.stringify(w)
+  if (native) {
+    try {
+      const out = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))
+      return new Uint8Array(await new Response(out).arrayBuffer())
+    } catch { /* fall back below */ }
+  }
+  const bytes = strToU8(json)
   return new Promise((resolve, reject) => {
     try {
       gzip(bytes, { level: 4 }, (err, out) => (err ? reject(err) : resolve(out)))
@@ -87,10 +99,16 @@ function serializeAsync(w: World): Promise<Uint8Array> {
     }
   })
 }
-function deserializeAsync(b: Uint8Array): Promise<World> {
+async function deserializeAsync(b: Uint8Array): Promise<World> {
+  if (native) {
+    try {
+      const out = new Blob([b as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream('gzip'))
+      return JSON.parse(await new Response(out).text())
+    } catch { /* fall back below */ }
+  }
   return new Promise((resolve, reject) => {
     try {
-      gunzip(b, (err, out) => (err ? reject(err) : resolve(JSON.parse(strFromU8(out)))))
+      gunzip(b, (err, out) => (err ? reject(err) : resolve(JSON.parse(utf8 ? utf8.decode(out) : strFromU8(out)))))
     } catch {
       resolve(deserialize(b))
     }

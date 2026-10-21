@@ -13,6 +13,7 @@ import { initSwipeBack } from './ui/swipeBack'
 import { Presence } from './ui/components/Presence'
 import { Spotlight } from './ui/components/Spotlight'
 import { atmosphereFor, atmosphereVars, type Atmosphere } from './ui/atmosphere'
+import { warmUp } from './ui/warmUp'
 
 initNavFx()
 initMotionClass()
@@ -52,6 +53,9 @@ export default function App() {
     document.addEventListener('visibilitychange', onVis)
     return () => { tick(); window.clearInterval(id); document.removeEventListener('visibilitychange', onVis) }
   }, [world?.meta.id])
+
+  // the first visits to the busiest screens, prepared while nothing else is happening
+  useEffect(() => { const w = useGame.getState().world; return w ? warmUp(w) : undefined }, [world?.meta.id, userClubId])
 
   // Android back button / browser back → in-app back
   useEffect(() => {
