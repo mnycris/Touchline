@@ -61,20 +61,20 @@ const MIGRATIONS: Migration[] = [
   { to: 7, name: 'International competitions drawn from the game world\'s eligible nations', run: (w) => applyNationExclusions(w) },
 ]
 
-export interface MigrationReport { from: number; to: number; applied: string[]; repaired: number }
+export interface MigrationReport { from: number; to: number; applied: string[]; steps: { to: number; name: string }[]; repaired: number }
 
 /** Bring a save up to the current schema in place. Returns what was done (empty when it was already current). */
 export function migrateSave(w: World): MigrationReport {
   const from = w.meta?.version || 1
-  const applied: string[] = []
+  const steps: { to: number; name: string }[] = []
   for (const m of MIGRATIONS) {
     if (m.to <= from) continue
     m.run(w)
-    applied.push(m.name)
+    steps.push({ to: m.to, name: m.name })
   }
   const repaired = repairWorld(w)
   w.meta.version = Math.max(from, SAVE_SCHEMA)
-  return { from, to: w.meta.version, applied, repaired }
+  return { from, to: w.meta.version, applied: steps.map((s) => s.name), steps, repaired }
 }
 
 /** Defaults for everything later builds read without a guard. Counts what it had to fill in. */

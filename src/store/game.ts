@@ -12,23 +12,24 @@ import type { MatchSim } from '../engine/match/engine'
 import { touchRoster } from '../engine/world/roster'
 import { clearMemory, forgetView, viewKeyFor } from '../ui/memory'
 import { SAVE_SCHEMA, migrateSave } from '../engine/world/migrate'
-import { sendInbox } from '../engine/world/messages'
+import { lastSeenRelease, markNotesSeen, sendReleaseMail, sendWorldNotes } from '../engine/world/releases'
 import { APP_VERSION } from '../ui/components/brand'
 import { followSets, newsFollowRef } from '../engine/world/follow'
 
 export type Tab = 'central' | 'squad' | 'transfers' | 'academy' | 'season'
 export interface Route { name: string; params?: any }
 
-/** Bring a save from an earlier version up to date; tells the manager what changed (a backup checkpoint was kept). */
-function migrateWorld(w: World, backedUp: boolean) {
+/**
+ * Bring a save from an earlier version up to date, and tell the manager what each release he hadn't seen brought to it
+ * (one email per release, each once), plus any game-world note his career hasn't had. `listed` is the version the
+ * save's list entry recorded, for saves from before they recorded it themselves.
+ */
+function migrateWorld(w: World, backedUp: boolean, listed?: string) {
   const rep = migrateSave(w)
-  if (!rep.applied.length) return rep
-  sendInbox(w, {
-    from: 'Touchline', fromRole: 'Game update', category: 'Board', subject: `Your career has been updated to v${APP_VERSION}`,
-    body: `This career was saved with an earlier version, so it has been brought up to date. Everything carries over: squad, finances, fixtures, statistics and your history. New in this save: ${rep.applied.join('; ')}.${backedUp ? ` A checkpoint of the save exactly as it was is kept under Settings → Checkpoints.` : ''}`,
-    actions: [{ label: 'Checkpoints', action: 'openSettings', primary: true }],
-  })
-  return rep
+  const sent = sendReleaseMail(w, lastSeenRelease(w, listed, rep.from), APP_VERSION, rep, backedUp)
+  sendWorldNotes(w)
+  w.meta.appVersion = APP_VERSION
+  return { ...rep, mailed: sent }
 }
 
 const saveMetaOf = (w: World, id: string, auto: boolean): Omit<SaveMeta, 'size' | 'updated'> => {
@@ -221,6 +222,7 @@ export const useGame = create<GameState>((set, get) => ({
     const raw = await get().loadDb()
     if (!raw) return
     const w = createWorld(raw, opts)
+    markNotesSeen(w, APP_VERSION)
     careerIntro(w)
     w.flags.assistantSubs = get().prefs.assistantSubs
     set({ world: w, saveId: w.meta.id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [] })
@@ -242,12 +244,14 @@ export const useGame = create<GameState>((set, get) => ({
         backedUp = true
       }
     }
-    const rep = migrateWorld(w, backedUp)
+    const seen = w.meta.appVersion
+    const rep = migrateWorld(w, backedUp, (await listSaves().catch(() => [])).find((m) => m.id === id)?.appVersion)
     touchRoster(w)
     clearMemory()
     set({ world: w, saveId: id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined })
     await setKV('lastSave', id)
-    if (rep.applied.length) { get().notify(`Career updated to v${APP_VERSION}`, 'ok'); await get().save(true) }
+    if (rep.applied.length || rep.mailed) get().notify(`Career updated to v${APP_VERSION}`, 'ok')
+    if (rep.applied.length || rep.mailed || seen !== APP_VERSION) await get().save(true)
     return true
   },
 
@@ -278,7 +282,8 @@ export const useGame = create<GameState>((set, get) => ({
     const w = await loadCheckpoint(cp.id).catch(() => undefined)
     if (!w) { get().notify('Checkpoint could not be read', 'err'); return false }
     if ((w.meta?.version || 1) > SAVE_SCHEMA) { get().notify('Checkpoint made by a newer version of Touchline', 'err'); return false }
-    migrateSave(w)
+    // (a checkpoint from before an update gets that update's emails, once, like any save)
+    migrateWorld(w, false)
     w.meta.id = cp.careerId
     touchRoster(w)
     clearMemory()
@@ -312,13 +317,13 @@ export const useGame = create<GameState>((set, get) => ({
 
   async importSave(file) {
     try {
-      const { world: w } = await readCareerFile(file)
+      const { world: w, meta } = await readCareerFile(file)
       if (!w?.meta || !w.players || !w.clubs) throw new Error('not a career')
       if ((w.meta.version || 1) > SAVE_SCHEMA) { get().notify('Saved by a newer version of Touchline: update the app to import it', 'err'); return false }
       // never overwrite a career that is already on this device
       const exists = get().saves.some((m) => m.id === w.meta.id)
       if (exists || !w.meta.id) { w.meta.id = `career-${Date.now().toString(36)}`; w.meta.saveName = `${w.meta.saveName || `${w.clubs[w.userClubId]?.name} Career`} (imported)` }
-      migrateWorld(w, false)
+      migrateWorld(w, false, meta?.appVersion)
       await saveCareer(w, saveMetaOf(w, w.meta.id, false))
       await get().refreshSaves()
       get().notify('Career imported', 'ok')

@@ -835,7 +835,11 @@ export interface CareerSettings {
 }
 
 export interface World {
-  meta: { version: number; id: string; created: string; seed: number; saveName: string; playTimeMin: number; editMode?: boolean }
+  meta: {
+    version: number; id: string; created: string; seed: number; saveName: string; playTimeMin: number; editMode?: boolean
+    /** the app release that last opened this career (its update emails go by it) */
+    appVersion?: string
+  }
   date: ISODate
   /** Edit Mode: scripts for upcoming fixtures, by fixture id */
   scripts?: Record<string, MatchScript>
