@@ -3,11 +3,12 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import type { AttrKey, Club, Player, Position, SquadRole, World } from '../../domain/types'
 import { A } from '../../domain/types'
-import { ATTR_GROUPS, ATTR_LABEL, GK_GROUPS, POSITIONS, SQUAD_ROLES } from '../../domain/constants'
-import { computeOvr } from '../../domain/ratings'
+import { ATTR_GROUPS, ATTR_LABEL, GK_GROUPS, INJURIES, POSITIONS, SQUAD_ROLES } from '../../domain/constants'
+import { computeOvr, moraleColor, moraleIcon, moraleLevel } from '../../domain/ratings'
+import { diffDays, fmtDate } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { useGame, haptic } from '../../store/game'
-import { editClub, editClubMoney, editPlayer, editSquadStrength, editTransfer, type ClubPatch, type PlayerPatch } from '../../engine/world/edit'
+import { editClub, editClubMoney, editPlayer, editSquadStrength, editTransfer, injuryFor, type ClubPatch, type PlayerPatch } from '../../engine/world/edit'
 import { generateObjectives } from '../../engine/world/board'
 import { worldRng } from '../../engine/world/advance'
 import { FORMATIONS } from '../../domain/constants'
@@ -49,7 +50,70 @@ function AttrRow({ k, v, base, onChange }: { k: AttrKey; v: number; base: number
   )
 }
 
-type Tab = 'attrs' | 'profile' | 'contract' | 'move'
+/** A condition you drag: the bar in the colour of how good it is, the word for it, and the usual settings a tap away. */
+function CondMeter({ label, icon, v, min = 0, unit = '%', word, color, presets, onChange }: { label: string; icon: string; v: number; min?: number; unit?: string; word: string; color: string; presets: [number, string][]; onChange: (v: number) => void }) {
+  return (
+    <div className="ed-cond" style={{ ['--c' as any]: color }}>
+      <div className="ed-cond-h">
+        <Icon name={icon} size={16} color={color} />
+        <span className="small b">{label}</span>
+        <span className="grow" />
+        <span className="tiny b" style={{ color }}>{word}</span>
+        <span className="ed-cond-v num">{v}{unit && <small>{unit}</small>}</span>
+      </div>
+      <input type="range" className="ed-cond-range" min={min} max={100} value={v} style={{ ['--p' as any]: `${((v - min) / (100 - min)) * 100}%` }} onChange={(e) => onChange(Number(e.target.value))} aria-label={label} />
+      <div className="ed-chips">{presets.map(([x, t]) => <button key={t} className={`chip sm ${v === x ? 'on' : ''}`} onClick={() => { haptic(); onChange(x) }}>{t}</button>)}</div>
+    </div>
+  )
+}
+
+type InjuryDraft = { type: string; days: number } | null
+const outFor = (d: number) => (d >= 56 && d % 7 === 0 ? `${d / 7} weeks` : d === 1 ? '1 day' : `${d} days`)
+
+/** The injury he has (heal it, or change how long he is out), or one to give him from the game's own list. */
+function InjuryEdit({ w, p, inj, onChange }: { w: World; p: Player; inj: InjuryDraft; onChange: (v: InjuryDraft) => void }) {
+  if (inj) {
+    const x = injuryFor(w, p, inj.type, inj.days)
+    return (
+      <div className="ed-inj hurt fade-in">
+        <div className="ed-cond-h">
+          <Icon name="injury" size={16} color="var(--neg)" />
+          <span className="small b">Injured</span>
+          <span className="grow" />
+          <span className={`ed-sev s-${x.severity}`}>{x.severity}</span>
+        </div>
+        <div className="ed-inj-name">{inj.type}</div>
+        <div className="ed-line"><span className="small">Out for</span><Stepper value={inj.days} min={1} max={365} onChange={(d) => onChange({ ...inj, days: d })} fmt={outFor} presets={[7, 14, 28, 56, 90, 180]} /></div>
+        <div className="tiny dim">Back in training on {fmtDate(x.until, 'long')}</div>
+        <div className="row" style={{ gap: 8, marginTop: 10 }}>
+          <button className="btn sm grow" onClick={() => { haptic(); onChange(null) }}><Icon name="check" size={15} color="var(--pos)" /> Heal him</button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="ed-inj fade-in">
+      <div className="ed-cond-h">
+        <Icon name="injury" size={16} color="var(--t3)" />
+        <span className="small b">Injury</span>
+        <span className="grow" />
+        <span className="tiny b pos">Fit</span>
+      </div>
+      <div className="tiny dim" style={{ margin: '2px 0 8px' }}>Injure him: pick what it is, then set how long he's out.</div>
+      <div className="ed-inj-list">
+        {INJURIES.map((i) => (
+          <button key={i.type} className="ed-inj-opt" onClick={() => { haptic(); onChange({ type: i.type, days: Math.round((i.min + i.max) / 2) }) }}>
+            <span className={`ed-sev-dot s-${i.sev}`} />
+            <span className="small b ellipsis grow">{i.type}</span>
+            <span className="tiny dim num">{i.max >= 56 ? `${Math.round(i.min / 7)}–${Math.round(i.max / 7)} wks` : `${i.min}–${i.max} days`}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+type Tab = 'attrs' | 'condition' | 'profile' | 'contract' | 'move'
 
 /** The player page, editable. Overall is never typed in: it follows the attributes and the main position. */
 export function PlayerEditor({ w, p, onClose }: { w: World; p: Player; onClose: () => void }) {
@@ -59,6 +123,9 @@ export function PlayerEditor({ w, p, onClose }: { w: World; p: Player; onClose: 
   const [attrs, setAttrs] = useState<number[]>(() => [...p.attrs])
   const [pos, setPos] = useState<Position[]>(() => [...p.positions])
   const [prof, setProf] = useState(() => ({ pot: p.pot, foot: p.foot as 'L' | 'R', weakFoot: p.weakFoot, skillMoves: p.skillMoves, height: p.height, morale: Math.round(p.morale), fitness: Math.round(p.fitness), sharpness: Math.round(p.sharpness) }))
+  const injNow: InjuryDraft = p.injury && p.injury.until > w.date ? { type: p.injury.type, days: diffDays(p.injury.until, w.date) } : null
+  const [inj, setInj] = useState<InjuryDraft>(injNow)
+  const injDirty = JSON.stringify(inj) !== JSON.stringify(injNow)
   const [con, setCon] = useState(() => ({ wage: p.contract.wage, until: p.contract.until, release: p.contract.releaseClause || 0, role: p.contract.role as SquadRole }))
   const draft = useMemo(() => ({ ...p, attrs, positions: pos }) as Player, [attrs, pos])
   const ovr = computeOvr(draft)
@@ -66,12 +133,12 @@ export function PlayerEditor({ w, p, onClose }: { w: World; p: Player; onClose: 
   const groups = gk ? [...GK_GROUPS, ...ATTR_GROUPS] : ATTR_GROUPS
   const dirty = attrs.some((v, i) => v !== p.attrs[i]) || pos.join() !== p.positions.join() || prof.pot !== p.pot || prof.foot !== p.foot || prof.weakFoot !== p.weakFoot || prof.skillMoves !== p.skillMoves
     || prof.height !== p.height || prof.morale !== Math.round(p.morale) || prof.fitness !== Math.round(p.fitness) || prof.sharpness !== Math.round(p.sharpness)
-    || con.wage !== p.contract.wage || con.until !== p.contract.until || con.release !== (p.contract.releaseClause || 0) || con.role !== p.contract.role
+    || con.wage !== p.contract.wage || con.until !== p.contract.until || con.release !== (p.contract.releaseClause || 0) || con.role !== p.contract.role || injDirty
   const apply = () => {
     const patch: PlayerPatch = {
       attrs: Object.fromEntries((Object.keys(A) as AttrKey[]).map((k) => [k, attrs[A[k]]])) as PlayerPatch['attrs'],
       positions: pos, pot: Math.max(prof.pot, ovr), foot: prof.foot, weakFoot: prof.weakFoot, skillMoves: prof.skillMoves, height: prof.height,
-      morale: prof.morale, fitness: prof.fitness, sharpness: prof.sharpness,
+      morale: prof.morale, fitness: prof.fitness, sharpness: prof.sharpness, injury: injDirty ? inj : undefined,
       contract: p.clubId ? { wage: con.wage, until: con.until, releaseClause: con.release, role: con.role } : undefined,
     }
     haptic('medium')
@@ -94,7 +161,7 @@ export function PlayerEditor({ w, p, onClose }: { w: World; p: Player; onClose: 
         <Ovr v={ovr} size="sm" />
         {ovr !== p.ovr && <span className={`tiny b ${ovr > p.ovr ? 'pos' : 'neg'}`}>{ovr > p.ovr ? '+' : ''}{ovr - p.ovr}</span>}
       </div>
-      <div style={{ padding: '0 12px' }}><Seg small items={[{ id: 'attrs' as Tab, label: 'Attributes' }, { id: 'profile' as Tab, label: 'Profile' }, ...(p.clubId ? [{ id: 'contract' as Tab, label: 'Contract' }] : []), { id: 'move' as Tab, label: 'Move' }]} value={tab} onChange={setTab} /></div>
+      <div style={{ padding: '0 12px' }}><Seg small items={[{ id: 'attrs' as Tab, label: 'Attributes' }, { id: 'condition' as Tab, label: 'Condition' }, { id: 'profile' as Tab, label: 'Profile' }, ...(p.clubId ? [{ id: 'contract' as Tab, label: 'Contract' }] : []), { id: 'move' as Tab, label: 'Move' }]} value={tab} onChange={setTab} /></div>
 
       {tab === 'attrs' && (
         <div className="ed-body">
@@ -126,14 +193,22 @@ export function PlayerEditor({ w, p, onClose }: { w: World; p: Player; onClose: 
           <div className="ed-line"><span className="small">Weak foot</span><Stepper value={prof.weakFoot} min={1} max={5} onChange={(v) => setProf({ ...prof, weakFoot: v })} fmt={(v) => `${v}★`} /></div>
           <div className="ed-line"><span className="small">Skill moves</span><Stepper value={prof.skillMoves} min={1} max={5} onChange={(v) => setProf({ ...prof, skillMoves: v })} fmt={(v) => `${v}★`} /></div>
           <div className="ed-line"><span className="small">Height</span><Stepper value={prof.height} min={150} max={210} onChange={(v) => setProf({ ...prof, height: v })} fmt={(v) => `${v} cm`} /></div>
-          <div className="ed-line"><span className="small">Morale</span><Stepper value={prof.morale} min={0} max={100} step={5} onChange={(v) => setProf({ ...prof, morale: v })} /></div>
-          <div className="ed-line"><span className="small">Energy</span><Stepper value={prof.fitness} min={20} max={100} step={5} onChange={(v) => setProf({ ...prof, fitness: v })} fmt={(v) => `${v}%`} /></div>
-          <div className="ed-line"><span className="small">Match sharpness</span><Stepper value={prof.sharpness} min={0} max={100} step={5} onChange={(v) => setProf({ ...prof, sharpness: v })} fmt={(v) => `${v}%`} /></div>
-          {p.injury && (
-            <button className="btn sm" onClick={() => { haptic('medium'); mutate((w) => editPlayer(w, p.id, { healInjury: true }), { roster: true }); notify(`${p.name} is fit again`, 'edit') }}>
-              <Icon name="injury" size={15} color="var(--neg)" /> Heal injury ({p.injury.type})
-            </button>
-          )}
+        </div>
+      )}
+
+      {tab === 'condition' && (
+        <div className="ed-body stack" style={{ gap: 12 }}>
+          <CondMeter label="Energy" icon="fitness" v={prof.fitness} min={20} onChange={(v) => setProf({ ...prof, fitness: v })}
+            word={prof.fitness >= 85 ? 'Fresh' : prof.fitness >= 70 ? 'Fine' : prof.fitness >= 50 ? 'Tired' : 'Exhausted'}
+            color={prof.fitness >= 70 ? 'var(--pos)' : prof.fitness >= 45 ? 'var(--warn)' : 'var(--neg)'}
+            presets={[[100, 'Fresh'], [75, 'Fine'], [55, 'Tired'], [35, 'Exhausted']]} />
+          <CondMeter label="Match sharpness" icon="sharpness" v={prof.sharpness} onChange={(v) => setProf({ ...prof, sharpness: v })}
+            word={prof.sharpness >= 80 ? 'Match fit' : prof.sharpness >= 55 ? 'Getting there' : prof.sharpness >= 30 ? 'Short of games' : 'Rusty'}
+            color="var(--info)" presets={[[100, 'Sharp'], [65, 'Decent'], [40, 'Lacking'], [15, 'Rusty']]} />
+          <CondMeter label="Morale" icon={moraleIcon(prof.morale)} v={prof.morale} unit="" onChange={(v) => setProf({ ...prof, morale: v })}
+            word={moraleLevel(prof.morale)} color={moraleColor(prof.morale)}
+            presets={[[95, 'Very happy'], [75, 'Happy'], [55, 'Content'], [30, 'Unhappy']]} />
+          <InjuryEdit w={w} p={p} inj={inj} onChange={setInj} />
         </div>
       )}
 

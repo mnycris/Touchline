@@ -1,8 +1,10 @@
 // Edit Mode: sandbox changes to the world, applied through the same code paths the game itself uses, so everything
 // downstream (overall, value, squads, tables, news, finances) stays consistent. Overall is never set directly: it is
 // recalculated from the attributes and the position, exactly like growth does.
-import type { AttrKey, Club, ContractOffer, MatchScript, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
+import type { AttrKey, Club, ContractOffer, Injury, MatchScript, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { A } from '../../domain/types'
+import { INJURIES } from '../../domain/constants'
+import { addDays, diffDays } from '../../domain/dates'
 import { computeOvr } from '../../domain/ratings'
 import { dynamicValue } from '../../domain/finance'
 import { clamp } from '../../domain/rng'
@@ -24,6 +26,8 @@ export interface PlayerPatch {
   fitness?: number
   sharpness?: number
   healInjury?: boolean
+  /** an injury from today (a type from the catalogue, out for so many days), or null to heal the one he has */
+  injury?: { type: string; days: number } | null
   contract?: { wage?: number; until?: number; releaseClause?: number; role?: SquadRole }
 }
 
@@ -40,7 +44,8 @@ export function editPlayer(w: World, id: number, patch: PlayerPatch): number {
   if (patch.morale != null) p.morale = clamp(patch.morale, 0, 100)
   if (patch.fitness != null) p.fitness = clamp(patch.fitness, 20, 100)
   if (patch.sharpness != null) p.sharpness = clamp(patch.sharpness, 0, 100)
-  if (patch.healInjury) p.injury = undefined
+  if (patch.healInjury || patch.injury === null) p.injury = undefined
+  else if (patch.injury) p.injury = injuryFor(w, p, patch.injury.type, patch.injury.days)
   p.ovr = computeOvr(p)
   if (patch.pot != null) p.pot = clamp(Math.round(patch.pot), p.ovr, 99)
   p.pot = Math.max(p.pot, p.ovr)
@@ -54,6 +59,20 @@ export function editPlayer(w: World, id: number, patch: PlayerPatch): number {
   p.value = dynamicValue(p, w.date, p.valueCalib ?? 1)
   touchRoster(w)
   return p.ovr
+}
+
+const SEV: Injury['severity'][] = ['Minor', 'Moderate', 'Serious', 'Severe']
+/**
+ * An injury set in Edit Mode, shaped like one the game gives: the type's severity, or worse for a long lay-off. The
+ * same injury given a new length keeps the day it happened.
+ */
+export function injuryFor(w: World, p: Player, type: string, days: number): Injury {
+  const n = clamp(Math.round(days), 1, 365)
+  const byDays = n > 90 ? 3 : n > 28 ? 2 : n > 7 ? 1 : 0
+  const known = SEV.indexOf(INJURIES.find((i) => i.type === type)?.sev ?? 'Minor')
+  const since = p.injury?.type === type ? p.injury.since : w.date
+  const until = addDays(w.date, n)
+  return { type, severity: SEV[Math.max(byDays, known)], since, until, totalDays: Math.max(n, diffDays(until, since)) }
 }
 
 /** A custom transfer: the player moves now, with the fee, contract and news a real deal would bring. */
