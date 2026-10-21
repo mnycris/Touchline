@@ -288,7 +288,7 @@ function Run({ w, r }: { w: World; r: Review }) {
         {pts.length > 0 && <circle cx={pts[n - 1][0]} cy={pts[n - 1][1]} r="4.5" className="sr-dot" />}
         {last && <text className="end" x={pts[n - 1][0] + 8} y={pts[n - 1][1] + 4}>{byPos ? ordinalOf(lg.finish) : last.pts}</text>}
       </svg>
-      <div className="sr-strip" style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}>
+      <div className="sr-strip" style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}>
         {run.map((m) => <button key={m.fixtureId} className={`sr-r ${m.res}`} aria-label={`${m.res === 'W' ? 'Won' : m.res === 'D' ? 'Drew' : 'Lost'} ${m.gf}–${m.ga} ${m.home ? 'v' : 'at'} ${w.clubs[m.opp]?.short}`} onClick={() => go({ name: 'fixture', params: { id: m.fixtureId } })} />)}
       </div>
       <div className="sr-runcap tiny dim">

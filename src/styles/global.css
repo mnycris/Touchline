@@ -169,7 +169,7 @@ img { user-select: none; -webkit-user-drag: none; }
 .bottomnav {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 40;
   height: calc(var(--nav-h) + var(--sab)); padding-bottom: var(--sab);
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   background: linear-gradient(180deg, rgba(10, 13, 20, 0.86), rgba(6, 8, 13, 0.98));
   backdrop-filter: blur(16px); border-top: 1px solid var(--line);
 }
