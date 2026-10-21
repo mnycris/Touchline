@@ -99,8 +99,8 @@ export function FollowingView({ w }: { w: World }) {
   if (!list.length) {
     return (
       <div className="pad" style={{ marginTop: 14 }}>
-        <div className="card fl-empty">
-          <span className="fl-empty-star"><Icon name="star" size={26} color="var(--gold)" /></span>
+        <div className="card fw-empty">
+          <span className="fw-empty-star"><Icon name="star" size={26} color="var(--gold)" /></span>
           <div className="h3">Follow the football world</div>
           <div className="small muted">Tap the star on any player, club, manager, competition or transfer. What happens to them is gathered here, without filling your inbox.</div>
           <button className="btn sm" onClick={() => openSpotlight()}><Icon name="search" size={15} /> Find someone to follow</button>

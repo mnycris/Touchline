@@ -8,6 +8,7 @@ import { formationOf, POS_GROUP } from '../domain/constants'
 import { staffName } from '../domain/names'
 import { buildSheet, squadOf, tacticsForManager } from '../engine/match/selection'
 import { setupSeason } from '../engine/competitions/setupSeason'
+import { fillThinSquads } from '../engine/world/squadFill'
 import type { RawDb } from './rawTypes'
 import { computeReputations } from '../engine/world/reputation'
 
@@ -190,6 +191,9 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
     const id = w.nextIds.manager++
     w.managers[id] = genManager(w, rng, nat, id, 0, rng.int(25, 70))
   }
+  // clubs the ratings data leaves without a matchday squad get squad players to make up the numbers (before the
+  // squads are given their roles, numbers and sheets, so the new players have theirs)
+  fillThinSquads(w, rng, { start: true })
   // ---- squads: roles, numbers, values, sheets
   for (const club of Object.values(w.clubs)) {
     assignRolesAndNumbers(w, club)

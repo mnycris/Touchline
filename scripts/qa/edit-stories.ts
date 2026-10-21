@@ -35,6 +35,7 @@ ok(a.stage === 'failed', `refuses to go → ${tell(a)}`)
 
 // 3. frozen: nothing moves for ten days, then it carries on
 const f = aiOpen('negotiating')[0] || aiOpen('talks')[0]
+if (!f) { console.log('SKIP no other AI story in talks or negotiating in this save: use one with a busier feed (a window\'s last weeks)'); process.exit(2) }
 const was = f.stage, logs = f.log.length
 editStory(w, f.id, { freeze: true })
 day(10)

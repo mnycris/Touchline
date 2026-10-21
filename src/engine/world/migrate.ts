@@ -12,7 +12,8 @@ import { takeNewFixtures } from '../competitions/fixtures'
 import { rebuildReputations } from './reputation'
 import { migrateHonours } from './honours'
 import { sortTable } from '../competitions/tables'
-import { dropFromSheets } from './roster'
+import { dedupeNumbers, dropFromSheets } from './roster'
+import { fillThinSquads } from './squadFill'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
 export const SAVE_SCHEMA = 7
@@ -111,6 +112,8 @@ export function repairWorld(w: World): number {
       p.season[k] = s
     }
   }
+  // clubs left without a matchday squad by thin ratings data (and saves from before 4.2 that kept them that way)
+  n += fillThinSquads(w)
   for (const c of Object.values(w.clubs)) {
     if (!c.trophies) { c.trophies = []; n++ }
     if (!c.sheets) { c.sheets = []; n++ }
@@ -121,6 +124,8 @@ export function repairWorld(w: World): number {
     if (!c.national) for (const s of [...c.sheets, ...Object.values(c.matchSheets || {})]) {
       for (const id of [...s.lineup, ...s.bench]) if (id && w.players[id]?.clubId !== c.id) { dropFromSheets(c, id); n++ }
     }
+    // two players at a club in the same shirt (each summer's AI youth intake took 40, 41 and 42 regardless, until 4.2)
+    if (!c.national) n += dedupeNumbers(w, c.id)
   }
   return n
 }

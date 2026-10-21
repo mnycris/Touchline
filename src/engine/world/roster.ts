@@ -33,6 +33,16 @@ export function rosterOf(w: World, clubId: number): Player[] {
 export function academyOf(w: World, clubId: number): Player[] {
   return index(w).academy.get(clubId) || []
 }
+/** Anyone sharing a shirt number with a teammate takes the next free one from 40; a real player keeps his number
+ * before a generated one, then whoever has been at the club longest. Returns how many numbers changed. */
+export function dedupeNumbers(w: World, clubId: number): number {
+  const squad = [...rosterOf(w, clubId)].sort((a, b) => +!!a.regen - +!!b.regen || (a.joinedDate || '').localeCompare(b.joinedDate || '') || a.id - b.id)
+  const used = new Set<number>(), clash: Player[] = []
+  for (const p of squad) if (used.has(p.jersey)) clash.push(p); else used.add(p.jersey)
+  let n = 40
+  for (const p of clash) { while (used.has(n)) n++; used.add(n); p.jersey = n }
+  return clash.length
+}
 /** A player who leaves a club leaves its team sheets too, every sheet and each match's own copy: his place in the
  * XI is left open for the next pick (the match-day checks fill it, and pass his armband and set pieces on). */
 export function dropFromSheets(club: Club | undefined, id: number) {

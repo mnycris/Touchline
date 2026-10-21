@@ -183,7 +183,7 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
   const days = diffDays(f.date, w.date)
   // position in this match's own competition (league, league phase); nothing for a knockout tie
   const ctx = comp?.table && !f.tieId ? comp : undefined
-  const lg = (id: number) => { const c = ctx || (f.tieId ? undefined : leagueOf(w, id)); if (!c || !c.table?.some((r) => r.p)) return ''; const t = sortTable(w, c); const i = t.findIndex((r) => r.clubId === id); return i >= 0 ? `${ordinal(i + 1)}${c.format === 'uefa' ? ` in the ${c.short}` : ''}` : '' }
+  const lg = (id: number) => { const c = ctx || (f.tieId ? undefined : leagueOf(w, id)); if (!c?.table?.find((r) => r.clubId === id)?.p) return ''; const t = sortTable(w, c); const i = t.findIndex((r) => r.clubId === id); return i >= 0 ? `${ordinal(i + 1)}${c.format === 'uefa' ? ` in the ${c.short}` : ''}` : '' }
   const [hc, ac] = kitColors(home, away).map(underWhite)
   return (
     <div className="hero next-match duo" style={{ ['--hc' as any]: hc, ['--ac' as any]: ac }}>

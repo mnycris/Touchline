@@ -17,6 +17,7 @@ import { rosterOf, touchRoster, setPlayerClub } from './roster'
 import { closeCareerEntry, completeLoanPurchase, contractDemand, notableExit, roleForBuyer, trimHistory } from './transfers'
 import { namesInUse } from '../../domain/names'
 import { generateProspect } from './scouting'
+import { fillThinSquads } from './squadFill'
 import { seasonReputation } from './reputation'
 import { registerTrophy } from './honours'
 
@@ -252,6 +253,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
   for (const [id, c] of Object.entries(w.competitions)) if (c.season === season && !c.clubs.includes(w.userClubId)) delete w.competitions[id]
   w.date = `${next}-07-01`
   setupSeason(w, next, {}, rng)
+  fillThinSquads(w, rng)
   generateObjectives(w, rng)
   w.board.overall = Math.round(w.board.overall * 0.5 + 35)
   w.flags.boardWarned = undefined
@@ -346,7 +348,12 @@ function regenIntake(w: World, rng: Rng) {
     const squad = rosterOf(w, club.id)
     const n = squad.length < 24 ? 3 : squad.length < 28 ? 2 : 1
     const nat = w.nations[club.country] ? club.country : rng.pick(['England', 'Spain', 'France', 'Germany', 'Brazil'])
+    // numbers from 40 the squad isn't already wearing (each intake took 40, 41 and 42 regardless until 4.2)
+    const used = new Set(squad.map((p) => p.jersey))
+    let shirt = 40
     for (let i = 0; i < n; i++) {
+      while (used.has(shirt)) shirt++
+      used.add(shirt)
       const fake = { id: -1, name: '', nationality: nat, experience: clamp(Math.round(club.youthRating / 2), 1, 5), judgement: 3, wage: 0, faceSeed: 0, mission: { country: nat, playerType: 'Any', started: w.date, months: 1, nextReport: w.date } }
       const pr = generateProspect(w, fake as any, rng, taken)
       const p: Player = {
@@ -354,7 +361,7 @@ function regenIntake(w: World, rng: Rng) {
         clubId: club.id, positions: pr.positions, dob: pr.dob, height: pr.height, weight: pr.weight, foot: pr.foot, ovr: pr.trueOvr, pot: pr.truePot,
         ovrAdj: 0, attrs: pr.attrs, weakFoot: rng.int(2, 4), skillMoves: rng.int(2, 3), intlRep: 1, workRate: ['Medium', 'Medium'], bodyType: 'Lean',
         playstyles: [], playstylesPlus: [], value: pr.value, wage: 800, contract: { until: w.season + 4, wage: 800, role: 'Prospect', releaseClause: 0, signedOn: w.date },
-        jersey: 40 + i, realFace: false, faceSeed: pr.faceSeed, regen: true, fitness: 95, sharpness: 45, morale: 70, formRatings: [], suspensions: [],
+        jersey: shirt, realFace: false, faceSeed: pr.faceSeed, regen: true, fitness: 95, sharpness: 45, morale: 70, formRatings: [], suspensions: [],
         yellowAccum: {}, joinedDate: w.date, trainingPlan: 'Balanced', devPlan: 'balanced', devProgress: 0, growthHistory: [{ date: w.date, ovr: pr.trueOvr }],
         hidden: { consistency: 45, professionalism: rng.int(30, 90), injuryProne: rng.int(10, 60), devRate: 0.8 + rng.next() * 0.5, adaptability: 50, bigMatch: 45, ambition: rng.int(30, 95), loyalty: rng.int(30, 90), temperament: rng.int(20, 80) },
         season: {}, career: [],

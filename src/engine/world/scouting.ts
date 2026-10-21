@@ -257,7 +257,7 @@ export function generateProspect(w: World, s: YouthScout, rng: Rng, taken?: Set<
   }
 }
 
-function generateAttrs(pos: Position, ovr: number, type: string, rng: Rng): number[] {
+export function generateAttrs(pos: Position, ovr: number, type: string, rng: Rng): number[] {
   const a = new Array(34).fill(0).map(() => clamp(Math.round(rng.normal(ovr - 12, 7)), 20, 80))
   const ws = RATING_WEIGHTS[POS_WEIGHT_KEY[pos]]
   for (const k of Object.keys(ws) as AttrKey[]) a[A[k]] = clamp(Math.round(rng.normal(ovr + 2, 5)), 25, 85)

@@ -13,7 +13,7 @@ import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { previousPositions, sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
-import { compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
+import { ageOf, compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
 import { FixtureRow } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
@@ -639,7 +639,7 @@ export function ClubProfile({ params }: { params: { id: number } }) {
             {squad.map((p) => (
               <button key={p.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
                 <Face p={p} size={40} radius={10} club={c} />
-                <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s">{Number(w.date.slice(0, 4)) - Number(p.dob.slice(0, 4))} yrs · {fmtMoney(p.value, { short: true })}</div></div>
+                <div className="meta"><div className="t small ellipsis">{p.name}</div><div className="s">{ageOf(w, p)} yrs · {fmtMoney(p.value, { short: true })}</div></div>
                 <PosChip pos={p.positions[0]} />
                 <Ovr v={p.ovr} size="sm" />
               </button>

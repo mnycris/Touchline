@@ -1,12 +1,15 @@
-// Plays an existing save forward headlessly (user matches auto-simulated) and writes it out.
+// Plays an existing save forward headlessly (user matches auto-simulated) and writes it out, migrated first as on load.
 // npx tsx scripts/qa/advance-save.ts <in> <out> <until YYYY-MM-DD>
 import fs from 'node:fs'
 import { deserialize, serialize } from '../../src/services/saves'
 import { advance, afterMatch, worldRng } from '../../src/engine/world/advance'
 import { simulateFixture } from '../../src/engine/world/matchRunner'
 import { diffDays } from '../../src/domain/dates'
+import { migrateSave } from '../../src/engine/world/migrate'
 const [inp, out, until] = process.argv.slice(2)
 const w = deserialize(fs.readFileSync(inp))
+// as the app does on load: an older save is brought up to date first
+migrateSave(w)
 const t0 = Date.now()
 let guard = 0
 while (w.date < until && guard++ < 5000) {

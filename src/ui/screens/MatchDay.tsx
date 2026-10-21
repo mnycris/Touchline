@@ -85,7 +85,8 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const knockout = !!f.tieId
   const ctxTable = comp?.table && !knockout && comp.table.some((r) => r.clubId === f.home) ? comp : undefined
   const hasBracket = knockout && !!comp?.rounds.length
-  const pos = (id: number) => { const c = ctxTable || (knockout ? undefined : leagueOf(w, id)); if (!c?.table?.some((r) => r.p)) return undefined; const i = sortTable(w, c).findIndex((r) => r.clubId === id); return i >= 0 ? i + 1 : undefined }
+  // a position only once the side has played: on an opening weekend the table's order means nothing yet
+  const pos = (id: number) => { const c = ctxTable || (knockout ? undefined : leagueOf(w, id)); if (!c?.table?.find((r) => r.clubId === id)?.p) return undefined; const i = sortTable(w, c).findIndex((r) => r.clubId === id); return i >= 0 ? i + 1 : undefined }
   const pressDone = !!w.flags.pressDone?.[`pre:${f.id}`]
 
   // changes made here are for this match only: they go to its own copy of the sheet, never the main one
