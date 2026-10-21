@@ -1,4 +1,5 @@
 // Goal rewind: the move that led to a goal, replayed from the simulation's own action log. Every pass, carry,
+import { useLessMotion } from '../motion'
 // dribble, cross and the finish happened in the match; the replay only animates it: the ball travels each action,
 // the players involved run onto it, the camera follows play and the net ripples at the end.
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -8,7 +9,7 @@ import { Markings } from './PitchSurface'
 import { Badge, Face } from './atoms'
 import { Icon } from '../icons/Icon'
 import { callName } from '../../engine/match/commentary'
-import { haptic, useGame } from '../../store/game'
+import { haptic } from '../../store/game'
 import { BallG } from './Glyphs'
 import { PenaltyScene } from './PenaltyScene'
 
@@ -117,7 +118,7 @@ function ballAt(segs: Seg[], t: number): { x: number; y: number; h: number; seg?
 export function GoalReplay({ w, e, colors, home, away, onClose }: { w: World; e: MatchEvent; colors: [string, string]; home: number; away: number; onClose: () => void }) {
   const side = e.side as 0 | 1
   const { segs, tracks, end } = useMemo(() => build(e.chain || [], side, e.shot), [e])
-  const reduce = useGame((s) => s.prefs.reduceMotion)
+  const reduce = useLessMotion()
   const [t, setT] = useState(reduce ? end : 0)
   const [speed, setSpeed] = useState(1)
   const [run, setRun] = useState(!reduce)

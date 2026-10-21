@@ -1,4 +1,5 @@
 // A trophy won: the Central screen holds it for a while. Still, lit backdrop in the club's and the trophy's colours,
+import { useLessMotion } from '../motion'
 // confetti with real physics (cannons, flutter, drag, wind) that settles instead of looping, the story of how it was
 // won, and a proper send-off when the manager moves on.
 import { useEffect, useRef, useState } from 'react'
@@ -86,7 +87,7 @@ function Confetti({ colors, fire, reduce }: { colors: string[]; fire: number; re
 
 export function Celebration({ w }: { w: World }) {
   const mutate = useGame((s) => s.mutate)
-  const reduce = useGame((s) => s.prefs.reduceMotion)
+  const reduce = useLessMotion()
   const [fire, setFire] = useState(0)
   const [leaving, setLeaving] = useState(false)
   const c = w.competitions[w.flags.celebrate?.compId]

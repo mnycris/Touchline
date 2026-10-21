@@ -70,7 +70,11 @@ export interface AppPrefs {
   sound: boolean; reduceMotion: boolean; assistantSubs: boolean; stopOn: StopPrefs
   /** Edit Mode: don't show the Edited tag on scripted matches (a display preference; the record of the edit stays) */
   hideEdited?: boolean
+  /** the four jumps offered by holding Continue, in days (1-30) */
+  advanceDays?: number[]
 }
+
+export const DEFAULT_ADVANCE_DAYS = [1, 5, 7, 10]
 
 export const DEFAULT_SPEEDS: [number, number, number] = [0.5, 1, 2]
 
@@ -144,11 +148,33 @@ const emptyStacks = (): Record<Tab, Route[]> => ({ central: [], squad: [], trans
 let saveTimer: number | undefined
 let toastN = 0
 
+// iOS Safari has no Vibration API. Since iOS 18 a native switch control gives a light haptic tick when it is toggled,
+// so a hidden one is toggled instead (inside a tap; iOS gives no haptic outside one, and earlier versions none at all).
+let iosSwitch: HTMLLabelElement | undefined
+const isIOS = () => typeof navigator !== 'undefined' && (/iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+function iosTick() {
+  if (!iosSwitch) {
+    const label = document.createElement('label')
+    label.setAttribute('aria-hidden', 'true')
+    label.style.cssText = 'position:fixed;left:-200px;top:0;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none'
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.setAttribute('switch', '')
+    input.tabIndex = -1
+    label.appendChild(input)
+    document.body.appendChild(label)
+    iosSwitch = label
+  }
+  iosSwitch.click()
+}
+
+/** Restrained feedback, when Haptics is on: a tick for taps, a firmer pulse for decisions, a double for big moments
+ *  (a goal, a signing). Android vibrates; iPhones on iOS 18 and later tick. */
 export function haptic(kind: 'light' | 'medium' | 'heavy' = 'light') {
   try {
     if (!useGame.getState().prefs.haptics) return
-    const ms = kind === 'light' ? 8 : kind === 'medium' ? 16 : 30
-    navigator.vibrate?.(ms)
+    if (typeof navigator.vibrate === 'function') navigator.vibrate(kind === 'light' ? 10 : kind === 'medium' ? 22 : [28, 55, 38])
+    else if (isIOS()) { iosTick(); if (kind === 'heavy') window.setTimeout(iosTick, 110) }
   } catch { /* unsupported */ }
 }
 
@@ -422,7 +448,7 @@ export const useGame = create<GameState>((set, get) => ({
           (stopOn.offers && m.category === 'Transfers') || (stopOn.injuries && m.category === 'Medical') ||
           (stopOn.scouting && (m.category === 'Scouting' || m.category === 'Youth')) || (stopOn.conversations && m.category === 'Player'))
         if (hit) { stop = 'inbox'; break }
-        await new Promise((res) => setTimeout(res, get().prefs.reduceMotion ? 0 : until ? 25 : 70))
+        await new Promise((res) => setTimeout(res, get().prefs.reduceMotion || (typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches) ? 0 : until ? 25 : 70))
       }
     } finally {
       set({ advancing: false, lastStop: stop, v: get().v + 1, stopRequested: false })

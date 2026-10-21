@@ -429,7 +429,22 @@ select.input option { background: #151b27; }
 .tile .wm { position: absolute; right: -14px; bottom: -18px; opacity: 0.05; pointer-events: none; color: #fff; }
 .hero { border: 0; box-shadow: none; }
 .hero::after { background: radial-gradient(80% 90% at 90% 10%, rgba(255, 255, 255, 0.12), transparent 60%); }
-.continue-btn { position: relative; overflow: hidden; }
+.continue-btn { position: relative; overflow: hidden; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+/* held down: a light fills the button left to right, and when it's full the quick-advance sheet opens */
+.continue-btn::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(255, 255, 255, .0), rgba(255, 255, 255, .28)); transform: scaleX(0); transform-origin: left; opacity: 0; pointer-events: none; }
+.continue-btn.holding::after { opacity: 1; animation: holdFill .42s cubic-bezier(.4, 0, .6, 1) forwards; }
+@keyframes holdFill { to { transform: scaleX(1); } }
+.qa-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.qa-btn { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 12px 4px 10px; border-radius: 14px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); transition: transform .15s ease, background .2s; }
+.qa-btn:active { transform: scale(.95); background: var(--s3); }
+.qa-btn .display { font-size: 30px; line-height: 1; }
+.qa-u { font-size: 12px; font-weight: 700; color: var(--t2); }
+.qa-to { margin-top: 6px; font-size: 10.5px; color: var(--t3); white-space: nowrap; }
+.qa-to.stop { color: var(--gold, #f5c542); font-weight: 700; }
+.qa-edit { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.qa-e { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px; border-radius: 14px; background: var(--s2); box-shadow: inset 0 0 0 1px var(--line); }
+.qa-ev { display: flex; flex-direction: column; align-items: center; }
+.qa-ev .display { font-size: 26px; line-height: 1; }
 
 /* ---------- menu crest marquee & holo player card ---------- */
 .crest-marquee { margin: 0 -20px; display: flex; flex-direction: column; gap: 14px; mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 15%, #000 85%, transparent); opacity: 0.85; }

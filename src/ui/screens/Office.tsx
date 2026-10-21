@@ -521,6 +521,7 @@ export function CareerSettingsScreen() {
         <CheckpointsCard w={w} careerId={useGame.getState().saveId || w.meta.id} />
         <div className="card">
           <div className="card-h"><span className="label">Advance stops on</span></div>
+          <div className="tiny dim" style={{ padding: '0 14px 8px' }}>Hold Continue to jump a set number of days instead: 1, 5, 7 and 10 unless you change them there.</div>
           <Toggle label="Transfer messages" sub="Bids, counter-offers and completed deals" on={so.offers} onChange={(v) => setPrefs({ stopOn: { ...so, offers: v } })} />
           <Toggle label="Injuries & medical" on={so.injuries} onChange={(v) => setPrefs({ stopOn: { ...so, injuries: v } })} />
           <Toggle label="Player conversations" on={so.conversations} onChange={(v) => setPrefs({ stopOn: { ...so, conversations: v } })} />
@@ -534,8 +535,8 @@ export function CareerSettingsScreen() {
         </div>
         <div className="card">
           <div className="card-h"><span className="label">Device</span></div>
-          <Toggle label="Haptics" on={prefs.haptics} onChange={(v) => setPrefs({ haptics: v })} />
-          <Toggle label="Reduce motion" on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
+          <Toggle label="Haptics" sub="Taps, decisions and big moments like goals and signings. Vibration on Android; a light tick on iPhone with iOS 18 or later. Older iPhones and most desktops have none." on={prefs.haptics} onChange={(v) => { setPrefs({ haptics: v }); if (v) haptic('medium') }} />
+          <Toggle label="Reduce motion" sub="Calmer screens: no ambient movement, transitions and celebrations go straight to the end, the calendar skips its animation. The match itself still plays out. Also on whenever your device asks for less motion." on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
         </div>
         {w.meta.editMode && (
           <div className="card">

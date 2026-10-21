@@ -1,4 +1,5 @@
 // The penalty kick the way television shows it: from high behind the taker, the keeper on his line, the net behind
+import { useLessMotion } from '../motion'
 // him. Where the ball goes, which way the keeper dives and how it ends all come from the simulation (PenaltyKick);
 // this only choreographs them: run-up, strike, flight, dive, and the net, glove or post that answers.
 // Everything is drawn through one camera projection, so the ball shrinks as it flies away and the net bulges back.
@@ -7,7 +8,6 @@ import { useEffect, useRef, useState } from 'react'
 import type { Club, PenaltyKick, Player } from '../../domain/types'
 import { knownFace } from '../../services/assets'
 import { hashString } from '../../domain/rng'
-import { useGame } from '../../store/game'
 
 // ------------------------------------------------------------------ camera
 // World: X metres across (0 = centre of goal, + = right as the taker sees it), h metres up, d metres from the camera.
@@ -261,7 +261,7 @@ export function PenaltyScene({ pen, taker, keeper, takerClub, keeperClub, eventI
   const uid = `pk${eventId}`
   const TA = HIT + pl.fl
   const END = TA + 2.4
-  const reduce = useGame((s) => s.prefs.reduceMotion)
+  const reduce = useLessMotion()
   const [tt, setT] = useState(reduce ? END : 0)
   const t = at ?? tt
   const phased = useRef<string>('')

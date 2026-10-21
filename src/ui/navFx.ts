@@ -5,6 +5,7 @@
 // replaces it, so it can animate out without keeping the old component alive.
 import { useRef } from 'react'
 import { useGame } from '../store/game'
+import { prefersLessMotion } from './motion'
 
 export type NavDir = 'none' | 'fwd' | 'back' | 'tab' | 'open' | 'close'
 let dir: NavDir = 'none'
@@ -23,7 +24,7 @@ function decide(s: S, p: S): NavDir | undefined {
   return undefined
 }
 
-const reduced = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+const reduced = () => prefersLessMotion()
 
 /** Copy what cloneNode leaves behind: scroll offsets and canvas pixels. */
 function snapshot(el: HTMLElement): HTMLElement {

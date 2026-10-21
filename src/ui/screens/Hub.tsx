@@ -1,9 +1,9 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { movedText } from '../moved'
-import { useGame, useWorld, haptic } from '../../store/game'
+import { useGame, useWorld, haptic, DEFAULT_ADVANCE_DAYS } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components/atoms'
-import { HubActions, Screen, SectionTitle } from '../components/layout'
+import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { compLogoKey, fixturesOf, leagueOf, nextFixture, opponent, outcomeFor, scoreLine, tableAround, userClub, lastResult, playerStatus } from '../selectors'
@@ -351,7 +351,7 @@ function MiniTable({ w }: { w: World }) {
   )
 }
 
-/** Sticky "Continue" control that drives the calendar forward. */
+/** Sticky "Continue" control that drives the calendar forward. Held down, it offers a set number of days instead. */
 export function ContinueBar() {
   const w = useWorld()
   const advancing = useGame((s) => s.advancing)
@@ -362,21 +362,102 @@ export function ContinueBar() {
   const next = w.flags.unemployed ? undefined : nextFixture(w, w.userClubId)
   const label = today ? 'Match Day' : advancing ? 'Advancing' : 'Continue'
   const sub = today ? `${w.clubs[today.home].short} v ${w.clubs[today.away].short}` : advancing ? fmtDate(w.date, 'long') : next ? `Next: ${w.clubs[opponent(next, w.userClubId)]?.short} · ${fmtDate(next.date, 'dm')}` : fmtDate(w.date, 'long')
+  // press and hold: the button fills, then the quick-advance sheet opens (not on a match day or while advancing)
+  const [quick, setQuick] = useState(false)
+  const [holding, setHolding] = useState(false)
+  const hold = useRef<{ timer: number; fired: boolean }>(undefined)
+  const canHold = !advancing && !today
+  const startHold = () => {
+    if (!canHold) return
+    const h = { fired: false, timer: 0 }
+    h.timer = window.setTimeout(() => { h.fired = true; setHolding(false); haptic('medium'); setQuick(true) }, HOLD_MS)
+    hold.current = h
+    setHolding(true)
+  }
+  const endHold = () => { if (hold.current && !hold.current.fired) { window.clearTimeout(hold.current.timer); hold.current = undefined } setHolding(false) }
   return (
     <div className="continue-wrap">
-      <button className={`continue-btn ${advancing ? 'busy' : ''} ${today ? 'match' : ''}`} onClick={() => {
-        haptic('medium')
-        if (advancing) { stop(); return }
-        if (today) { open({ name: 'prematch' }); return }
-        advance()
-      }}>
+      <button className={`continue-btn ${advancing ? 'busy' : ''} ${today ? 'match' : ''} ${holding ? 'holding' : ''}`}
+        onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold} onPointerCancel={endHold} onContextMenu={(e) => e.preventDefault()}
+        onClick={() => {
+          // the hold already opened the sheet: this is the end of that press, not a tap
+          if (hold.current?.fired) { hold.current = undefined; return }
+          haptic('medium')
+          if (advancing) { stop(); return }
+          if (today) { open({ name: 'prematch' }); return }
+          advance()
+        }}>
         <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
           <div className="display" style={{ fontSize: 21 }}>{label}</div>
           <div className="tiny ellipsis" style={{ opacity: 0.8, marginTop: 1 }}>{sub}</div>
         </div>
         {advancing ? <><div className="spinner" style={{ borderTopColor: '#03170c', borderColor: 'rgba(0,0,0,.2)' }} /><span className="tiny b" style={{ marginLeft: 4 }}>STOP</span></> : <Icon name={today ? 'play' : 'ffwd'} size={26} />}
       </button>
+      <QuickAdvance open={quick} onClose={() => setQuick(false)} />
     </div>
+  )
+}
+
+const HOLD_MS = 420
+
+/** Advance by one of four set numbers of days, each saying where it would stop early; the four can be changed. */
+function QuickAdvance({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const w = useWorld()
+  const saved = useGame((s) => s.prefs.advanceDays)
+  const setPrefs = useGame((s) => s.setPrefs)
+  const days = saved?.length === 4 ? saved : DEFAULT_ADVANCE_DAYS
+  const [edit, setEdit] = useState<number[]>()
+  const next = w.flags.unemployed ? undefined : nextFixture(w, w.userClubId)
+  const close = () => { setEdit(undefined); onClose() }
+  const run = (n: number) => { haptic('medium'); close(); useGame.getState().advance(addDays(w.date, n)) }
+  // a preset moves to the next value nobody else holds, within 1-30 days
+  const step = (i: number, d: number) => setEdit((e) => {
+    if (!e) return e
+    let v = e[i]
+    do { v += d } while (v >= 1 && v <= 30 && e.some((x, k) => k !== i && x === v))
+    if (v < 1 || v > 30) return e
+    haptic()
+    return e.map((x, k) => (k === i ? v : x))
+  })
+  return (
+    <Sheet open={open} onClose={close} title={edit ? 'Quick advance presets' : 'Advance'}>
+      {!edit ? (
+        <>
+          <div className="qa-grid">
+            {days.map((n) => {
+              const to = addDays(w.date, n)
+              const stopsFirst = next && next.date <= to
+              return (
+                <button key={n} className="qa-btn" onClick={() => run(n)}>
+                  <b className="display">{n}</b>
+                  <span className="qa-u">{n === 1 ? 'day' : 'days'}</span>
+                  <span className={`qa-to ${stopsFirst ? 'stop' : ''}`}>{stopsFirst ? `Match ${fmtDate(next!.date, 'dm')}` : `To ${fmtDate(to, 'dm')}`}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="tiny dim" style={{ marginTop: 12, lineHeight: 1.45 }}>Stops early for a match day, and for anything you have asked Continue to stop for in Settings.</div>
+          <button className="btn sm block" style={{ marginTop: 12 }} onClick={() => { haptic(); setEdit([...days]) }}><Icon name="edit" size={15} /> Change the presets</button>
+        </>
+      ) : (
+        <>
+          <div className="qa-edit">
+            {edit.map((n, i) => (
+              <div key={i} className="qa-e">
+                <button className="iconbtn" aria-label="Fewer days" disabled={n <= 1} onClick={() => step(i, -1)}><Icon name="minus" size={16} /></button>
+                <div className="qa-ev"><b className="display">{n}</b><span className="tiny dim">{n === 1 ? 'day' : 'days'}</span></div>
+                <button className="iconbtn" aria-label="More days" disabled={n >= 30} onClick={() => step(i, 1)}><Icon name="plus" size={16} /></button>
+              </div>
+            ))}
+          </div>
+          <div className="tiny dim" style={{ marginTop: 10 }}>Four jumps, from 1 to 30 days each.</div>
+          <div className="row" style={{ gap: 8, marginTop: 12 }}>
+            <button className="btn sm" onClick={() => { haptic(); setEdit([...DEFAULT_ADVANCE_DAYS]) }}>Reset</button>
+            <button className="btn sm club grow" onClick={() => { haptic('medium'); setPrefs({ advanceDays: [...edit].sort((a, b) => a - b) }); setEdit(undefined) }}>Save</button>
+          </div>
+        </>
+      )}
+    </Sheet>
   )
 }
 

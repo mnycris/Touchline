@@ -121,25 +121,51 @@ export function BottomNav() {
   )
 }
 
+/** The selected item's marker slides to the new one instead of jumping (first placed without a slide). */
+function useIndicator(value: unknown) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ x: number; w: number; ready: boolean }>()
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = () => {
+      const on = el.querySelector<HTMLElement>(':scope > .on')
+      setPos((p) => (on ? { x: on.offsetLeft, w: on.offsetWidth, ready: !!p } : undefined))
+    }
+    measure()
+    // a row of tabs wider than the screen: bring the chosen one into view
+    const on = el.querySelector<HTMLElement>(':scope > .on')
+    if (on && el.scrollWidth > el.clientWidth && (on.offsetLeft < el.scrollLeft || on.offsetLeft + on.offsetWidth > el.scrollLeft + el.clientWidth)) el.scrollTo({ left: Math.max(0, on.offsetLeft - 24), behavior: 'smooth' })
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : undefined
+    ro?.observe(el)
+    return () => ro?.disconnect()
+  }, [value])
+  return [ref, pos] as const
+}
+
 export function Tabs<T extends string>({ items, value, onChange, sticky }: { items: { id: T; label: ReactNode; badge?: number }[]; value: T; onChange: (v: T) => void; sticky?: boolean }) {
+  const [ref, pos] = useIndicator(value)
   return (
-    <div className={`tabs ${sticky ? 'sticky' : ''}`}>
+    <div ref={ref} className={`tabs ${sticky ? 'sticky' : ''} ${pos ? 'has-ind' : ''}`}>
       {items.map((i) => (
         <button key={i.id} className={`tab ${value === i.id ? 'on' : ''}`} onClick={() => { haptic(); onChange(i.id) }}>
           {i.label}
           {!!i.badge && <span className="pill" style={{ marginLeft: 6, background: 'var(--neg)', color: '#fff', height: 17, padding: '0 5px' }}>{i.badge}</span>}
         </button>
       ))}
+      {pos && <i className={`tabs-ind ${pos.ready ? 'ready' : ''}`} aria-hidden style={{ width: Math.max(0, pos.w - 16), transform: `translateX(${pos.x + 8}px)` }} />}
     </div>
   )
 }
 
 export function Seg<T extends string | number>({ items, value, onChange, small }: { items: { id: T; label: ReactNode }[]; value: T; onChange: (v: T) => void; small?: boolean }) {
+  const [ref, pos] = useIndicator(value)
   return (
-    <div className="seg">
+    <div ref={ref} className={`seg ${pos ? 'has-ind' : ''}`}>
       {items.map((i) => (
         <button key={String(i.id)} className={value === i.id ? 'on' : ''} style={small ? { height: 30, fontSize: 12 } : undefined} onClick={() => { haptic(); onChange(i.id) }}>{i.label}</button>
       ))}
+      {pos && <i className={`seg-ind ${pos.ready ? 'ready' : ''}`} aria-hidden style={{ width: pos.w, transform: `translateX(${pos.x}px)` }} />}
     </div>
   )
 }

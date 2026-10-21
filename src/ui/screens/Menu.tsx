@@ -169,7 +169,7 @@ export function AppSettings({ onBack }: { onBack: () => void }) {
         <div className="card">
           <div className="card-h"><div className="label">Device</div></div>
           <Toggle label="Haptic feedback" sub="Vibration on taps and goals (supported devices)" on={prefs.haptics} onChange={(v) => setPrefs({ haptics: v })} />
-          <Toggle label="Reduce motion" sub="Skips calendar animation while advancing" on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
+          <Toggle label="Reduce motion" sub="Calmer screens: no ambient movement, transitions and celebrations go straight to the end, the calendar skips its animation. The match itself still plays out. Also on whenever your device asks for less motion." on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
         </div>
         <ImageCheck />
       </div>

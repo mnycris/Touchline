@@ -1,4 +1,4 @@
-import { useEffect, type ComponentType } from 'react'
+import { useEffect, useState, type ComponentType } from 'react'
 import { useGame } from './store/game'
 import { applyTheme } from './ui/theme'
 import { BottomNav } from './ui/components/layout'
@@ -8,10 +8,12 @@ import { NewsDrop } from './ui/screens/NewsScreens'
 import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 import { initNavFx, useEnterClass } from './ui/navFx'
+import { initMotionClass } from './ui/motion'
 import { Presence } from './ui/components/Presence'
 import { Spotlight } from './ui/components/Spotlight'
 
 initNavFx()
+initMotionClass()
 
 export default function App() {
   const world = useGame((s) => s.world)
@@ -90,6 +92,7 @@ function Career() {
   return (
     <>
       <div className={`layer ${layerIn}`} key={layerKey}>
+        <ClubFog />
         <ViewKey.Provider value={viewKeyFor(tab, stack.length, top?.name ?? 'root', top?.params)}>
           {View ? <View params={top!.params} /> : <Root />}
         </ViewKey.Provider>
@@ -106,6 +109,14 @@ function Career() {
       )}
     </>
   )
+}
+
+/** The club's colours in the air at the top of every screen, drifting slowly, after the main menu's ambient light.
+ * Each screen has its own (screens are opaque for their transitions); the phase comes from the page clock, so the fog
+ * carries on where it was instead of restarting with each screen. */
+function ClubFog() {
+  const [t] = useState(() => `${-(performance.now() / 1000).toFixed(2)}s`)
+  return <div className="club-fog" aria-hidden style={{ ['--fog-t' as string]: t }}><i className="f1" /><i className="f2" /><i className="f3" /></div>
 }
 
 function Toast() {
