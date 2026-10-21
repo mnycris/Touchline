@@ -32,12 +32,14 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
 }) {
   const club = userClub(w)
   const squad = rosterOf(w, club.id)
-  const fits = useMemo(() => styleFits(w, sheet), [w, sheet])
+  // (edits change the sheet in place: the store's version is what says it changed)
+  const v = useGame((s) => s.v)
+  const fits = useMemo(() => styleFits(w, sheet), [w, sheet, v])
   const standing = standingOf(w, club.id)
   const rec = recommendedStyle(fits, standing).fit
   const cur = presetOf(sheet.tactics)
   const next = forMatch || nextFixture(w, club.id)
-  const pred = useMemo(() => (next ? predictFixture(w, next) : undefined), [w, next, sheet])
+  const pred = useMemo(() => (next ? predictFixture(w, next) : undefined), [w, next, sheet, v])
   const att = useMemo(() => (next && pred ? attitudeFor(w, next, pred) : undefined), [w, next, pred])
   const notes = teamNotes(w, sheet, squad, fits)
   const [open, setOpen] = useState<StyleFit>()
@@ -54,7 +56,7 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
   const curFit = fitOf(cur)
   const suggest = rec.name !== cur && (!curFit || (rec.name === 'Balanced' ? curFit.stars <= 2 : adj(rec) - adj(curFit) >= 0.5)) ? rec : undefined
   const comp = next ? w.competitions[next.compId] : undefined
-  const side = useMemo(() => sideFromSheet(w, club.id, sheet, comp), [w, club.id, sheet, comp])
+  const side = useMemo(() => sideFromSheet(w, club.id, sheet, comp), [w, club.id, sheet, comp, v])
   const tend = tendencies(sheet.tactics).filter((x) => TEND_SHOWN[x.id])
 
   // the next match: who, where, and the odds as they stand with this team
