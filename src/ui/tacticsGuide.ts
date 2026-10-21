@@ -39,7 +39,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
       'Raises or lowers how often players pick the forward pass and how readily they shoot.',
       'With a defensive mentality, defenders under pressure near their goal clear it more often instead of playing out.',
       'With an attacking one, the side takes longer to recover its shape after losing the ball.',
-      'The match situation adds to it: sides chasing a game push on, sides protecting a lead sit in, sides three up stop forcing it.',
+      'Your side plays the mentality you set whatever the score: your players lean only a little with it, and whether to sit on a lead or chase the game is your call. AI sides change their approach with the score.',
     ],
     moves: [['Chances created', 'up'], ['Exposure on the break', 'up']],
   },
@@ -85,13 +85,14 @@ export const GUIDES: Record<TacticKey, Guide> = {
     options: [
       { id: 'low', label: 'Low', text: 'Hold the shape and save legs: their defenders and midfielders have time on the ball.' },
       { id: 'mid', label: 'Medium', text: 'The nearest man steps out in midfield.' },
-      { id: 'high', label: 'Relentless', text: 'The nearest man goes after the ball everywhere, a second one joins in, and straight after losing it you counter-press. Their passing suffers; your legs go sooner.' },
+      { id: 'high', label: 'Relentless', text: 'The nearest man sprints out to the ball everywhere, a second one closes the next pass, and straight after losing it you counter-press. Sides that can\'t play through it kick it long or clear it, so you get it straight back: more of the ball, in their half. Your legs go sooner.' },
     ],
-    gives: ['Pressure on their passing, the ball won back higher up, mistakes forced from players who are poor under pressure.'],
-    costs: ['Energy: the biggest drain in the game. A beaten press leaves the men who stepped out behind the ball.'],
+    gives: ['The ball won back higher up and kept there: a hard press is the surest way to more possession and fewer chances against. Mistakes forced from players who are poor under pressure.'],
+    costs: ['Energy: the biggest drain in the game, and it carries into the next match. A beaten press leaves the men who stepped out behind the ball.'],
     engine: [
-      'Decides how far and how often the nearest players step toward the ball in each third; at high settings a second man presses too.',
+      'Decides how far and how hard the nearest players close the ball down in each third; at high settings a second man presses too.',
       'Pressure on the ball makes passes less accurate and challenges more frequent, less so against composed, technical players.',
+      'A man closed down in his own half who is not comfortable on the ball goes long or clears it, which hands the ball back to the pressing side.',
       'Tired players press less.',
       'A high press makes the opposition keeper play long more often.',
     ],
@@ -115,7 +116,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
     options: [
       { id: 'Balanced', label: 'Balanced', text: 'Short when it is on, long when it is not; the keeper mixes it.' },
       { id: 'Short Passing', label: 'Short', text: 'Play out through the lines: the keeper plays it short most of the time, long balls are rare and passers are more patient. Keeps the ball well; needs composed players against a press.' },
-      { id: 'Counter', label: 'Counter', text: 'When you win it back you break at once: counters start much more often, with longer, earlier passes.' },
+      { id: 'Counter', label: 'Counter', text: 'When you win it back with them caught upfield you break at once, with longer, earlier passes. Against a side that keeps men back there is less to break into.' },
       { id: 'Long Ball', label: 'Long', text: 'Go long early to the front line: the keeper kicks long, short passes at the back are avoided and defenders clear it under pressure. Target men and runners matter; you will see less of the ball.' },
     ],
     gives: ['Toward Long: the press bypassed, the ball forward quickly, aerial strength and runners used.'],
@@ -123,7 +124,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
     engine: [
       'Sets how attractive long passes are, and from how far.',
       'Decides how often your keeper plays it short.',
-      'Counter makes winning the ball turn into a fast break more often; Short Passing does the opposite and makes passers more patient.',
+      'A break is on when the side that lost the ball is caught out of shape: Counter spots it a little sooner and goes at once; Short Passing lets the half-chance to break go and keeps the ball instead.',
       'Part of the team\'s directness, with chance creation and tempo.',
     ],
     moves: [['Directness', 'mixed'], ['Keeping the ball', 'mixed']],
@@ -167,14 +168,14 @@ export const GUIDES: Record<TacticKey, Guide> = {
     title: 'Tempo',
     what: 'How quickly your players move the ball on.',
     options: [
-      { id: 'low', label: 'Patient', text: 'Take time on the ball: more accurate, more careful passing and more of the ball, less forward urgency. Easier on the legs.' },
+      { id: 'low', label: 'Patient', text: 'Take a touch more on the ball: more accurate, more careful passing and a little more of the ball, less forward urgency. Easier on the legs.' },
       { id: 'mid', label: 'Measured', text: 'A normal speed of play.' },
       { id: 'high', label: 'Fast', text: 'Quicker decisions and more forward passes: attacks develop before the block is set, but more passes go astray and you keep the ball less. More tiring.' },
     ],
     gives: ['Faster: attacks that arrive before the defence has shifted, more play per minute.'],
     costs: ['Faster: more passes lost, less of the ball, more tiring.'],
     engine: [
-      'Changes how long each action takes, so a fast side gets through more play per minute and the defending block has less time to shift across.',
+      'Changes how quickly the ball is moved on, a little: a fast side gets through more play per minute and the defending block has less time to shift across.',
       'Faster tempo means more forward passes, more accepted risk and lower pass accuracy.',
       'Adds to energy use, though less than pressing does.',
     ],
@@ -275,12 +276,14 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x))
 export function tendencies(t: TeamTactics): Tendency[] {
   const dir = (t.buildUp === 'Long Ball' ? 1 : t.buildUp === 'Counter' ? 0.6 : t.buildUp === 'Short Passing' ? -0.5 : 0)
     + (t.chanceCreation === 'Direct Passing' ? 0.6 : t.chanceCreation === 'Forward Runs' ? 0.35 : t.chanceCreation === 'Possession' ? -0.6 : 0) + (t.tempo - 50) / 45
-  const expo = MI(t) * 0.08 + (t.lineHeight - 50) / 220 + (t.width - 50) / 400
+  const expo = MI(t) * 0.08 + (t.lineHeight - 50) / 220 + (t.width - 50) / 400 + (t.playersInBox - 5) * 0.03
   const energy = (t.pressing - 50) / 130 + (t.tempo - 50) / 240
   const press = t.pressing / 100 + (t.defApproach === 'Aggressive' ? 0.12 : t.defApproach === 'High' ? 0.06 : t.defApproach === 'Deep' ? -0.15 : 0)
-  const keep = -0.21 * (t.tempo - 50) - 0.13 * (t.lineHeight - 50) + 0.05 * (t.pressing - 50) - MI(t) * 3.5
+  // (measured: scripts/qa/engine-lab.ts tactics, a strong and a mid-table side; pressing wins the ball back, so it
+  // keeps it too)
+  const keep = -0.14 * (t.tempo - 50) - 0.1 * (t.lineHeight - 50) + 0.11 * (t.pressing - 50) - MI(t) - (t.playersInBox - 5)
     + (t.buildUp === 'Long Ball' ? -11 : t.buildUp === 'Counter' ? -6 : t.buildUp === 'Balanced' ? -3 : 0)
-    + (t.chanceCreation === 'Direct Passing' || t.chanceCreation === 'Forward Runs' ? -7 : t.chanceCreation === 'Balanced' ? -3 : 0)
+    + (t.chanceCreation === 'Direct Passing' || t.chanceCreation === 'Forward Runs' ? -5 : t.chanceCreation === 'Balanced' ? -2 : 0)
   return [
     { id: 'keep', label: 'Keeping the ball', low: 'Gives it up', high: 'Keeps it', v: clamp01(0.5 + keep / 36) },
     { id: 'dir', label: 'Directness', low: 'Patient', high: 'Direct', v: clamp01((dir + 2.2) / 4.4) },

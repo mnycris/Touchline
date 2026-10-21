@@ -71,7 +71,7 @@ export function chanceXg(p: Pt, c: ShotContext): number {
   if (c.volley) xg *= 0.75
   if (c.cutback) xg *= 1.25
   if (c.rebound) xg *= 1.2
-  if (c.counter) xg *= 1.1
+  // (a break is worth more through the space it leaves, which the pressure term already reads, not on top of it)
   if (c.oneOnOne) xg = Math.max(xg, 0.3 + xg * 0.4)
   if (c.pressure) xg *= 1 - clamp(c.pressure, 0, 1) * 0.35
   return clamp(xg, 0.008, 0.85)
