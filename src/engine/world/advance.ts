@@ -211,8 +211,8 @@ function keepSheetsFull(w: World) {
 export function simulateDay(w: World, rng: Rng, includeUser = false) {
   for (const f of fixturesOn(w, w.date)) {
     if (!includeUser && f.userInvolved && !w.flags.unemployed) continue
-    // the match the manager asked to watch waits for him (advance stops for it)
-    if (f.id === w.flags.watch) continue
+    // a match the manager asked to watch waits for him (advance stops for it)
+    if (isWatched(w, f.id)) continue
     const r = simulateFixture(w, f)
     afterMatch(w, f, r, rng)
   }
@@ -456,12 +456,21 @@ export function advance(w: World, maxDays = 60): AdvanceResult {
   return result('limit')
 }
 
-/** The watched match if it is today and still to be played (a stale mark is cleared: played, or postponed past). */
+/** The fixtures the manager has asked to watch (Continue stops on each one's day). */
+export const watchList = (w: World): string[] => w.flags.watchList || []
+export const isWatched = (w: World, id: string): boolean => !!w.flags.watchList?.includes(id)
+export function setWatched(w: World, id: string, on: boolean) {
+  const rest = watchList(w).filter((x) => x !== id)
+  w.flags.watchList = on ? [...rest, id] : rest
+}
+
+/** The first watched match today still to be played (stale marks are cleared: played, or moved into the past). */
 export function watchedOn(w: World): Fixture | undefined {
-  if (!w.flags.watch) return undefined
-  const wf = w.fixtures[w.flags.watch]
-  if (!wf || wf.played || wf.date < w.date) { w.flags.watch = undefined; return undefined }
-  return wf.date === w.date ? wf : undefined
+  const list = watchList(w)
+  if (!list.length) return undefined
+  const open = list.map((id) => w.fixtures[id]).filter((f): f is Fixture => !!f && !f.played && f.date >= w.date)
+  if (open.length !== list.length) w.flags.watchList = open.map((f) => f.id)
+  return open.filter((f) => f.date === w.date).sort((a, b) => a.time.localeCompare(b.time))[0]
 }
 
 function allPlayed(w: World) {

@@ -84,6 +84,8 @@ export function repairWorld(w: World): number {
   let n = 0
   const fix = <T>(ok: boolean, set: () => T) => { if (!ok) { set(); n++ } }
   fix(!!w.flags, () => { w.flags = {} })
+  // one watched match, until the list (4.2)
+  fix(!w.flags.watch, () => { w.flags.watchList = [...(w.flags.watchList || []), w.flags.watch]; delete w.flags.watch })
   fix(!!w.transfers, () => { w.transfers = { offers: {}, history: [], shortlist: [], targets: {}, knowledge: {} } })
   fix(!!w.transfers.offers, () => { w.transfers.offers = {} })
   fix(Array.isArray(w.transfers.history), () => { w.transfers.history = [] })

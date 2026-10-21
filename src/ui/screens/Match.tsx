@@ -23,6 +23,7 @@ import { ScriptEditor } from '../components/ScriptEditor'
 import { Presence } from '../components/Presence'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { syncOthers } from '../../engine/world/liveDay'
+import { isWatched, setWatched } from '../../engine/world/advance'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
 import { CardMoment, KickMoment, MOMENT_MS, PenaltyMoment, type Moment, type MomentKind } from '../components/MatchMoments'
 import { useRemember } from '../memory'
@@ -72,7 +73,7 @@ export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: nu
   const [sheet, setSheet] = useState(false)
   const comp = w.competitions[f.compId]
   const o = clubId ? outcomeFor(f, clubId) : undefined
-  const watching = w.flags.watch === f.id
+  const watching = isWatched(w, f.id)
   return (
     <>
       <button className="li tap fixture-row" style={{ width: '100%' }} onClick={() => { if (f.played) go({ name: 'fixture', params: { id: f.id } }); else { haptic(); setSheet(true) } }}>
@@ -105,7 +106,7 @@ function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => 
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const comp = w.competitions[f.compId]
   const today = f.date === w.date
-  const watching = w.flags.watch === f.id
+  const watching = isWatched(w, f.id)
   const canWatch = !f.userInvolved && !f.played && f.date >= w.date && !live
   const [scripting, setScripting] = useState(false)
   if (scripting) return <ScriptEditor w={w} f={f} onClose={() => { setScripting(false); onClose() }} />
@@ -122,7 +123,7 @@ function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => 
         today ? (
           <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => { onClose(); watch(f.id) }}><Icon name="eye" size={18} /> Watch live</button>
         ) : watching ? (
-          <button className="btn block" style={{ marginTop: 14 }} onClick={() => { haptic(); w.flags.watch = undefined; force(); useGame.getState().notify('No longer watching this match', 'info') }}><Icon name="check" size={18} color="var(--acc)" /> Watching · tap to cancel</button>
+          <button className="btn block" style={{ marginTop: 14 }} onClick={() => { haptic(); setWatched(w, f.id, false); force(); useGame.getState().notify('No longer watching this match', 'info') }}><Icon name="check" size={18} color="var(--acc)" /> Watching · tap to cancel</button>
         ) : (
           <button className="btn primary block" style={{ marginTop: 14 }} onClick={() => { watch(f.id); force() }}><Icon name="eye" size={18} /> Watch this match</button>
         )

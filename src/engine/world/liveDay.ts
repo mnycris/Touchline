@@ -3,7 +3,7 @@
 import type { Fixture, MatchEvent, World } from '../../domain/types'
 import type { MatchSim, Phase } from '../match/engine'
 import { createSim, deepLeagueSet, isDeepFixture } from './matchRunner'
-import { fixturesOn } from './advance'
+import { fixturesOn, isWatched } from './advance'
 
 export interface OtherLive { fixtureId: string; sim: MatchSim }
 
@@ -15,8 +15,8 @@ export function concurrentFixtures(w: World, f: Fixture, max = 12): Fixture[] {
   const deep = deepLeagueSet(w)
   const rep = (x: Fixture) => (w.clubs[x.home]?.reputation || 0) + (w.clubs[x.away]?.reputation || 0)
   return fixturesOn(w, f.date)
-    // (the match the manager is set to watch is kept for him to see in full, not run in the background)
-    .filter((x) => x.id !== f.id && x.id !== w.flags.watch && !x.played && !x.userInvolved && Math.abs(toMin(x.time) - t0) <= 30)
+    // (a match the manager is set to watch is kept for him to see in full, not run in the background)
+    .filter((x) => x.id !== f.id && !isWatched(w, x.id) && !x.played && !x.userInvolved && Math.abs(toMin(x.time) - t0) <= 30)
     .filter((x) => x.compId === f.compId || isDeepFixture(w, x, deep) || w.competitions[x.compId]?.format === 'uefa')
     .map((x) => ({ x, s: (x.compId === f.compId ? 1000 : 0) + (x.importance || 1) * 40 + rep(x) / 20 }))
     .sort((a, b) => b.s - a.s)

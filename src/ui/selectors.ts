@@ -1,6 +1,8 @@
 // Derived read-models for the UI. Pure functions over the authoritative World.
 import type { Club, Competition, Fixture, Player, StatLine, World } from '../domain/types'
-import { clubFixtures } from '../engine/competitions/fixtures'
+import { clubFixtures, fixturesByDate } from '../engine/competitions/fixtures'
+import { watchList } from '../engine/world/advance'
+import { follows } from '../engine/world/follow'
 import { positionOf, sortTable } from '../engine/competitions/tables'
 import { ageOn } from '../domain/dates'
 import { emptyLine } from '../engine/world/matchRunner'
@@ -41,6 +43,24 @@ export function standing(w: World, clubId: number): { pos: number; league: strin
 export function leaguePos(w: World, clubId: number): number | undefined {
   const c = leagueOf(w, clubId)
   return c ? positionOf(w, c, clubId) : undefined
+}
+
+/**
+ * Other clubs' matches on the manager's calendar for a day: those he is set to watch, and his followed clubs' (with the
+ * club he follows in it).
+ */
+export function calendarOthers(w: World, d: string): { f: Fixture; watch: boolean; club?: number }[] {
+  const watching = watchList(w)
+  const followed = new Set(follows(w).filter((x) => x.kind === 'club').map((x) => x.id as number))
+  if (!watching.length && !followed.size) return []
+  const out: { f: Fixture; watch: boolean; club?: number }[] = []
+  for (const f of fixturesByDate(w).get(d) || []) {
+    if (f.userInvolved) continue
+    const club = followed.has(f.home) ? f.home : followed.has(f.away) ? f.away : undefined
+    const watch = watching.includes(f.id)
+    if (watch || club) out.push({ f, watch, club })
+  }
+  return out
 }
 
 const fxCache = new WeakMap<World, { v: number; map: Map<number, Fixture[]> }>()

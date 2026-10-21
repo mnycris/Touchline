@@ -16,7 +16,7 @@ import { attendanceFor, createSim, matchUp, sideInput } from '../../engine/world
 import { inkOn, kitColors, kitVars } from '../components/LivePitch'
 import { onDark } from '../theme'
 import { matchSheetOf, sheetFor, validateSheet } from '../../engine/match/selection'
-import { userFixtureOn } from '../../engine/world/advance'
+import { userFixtureOn, watchList } from '../../engine/world/advance'
 import { compLogoKey, fixturesOf, leagueOf, outcomeFor, playerStatus } from '../selectors'
 import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competitions/tables'
 import { aggregateBefore } from '../../engine/competitions/cups'
@@ -60,8 +60,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
   const f = params?.id ? w.fixtures[params.id] : todayFx
   const isToday = !!f && !!todayFx && f.id === todayFx.id
   // a match the manager is set to watch on the same day
-  const watchedId = w.flags.watch as string | undefined
-  const watched = f && watchedId && w.fixtures[watchedId] && !w.fixtures[watchedId].played && w.fixtures[watchedId].date === f.date ? w.fixtures[watchedId] : undefined
+  const watched = f ? watchList(w).map((id) => w.fixtures[id]).find((x) => x && !x.played && x.date === f.date) : undefined
   const lines = useMemo(() => (f ? storyLines(w, f) : []), [f?.id, w.date])
   if (!f) return <Screen title="Match Day" back onBack={back} noNav><div className="pad muted">No match today.</div></Screen>
 

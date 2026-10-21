@@ -6,7 +6,7 @@ import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components
 import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
-import { compLogoKey, fixturesOf, leagueOf, nextFixture, opponent, outcomeFor, scoreLine, tableAround, userClub, lastResult, playerStatus } from '../selectors'
+import { calendarOthers, compLogoKey, fixturesOf, leagueOf, nextFixture, opponent, outcomeFor, scoreLine, tableAround, userClub, lastResult, playerStatus } from '../selectors'
 import { ZONE_COLOR, zoneFor, sortTable, previousPositions } from '../../engine/competitions/tables'
 import { MoveArrow } from './FifaRanking'
 import { rosterOf } from '../../engine/world/roster'
@@ -309,13 +309,18 @@ function CalendarStrip({ w }: { w: World }) {
         const f = fx.find((x) => x.date === d)
         const isDeadline = win.some((x) => x.close === d)
         const isOpen = win.some((x) => x.open === d)
+        // a match he is watching (green) or a followed club's (gold), as on the calendar
+        const others = calendarOthers(w, d)
+        const busy = !!f || isDeadline || isOpen
+        const tags = others.length ? <span className={`cal-tags ${busy ? 'corner' : ''}`}>{others.some((x) => x.watch) && <i className="w" />}{others.some((x) => !x.watch) && <i className="f" />}</span> : null
         return (
           <div key={d} className={`cal-day ${i === 0 ? 'today' : ''} ${f ? 'match' : ''}`}>
             <div className="tiny dim b">{WD[weekday(d)]}</div>
             <div className="display" style={{ fontSize: 18 }}>{Number(d.slice(8, 10))}</div>
             <div className="cal-mark">
-              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--tw)" /> : <span className="cal-dot" />}
+              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--tw)" /> : tags || <span className="cal-dot" />}
             </div>
+            {busy && tags}
           </div>
         )
       })}

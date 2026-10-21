@@ -125,7 +125,7 @@ button.card.cal-strip { display: grid; }
 .mini-btn span { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t2); text-align: center; }
 .alert-card { border-color: rgba(255, 176, 32, 0.45); background: linear-gradient(135deg, rgba(255, 176, 32, 0.12), var(--s1)); }
 .cal-strip { display: grid !important; grid-template-columns: repeat(7, 1fr); padding: 8px 4px; }
-.cal-day { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 10px; }
+.cal-day { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border-radius: 10px; }
 .cal-day.today { background: rgba(var(--club-rgb), 0.3); box-shadow: inset 0 0 0 1px rgba(var(--club-rgb), 0.8); }
 .cal-mark { height: 22px; display: grid; place-items: center; }
 .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); display: inline-block; }
@@ -320,6 +320,15 @@ button.card.cal-strip { display: grid; }
 .cal-legend .lg-win { background: rgba(var(--tw-rgb), .85); } .cal-legend .lg-intl { background: rgba(62, 166, 255, .7); }
 .cal-legend .lg-w, .cal-legend .lg-l { width: 9px; height: 9px; border-radius: 3px; background: transparent; }
 .cal-legend .lg-w { box-shadow: inset 0 0 0 2px #18b765; } .cal-legend .lg-l { box-shadow: inset 0 0 0 2px #e2414f; }
+.cal-legend .lg-watch, .cal-legend .lg-follow { width: 7px; height: 7px; border-radius: 50%; }
+.cal-legend .lg-watch { background: var(--acc); } .cal-legend .lg-follow { background: var(--gold); }
+/* a match he is watching (green) and a followed club's (gold) */
+.cal-tags { display: inline-flex; align-items: center; gap: 3px; }
+.cal-tags i { display: block; width: 6px; height: 6px; border-radius: 50%; }
+.cal-tags i.w { background: var(--acc); box-shadow: 0 0 6px rgba(var(--acc-rgb), .75); }
+.cal-tags i.f { background: var(--gold); box-shadow: 0 0 6px rgba(244, 197, 66, .6); }
+.cal-tags.corner { position: absolute; top: 5px; right: 5px; }
+.cal-tags.corner i { width: 5px; height: 5px; }
 .cal-agenda { overflow: hidden; }
 .cal-ag { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
 .cal-ag:first-child { border-top: 0; }
@@ -1233,7 +1242,10 @@ select.input option { background: #151b27; }
 .summer-comp:active { background: rgba(0, 0, 0, 0.42); }
 .cal-nt .fixture-row { padding-bottom: 2px; min-height: 48px; }
 .cal-nt-who { padding: 0 14px 9px 70px; gap: 5px; }
-.cal-nt + .cal-nt, .cal-ag-ev + .cal-nt, .cal-nt + .cal-ag-ev { border-top: 1px solid var(--line); }
+.cal-nt + .cal-nt, .cal-ag-ev + .cal-nt, .cal-nt + .cal-ag-ev, .fixture-row + .cal-nt { border-top: 1px solid var(--line); }
+.cal-nt-who .ellipsis { min-width: 0; }
+.cal-nt.watch { box-shadow: inset 3px 0 0 rgba(var(--acc-rgb), .8); }
+.cal-nt.follow { box-shadow: inset 3px 0 0 rgba(244, 197, 66, .7); }
 
 /* assists: overlapping boots, first in front */
 .boots { display: inline-flex; flex-direction: row-reverse; align-items: center; flex: none; }

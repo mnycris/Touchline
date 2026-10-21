@@ -13,7 +13,7 @@ import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { previousPositions, sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
-import { ageOf, compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
+import { ageOf, calendarOthers, compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
 import { FixtureRow } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
@@ -28,6 +28,8 @@ import { FormStrip } from './MatchDay'
 import { Ball, Balls, Boot, Boots, TeamLineup, sideFromSheet, RatingPill } from '../components/Lineup'
 import { sideInput } from '../../engine/world/matchRunner'
 import { intlStage, nationalSquad, seasonReviewDate, userNations } from '../../engine/world/international'
+import { watchList } from '../../engine/world/advance'
+import { follows } from '../../engine/world/follow'
 
 // ============================================================================ season hub
 export function SeasonHub() {
@@ -809,13 +811,17 @@ function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
 // ============================================================================ calendar
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-/** A calendar fixture: the club's own, or a national team game with the manager's players in it (named underneath). */
-function IntlOr({ w, e }: { w: World; e: { text: string; f?: Fixture; nt?: boolean } }) {
-  if (!e.nt) return <FixtureRow w={w} f={e.f!} clubId={w.userClubId} />
+type CalEvent = { icon: string; text: string; color?: string; f?: Fixture; kind?: 'nt' | 'watch' | 'follow' }
+/**
+ * A calendar fixture: the club's own, or another one with a line underneath saying why it is on his calendar (a
+ * national team game with his players in it, a match he is set to watch, a club he follows).
+ */
+function CalFixture({ w, e }: { w: World; e: CalEvent }) {
+  if (!e.kind) return <FixtureRow w={w} f={e.f!} clubId={w.userClubId} />
   return (
-    <div className="cal-nt">
+    <div className={`cal-nt ${e.kind}`}>
       <FixtureRow w={w} f={e.f!} />
-      <div className="tiny dim row tight cal-nt-who"><Icon name="globe" size={12} color="var(--info)" />{e.text}</div>
+      <div className="tiny dim row tight cal-nt-who"><Icon name={e.icon} size={12} color={e.color} /><span className="ellipsis">{e.text}</span></div>
     </div>
   )
 }
@@ -836,9 +842,14 @@ export function CalendarScreen() {
   const all = fixturesByDate(w)
   const myNations = useMemo(() => new Map([...userNations(w)].map(([id, ps]) => [id, ps.map((p) => p.name.split(' ').slice(-1)[0])])), [w.date, w.userClubId])
   const events = (d: string) => {
-    const out: { icon: string; text: string; color?: string; f?: Fixture; nt?: boolean }[] = []
+    const out: CalEvent[] = []
     const f = fx.find((x) => x.date === d)
     if (f) out.push({ icon: 'ball', text: `${w.clubs[f.home].short} v ${w.clubs[f.away].short} · ${w.competitions[f.compId]?.short}`, f })
+    // the matches he is set to watch, and his followed clubs'
+    for (const { f: x, watch, club } of calendarOthers(w, d)) {
+      if (watch) out.push({ icon: 'eye', text: `You're watching this one${club ? ` · you follow ${w.clubs[club]?.short}` : ''}`, color: 'var(--acc)', f: x, kind: 'watch' })
+      else out.push({ icon: 'star', text: `You follow ${w.clubs[club!]?.short}`, color: 'var(--gold)', f: x, kind: 'follow' })
+    }
     for (const win of w.windows) {
       if (win.open === d) out.push({ icon: 'transfers', text: `${win.name} transfer window opens`, color: 'var(--tw)' })
       if (win.close === d) out.push({ icon: 'deadline', text: `${win.name} deadline day`, color: 'var(--neg)' })
@@ -847,7 +858,7 @@ export function CalendarScreen() {
     for (const c of Object.values(w.competitions)) for (const r of c.rounds) if (!r.drawn && addDays(r.date, -10) === d && c.clubs.includes(w.userClubId)) out.push({ icon: 'bracket', text: `${c.short} ${r.name} draw`, color: 'var(--gold)' })
     for (const x of all.get(d) || []) {
       const players = myNations.get(x.home) || myNations.get(x.away)
-      if (players) out.push({ icon: 'globe', text: players.join(', '), color: 'var(--info)', f: x, nt: true })
+      if (players) out.push({ icon: 'globe', text: players.join(', '), color: 'var(--info)', f: x, kind: 'nt' })
     }
     if (d === review) out.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
     return out
@@ -882,6 +893,12 @@ export function CalendarScreen() {
             const past = d < w.date
             const o = f?.played ? outcomeFor(f, w.userClubId) : undefined
             const home = f?.home === w.userClubId
+            // a match he is watching (green) or a followed club's (gold): in place of the day's dot, or in the corner
+            // when the day already shows his own match or an event
+            const mine = ev.find((e) => e.kind !== 'watch' && e.kind !== 'follow')
+            const tags = ev.some((e) => e.kind === 'watch') || ev.some((e) => e.kind === 'follow') ? (
+              <span className={`cal-tags ${f || mine ? 'corner' : ''}`}>{ev.some((e) => e.kind === 'watch') && <i className="w" />}{ev.some((e) => e.kind === 'follow') && <i className="f" />}</span>
+            ) : null
             return (
               <button key={d} className={`cal-cell ${d === w.date ? 'today' : ''} ${sel === d ? 'sel' : ''} ${past ? 'past' : ''} ${f ? 'has-fx' : ''} ${inWindow(d) ? 'win' : ''} ${inBreak(d) ? 'intl' : ''}`} onClick={() => { haptic(); setSel(sel === d ? undefined : d) }}>
                 <span className="cal-n">{Number(d.slice(8))}</span>
@@ -890,27 +907,29 @@ export function CalendarScreen() {
                     <span className={`cal-fx ${o || ''}`}><Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /></span>
                     <span className={`cal-sub ${o || ''}`}>{f.played && f.result ? `${home ? f.result.score[0] : f.result.score[1]}-${home ? f.result.score[1] : f.result.score[0]}` : home ? 'H' : 'A'}</span>
                   </>
-                ) : ev[0] ? <Icon name={ev[0].icon} size={14} color={ev[0].color} /> : (all.get(d)?.length ? <span className="cal-dot" /> : <span />)}
+                ) : mine ? <Icon name={mine.icon} size={14} color={mine.color} /> : tags || (all.get(d)?.length ? <span className="cal-dot" /> : <span />)}
+                {(f || mine) && tags}
               </button>
             )
           })}
         </div>
         <div className="row wrap tiny dim cal-legend">
           <span><i className="lg-win" />Transfer window</span><span><i className="lg-intl" />International break</span><span><i className="lg-w" />Won</span><span><i className="lg-l" />Lost</span>
+          {watchList(w).length > 0 && <span><i className="lg-watch" />Watching</span>}{follows(w).some((x) => x.kind === 'club') && <span><i className="lg-follow" />Clubs you follow</span>}
         </div>
       </div>
       {sel && (
         <div className="pad stack fade-up" style={{ marginTop: 12 }} key={sel}>
           <div className="label">{fmtDate(sel, 'full')}</div>
           <div className="card list">
-            {selEvents.length ? selEvents.map((e, i) => e.f ? <IntlOr key={i} w={w} e={e} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
+            {selEvents.length ? selEvents.map((e, i) => e.f ? <CalFixture key={i} w={w} e={e} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
           </div>
           {sel > w.date && (
             <button className="btn club block" disabled={advancing} onClick={() => { haptic('medium'); advance(sel) }}>
               <Icon name="ffwd" size={18} /> Advance to {fmtDate(sel, 'dm')}
             </button>
           )}
-          {sel > w.date && <div className="tiny dim">Advancing stops early for your matches and anything your stop conditions flag (Settings → Advance).</div>}
+          {sel > w.date && <div className="tiny dim">Advancing stops early for your matches, the matches you watch, and anything your stop conditions flag (Settings → Advance).</div>}
         </div>
       )}
       {!sel && (
@@ -923,7 +942,7 @@ export function CalendarScreen() {
                 <div key={d} className={`cal-ag ${d < w.date ? 'past' : ''} ${d === w.date ? 'today' : ''}`}>
                   <button className="cal-ag-d" onClick={() => { haptic(); setSel(d) }}><b className="display">{Number(d.slice(8))}</b><span className="tiny dim">{fmtDate(d, 'day')}</span></button>
                   <div className="grow" style={{ minWidth: 0 }}>
-                    {ev.map((e, i) => e.f ? <IntlOr key={i} w={w} e={e} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
+                    {ev.map((e, i) => e.f ? <CalFixture key={i} w={w} e={e} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
                   </div>
                 </div>
               ))}

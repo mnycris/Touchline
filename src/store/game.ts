@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { MatchResult, World } from '../domain/types'
 import type { RawDb } from '../data/rawTypes'
 import { createWorld, type NewCareerOptions } from '../data/createWorld'
-import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, simulateDay, userFixtureOn, worldRng, type StopReason } from '../engine/world/advance'
+import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, setWatched, simulateDay, userFixtureOn, watchedOn, worldRng, type StopReason } from '../engine/world/advance'
 import { createSim, simulateFixture } from '../engine/world/matchRunner'
 import { createOthers, type OtherLive } from '../engine/world/liveDay'
 import { fmtDate } from '../domain/dates'
@@ -427,8 +427,9 @@ export const useGame = create<GameState>((set, get) => ({
     try {
       // step day by day so the calendar animates and the UI stays responsive
       for (let i = 0; i < 400; i++) {
-        // busy match days: simulate the day's fixtures in batches so the UI keeps breathing
-        if (!userFixtureOn(w, w.date)) {
+        // busy match days: simulate the day's fixtures in batches so the UI keeps breathing (not on a day with a match
+        // to watch: the day stops for it first, and the games played alongside it run with it)
+        if (!userFixtureOn(w, w.date) && !watchedOn(w)) {
           const todays = fixturesOn(w, w.date)
           if (todays.length > 24) {
             for (let k = 0; k < todays.length; k += 24) {
@@ -461,7 +462,7 @@ export const useGame = create<GameState>((set, get) => ({
     // on a match day the stories wait: the preview opens clean and the news drops in after the final whistle
     if (stop !== 'match' && stop !== 'watch') get().checkNews()
     if (stop === 'match') get().open({ name: 'prematch' })
-    else if (stop === 'watch' && w.flags.watch) get().watchFixture(w.flags.watch)
+    else if (stop === 'watch') { const wf = watchedOn(w); if (wf) get().watchFixture(wf.id) }
     else if (stop === 'season-end') get().open({ name: 'seasonReview', params: { season: w.season - 1 } })
     else if (stop === 'sacked') get().open({ name: 'jobs', params: { sacked: true } })
     else if (stop === 'deadline') get().notify('Transfer Deadline Day!', 'info')
@@ -508,13 +509,13 @@ export const useGame = create<GameState>((set, get) => ({
     const f = w.fixtures[fixtureId]
     if (!f || f.played || f.userInvolved) return
     if (f.date > w.date) {
-      w.flags.watch = f.id
+      setWatched(w, f.id, true)
       get().notify(`Set to watch ${w.clubs[f.home]?.short} v ${w.clubs[f.away]?.short}: Continue stops on ${fmtDate(f.date, 'dm')}`, 'ok')
       set({ v: get().v + 1 })
       return
     }
     if (f.date < w.date) return
-    w.flags.watch = undefined
+    setWatched(w, f.id, false)
     const sim = createSim(w, f, false, true)
     set({ live: { sim, fixtureId: f.id, speed: get().prefs.matchSpeed, running: true, tick: 0, finished: false, applied: false, spectator: true, others: createOthers(w, f) }, v: get().v + 1 })
     get().closeAll()
