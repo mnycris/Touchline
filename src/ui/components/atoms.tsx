@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { Club, Player, Position, World } from '../../domain/types'
 import { GROUP_COLOR, POS_GROUP } from '../../domain/constants'
 import { badgeHiRes, badgeUrls, compLogoUrls, compWikiQuery, faceUrls, flagCodeUrl, flagUrl, isFailed, isLoaded, knownFace, managerWikiQuery, markFailed, markLoaded, playerWikiQuery, wikiPhoto, type WikiQuery, crestFit } from '../../services/assets'
@@ -238,15 +238,18 @@ export function Bar({ v, max = 100, color, h = 6 }: { v: number; max?: number; c
   return <div className="bar" style={{ height: h }}><i style={{ width: `${pct}%`, background: c }} /></div>
 }
 
-export function Stars({ n, max = 5, size = 13, color = 'var(--gold)' }: { n: number; max?: number; size?: number; color?: string }) {
+export function Stars({ n, max = 5, size = 13, color = 'var(--gold)', glow }: { n: number; max?: number; size?: number; color?: string; glow?: boolean }) {
+  const uid = useId().replace(/:/g, '')
   return (
-    <span className="row tight" style={{ gap: 1 }}>
+    <span className={`stars ${glow ? 'glow' : ''}`} style={{ ['--st' as any]: color }} role="img" aria-label={`${n} of ${max} stars`}>
       {Array.from({ length: max }, (_, i) => {
         const fill = Math.max(0, Math.min(1, n - i))
+        // (a part-filled star is cut at its share; whole ones need no gradient)
+        const paint = fill >= 1 ? color : fill <= 0 ? 'rgba(255,255,255,.16)' : `url(#st${uid}${i})`
         return (
-          <svg key={i} width={size} height={size} viewBox="0 0 24 24">
-            <defs><linearGradient id={`st${i}${fill}`}><stop offset={fill} stopColor={color} /><stop offset={fill} stopColor="rgba(255,255,255,.18)" /></linearGradient></defs>
-            <path d="m12 2.8 2.8 5.8 6.3.9-4.6 4.5 1.1 6.3L12 17.3l-5.6 3 1.1-6.3L2.9 9.5l6.3-.9Z" fill={`url(#st${i}${fill})`} />
+          <svg key={i} width={size} height={size} viewBox="0 0 24 24" className={fill >= 1 ? 'on' : ''}>
+            {fill > 0 && fill < 1 && <defs><linearGradient id={`st${uid}${i}`}><stop offset={fill} stopColor={color} /><stop offset={fill} stopColor="rgba(255,255,255,.16)" /></linearGradient></defs>}
+            <path d="M12 2.6c.3 0 .6.2.8.5l2.4 4.9 5.4.8c.7.1 1 1 .5 1.5l-3.9 3.8.9 5.4c.1.7-.6 1.3-1.3.9L12 17.9l-4.8 2.5c-.6.4-1.4-.2-1.3-.9l.9-5.4L3 10.3c-.5-.5-.2-1.4.5-1.5l5.4-.8 2.4-4.9c.2-.3.4-.5.7-.5Z" fill={paint} />
           </svg>
         )
       })}

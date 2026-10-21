@@ -12,15 +12,12 @@ import { nextFixture, userClub } from '../selectors'
 import { PRESET_INFO, presetOf, presetTactics, tendencies } from '../tacticsGuide'
 import { ATTITUDE, FOR_STANDING, STYLE_ORDER, attitudeFor, recommendedStyle, standingNote, standingOf, styleFits, teamNotes, type StyleFit } from '../teamAdvice'
 import { Icon } from '../icons/Icon'
-import { Badge } from './atoms'
+import { Badge, Stars } from './atoms'
 import { Sheet } from './layout'
 import { TeamLineup, sideFromSheet } from './Lineup'
 
 export type TeamTab = 'overview' | 'lineup' | 'roles' | 'tactics' | 'more'
 
-const Stars = ({ n }: { n: number }) => (
-  <span className="to-stars" aria-label={`${n} of 5`}>{[1, 2, 3, 4, 5].map((i) => <i key={i} className={i <= n ? 'on' : ''} />)}</span>
-)
 const FIT_WORD = ['', 'Poor fit', 'Weak fit', 'Ordinary fit', 'Good fit', 'Great fit']
 /** The tendencies worth showing on the overview, with the short names they go by here. */
 const TEND_SHOWN: Record<string, string> = { keep: 'Keeping the ball', dir: 'Directness', press: 'Pressing', expo: 'Exposure', energy: 'Energy use' }
@@ -115,7 +112,7 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
             <div className="to-now-n display">{cur || 'Your own'}</div>
             <div className="small muted">{cur ? PRESET_INFO[cur]?.tag : 'Settings you have set yourself'}</div>
           </div>
-          {curFit && <div className="to-now-fit"><Stars n={curFit.stars} /><span className="tiny dim">{FIT_WORD[curFit.stars]}</span></div>}
+          {curFit && <div className="to-now-fit"><Stars n={curFit.stars} size={14} glow /><span className="tiny dim">{FIT_WORD[curFit.stars]}</span></div>}
         </div>
         <div className="to-tend">
           {tend.map((x) => (
@@ -199,7 +196,7 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
       <Sheet open={!!open} onClose={() => setOpen(undefined)} title={open?.name}>
         {open && (
           <div className="stack" style={{ gap: 12 }}>
-            <div className="row" style={{ gap: 10 }}><Stars n={open.stars} /><span className="small b">{FIT_WORD[open.stars]} for your players</span></div>
+            <div className="row" style={{ gap: 10 }}><Stars n={open.stars} size={16} glow /><span className="small b">{FIT_WORD[open.stars]} for your players</span></div>
             <div className="small">{PRESET_INFO[open.name]?.identity}</div>
             {open.name !== 'Balanced' && <div className="to-why"><Icon name="check" size={15} /><span className="small">{open.why}</span></div>}
             {open.weak && <div className="to-why warn"><Icon name="info" size={15} /><span className="small">{open.weak}</span></div>}

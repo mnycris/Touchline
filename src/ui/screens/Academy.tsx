@@ -27,16 +27,19 @@ const PACE_TONE = { pos: 'var(--pos)', neu: 'var(--t2)', neg: 'var(--t3)' } as c
 const PACE_SHORT: Record<string, string> = { 'Fast developer': 'Fast riser', 'Steady progress': 'Steady', 'Slow burner': 'Slow burner' }
 const LINE: Record<string, string> = { GK: 'Goalkeepers', DEF: 'Defenders', MID: 'Midfielders', ATT: 'Forwards' }
 
-/** OVR now, the potential above it, and the first team's level: how far he has come and how far he can go. */
+/**
+ * One track: OVR now in white running straight into the potential still to come in gold (hatched, it isn't his yet;
+ * a scouted range fades from its low end to its high one), with the first team's level marked across it.
+ */
 function GrowthBar({ ovr, pot, bar, lo: potLo }: { ovr: number; pot: number; bar: number; lo?: number }) {
   const min = 40, max = 95
-  const x = (v: number) => `${Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100))}%`
+  const pct = (v: number) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100))
+  const end = Math.max(pct(pot), pct(ovr), 1)
+  const rel = (v: number) => `${(Math.min(pct(v), end) / end) * 100}%`
   return (
     <span className="gb" aria-label={`${ovr} now, potential ${potLo ? `${potLo}–` : ''}${pot}, first team ${bar}`}>
-      <i className="gb-now" style={{ width: x(ovr) }} />
-      {potLo != null && <i className="gb-range" style={{ left: x(potLo), width: `calc(${x(pot)} - ${x(potLo)})` }} />}
-      <i className="gb-pot" style={{ left: x(ovr), width: `calc(${x(pot)} - ${x(ovr)})` }} />
-      <i className="gb-bar" style={{ left: x(bar) }} />
+      <span className="gb-fill" style={{ width: `${end}%`, ['--now' as any]: rel(ovr), ['--lo' as any]: rel(potLo ?? pot) }} />
+      <i className="gb-bar" style={{ left: `${pct(bar)}%` }} />
     </span>
   )
 }

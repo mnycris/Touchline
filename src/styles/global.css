@@ -378,3 +378,8 @@ html.rm .ci-light { opacity: 0 !important; }
 @keyframes fog2 { 0% { transform: translate(0, 0) scale(1.04); } 50% { transform: translate(-20%, 10%) scale(.9); } 100% { transform: translate(-8%, -6%) scale(1.14); } }
 @keyframes fog3 { 0% { transform: translate(0, 0) scale(.92); } 50% { transform: translate(-16%, -8%) scale(1.1); } 100% { transform: translate(14%, -12%) scale(1); } }
 html.rm .club-fog i { animation: none !important; }
+
+/* star ratings: the filled ones can carry a soft glow */
+.stars { display: inline-flex; align-items: center; gap: 1.5px; line-height: 0; }
+.stars svg { display: block; flex: none; }
+.stars.glow svg.on { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--st) 55%, transparent)); }
