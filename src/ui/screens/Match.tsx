@@ -338,10 +338,16 @@ export function LiveMatch() {
   }
   const togglePitch = () => { const v = !pitchOpen; setPitchOpen(v); try { localStorage.setItem('opus:pitch', v ? '1' : '0') } catch { /* private mode */ } }
 
-  const feed = sim.events.filter((e) => e.text && !hidePens(e)).slice().reverse()
+  // a penalty's outcome stays under wraps until its kick has been shown: while the kick is still queued (behind the
+  // award, or playing), the score, the scorers, the feed, the momentum graph, the shot map and the pitch's last minute
+  // wait for it
+  const held = new Set(moments.filter((m) => m.kind === 'kick').map((m) => m.e))
+  const shown = sim.events.filter((e) => !held.has(e))
+  // (a penalty with the last kick of a half or of the match: the break and the final whistle wait for it as well)
+  const feed = shown.filter((e) => e.text && !hidePens(e) && !(held.size && (e.type === 'ht' || e.type === 'ft'))).slice().reverse()
   const brk = sim.phase === 'HT' || sim.phase === 'ETHT'
-  const scoreNow = sim.score
-  const goalsForGraph = sim.events.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))
+  const scoreNow: [number, number] = [0, 1].map((s) => sim.score[s] - [...held].filter((e) => isGoal(e) && e.side === s).length) as [number, number]
+  const goalsForGraph = shown.filter(isGoal).map((e) => ({ key: e.min + (e.add || 0) / 100, side: e.side as 0 | 1 }))
 
   const onLineupTap = (t: LineupTap) => { haptic(); setPanel({ side: t.side, id: t.id }) }
   const markViewed = (id: string) => { if (!live.viewed?.includes(id)) live.viewed = [...(live.viewed || []), id] }
@@ -363,20 +369,20 @@ export function LiveMatch() {
             <div className="sb-score num"><span key={`h${scoreNow[0]}`} className="pop">{scoreNow[0]}</span><span className="sb-sep">–</span><span key={`a${scoreNow[1]}`} className="pop">{scoreNow[1]}</span></div>
             <div className={`sb-clock ${live.running && !sim.finished && !moment ? 'live' : ''}`}>{clock(sim)}</div>
             {sim.pens && reveal >= 0 && <div className="tiny b" style={{ marginTop: 3 }}>Pens {penScore[0]}–{penScore[1]}</div>}
-            {agg && <div className="tiny dim" style={{ marginTop: 2 }}>Agg {sim.score[0] + agg[0]}–{sim.score[1] + agg[1]}</div>}
+            {agg && <div className="tiny dim" style={{ marginTop: 2 }}>Agg {scoreNow[0] + agg[0]}–{scoreNow[1] + agg[1]}</div>}
           </div>
           <div className="sb-team"><span className="badge-rc"><Badge club={away} size={44} /><RedCards n={redsOf(sim.events, 1)} size={15} /></span><div className="sb-name">{away.short}</div></div>
         </div>
         <div className="row between tiny" style={{ padding: '0 6px', minHeight: 14, alignItems: 'flex-start' }}>
-          <div className="scorers">{goalScorers(w, sim, 0).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
-          <div className="scorers r">{goalScorers(w, sim, 1).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
+          <div className="scorers">{goalScorers(w, { events: shown }, 0).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
+          <div className="scorers r">{goalScorers(w, { events: shown }, 1).map((s) => <div key={s.text} className="ellipsis">{s.text}</div>)}</div>
         </div>
         {elsewhere && <button key={elsewhere.id} className="elsewhere tiny" onClick={() => { haptic(); setTab('matches') }}><Ball size={10} /><span className="dim">Elsewhere</span><span className="ellipsis b">{elsewhere.text}</span></button>}
       </div>
 
       {pitchOpen && (
         <div className="lp-wrap">
-          <LivePitch sim={sim} w={w} speed={speed} frameCount={sim.timeline.length} home={home} away={away} />
+          <LivePitch sim={sim} w={w} speed={speed} frameCount={sim.timeline.length - (held.size ? 1 : 0)} home={home} away={away} />
           <Presence id={moment?.id}>{moment && <MomentView m={moment} w={w} sim={sim} onClose={nextMoment} />}</Presence>
         </div>
       )}
@@ -388,7 +394,7 @@ export function LiveMatch() {
 
       <div className="match-body">
         {!pitchOpen && <Presence id={moment?.id}>{moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}</Presence>}
-        {brk && !spectator && (
+        {brk && !spectator && !held.size && (
           <Presence id={htShut === `${sim.phase}:${f.id}` ? undefined : `${sim.phase}:${f.id}`}>
             {htShut !== `${sim.phase}:${f.id}` && (
               <div className="htr-wrap">
@@ -398,7 +404,7 @@ export function LiveMatch() {
             )}
           </Presence>
         )}
-        {brk && !spectator && htShut === `${sim.phase}:${f.id}` && (
+        {brk && !spectator && !held.size && htShut === `${sim.phase}:${f.id}` && (
           <button className="htr-reopen" onClick={() => { haptic(); setHtShut(undefined) }}><Icon name="stats" size={15} /> {sim.phase === 'HT' ? 'Half-time report' : 'Break report'} <Icon name="down" size={14} /></button>
         )}
         {tab === 'feed' && (
@@ -415,7 +421,7 @@ export function LiveMatch() {
         )}
         {tab === 'stats' && (
           <>
-            {sim.events.some((e) => e.shot) && <div className="pad" style={{ paddingTop: 12 }}><ShotMap w={w} events={sim.events} home={home.id} away={away.id} colors={colors} live={!sim.finished} /></div>}
+            {shown.some((e) => e.shot) && <div className="pad" style={{ paddingTop: 12 }}><ShotMap w={w} events={shown} home={home.id} away={away.id} colors={colors} live={!sim.finished} /></div>}
             <StatsPanel stats={stats} homeId={home.id} awayId={away.id} w={w} />
           </>
         )}
@@ -430,7 +436,7 @@ export function LiveMatch() {
           ) : undefined} />
       )}
       <div className="match-controls">
-        {sim.finished && penDone ? (
+        {sim.finished && penDone && !held.size ? (
           <button className="btn primary block" style={{ height: 54 }} onClick={complete}><Icon name="check" size={20} /> Full-time · Continue</button>
         ) : (
           <>

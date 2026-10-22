@@ -111,8 +111,11 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
   }, [frameCount, sim.phase, sim.events.length])
 
   useEffect(() => {
+    // (the minute shown is the last of frameCount: the match screen holds one back while a penalty's kick is still to be
+    // shown, so the pitch doesn't give its outcome away)
     const frames = sim.timeline
-    const f = frames[frames.length - 1]
+    const n = Math.min(frameCount, frames.length)
+    const f = frames[n - 1]
     timers.current.forEach((t) => window.clearTimeout(t))
     timers.current = []
     const now = performance.now()
@@ -125,14 +128,14 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
     }
     const minuteMs = 1000 / speed
     // fast-forwarding (seek / next break): snap to the minute's end state
-    if (gap < minuteMs * 0.5 || frames.length - frameCountPrev.current > 1) {
-      frameCountPrev.current = frames.length
+    if (gap < minuteMs * 0.5 || n - frameCountPrev.current > 1) {
+      frameCountPrev.current = n
       const last = f.acts?.[f.acts.length - 1]
       setDur(Math.max(60, Math.min(220, gap)))
       setBall({ x: clamp(f.x, -1, 101), y: f.y }); setPoss(f.s); setHolder(last?.q ?? last?.p); setPasser(undefined); setTick((t) => t + 1)
       return
     }
-    frameCountPrev.current = frames.length
+    frameCountPrev.current = n
     // how many beats fit in a minute at this speed (about one every ~0.2s of screen time)
     const budget = clamp(Math.round(minuteMs / 190), 3, 16)
     const beats = beatsFor(f, budget)
@@ -147,14 +150,14 @@ export const LivePitch = memo(function LivePitch({ sim, w, speed, frameCount, ho
         setPoss(bt.poss)
         setHolder(bt.hold)
         setTick((t) => t + 1)
-        if (bt.label) setTag({ text: bt.label, x: bt.ball.x, y: bt.ball.y, k: bt.label === 'GOAL' ? 'goal' : bt.label === 'SAVE' ? 'save' : 'play', id: frames.length * 100 + i })
-        if (bt.net != null) setNet({ side: bt.net, id: frames.length })
+        if (bt.label) setTag({ text: bt.label, x: bt.ball.x, y: bt.ball.y, k: bt.label === 'GOAL' ? 'goal' : bt.label === 'SAVE' ? 'save' : 'play', id: n * 100 + i })
+        if (bt.net != null) setNet({ side: bt.net, id: n })
       }, at))
       at += ms
     })
     // the minute's headline event (a card, an injury, a penalty award) gets a tag at the end
     const lateTag = LABEL[f.k] && !['goal', 'penGoal', 'owngoal', 'save', 'miss', 'chance', 'corner'].includes(f.k)
-    if (lateTag) timers.current.push(window.setTimeout(() => setTag({ text: LABEL[f.k], x: f.x, y: f.y, k: f.k, id: frames.length * 100 + 99 }), Math.min(at, minuteMs * 0.9)))
+    if (lateTag) timers.current.push(window.setTimeout(() => setTag({ text: LABEL[f.k], x: f.x, y: f.y, k: f.k, id: n * 100 + 99 }), Math.min(at, minuteMs * 0.9)))
     return () => { timers.current.forEach((t) => window.clearTimeout(t)); timers.current = [] }
   }, [frameCount, sim.phase])
 
