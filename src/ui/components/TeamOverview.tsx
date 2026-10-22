@@ -2,10 +2,11 @@
 // plays (on the same pitch as match day), how the team plays and whether that suits these players, and how much risk
 // to take. Every suggestion says why and can be taken with one tap; everything else is one tap away in the other tabs.
 import { useMemo, useState } from 'react'
-import type { Fixture, Mentality, TeamSheet, World } from '../../domain/types'
+import type { Fixture, Mentality, TeamSheet, TeamTactics, World } from '../../domain/types'
 import { MENTALITIES } from '../../domain/constants'
 import { rosterOf } from '../../engine/world/roster'
 import { predictFixture } from '../../engine/match/predict'
+import { prematchOutlook } from '../../engine/match/response'
 import { fmtDate } from '../../domain/dates'
 import { haptic, useGame } from '../../store/game'
 import { nextFixture, userClub } from '../selectors'
@@ -37,7 +38,7 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
   const cur = presetOf(sheet.tactics)
   const next = forMatch || nextFixture(w, club.id)
   const pred = useMemo(() => (next ? predictFixture(w, next) : undefined), [w, next, sheet, v])
-  const att = useMemo(() => (next && pred ? attitudeFor(w, next, pred) : undefined), [w, next, pred])
+  const att0 = useMemo(() => (next && pred ? attitudeFor(w, next, pred) : undefined), [w, next, pred])
   const notes = teamNotes(w, sheet, squad, fits)
   const [open, setOpen] = useState<StyleFit>()
   const assistant: string = w.flags.staff?.assistant || 'Your assistant'
@@ -47,11 +48,9 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
   const mentality = sheet.tactics.mentality
   const applyStyle = (name: string) => { haptic('medium'); edit((s) => { s.tactics = presetTactics(name, s.tactics) }); useGame.getState().notify(`Now playing ${name}`, 'ok') }
   const setAttitude = (m: Mentality) => { haptic(); edit((s) => { s.tactics = { ...s.tactics, mentality: m } }) }
-  // a change of style is worth suggesting only when it is clearly better for this side than the one in use
   const fitOf = (n?: string) => fits.find((x) => x.name === n)
   const adj = (x?: StyleFit) => (x ? x.score + (FOR_STANDING[x.name]?.(standing) || 0) : -9)
   const curFit = fitOf(cur)
-  const suggest = rec.name !== cur && (!curFit || (rec.name === 'Balanced' ? curFit.stars <= 2 : adj(rec) - adj(curFit) >= 0.5)) ? rec : undefined
   const comp = next ? w.competitions[next.compId] : undefined
   const side = useMemo(() => sideFromSheet(w, club.id, sheet, comp), [w, club.id, sheet, comp, v])
   const tend = tendencies(sheet.tactics).filter((x) => TEND_SHOWN[x.id])
@@ -60,8 +59,35 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
   const home = next ? next.home === club.id : true
   const opp = next ? w.clubs[home ? next.away : next.home] : undefined
   const mine = pred ? (home ? pred.home : pred.away) : undefined, theirs = pred ? (home ? pred.away : pred.home) : undefined
-  const pW = pred ? (home ? pred.pHome : pred.pAway) : 0, pL = pred ? (home ? pred.pAway : pred.pHome) : 0, pD = pred ? pred.pDraw : 0
+  // the odds with this team and this set-up: the prediction rates the two XIs, and the way the team is set up moves it
+  // as the match engine plays it (engine/match/response.ts), so every choice below shows what it does to them
+  const oddsWith = (t: TeamTactics) => (mine && theirs ? prematchOutlook([mine.xg, theirs.xg], t) : undefined)
+  const odds = oddsWith(sheet.tactics)
+  const pW = odds?.w ?? 0, pL = odds?.l ?? 0, pD = odds?.d ?? 0
   const pct = (x: number) => `${Math.round(x * 100)}%`
+  // the attitude the numbers favour: the most points on average (a win 3, a draw 1) with this team and this style,
+  // Balanced unless another is clearly better, so the suggestion never disagrees with the odds shown beside it
+  const pts = (o: { w: number; d: number }) => 3 * o.w + o.d
+  const byAtt = MENTALITIES.map((m) => ({ m, o: oddsWith({ ...sheet.tactics, mentality: m }) }))
+  const bal = byAtt[2].o
+  const top = bal ? byAtt.reduce((b, x) => (x.o && pts(x.o) > pts(b.o!) ? x : b), byAtt[2]) : undefined
+  const pick = top && bal && pts(top.o!) - pts(bal) >= 0.03 ? top : byAtt[2]
+  const att = att0 && pick.o && bal ? {
+    ...att0, suggest: pick.m,
+    why: pick.m === 'Balanced'
+      ? `Against ${att0.opp} ${att0.venue}, no other attitude gains you anything on average: stay balanced (${pct(bal.w)} to win, ${pct(bal.l)} to lose).`
+      : `${ATTITUDE[pick.m].label} gets the most out of this match on average: ${pct(pick.o.w)} to win and ${pct(pick.o.l)} to lose, against ${pct(bal.w)} and ${pct(bal.l)} balanced.`,
+  } : att0
+  // a change of style is worth suggesting only when it is clearly better than the one in use: with the odds, the one
+  // that gets the most points on average (what each style does was measured whole in the match engine); without them,
+  // the one that suits the squad clearly better
+  const byStyle = STYLE_ORDER.map((n) => ({ n, o: oddsWith(presetTactics(n, sheet.tactics)) }))
+  const topStyle = odds ? byStyle.reduce((b, x) => (x.o && (!b.o || pts(x.o) > pts(b.o)) ? x : b), byStyle[0]) : undefined
+  const suggest: StyleFit | undefined = odds
+    ? (topStyle?.o && topStyle.n !== cur && pts(topStyle.o) - pts(odds) >= 0.03 && fitOf(topStyle.n)
+      ? { ...fitOf(topStyle.n)!, why: `It gets more out of this match on average: ${pct(topStyle.o.w)} to win and ${pct(topStyle.o.l)} to lose, against ${pct(pW)} and ${pct(pL)} as you are.` }
+      : undefined)
+    : rec.name !== cur && rec.name !== 'Balanced' && (!curFit || adj(rec) - adj(curFit) >= 0.5) ? rec : undefined
   const verdict = urgent.length ? urgent[0].text
     : better ? 'You can put out a stronger team than this one.'
     : `The team is ready${opp ? ` for ${opp.short}` : ''}.${att && VERDICT[att.suggest] ? ` ${VERDICT[att.suggest]}` : ''}`
@@ -78,7 +104,7 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
               <div className="to-vs-mid"><span className="display">VS</span></div>
               <div className="to-vs-side"><Badge club={opp} size={44} /><b className="ellipsis">{opp.short}</b>{theirs && <span className="to-xi-r">XI <b>{theirs.xi.toFixed(1)}</b></span>}</div>
             </div>
-            {pred && (
+            {odds && (
               <div className="to-odds" aria-label={`Win ${pct(pW)}, draw ${pct(pD)}, lose ${pct(pL)}`}>
                 <div className="to-odds-bar"><i className="w" style={{ flexGrow: pW }} /><i className="d" style={{ flexGrow: pD }} /><i className="l" style={{ flexGrow: pL }} /></div>
                 <div className="to-odds-k tiny"><span><b>{pct(pW)}</b> win</span><span><b>{pct(pD)}</b> draw</span><span><b>{pct(pL)}</b> lose</span></div>
@@ -125,14 +151,14 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
         </div>
         {suggest ? (
           <div className="to-rec">
-            <div className="small"><b>{assistant.split(' ')[0]} suggests {suggest.name}.</b> {suggest.name === 'Balanced' ? `${cur} asks for things this squad doesn’t have: Balanced is a sounder base.` : suggest.why}</div>
+            <div className="small"><b>{assistant.split(' ')[0]} suggests {suggest.name}.</b> {suggest.why}</div>
             <button className="btn sm club" onClick={() => applyStyle(suggest.name)}><Icon name="check" size={14} /> Play {suggest.name}</button>
           </div>
         ) : curFit ? (
           <div className={`to-rec ${curFit.weak ? 'warn' : curFit.stars >= 3 ? 'ok' : ''}`}>
             <Icon name={curFit.weak ? 'info' : 'check'} size={16} />
             <div className="small">
-              {curFit.name === 'Balanced' ? 'A sound base for any squad.' : curFit.why === 'Nothing in this XI stands out for it.' ? (curFit.weak ? '' : 'Nothing in this XI stands out for it, and nothing works against it.') : curFit.why}
+              {curFit.name === 'Balanced' ? 'The plainest way to play: on average, every other style does better in the match engine.' : curFit.why === 'Nothing in this XI stands out for it.' ? (curFit.weak ? '' : 'Nothing in this XI stands out for it, and nothing works against it.') : curFit.why}
               {curFit.weak && <> {curFit.weak}</>}
             </div>
           </div>
@@ -141,12 +167,16 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
         )}
         <div className="tiny dim to-other-h">Ways to play · stars: how well your players suit it</div>
         <div className="to-chips">
-          {STYLE_ORDER.map((n) => fits.find((x) => x.name === n)).filter((x): x is StyleFit => !!x).map((x) => (
-            <button key={x.name} className={`to-chip ${cur === x.name ? 'on' : ''} ${suggest?.name === x.name ? 'rec' : ''}`} onClick={() => { haptic(); setOpen(x) }}>
-              <b>{x.name}</b>
-              <Stars n={x.stars} />
-            </button>
-          ))}
+          {STYLE_ORDER.map((n) => fits.find((x) => x.name === n)).filter((x): x is StyleFit => !!x).map((x) => {
+            const o = oddsWith(presetTactics(x.name, sheet.tactics))
+            return (
+              <button key={x.name} className={`to-chip ${cur === x.name ? 'on' : ''} ${suggest?.name === x.name ? 'rec' : ''}`} onClick={() => { haptic(); setOpen(x) }}>
+                <b>{x.name}</b>
+                <Stars n={x.stars} />
+                {o && <span className="to-chip-o">{pct(o.w)} win · {pct(o.l)} lose</span>}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -154,14 +184,19 @@ export function TeamOverview({ w, sheet, forMatch, edit, onAuto, goTab }: {
       <div className="card to-sec">
         <div className="to-h"><span className="label">Attitude</span><span className="tiny dim">How much risk to take</span></div>
         <div className="to-risk">
-          {MENTALITIES.map((m, i) => (
-            <button key={m} className={`to-risk-b m${i} ${mentality === m ? 'on' : ''}`} onClick={() => setAttitude(m)} aria-pressed={mentality === m}>
-              {att?.suggest === m && <span className="to-risk-sug">Suggested</span>}
-              <i />
-              <span>{ATTITUDE[m].label}</span>
-            </button>
-          ))}
+          {MENTALITIES.map((m, i) => {
+            const o = oddsWith({ ...sheet.tactics, mentality: m })
+            return (
+              <button key={m} className={`to-risk-b m${i} ${mentality === m ? 'on' : ''}`} onClick={() => setAttitude(m)} aria-pressed={mentality === m}>
+                {att?.suggest === m && <span className="to-risk-sug">Suggested</span>}
+                <i />
+                <span>{ATTITUDE[m].label}</span>
+                {o && <span className="to-risk-o"><em className="w">{pct(o.w)}</em><em className="l">{pct(o.l)}</em></span>}
+              </button>
+            )
+          })}
         </div>
+        {odds && <div className="tiny dim to-risk-k"><em className="w">Win</em> and <em className="l">lose</em> chances with each, as the match engine plays it against {opp?.short || 'them'}</div>}
         <div className="small muted" style={{ marginTop: 10 }}>{ATTITUDE[mentality].text}</div>
         {att && att.suggest !== mentality && (
           <div className="to-rec" style={{ marginTop: 10, marginBottom: 0 }}>

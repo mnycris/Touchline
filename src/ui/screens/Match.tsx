@@ -23,6 +23,10 @@ import { ScriptEditor } from '../components/ScriptEditor'
 import { Presence } from '../components/Presence'
 import { TacticsBoard } from '../components/TacticsBoard'
 import { Touchline } from '../components/Touchline'
+import { predictFixture } from '../../engine/match/predict'
+import { effectOf, liveOutlook, minutesLeft, shoutEffect, stateOf } from '../../engine/match/response'
+import { OutlookStrip } from '../components/Outlook'
+import { applyShouts, callsInForce, same, shoutsOn, type ShoutId } from '../shouts'
 import { syncOthers } from '../../engine/world/liveDay'
 import { isWatched, setWatched } from '../../engine/world/advance'
 import { MatchesTab, PipCard, SpectatorView } from './LiveOthers'
@@ -179,6 +183,8 @@ export function LiveMatch() {
   const us: 0 | 1 = f ? (f.home === w.userClubId ? 0 : 1) : 0
   const spectator = !!live?.spectator
   const others = live?.others || []
+  // what the two sides were expected to create before kick-off: the touchline's outlook starts from it
+  const prior = useMemo<[number, number]>(() => { if (!f) return [1.3, 1.3]; const p = predictFixture(w, f); return us === 0 ? [p.home.xg, p.away.xg] : [p.away.xg, p.home.xg] }, [f?.id])
 
   const running = !!live?.running && !manage && !moment
   const speed = live?.speed || 1
@@ -457,7 +463,7 @@ export function LiveMatch() {
           onClose={() => { haptic(); setSpectate(undefined) }} onPip={() => { haptic(); setPip(specO.fixtureId); setSpectate(undefined) }}
           onPlayer={(id) => { setSpectate(undefined); go({ name: 'player', params: { id } }) }} />
       )}
-      {!spectator && <ManageSheet open={manage} initialOut={manageOut} onClose={() => { setManage(false); setManageOut(undefined); force() }} sim={sim} side={us} w={w} />}
+      {!spectator && <ManageSheet open={manage} initialOut={manageOut} onClose={() => { setManage(false); setManageOut(undefined); force() }} sim={sim} side={us} w={w} prior={prior} />}
     </div>
   )
 }
@@ -625,7 +631,7 @@ export function RatingBadge({ v, motm }: { v: number; motm?: boolean }) {
 }
 
 // ---------------------------------------------------------------------------- manage sheet
-function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolean; onClose: () => void; sim: MatchSim; side: 0 | 1; w: World; initialOut?: number }) {
+function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open: boolean; onClose: () => void; sim: MatchSim; side: 0 | 1; w: World; initialOut?: number; prior: [number, number] }) {
   const [tab, setTab] = useState<'touch' | 'subs' | 'tactics' | 'formation' | 'analysis'>('touch')
   const [out, setOut] = useState<number>()
   const [, force] = useReducer((x: number) => x + 1, 0)
@@ -641,7 +647,9 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
   // what the tactics were when the sheet opened: the board explains the difference
   const [base, setBase] = useState<TeamTactics>()
   const [baseForm, setBaseForm] = useState<string>()
-  useEffect(() => { if (open) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)); setUndo([]) } }, [open])
+  // (and the touchline calls in force then, so the board can count calls made since as they were measured)
+  const [baseOn, setBaseOn] = useState<ShoutId[]>()
+  useEffect(() => { if (open) { setBase({ ...sim.sideTactics(side) }); setBaseForm(sim.sideFormation(side)); setBaseOn(shoutsOn(sim, side).on); setUndo([]) } }, [open])
   const restore = (x: { t: TeamTactics; f: string }) => {
     if (x.f !== sim.sideFormation(side)) sim.setFormation(side, x.f, assignToFormation(onIds.map((id) => w.players[id]).filter(Boolean), x.f), false)
     sim.setTactics(side, x.t, false)
@@ -654,6 +662,22 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
     if (text) sim.applyChange(side, text, { tactics: base, formation: baseForm || sim.sideFormation(side) })
   }
   const lastApplied = sim.lastApplied(side)
+  // the board's forecast: the result chances from here as things were going, and with the changes made since it opened
+  const left = minutesLeft(sim)
+  // (shouts called since it opened count as the shouts were measured, whole; anything else setting by setting)
+  const state = stateOf([sim.score[side], sim.score[1 - side]], sim.minute)
+  const sh = shoutsOn(sim, side)
+  const pure = !!base && !!baseOn && same(applyShouts(sh.base, baseOn), base) && same(applyShouts(sh.base, sh.on), t)
+  const boardEff = !base ? undefined : pure ? shoutEffect(baseOn!, sh.on, state) : effectOf(base, t)
+  const effTo = (x: TeamTactics) => { const e = effectOf(t, x); return { f: held.f * (boardEff?.f ?? 1) * e.f, a: held.a * (boardEff?.a ?? 1) * e.a } }
+  // (the touchline calls in force when it opened count at what they were measured to do, as on the touchline)
+  const held = base && baseOn && pure ? callsInForce(sim, side, baseOn, sh.since) : { f: 1, a: 1 }
+  const was = left > 0 ? liveOutlook(sim, side, prior, held) : undefined
+  const mins = `${Math.round(left)} min left`
+  const boardForecast = was && (
+    <OutlookStrip label="From here" now={boardEff ? liveOutlook(sim, side, prior, { f: held.f * boardEff.f, a: held.a * boardEff.a }) : was} was={undo.length ? was : undefined} eff={undo.length ? boardEff : undefined}
+      note={undo.length ? `${mins} · with your changes` : mins} />
+  )
   const undoBar = undo.length > 0 ? (
     <div className="undo-bar">
       <span className="tiny dim grow">{undo.length === 1 ? '1 change' : `${undo.length} changes`} · applied when you close</span>
@@ -718,7 +742,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
       {tab === 'touch' && (
         <div style={{ marginTop: 12, ...kitVars(kitColors(w.clubs[sim.home.clubId], w.clubs[sim.away.clubId])), ['--us-c' as any]: side === 0 ? 'var(--home-c)' : 'var(--away-c)', ['--th-c' as any]: side === 0 ? 'var(--away-c)' : 'var(--home-c)' }}>
           {undoBar}
-          <Touchline sim={sim} side={side} w={w} onSet={(next) => setT(next)} onSubs={() => setTab('subs')} onBoard={() => setTab('tactics')} />
+          <Touchline sim={sim} side={side} w={w} prior={prior} onSet={(next) => setT(next)} onSubs={() => setTab('subs')} onBoard={() => setTab('tactics')} />
         </div>
       )}
       {tab === 'subs' && (
@@ -743,7 +767,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut }: { open: boolea
       {tab === 'tactics' && (
         <div style={{ marginTop: 12 }}>
           {undoBar}
-          <TacticsBoard t={t} onChange={setT} base={base} game={{ score: sim.score, side, minute: sim.minute, reds: [0, 1].map((x) => sim.events.filter((e) => e.side === x && (e.type === 'red' || e.type === 'secondYellow')).length) as [number, number] }} />
+          <TacticsBoard t={t} onChange={setT} base={base} forecast={boardForecast} oddsWith={was ? (x) => liveOutlook(sim, side, prior, effTo(x)) : undefined} game={{ score: sim.score, side, minute: sim.minute, reds: [0, 1].map((x) => sim.events.filter((e) => e.side === x && (e.type === 'red' || e.type === 'secondYellow')).length) as [number, number] }} />
         </div>
       )}
       {tab === 'analysis' && <div style={kitVars(kitColors(w.clubs[sim.home.clubId], w.clubs[sim.away.clubId]))}><LiveAnalysis sim={sim} w={w} side={side} names={[club.short, w.clubs[side === 0 ? sim.away.clubId : sim.home.clubId].short]} /></div>}

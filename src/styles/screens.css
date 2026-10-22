@@ -928,6 +928,14 @@ select.input option { background: #151b27; }
 .tb-ment button { position: relative; height: 40px; border-radius: 9px; color: var(--t2); }
 .tb-ment button.on { color: #fff; }
 .tb-ment .display { font-size: 13px; letter-spacing: .02em; line-height: 1.1; }
+.tb-ment.odds button { height: auto; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 6px 0; }
+.tb-ment-o { display: flex; gap: 5px; font-size: 10.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tb-ment-o em, .tb-ment-k em { font-style: normal; }
+.tb-ment-o .w, .tb-ment-k .w { color: var(--pos); } .tb-ment-o .l, .tb-ment-k .l { color: #ff7a86; }
+.tb-ment button.on .tb-ment-o .w, .tb-ment button.on .tb-ment-o .l { color: #fff; }
+.tb-ment button:not(.on) .tb-ment-o { opacity: .75; }
+.tb-ment-k { margin-top: 6px; }
+.tb-plan-o { margin-top: 4px; font-size: 11px; font-weight: 700; } .tb-plan-o .tl-dl { white-space: normal; }
 .tb-h { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--t2); margin-bottom: 8px; }
 .tb-top { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 8px; }
 .tb-ctrls { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -2981,6 +2989,13 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 .to-chip b { font-size: 13px; color: var(--t1); white-space: nowrap; }
 .to-chip.on { background: rgba(var(--club-rgb), .16); box-shadow: inset 0 0 0 1.5px rgba(var(--club-rgb), .6); }
 .to-chip.rec { box-shadow: inset 0 0 0 1.5px rgba(46, 229, 138, .45); }
+.to-chip-o { font-size: 10.5px; font-weight: 600; color: var(--t3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* each attitude's win and lose chances against this opponent */
+.to-risk-o { display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: var(--body); font-size: 10.5px; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.to-risk-o em, .to-risk-k em { font-style: normal; }
+.to-risk-o .w, .to-risk-k .w { color: var(--pos); } .to-risk-o .l, .to-risk-k .l { color: #ff7a86; }
+.to-risk-b:not(.on) .to-risk-o { opacity: .72; }
+.to-risk-k { margin-top: 8px; }
 /* attitude: five steps from holding on to all out, the suggested one marked */
 .to-risk { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding-top: 16px; }
 .to-risk-b { position: relative; display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 0 0 2px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .02em; line-height: 1.1; color: var(--t3); text-align: center; }
@@ -3044,10 +3059,79 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 .tl-shout-c { font-size: 10.5px; line-height: 1.25; color: var(--t3); }
 .tl-shout.on { background: linear-gradient(160deg, color-mix(in srgb, var(--acc) 18%, var(--s1)), var(--s1) 70%); box-shadow: inset 0 0 0 1.5px var(--acc), 0 6px 18px -10px rgba(var(--acc-rgb), .7); }
 .tl-shout.on .tl-shout-i { background: var(--acc); color: #04170c; }
+/* a shout's measured effect on the chances at each end */
+.tl-ch { grid-column: 1 / -1; margin-top: 7px; font-size: 10.5px; line-height: 1.3; font-weight: 700; color: var(--t3); font-variant-numeric: tabular-nums; }
+.tl-ch .up { color: color-mix(in srgb, var(--pos) 85%, var(--t2)); } .tl-ch .down { color: #ff8f99; } .tl-ch .flat { color: var(--t3); }
+.tl-ch .sep { margin: 0 4px; color: var(--t3); }
+/* a tip whose call the numbers don't back */
+.tl-tip-n { margin-top: 6px; font-size: 12px; color: var(--t3); line-height: 1.35; } .tl-tip-n .tl-dl { white-space: normal; }
+/* the call the numbers favour from here */
+.tl-shout.best:not(.on) { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pos) 70%, transparent); }
+.tl-best { position: absolute; top: -7px; right: 10px; padding: 2px 7px; border-radius: 6px; background: var(--pos); color: #04170c; font-size: 9.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; line-height: 1.3; }
 .tl-board { margin-top: 12px; }
+.tl-head { margin: 14px 2px 8px; }
+/* from here: the chance of each result, and the goals still expected at each end */
+.tl-out { margin-top: 10px; padding: 12px 14px; }
+.tl-wdl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; text-align: center; }
+.tl-wdl > div { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.tl-wdl b { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1; color: var(--t1); font-variant-numeric: tabular-nums; }
+.tl-wdl b.pos { color: var(--pos); } .tl-wdl b.neg { color: #ff7a86; }
+.tl-wdl span { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
+.tl-wdl-bar { display: flex; gap: 2px; height: 6px; margin-top: 9px; border-radius: 3px; overflow: hidden; }
+.tl-wdl-bar i { display: block; height: 100%; transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+.tl-wdl-bar i.w { background: var(--pos); } .tl-wdl-bar i.d { background: var(--s3); } .tl-wdl-bar i.l { background: #ff6b78; }
+.tl-out-goals { margin-top: 8px; } .tl-out-goals b { color: var(--t1); }
+/* each shout's effect on the outlook: win and lose, green when it helps */
+.tl-fc { grid-column: 2; margin-top: 5px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tl-fc.on { color: var(--acc); }
+.tl-dl { color: var(--t2); white-space: nowrap; }
+.tl-dl .up { color: var(--pos); } .tl-dl .down { color: #ff7a86; }
+.tl-dl .sep { margin: 0 4px; color: var(--t3); }
+.tl-dl.flat { color: var(--t3); font-weight: 600; }
+.btn.tl-do .tl-dl { font-weight: 700; font-size: 12px; }
+/* a call that is on: what it has done since, its verdict, and calling it off */
+.tl-call { margin-top: 8px; padding: 11px 12px 12px; border-radius: 14px; background: var(--s1); box-shadow: inset 0 0 0 1px var(--line); }
+.tl-call.good { box-shadow: inset 3px 0 0 var(--pos), inset 0 0 0 1px var(--line); }
+.tl-call.bad { box-shadow: inset 3px 0 0 #ff6b78, inset 0 0 0 1px var(--line); }
+.tl-call-i { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; background: var(--acc); color: #04170c; }
+.tl-call-t { font-family: var(--display); font-weight: 800; font-size: 14px; letter-spacing: .02em; text-transform: uppercase; }
+.tl-call-t .dim { font-family: var(--body); text-transform: none; letter-spacing: 0; font-weight: 600; }
+.tl-call-w { margin-top: 1px; font-size: 12px; line-height: 1.3; color: var(--t2); }
+.tl-verdict { flex: none; align-self: flex-start; padding: 3px 8px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; background: var(--s3); color: var(--t2); }
+.tl-verdict.good { background: color-mix(in srgb, var(--pos) 18%, transparent); color: var(--pos); }
+.tl-verdict.bad { background: rgba(255, 107, 120, .16); color: #ff7a86; }
+.tl-rows { margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--line); }
+.tl-row { display: grid; grid-template-columns: minmax(0, 1fr) 52px 52px; align-items: center; gap: 6px; padding: 3px 0; font-size: 12.5px; }
+.tl-row > span:not(:first-child) { text-align: right; font-family: var(--display); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--t2); }
+.tl-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--t2); }
+.tl-row > span:first-child em { font-style: normal; color: var(--t3); }
+.tl-row.good > span:last-child { color: var(--pos); } .tl-row.bad > span:last-child { color: #ff7a86; }
+.tl-row-h > span { font-size: 10px !important; font-family: var(--body) !important; font-weight: 700 !important; letter-spacing: .08em; text-transform: uppercase; color: var(--t3) !important; }
+.tl-rows-n { margin-top: 3px; }
+.btn.tl-off { margin-top: 10px; }
 /* the assistant's call at half-time */
 .htr-call { display: flex; align-items: center; gap: 10px; margin: 10px 0 2px; padding: 10px 10px 10px 12px; border-radius: 12px; background: var(--s2); box-shadow: inset 3px 0 0 var(--info); }
 .htr-call.bad { box-shadow: inset 3px 0 0 #ff6b78; } .htr-call.good, .htr-call.made { box-shadow: inset 3px 0 0 var(--pos); }
 .htr-call-i { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--s3); color: var(--t2); }
 .btn.htr-call-do { flex: none; background: color-mix(in srgb, var(--acc) 16%, var(--s3)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 45%, transparent); }
 .btn.htr-call-do svg { color: var(--acc); }
+
+/* The tactics board's forecast strip: the result chances with this set-up, what the changes did, and why. It stays in
+   view at the top of the board while the settings scroll beneath it. */
+.ol-sticky { position: sticky; top: var(--ol-top, 0px); z-index: 6; }
+/* (under a screen's sticky tabs) */
+.tabs.sticky ~ .pad .ol-sticky { top: 39px; }
+.ol-strip { padding: 9px 13px 10px; border-radius: var(--r); background: color-mix(in srgb, var(--s2) 96%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 10px 24px rgba(0, 0, 0, .4); }
+.ol-top { gap: 10px; } .ol-top .label { flex: none; } .ol-top .tiny { min-width: 0; text-align: right; }
+.ol-wdl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 5px; }
+.ol-c { display: flex; align-items: baseline; justify-content: center; gap: 5px; min-width: 0; }
+.ol-c:first-child { justify-content: flex-start; } .ol-c:last-child { justify-content: flex-end; }
+.ol-k { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--t3); }
+.ol-c b { font-family: var(--display); font-weight: 800; font-size: 18px; line-height: 1; color: var(--t1); font-variant-numeric: tabular-nums; }
+.ol-c.w b { color: var(--pos); } .ol-c.l b { color: #ff7a86; }
+.ol-c em { font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--t3); font-variant-numeric: tabular-nums; }
+.ol-c em.up { color: var(--pos); } .ol-c em.down { color: #ff7a86; }
+.ol-strip .tl-wdl-bar { margin-top: 6px; height: 4px; }
+.ol-why { margin-top: 6px; color: var(--t2); line-height: 1.35; }
+.ol-why b { font-weight: 800; color: var(--t1); font-variant-numeric: tabular-nums; } .ol-why b.up { color: var(--pos); } .ol-why b.down { color: #ff7a86; }
+.ol-why .sep { margin: 0 6px; color: var(--t3); }

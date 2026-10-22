@@ -211,11 +211,22 @@ const PASS_SKILL = 0.055
 const MOM_CARRY = 0.45
 /** Seconds on the ball in a minute that count as one unit of pressure in the momentum graph (see frame). */
 const MOM_BALL = 75
+/** How far each step of an attacking mentality pushes the line up and the press on (a defensive one drops both by 6 and 5). */
+const MENT_LINE_UP = 4
+const MENT_PRESS_UP = 3
+/**
+ * A side set to defend keeps it simple rather than launching it: how much each step of a defensive mentality still turns
+ * it to the long ball from its own half (see decide), and how much safer the passes it picks are.
+ */
+const DEF_LONG = 0.18
+const DEF_SAFE = 0.08
 /** Men more (or fewer) who join an attack per step of mentality (see commit). */
 const COMMIT_MENT = 0.75
 /** How quickly pressing drains a side: each point of pressing above 50 adds 1/PRESS_DRAIN to its work rate. */
 const PRESS_DRAIN = 120
-/** How out of shape a press played through can be left at most (see dis). */
+/** How out of shape a press played through can be left at most (see dis), and how much short of a counter's usual
+ *  exposure a beaten press still lets the side through it break at once (even a moderate press sent men to it). */
+const PRESS_BREAK = 0.2
 const PRESS_BEATEN = 0.8
 /** How much the man on the ball's press resistance decides whether a challenge comes in at all (see pressDuel). */
 const PRESS_RES_K = 0.7
@@ -246,6 +257,22 @@ const LN_DEMAND = Object.fromEntries(Object.entries(DEMAND).map(([k, v]) => [k, 
 const ZB: Bias = { sh: 0, ca: 0, dr: 0, cr: 0, pf: 0, rw: 0, bx: 0, dw: 0 }
 /** How often a ball the defence touches near its goal goes behind for a corner (about five a side, as the top leagues). */
 const CORNER_K = 0.72
+/** How much each man more (or fewer) around the box than usual changes an open-play chance in it (see shoot), and the
+ *  balance that is usual when a shot is on there (scripts/qa/box-balance.ts). */
+const BOX_XG = 1.08
+const BOX_XG0 = 0.4
+/**
+ * The risk a side takes, on the chances (logs, see shoot). Each step of attacking mentality, and each man more than
+ * usual told to get in the box, sends runners in beyond what the shape puts there (the late arrival, the man over at
+ * the far post), so the side's open-play chances are better: their price is the rest defence a counter has to get past
+ * (commit). Each step of a defensive mentality keeps men behind the ball beyond what the shape shows, so the chances it
+ * allows are worse: its price is the runners its own attacks lack.
+ */
+const ARRIVE_M = 0.11
+const ARRIVE_B = 0.06
+const BEHIND_M = 0.18
+/** A deep block is a compact one: per 25 points of line below 50 (see shoot), the chances against it are this much worse. */
+const BLOCK_K = 0.08
 /** Defenders less attackers in a typical box when the ball is played into it (see boxBalance). */
 const BOX_TYPICAL = 2
 /**
@@ -442,6 +469,8 @@ export class MatchSim {
   minute = 0
   added = 0
   addedPlanned = 0
+  /** minutes of football played so far, stoppage time included */
+  played = 0
   score: [number, number] = [0, 0]
   htScore: [number, number] = [0, 0]
   regScore?: [number, number]
@@ -654,7 +683,8 @@ export class MatchSim {
     // the mentality (and the state of the game) tilts the line and the press around their settings: a side told to
     // defend drops off and lets the ball come, a side going for it squeezes up and hunts it
     const m = clamp(s.ment, -2.5, 2.5)
-    s.shape = { formation: formationOf(s.formation), lineHeight: clamp(t.lineHeight + m * 6, 10, 95), width: t.width, mentality: m, pressing: clamp(t.pressing + m * 5, 5, 100), block: BLOCK[t.defApproach] ?? 0 }
+    // (going forward pushes the line and the press up a little; the risk it takes is with the men it sends forward)
+    s.shape = { formation: formationOf(s.formation), lineHeight: clamp(t.lineHeight + m * (m > 0 ? MENT_LINE_UP : 6), 10, 95), width: t.width, mentality: m, pressing: clamp(t.pressing + m * (m > 0 ? MENT_PRESS_UP : 5), 5, 100), block: BLOCK[t.defApproach] ?? 0 }
     s.shapeD = { ...s.shape }
   }
 
@@ -872,9 +902,40 @@ export class MatchSim {
     if (this.evenBase && this.minute % 5 === 0 && this.added === 0) this.keepEven()
     const evStart = this.events.length
     this.simMinute()
+    this.played++
     this.frame(evStart)
     if (this.minute === endMin && this.added >= this.addedPlanned) this.endPeriod()
     return this.events.slice(start)
+  }
+
+  // =========================================================== the match from here, played out on its own (for measuring)
+  /**
+   * The match as it stands, as plain data: players, legs, cards, score, set-ups, the ball. The record of what has
+   * already happened (the minute-by-minute timeline, the ledger frames, the action log) stays behind: the rest of the
+   * match doesn't need it. For a copy to play on from here (fork: what the measuring scripts in scripts/qa do).
+   */
+  snapshot<T>(take: (plain: MatchSim) => T): T {
+    const keep = { timeline: this.timeline, ledgerFrames: this.ledgerFrames, acts: this.acts }
+    this.timeline = []; this.ledgerFrames = []; this.acts = []
+    try { return take(this) } finally { Object.assign(this, keep) }
+  }
+
+  /** A snapshot made a match again: its own luck from here on (seed), and no commentary, heat maps or frames. */
+  static revive(o: MatchSim, seed: number): MatchSim {
+    Object.setPrototypeOf(o, MatchSim.prototype)
+    for (const s of o.sides) Object.setPrototypeOf(s, Side.prototype)
+    o.rng = new Rng(seed)
+    o.vrng = new Rng((seed ^ 0x5bd1e995) >>> 0)
+    o.crng = new Rng((seed ^ 0x27d4eb2f) >>> 0)
+    o.detail = false
+    o.ctx = { ...o.ctx, commentary: false }
+    o.paused = false
+    return o
+  }
+
+  /** A copy of the match from this moment, to play out on its own (the real match is untouched). */
+  fork(seed: number): MatchSim {
+    return MatchSim.revive(this.snapshot((m) => structuredClone(m)), seed)
   }
 
   runToEnd(): MatchResult {
@@ -1455,7 +1516,8 @@ export class MatchSim {
     // the men attacking the box and one in support behind them
     // (the mentality is the risk a side takes going forward: a side set to defend keeps more men back whatever the
     // ball is doing, one set to attack throws them in)
-    const want = clamp(Math.round(X.tactics.playersInBox + 1 + X.ment * COMMIT_MENT), 3, 9)
+    // (four go at the least: fewer and an attack has no one to pass to, it isn't caution any more)
+    const want = clamp(Math.round(X.tactics.playersInBox + 1 + X.ment * COMMIT_MENT), 4, 9)
     const c = this.cmt
     c.length = 0
     for (const l of X.on) if (l.pos !== 'GK' && l !== this.car) c.push(l)
@@ -1860,7 +1922,7 @@ export class MatchSim {
         let a = (inside ? -1.2 : -1.08) + 1.5 * Math.log(xg0 / 0.1) + (inside ? SHOOT[c.g] : LONG_SHOT[c.g])
         a += inside ? (this.fin(c) - this.ref) / 70 : (this.lsh(c) - this.ref) / 34
         // patient sides pass up half-chances and work the ball into better ones
-        a += c.bias.sh + X.ment * 0.12 + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.06 ? -0.1 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
+        a += c.bias.sh + X.ment * (X.ment > 0 ? 0.12 : 0.06) + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.06 ? -0.1 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
         if (X.state < -0.3) a -= 0.35
         // three up, the game is won: nobody needs to shoot from anywhere
         if (X.state <= -0.9) a -= 0.35
@@ -1984,7 +2046,7 @@ export class MatchSim {
     let wPassSum = 0
     // (closed down in his own half, a man who isn't comfortable on the ball gets rid of it: up the pitch, long)
     const pressedLong = b.x < 55 ? PRESSED_LONG * Math.max(0, pr - 0.25) * this.pressRes(c) : 0
-    const lnLong = Math.log((b.x < 50 ? 0.7 : 0.2) * longPref) + 0.35 * dir + 0.6 * Math.max(0, -X.shape.mentality) * (b.x < 50 ? 1 : 0) + urge * 0.5 + pressedLong
+    const lnLong = Math.log((b.x < 50 ? 0.7 : 0.2) * longPref) + 0.35 * dir + DEF_LONG * Math.max(0, -X.shape.mentality) * (b.x < 50 ? 1 : 0) + urge * 0.5 + pressedLong
     const lnSwitch = Math.log(0.07 * (0.6 + t.width / 100) * (this.passL(c) / this.ref))
     const lnThru = Math.log(0.011 * 0.25 * thruPref) + urge * 0.6 + 0.5 * brk
     // (a side set to defend looks for its outlet early rather than working the ball out)
@@ -1993,12 +2055,12 @@ export class MatchSim {
     const patience = Math.max(0, -dir) * 0.11 * (1 - Math.min(1, brk))
     // sides sitting deep don't keep the ball at the back: they look long early
     const sitDeep = Math.max(0, -X.shape.mentality) * (dir > 0.3 ? 1 : 0.4) * (b.x < 50 ? 1 : 0)
-    const backF = Math.log((b.x < 45 ? 0.8 : b.x > 62 ? 0.4 : 0.6)) - 0.15 * dir - 0.45 * sitDeep - 0.7 * brk - (b.x < 55 ? 0.75 * defM : 0)
+    const backF = Math.log((b.x < 45 ? 0.8 : b.x > 62 ? 0.4 : 0.6)) - 0.15 * dir - DEF_LONG * 0.6 * sitDeep - 0.7 * brk - (b.x < 55 ? DEF_LONG * 1.2 * defM : 0)
     const lbShort = t.buildUp === 'Long Ball' && b.x < 45
     // how much a pass's chance of arriving weighs in the choice: patient, short-passing sides keep the ball and play
     // the safe one; direct, quick sides and sides chasing the game take the gamble (in counter-attacks everyone does)
     const risk = clamp((1 + (t.chanceCreation === 'Possession' ? 0.45 : t.chanceCreation === 'Direct Passing' ? -0.35 : t.chanceCreation === 'Forward Runs' ? -0.15 : 0)
-      + (t.buildUp === 'Short Passing' ? 0.25 : t.buildUp === 'Long Ball' ? -0.3 : t.buildUp === 'Counter' ? -0.15 : 0) - (t.tempo - 50) / 110 - Math.max(0, ment) * 0.14 - (this.counter ? 0.45 : 0)) * 0.5 * (1 - 0.5 * urge), 0.15, 2.2)
+      + (t.buildUp === 'Short Passing' ? 0.25 : t.buildUp === 'Long Ball' ? -0.3 : t.buildUp === 'Counter' ? -0.15 : 0) - (t.tempo - 50) / 110 - Math.max(0, ment) * 0.14 + Math.max(0, -ment) * DEF_SAFE - (this.counter ? 0.45 : 0)) * 0.5 * (1 - 0.5 * urge), 0.15, 2.2)
     const sS = this.passS(c), sL = this.passL(c), sT = this.thru(c), prc = this.pressRes(c)
     for (const r of X.on) {
       if (r === c) continue
@@ -2287,7 +2349,7 @@ export class MatchSim {
           for (const l of Y.on) if (l.pos !== 'GK') this.lossAt.set(l, flip(l.at))
           this.lossBall = flip(from)
           this.dis = beaten
-          if (beaten >= COUNTER_ON - 0.08 && to.x < 72) { this.counter = true; X.led.counters++ }
+          if (beaten >= COUNTER_ON - PRESS_BREAK && to.x < 72) { this.counter = true; X.led.counters++ }
           if (MatchSim.dbg) { dbg(`s${X.idx}.pressBroken`); dbg(`s${X.idx}.pressBrokenK`, beaten) }
         }
       }
@@ -2778,9 +2840,14 @@ export class MatchSim {
     const gk = Y.gk
     const b = { x: this.b.x, y: this.b.y }
     const crowd = ctx.header || ctx.oneOnOne ? 0 : this.crowd(Y, b)
-    // chance quality counts the bodies between the ball and the goal, like modern xG models
-    const xg = chanceXg(b, ctx) * Math.pow(0.88, crowd)
     const inside = inBox(b)
+    // chance quality counts the bodies between the ball and the goal, like modern xG models, and in open play inside the
+    // box the numbers around it: a side that gets men in there finds the free one, the second ball, the cut-back; one
+    // that keeps men behind the ball smothers it (measured from what is typical when a shot is on, see BOX_XG0)
+    const bb = inside && !ctx.setPiece && !ctx.oneOnOne ? clamp(this.boxBalance(X, Y), -3, 3) - BOX_XG0 : 0
+    // and the risk each side is taking: the runners this one sends, the men the other keeps back (see ARRIVE_M)
+    const risk = ctx.setPiece || ctx.oneOnOne ? 0 : (inside ? 1 : 0.5) * (ARRIVE_M * clamp(X.ment, 0, 2.5) + ARRIVE_B * (X.tactics.playersInBox - 5) - BEHIND_M * clamp(-Y.ment, 0, 2.5) - BLOCK_K * clamp((50 - Y.shape.lineHeight) / 25, 0, 1.2))
+    const xg = chanceXg(b, ctx) * Math.pow(0.88, crowd) * Math.pow(BOX_XG, bb) * Math.exp(risk)
     if (MatchSim.dbg) { dbg(`gshot.${c.g}.${how}`); dbg('crowd', this.crowd(Y, b)); dbg('shot.' + how); dbg('xg.' + how, xg); dbg(`s${X.idx}.shot.${how}`); dbg(`s${X.idx}.xg.${how}`, xg); dbg(`s${X.idx}.gs.${c.g}`); dbg(`s${X.idx}.gx.${c.g}`, xg); dbg(`s${X.idx}.hx.${how}`, xg); dbg(`s${X.idx}.shotx${Math.floor(b.x / 5) * 5}`); dbg(`s${X.idx}.sxg${Math.floor(b.x / 5) * 5}`, xg); dbg(`s${X.idx}.scr${Math.floor(b.x / 5) * 5}`, crowd); dbg(`s${X.idx}.spr${Math.floor(b.x / 5) * 5}`, ctx.pressure || 0) }
     c.st.shots++
     c.st.xg += xg

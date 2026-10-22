@@ -1,8 +1,11 @@
 // Team instructions, presented so you can see what you're changing: a mentality dial, out-of-possession and
 // in-possession boards with a live diagram each, and (in a match) quick game plans plus a summary of what the
-// change does, taken from how the match engine reads these values.
+// change does, taken from how the match engine reads these values. A forecast (the result chances with this set-up,
+// from engine/match/response.ts) stays at the top, so every setting shows what it does as it moves.
 import type { ReactNode } from 'react'
-import type { TeamTactics } from '../../domain/types'
+import type { Mentality, TeamTactics } from '../../domain/types'
+import type { Outlook } from '../../engine/match/response'
+import { Delta } from './Outlook'
 import { MENTALITIES } from '../../domain/constants'
 import { haptic } from '../../store/game'
 import { ATTITUDE, matchAttitude } from '../teamAdvice'
@@ -129,7 +132,7 @@ const PLANS: { id: string; label: string; icon: string; text: string; set: Parti
   { id: 'chase', label: 'Chase the game', icon: 'up', text: 'Attacking, high press, fast and wide', set: { mentality: 'Attacking', defApproach: 'High', lineHeight: 66, pressing: 72, tempo: 72, width: 64, chanceCreation: 'Forward Runs', timeWasting: false } },
 ]
 
-export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTactics; onChange: Change; base?: TeamTactics; game?: GameState; baseLabel?: string }) {
+export function TacticsBoard({ t, onChange, base, game, baseLabel, forecast, oddsWith }: { t: TeamTactics; onChange: Change; base?: TeamTactics; game?: GameState; baseLabel?: string; forecast?: ReactNode; oddsWith?: (x: TeamTactics) => Outlook | undefined }) {
   const mi = MENTALITIES.indexOf(t.mentality)
   const set: Change = (p) => { haptic(); onChange(p) }
   const eff = base ? effects(base, t) : []
@@ -137,10 +140,26 @@ export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTa
   const left = game ? Math.max(0, 90 - game.minute) : 0
   const hint = !game ? '' : game.minute < 1 ? '' : diff > 0 && left <= 20 ? `You lead with ${left}' left.` : diff < 0 && left <= 25 ? `You're behind with ${left}' left.` : game.reds[game.side] > game.reds[1 - game.side] ? 'You are down to ten.' : game.reds[1 - game.side] > game.reds[game.side] ? 'They are down to ten: time to push?' : ''
   const suggest = !game ? undefined : diff > 0 && left <= 20 ? 'protect' : diff < 0 && left <= 25 ? 'chase' : undefined
-  // in a match: the attitude the score and the clock call for
-  const adv = game ? matchAttitude(game.score, game.side, game.minute, game.reds) : undefined
+  // the attitude to suggest: with the forecast, the one that gets the most points on average (a win 3, a draw 1), and
+  // only when it clearly beats the current one; without it, in a match, the one the score and the clock call for
+  const odds = oddsWith ? MENTALITIES.map((m) => oddsWith({ ...t, mentality: m as Mentality })) : undefined
+  const oddsNow = oddsWith?.(t)
+  const pts = (o: Outlook) => 3 * o.w + o.d
+  const pc = (x: number) => `${Math.round(x * 100)}%`
+  let adv = game ? matchAttitude(game.score, game.side, game.minute, game.reds) : undefined
+  if (odds && odds.every((o) => o)) {
+    const os = odds as Outlook[], cur = os[mi]
+    const bi = os.reduce((b, o, i) => (pts(o) > pts(os[b]) ? i : b), mi)
+    const m = pts(os[bi]) - pts(cur) >= 0.03 ? MENTALITIES[bi] : t.mentality
+    const o = os[MENTALITIES.indexOf(m)]
+    adv = { suggest: m, why: m === t.mentality
+      ? `${ATTITUDE[m].label} is the best bet${game ? ' from here' : ''}: no other attitude gets you more on average.`
+      : `${ATTITUDE[m].label} gets more out of this on average: ${pc(o.w)} to win and ${pc(o.l)} to lose, against ${pc(cur.w)} and ${pc(cur.l)} as you are.` }
+  }
   return (
     <div className="stack tb" style={{ gap: 12 }}>
+      {/* what this set-up does to the result, as the settings move (it stays in view while they scroll by) */}
+      {forecast && <div className="ol-sticky">{forecast}</div>}
       {game && (
         <div className="card pad-card">
           <div className="row between"><div className="label">Game plans</div>{hint && <span className="tiny b" style={{ color: 'var(--warn)' }}>{hint}</span>}</div>
@@ -148,6 +167,7 @@ export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTa
             {PLANS.map((p) => (
               <button key={p.id} className={`tb-plan ${suggest === p.id ? 'sug' : ''}`} onClick={() => { haptic('medium'); onChange(p.set) }}>
                 <Icon name={p.icon} size={18} /><b>{p.label}</b><span className="tiny dim">{p.text}</span>
+                {(() => { const o = oddsWith?.({ ...t, ...p.set }); return o && oddsNow ? <span className="tb-plan-o"><Delta o={o} now={oddsNow} /></span> : null })()}
               </button>
             ))}
           </div>
@@ -156,14 +176,16 @@ export function TacticsBoard({ t, onChange, base, game, baseLabel }: { t: TeamTa
 
       <div className="card pad-card">
         <div className="row between"><div className="label row tight">Attitude <GuideButton k="mentality" t={t} /></div><span className="tiny dim">Mentality: <b className="t1">{t.mentality}</b></span></div>
-        <div className="tb-ment" style={{ ['--i' as any]: mi }}>
+        <div className={`tb-ment ${odds ? 'odds' : ''}`} style={{ ['--i' as any]: mi }}>
           <div className="tb-ment-track" />
           {MENTALITIES.map((m, i) => (
             <button key={m} className={i === mi ? 'on' : ''} onClick={() => set({ mentality: m })} aria-label={m}>
               <span className="display">{ATTITUDE[m].label}</span>
+              {odds?.[i] && <span className="tb-ment-o"><em className="w">{pc(odds[i]!.w)}</em><em className="l">{pc(odds[i]!.l)}</em></span>}
             </button>
           ))}
         </div>
+        {odds && <div className="tiny dim tb-ment-k"><em className="w">Win</em> and <em className="l">lose</em> chances{game ? ' from here' : ''} with each</div>}
         <div className="tiny dim" style={{ marginTop: 8, minHeight: 28 }}>{MENT_TEXT[t.mentality]}</div>
         {adv && (
           <div className={`to-rec ${adv.suggest === t.mentality ? 'ok' : ''}`} style={{ marginBottom: 0, marginTop: 4 }}>

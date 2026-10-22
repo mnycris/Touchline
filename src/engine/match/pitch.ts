@@ -171,7 +171,7 @@ export function playerSpot(slotX: number, slotY: number, pos: string, role: stri
   } else {
     // ball given in our own frame; the opponent attacks toward our goal (x → 0). Line height matters most when the
     // ball is far away; once it is near our box everybody defends the box. The last line never drops onto the goal line.
-    const deep = Math.max(0, -(s.block ?? 0)) + Math.max(0, -s.mentality - 0.25) * 0.4
+    const deep = Math.max(0, -(s.block ?? 0)) + Math.max(0, -s.mentality) * 0.6
     const reach = clamp((ball.x - 15) / 40, 0.1, 1)
     // a back line holds the edge of its box until the ball is almost there (only then does it drop toward its goal)
     const floor = clamp(6.5 + (ball.x - 12) * 0.55, 6.5, 14.5)

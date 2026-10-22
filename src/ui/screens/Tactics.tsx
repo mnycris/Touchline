@@ -1,5 +1,5 @@
 import { useRemember } from '../memory'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, TeamSheet, TeamTactics, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
@@ -19,7 +19,10 @@ import { buildSheet, defaultRoles, isAvailable, mainSheet, matchSheetOf, setPiec
 import { rosterOf } from '../../engine/world/roster'
 import { callName } from '../../engine/match/commentary'
 import { assignToFormation } from './Match'
-import { playerStatus, userClub } from '../selectors'
+import { nextFixture, playerStatus, userClub } from '../selectors'
+import { predictFixture } from '../../engine/match/predict'
+import { effectOf, prematchOutlook } from '../../engine/match/response'
+import { OutlookStrip } from '../components/Outlook'
 
 type Sel = { kind: 'slot'; i: number } | { kind: 'bench'; id: number } | { kind: 'res'; id: number }
 
@@ -41,6 +44,11 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
   const P = (id: number) => w.players[id]
   const reserves = squad.filter((p) => !sheet.lineup.includes(p.id) && !sheet.bench.includes(p.id)).sort((a, b) => b.ovr - a.ovr)
   const chem = teamStrength(w, sheet)
+  // the next match's expected goals, for the board's forecast (the XIs rated; the set-up moves it from there)
+  const next = forMatch || nextFixture(w, club.id)
+  const pred = useMemo(() => (next ? predictFixture(w, next) : undefined), [w, next?.id, sheet])
+  const home = next?.home === club.id
+  const vs = next && pred ? { xg: (home ? [pred.home.xg, pred.away.xg] : [pred.away.xg, pred.home.xg]) as [number, number], name: w.clubs[home ? next.away : next.home]?.short || 'them' } : undefined
 
   const edit = (fn: (s: TeamSheet) => void) => mutate((w) => { const c = w.clubs[w.userClubId]; fn(forMatch ? matchSheetOf(c, forMatch.id) : mainSheet(c)) })
 
@@ -135,7 +143,7 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
               <Icon name="forward" size={16} color="var(--t3)" />
             </button>
           </div>
-          <TacticsPanel t={sheet.tactics} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />
+          <TacticsPanel t={sheet.tactics} vs={vs} onChange={(p) => edit((s) => { s.tactics = { ...s.tactics, ...p } })} />
         </>
       )}
       {tab === 'more' && <><div className="pad" style={{ marginTop: 14, marginBottom: -4 }}><div className="label">Set pieces</div></div><SetPieces w={w} sheet={sheet} edit={edit} /><div className="pad" style={{ marginTop: 18, marginBottom: -4 }}><div className="label">Saved teams</div></div><Presets w={w} fixtureId={forMatch?.id} /></>}
@@ -252,11 +260,18 @@ function RolePicker({ w, p, pos, cur, onPick }: { w: World; p?: Player; pos: any
   )
 }
 
-export function TacticsPanel({ t, onChange }: { t: TeamTactics; onChange: (p: Partial<TeamTactics>) => void }) {
+export function TacticsPanel({ t, vs, onChange }: { t: TeamTactics; vs?: { xg: [number, number]; name: string }; onChange: (p: Partial<TeamTactics>) => void }) {
+  // what the changes made here do to the next match's chances, against the set-up as it was when the tab opened
+  const [came] = useState(t)
+  const moved = JSON.stringify(came) !== JSON.stringify(t)
+  const forecast = vs && (
+    <OutlookStrip label={`Next · ${vs.name}`} now={prematchOutlook(vs.xg, t)} was={moved ? prematchOutlook(vs.xg, came) : undefined} eff={moved ? effectOf(came, t) : undefined}
+      note={moved ? 'Changes since you opened this' : 'With this set-up, as the engine plays it'} />
+  )
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
       <PresetPicker t={t} onApply={(p) => onChange(p)} />
-      <TacticsBoard t={t} onChange={onChange} />
+      <TacticsBoard t={t} onChange={onChange} forecast={forecast} oddsWith={vs ? (x) => prematchOutlook(vs.xg, x) : undefined} />
       <div className="card pad-card"><Slider label={<span className="row tight">Players in the box <GuideButton k="playersInBox" t={t} /></span>} value={t.playersInBox} min={1} max={10} onChange={(v) => onChange({ playersInBox: v })} fmt={(v) => `${v}`} /><div className="tiny dim">How much you play for crosses: higher, and wide players cross more often.</div></div>
       <div className="card pad-card stack" style={{ gap: 12 }}>
         <div className="label">Set pieces</div>
