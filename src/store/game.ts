@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { MatchResult, World } from '../domain/types'
 import type { RawDb } from '../data/rawTypes'
 import { createWorld, type NewCareerOptions } from '../data/createWorld'
-import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, setWatched, simulateDay, userFixtureOn, watchedOn, worldRng, type StopReason } from '../engine/world/advance'
+import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, setWatched, simulateDay, userFixtureOn, watchedOn, watchedToday, worldRng, type StopReason } from '../engine/world/advance'
 import { createSim, simulateFixture } from '../engine/world/matchRunner'
 import { createOthers, type OtherLive } from '../engine/world/liveDay'
 import { fmtDate } from '../domain/dates'
@@ -96,6 +96,8 @@ interface GameState {
   toast?: { id: number; text: string; kind: 'ok' | 'err' | 'info' | 'edit' }
   /** "Latest news" drop-in: a few important fresh stories */
   newsDrop?: { ids: string[]; nonce: number }
+  /** the reminder of today's matches on the watch list, open (Continue stopped for them, or the manager opened it) */
+  watchPrompt?: number
   prefs: AppPrefs
   saves: SaveMeta[]
   loadDb: () => Promise<RawDb | undefined>
@@ -133,6 +135,10 @@ interface GameState {
   finishWatched: (fixtureId: string, result: MatchResult, others?: OtherLive[]) => void
   /** watch a fixture live: today it opens straight away; a future one stops the calendar on its day */
   watchFixture: (fixtureId: string) => void
+  /** today's watch-list reminder: open it, close it (the matches stay on the list), or let today's go */
+  openWatchPrompt: () => void
+  closeWatchPrompt: () => void
+  skipWatchedToday: () => void
   setLive: (l?: LiveMatch) => void
   notify: (text: string, kind?: 'ok' | 'err' | 'info' | 'edit') => void
   /** show the latest-news drop-in if anything important happened since the last one */
@@ -462,7 +468,8 @@ export const useGame = create<GameState>((set, get) => ({
     // on a match day the stories wait: the preview opens clean and the news drops in after the final whistle
     if (stop !== 'match' && stop !== 'watch') get().checkNews()
     if (stop === 'match') get().open({ name: 'prematch' })
-    else if (stop === 'watch') { const wf = watchedOn(w); if (wf) get().watchFixture(wf.id) }
+    // a day with matches on the watch list: stop on it and ask (never straight into a match)
+    else if (stop === 'watch') get().openWatchPrompt()
     else if (stop === 'season-end') get().open({ name: 'seasonReview', params: { season: w.season - 1 } })
     else if (stop === 'sacked') get().open({ name: 'jobs', params: { sacked: true } })
     else if (stop === 'deadline') get().notify('Transfer Deadline Day!', 'info')
@@ -516,10 +523,21 @@ export const useGame = create<GameState>((set, get) => ({
     }
     if (f.date < w.date) return
     setWatched(w, f.id, false)
+    set({ watchPrompt: undefined })
     const sim = createSim(w, f, false, true)
     set({ live: { sim, fixtureId: f.id, speed: get().prefs.matchSpeed, running: true, tick: 0, finished: false, applied: false, spectator: true, others: createOthers(w, f) }, v: get().v + 1 })
     get().closeAll()
     get().open({ name: 'match' })
+  },
+
+  openWatchPrompt() { if (get().world && watchedToday(get().world!).length) set({ watchPrompt: Date.now() }) },
+  closeWatchPrompt() { set({ watchPrompt: undefined }) },
+  skipWatchedToday() {
+    const w = get().world
+    if (!w) return
+    for (const f of watchedToday(w)) setWatched(w, f.id, false)
+    set({ watchPrompt: undefined, v: get().v + 1 })
+    get().save(true)
   },
 
   setLive(l) { set({ live: l, v: get().v + 1 }) },

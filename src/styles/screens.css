@@ -485,8 +485,8 @@ select.input option { background: #151b27; }
 /* the screen being left, as a snapshot (see navFx): held under the incoming one, or animated away over it */
 .fx-host { position: absolute; inset: 0; pointer-events: none; }
 .fx-host:empty { display: none; }
-.ghost { pointer-events: none !important; isolation: isolate; } /* its own stacking layer: a snapshot's header must not float above the new screen */
-.ghost * { animation: none !important; transition: none !important; }
+.nav-ghost { pointer-events: none !important; isolation: isolate; } /* its own stacking layer: a snapshot's header must not float above the new screen */
+.nav-ghost * { animation: none !important; transition: none !important; }
 .ghost-hold-ov { z-index: 59; }
 .ghost-back { z-index: 38; animation: ghostBack 0.22s cubic-bezier(0.4, 0, 0.6, 1) both; box-shadow: -12px 0 30px rgba(0, 0, 0, 0.35); background: radial-gradient(120% 60% at 50% -10%, rgba(var(--club-rgb), 0.35), transparent 60%), var(--bg); }
 .ghost-hold { background: radial-gradient(120% 60% at 50% -10%, rgba(var(--club-rgb), 0.35), transparent 60%), var(--bg); }
@@ -3149,3 +3149,21 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 .ol-why { margin-top: 6px; color: var(--t2); line-height: 1.35; }
 .ol-why b { font-weight: 800; color: var(--t1); font-variant-numeric: tabular-nums; } .ol-why b.up { color: var(--pos); } .ol-why b.down { color: #ff7a86; }
 .ol-why .sep { margin: 0 6px; color: var(--t3); }
+
+/* ---------- the day's watch list (Continue stops for it) ---------- */
+.wr-head { display: flex; align-items: center; gap: 12px; margin: 2px 0 14px; }
+.wr-ic { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; flex: none; color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, transparent); }
+.wr-list { display: flex; flex-direction: column; gap: 10px; }
+/* the two clubs' colours meeting in the middle, as a lock-screen match card has them */
+.wr-card { position: relative; display: block; width: 100%; padding: 10px 12px 12px; border-radius: 18px; text-align: left; overflow: hidden; border: 1px solid var(--line2);
+  background: linear-gradient(100deg, color-mix(in srgb, var(--home-c) 30%, var(--s2)) 0%, var(--s2) 46%, var(--s2) 54%, color-mix(in srgb, var(--away-c) 30%, var(--s2)) 100%);
+  transition: transform .15s; }
+.wr-card:active { transform: scale(.98); }
+.wr-comp { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--t2); font-weight: 600; min-width: 0; }
+.wr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 8px; }
+.wr-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.wr-side b { font-size: 13.5px; max-width: 100%; }
+.wr-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.wr-time { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
+.wr-go { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--acc); color: #03170c; font-weight: 800; font-size: 12px; }
+.wr-skip { margin-top: 14px; }

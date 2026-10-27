@@ -464,6 +464,11 @@ export function setWatched(w: World, id: string, on: boolean) {
   w.flags.watchList = on ? [...rest, id] : rest
 }
 
+/** Every watched match today still to be played, by kick-off. */
+export function watchedToday(w: World): Fixture[] {
+  return watchList(w).map((id) => w.fixtures[id]).filter((f): f is Fixture => !!f && !f.played && f.date === w.date).sort((a, b) => a.time.localeCompare(b.time))
+}
+
 /** The first watched match today still to be played (stale marks are cleared: played, or moved into the past). */
 export function watchedOn(w: World): Fixture | undefined {
   const list = watchList(w)

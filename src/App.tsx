@@ -5,6 +5,7 @@ import { BottomNav } from './ui/components/layout'
 import { Icon } from './ui/icons/Icon'
 import { MainMenu } from './ui/screens/Menu'
 import { NewsDrop } from './ui/screens/NewsScreens'
+import { WatchReminder } from './ui/components/WatchReminder'
 import { ViewKey, viewKeyFor } from './ui/memory'
 import { ROUTES, TAB_ROOT } from './ui/routes'
 import { initNavFx, useEnterClass } from './ui/navFx'
@@ -109,6 +110,7 @@ function Career() {
       </div>
       <BottomNav />
       <NewsDrop />
+      <WatchReminder />
       <Spotlight />
       {Ov && (
         <div className={`overlay ${ovIn}`} key={ovKey}>

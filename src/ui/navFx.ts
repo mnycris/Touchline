@@ -76,7 +76,7 @@ function place(el: HTMLElement | null, host: string, cls: string, ms: number, ke
   if (!el || !h) return
   const ghost = snapshot(el)
   ghost.classList.remove('layer-in', 'layer-in-tab', 'overlay-in')
-  ghost.classList.add('ghost', cls)
+  ghost.classList.add('nav-ghost', cls)
   h.appendChild(ghost)
   restoreScrolls(ghost)
   window.setTimeout(() => { ghost.remove(); if (keepAs) { ghost.classList.remove(cls); keep(keepAs, ghost) } }, ms)

@@ -76,13 +76,13 @@ function begin() {
   const host = d.host ? document.getElementById(d.host) : null
   if (d.ownUnder) {
     if (d.under && host) {
-      d.under.classList.add('ghost', 'swipe-under')
+      d.under.classList.add('nav-ghost', 'swipe-under')
       host.appendChild(d.under)
       restoreScrolls(d.under)
     } else if (host) {
       // nothing kept of the screen beneath (a career just loaded): the bare background, so the pull still reads
       const blank = document.createElement('div')
-      blank.className = 'ghost swipe-under swipe-blank'
+      blank.className = 'nav-ghost swipe-under swipe-blank'
       host.appendChild(blank)
       d.under = blank
     }

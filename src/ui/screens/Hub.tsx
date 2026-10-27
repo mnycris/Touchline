@@ -13,7 +13,7 @@ import { rosterOf } from '../../engine/world/roster'
 import { currentWindow } from '../../engine/competitions/calendar'
 import { unreadCount } from '../../engine/world/messages'
 import { boardMood } from '../../engine/world/board'
-import { userFixtureOn } from '../../engine/world/advance'
+import { userFixtureOn, watchedToday } from '../../engine/world/advance'
 import { ordinal } from './Menu'
 import type { Fixture, World } from '../../domain/types'
 import { Celebration } from '../components/Celebration'
@@ -372,8 +372,11 @@ export function ContinueBar() {
   const open = useGame((s) => s.open)
   const today = w.flags.unemployed ? undefined : userFixtureOn(w, w.date)
   const next = w.flags.unemployed ? undefined : nextFixture(w, w.userClubId)
-  const label = today ? 'Match Day' : advancing ? 'Advancing' : 'Continue'
-  const sub = today ? `${w.clubs[today.home].short} v ${w.clubs[today.away].short}` : advancing ? fmtDate(w.date, 'long') : next ? `Next: ${w.clubs[opponent(next, w.userClubId)]?.short} · ${fmtDate(next.date, 'dm')}` : fmtDate(w.date, 'long')
+  // matches on the watch list today come first when they kick off before his own (Continue asks about them)
+  const toWatch = advancing ? [] : watchedToday(w).filter((f) => !today || f.time < today.time)
+  const label = today && !toWatch.length ? 'Match Day' : advancing ? 'Advancing' : 'Continue'
+  const sub = toWatch.length ? `To watch: ${w.clubs[toWatch[0].home].short} v ${w.clubs[toWatch[0].away].short}${toWatch.length > 1 ? ` + ${toWatch.length - 1} more` : ''}`
+    : today ? `${w.clubs[today.home].short} v ${w.clubs[today.away].short}` : advancing ? fmtDate(w.date, 'long') : next ? `Next: ${w.clubs[opponent(next, w.userClubId)]?.short} · ${fmtDate(next.date, 'dm')}` : fmtDate(w.date, 'long')
   // press and hold: the button fills, then the quick-advance sheet opens (not on a match day or while advancing)
   const [quick, setQuick] = useState(false)
   const [holding, setHolding] = useState(false)
@@ -396,6 +399,7 @@ export function ContinueBar() {
           if (hold.current?.fired) { hold.current = undefined; return }
           haptic('medium')
           if (advancing) { stop(); return }
+          if (toWatch.length) { useGame.getState().openWatchPrompt(); return }
           if (today) { open({ name: 'prematch' }); return }
           advance()
         }}>
@@ -403,7 +407,7 @@ export function ContinueBar() {
           <div className="display" style={{ fontSize: 21 }}>{label}</div>
           <div className="tiny ellipsis" style={{ opacity: 0.8, marginTop: 1 }}>{sub}</div>
         </div>
-        {advancing ? <><div className="spinner" style={{ borderTopColor: '#03170c', borderColor: 'rgba(0,0,0,.2)' }} /><span className="tiny b" style={{ marginLeft: 4 }}>STOP</span></> : <Icon name={today ? 'play' : 'ffwd'} size={26} />}
+        {advancing ? <><div className="spinner" style={{ borderTopColor: '#03170c', borderColor: 'rgba(0,0,0,.2)' }} /><span className="tiny b" style={{ marginLeft: 4 }}>STOP</span></> : <Icon name={toWatch.length ? 'eye' : today ? 'play' : 'ffwd'} size={26} />}
       </button>
       <QuickAdvance open={quick} onClose={() => setQuick(false)} />
     </div>
