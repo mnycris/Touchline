@@ -10,7 +10,7 @@ const KEYS = (process.argv[4] || 'L19,L20,L2076').split(',')
 const W = Number(process.env.W || 390)
 fs.mkdirSync(OUT, { recursive: true })
 const proxy = process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } } : {}
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', ...proxy })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', ...proxy })
 const page = await (await browser.newContext({ viewport: { width: W, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, ignoreHTTPSErrors: true })).newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))

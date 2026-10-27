@@ -1,7 +1,7 @@
 // Old-version save → new-version load, in one persistent browser profile. node scripts/qa/upgrade-check.mjs <profileDir> <phase: old|new> [shot]
 import { chromium } from 'playwright'
 const [dir, phase, shotPath] = process.argv.slice(2)
-const ctx = await chromium.launchPersistentContext(dir, { executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+const ctx = await chromium.launchPersistentContext(dir, { executablePath: '/opt/pw-browsers/chromium', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
 const page = ctx.pages()[0] || await ctx.newPage()
 const errs = []
 page.on('pageerror', (e) => errs.push('pageerror: ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')))

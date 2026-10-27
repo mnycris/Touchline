@@ -5,7 +5,7 @@ import fs from 'node:fs'
 const URL = process.env.URL || 'http://localhost:4173/'
 const OUT = process.env.OUT || '/tmp/opus-shots2'
 fs.mkdirSync(OUT, { recursive: true })
-const exe = fs.existsSync('/opt/pw-browsers/chromium-1194/chrome-linux/chrome') ? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' : undefined
+const exe = fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined
 const browser = await chromium.launch({ executablePath: exe })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
 const page = await ctx.newPage()

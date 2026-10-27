@@ -4,7 +4,7 @@ import fs from 'node:fs'
 const URL = process.env.URL || 'http://localhost:4173/'
 const OUT = process.env.OUT || '/tmp/opus-tour'
 fs.mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true })
 const page = await ctx.newPage()
 const errors = []

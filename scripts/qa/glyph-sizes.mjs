@@ -1,6 +1,6 @@
 // Renders the colour ball/boot glyphs at real sizes in the browser (dev server on 5173): node scripts/qa/glyph-sizes.mjs <out.png>
 import { chromium } from 'playwright'
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const p = await (await b.newContext({ viewport: { width: 420, height: 200 }, deviceScaleFactor: 3 })).newPage()
 await p.goto('http://localhost:5173/')
 await p.waitForTimeout(1500)

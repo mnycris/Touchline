@@ -3,7 +3,7 @@ import { chromium } from 'playwright'
 export async function openSave(file, { width = 390, height = 844, url = 'http://localhost:5173/' } = {}) {
   // remote images go through the environment's proxy when it has one (its CA must be in the browser's NSS store)
   const proxy = process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } } : {}
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', ...proxy })
+  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', ...proxy })
   const page = await (await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })).newPage()
   const errors = []
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))

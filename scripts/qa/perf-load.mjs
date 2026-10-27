@@ -5,7 +5,7 @@ import { chromium } from 'playwright'
 // (ms: how long to stay on Central before opening the squad, as someone reading it would; 0 by default)
 const [S, save, url, linger = '0'] = process.argv.slice(2)
 const proxy = process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } } : {}
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', ...proxy })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', ...proxy })
 const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true })
 const page = await ctx.newPage()
 const reqs = []

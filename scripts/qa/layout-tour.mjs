@@ -8,7 +8,7 @@ const installed = args.includes('--installed')
 const [file, OUT, W = '390', H = '844'] = args.filter((a) => !a.startsWith('--'))
 fs.mkdirSync(OUT, { recursive: true })
 const width = Number(W), height = Number(H)
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const ctx = await browser.newContext({ viewport: { width, height: installed ? height - 47 : height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })
 if (installed) await ctx.addInitScript(() => {
   const mm = window.matchMedia.bind(window)

@@ -1,7 +1,7 @@
 // Loads a URL, reports page errors and whether the app rendered. node scripts/qa/boot-check.mjs <url> [shot]
 import { chromium } from 'playwright'
 const url = process.argv[2]
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true })).newPage()
 const errs = []
 page.on('pageerror', (e) => errs.push('pageerror: ' + e.message))

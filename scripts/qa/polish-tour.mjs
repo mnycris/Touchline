@@ -7,7 +7,7 @@ import fs from 'node:fs'
 import { chromium } from 'playwright'
 const [file, OUT] = process.argv.slice(2)
 fs.mkdirSync(OUT, { recursive: true })
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })).newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))

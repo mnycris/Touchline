@@ -4,7 +4,7 @@ import { chromium } from 'playwright'
 import fs from 'node:fs'
 const OUT = process.argv[2] || '/tmp/opus-season'; fs.mkdirSync(OUT, { recursive: true })
 const N = Number(process.argv[3] || 14)
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })).newPage()
 const errors = []
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`))
