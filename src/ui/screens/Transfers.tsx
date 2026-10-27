@@ -44,7 +44,7 @@ export function TransferHub() {
   return (
     <Screen title="Transfers" sub={windowLabel(w)} right={<HubActions />}>
       <WageSheet w={w} open={wages} onClose={() => setWages(false)} />
-      <div className="pad">
+      <div className="pad tx-top">
         <div className={`hero budget-hero ${deadline ? 'deadline' : ''}`}>
           <Fx kind="mesh" />
           <div style={{ position: 'relative', zIndex: 1, padding: 16 }}>
@@ -62,7 +62,7 @@ export function TransferHub() {
           <button className="card tap mini-btn" onClick={() => go({ name: 'transferHistory' })}><Icon name="history" size={22} color="var(--club2)" /><span>History</span></button>
         </div>
       </div>
-      <div style={{ marginTop: 12 }}>
+      <div className="tx-tabs" style={{ marginTop: 12 }}>
         <Tabs items={[{ id: 'centre', label: 'Transfer Centre' }, { id: 'hub', label: 'My Business', badge: incoming.filter((o) => o.status !== 'Awaiting Window').length }, { id: 'shortlist', label: `Shortlist (${w.transfers.shortlist.length})` }]} value={tab} onChange={setTab} />
       </div>
       {tab === 'hub' && (

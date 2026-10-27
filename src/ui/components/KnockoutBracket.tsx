@@ -148,7 +148,8 @@ export function Bracket({ w, c }: { w: World; c: Competition }) {
   const cy = (j: number, i: number) => HEAD + SLOT * 2 ** j * (i + 0.5)
   const cx = (j: number) => PAD + j * (COL_W + GAP)
   const width = PAD * 2 + cols.length * COL_W + (cols.length - 1) * GAP + (champion != null ? GAP + 104 : 0)
-  const height = HEAD + n0 * SLOT + 6
+  // (tall enough for the winners' card beside the final, which is taller than a tie: a lone final's canvas was not)
+  const height = Math.max(HEAD + n0 * SLOT + 6, champion != null ? cy(cols.length - 1, 0) + 52 + 8 : 0)
   const me = w.userClubId
   const treeDrawn = cols.some((x) => x.drawn)
   const earlierList = earlier.length > 0 && <EarlierRounds w={w} list={earlier} onOpen={(t) => setOpen({ t, col: -1 })} />
@@ -207,7 +208,7 @@ function Side({ w, club, maybe, wait, score, win, lose, pens, me }: { w: World; 
     )
   }
   return (
-    <div className={`bk-row ${win ? 'win' : ''} ${lose ? 'lose' : ''} ${club === me ? 'me' : ''}`}>
+    <div className={`bk-row ${win ? 'win' : ''} ${lose ? 'lose' : ''} ${club === me ? 'me' : ''}`} style={{ ['--tc' as string]: w.clubs[club]?.theme || '#8a93a3' }}>
       <Badge club={w.clubs[club]} size={17} />
       <span className="grow ellipsis small">{w.clubs[club]?.short}</span>
       {pens != null && <span className="bk-pens">({pens})</span>}

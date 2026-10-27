@@ -327,26 +327,40 @@ button.card.cal-strip { display: grid; }
 .bk-head { position: absolute; top: 4px; display: flex; flex-direction: column; gap: 1px; padding: 0 2px; font-size: 13px; }
 .bk-head.cur .b { color: var(--acc); }
 .bk-now { font-style: normal; margin-left: 6px; padding: 1px 6px; border-radius: 99px; background: rgba(var(--acc-rgb, 31, 214, 122), .16); color: var(--acc); font-weight: 800; font-size: 9.5px; letter-spacing: .05em; text-transform: uppercase; }
-.bk-tie { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 6px 9px 5px; border-radius: 12px; background: var(--s1); border: 1px solid var(--line, rgba(255,255,255,.06)); text-align: left; color: var(--t1); animation: bkIn .38s var(--d, 0ms) cubic-bezier(.2, .8, .3, 1) both; transition: transform .15s, background .15s; }
-.bk-tie:not(:disabled):active { transform: scale(.97); background: var(--s2); }
-.bk-tie.mine { box-shadow: inset 3px 0 0 var(--acc), 0 0 0 1px rgba(var(--acc-rgb, 31, 214, 122), .28); }
-.bk-tie.draw { background: transparent; border-style: dashed; border-color: rgba(255, 255, 255, 0.1); }
+/* a tie: a small card with depth (light along its top edge, shadow beneath), each club's row lit faintly from the left
+   in that club's own colour, the side that went through brighter; the result or the date in a footer under a hairline */
+.bk-tie { position: absolute; display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 5px 7px 4px; border-radius: 12px; text-align: left; color: var(--t1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .055), rgba(255, 255, 255, .012) 70%), var(--s1);
+  border: 1px solid rgba(255, 255, 255, .07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 10px 22px -16px rgba(0, 0, 0, .95);
+  animation: bkIn .38s var(--d, 0ms) cubic-bezier(.2, .8, .3, 1) both; transition: transform .15s, filter .15s; }
+.bk-tie:not(:disabled):active { transform: scale(.97); filter: brightness(1.12); }
+.bk-tie.mine { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(var(--acc-rgb, 31, 214, 122), .4), 0 0 18px -8px rgba(var(--acc-rgb, 31, 214, 122), .6), 0 10px 22px -16px rgba(0, 0, 0, .95); }
+/* not drawn yet: an empty slot, hatched faintly, waiting for its names */
+.bk-tie.draw { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .03) 0 5px, transparent 5px 11px), rgba(255, 255, 255, .012); border-color: rgba(255, 255, 255, .06); box-shadow: none; }
 @keyframes bkIn { from { opacity: 0; transform: translateX(-8px) } }
-.bk-row { display: flex; align-items: center; gap: 6px; height: 21px; }
+.bk-row { position: relative; display: flex; align-items: center; gap: 6px; height: 21px; padding: 0 3px; border-radius: 7px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tc, #8a93a3) 20%, transparent), transparent 62%); }
 .bk-row .num { font-family: var(--display); font-size: 15px; min-width: 12px; text-align: right; }
-.bk-row.win { font-weight: 800; }
+.bk-row.win { font-weight: 800; background: linear-gradient(90deg, color-mix(in srgb, var(--tc, #8a93a3) 36%, transparent), color-mix(in srgb, var(--tc, #8a93a3) 6%, transparent) 75%); }
 .bk-row.win .num { color: #fff; }
-.bk-row.lose { opacity: .45; }
+.bk-row.lose { opacity: .45; background: none; }
 .bk-row.me span.small { color: var(--acc); }
-.bk-row.tbd { opacity: .75; }
+.bk-row.tbd { opacity: .75; background: none; }
 .bk-maybe { display: flex; width: 17px; flex: none; }
 .bk-maybe > * + * { margin-left: -6px; }
-.bk-maybe i { width: 15px; height: 15px; border-radius: 50%; border: 1px dashed rgba(255,255,255,.25); }
+.bk-maybe i { width: 15px; height: 15px; border-radius: 50%; background: rgba(255, 255, 255, .05); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .14); }
 .bk-pens { font-size: 10.5px; color: var(--t3); }
-.bk-meta { display: flex; align-items: center; gap: 5px; color: var(--t3); margin-top: 1px; min-width: 0; }
+.bk-meta { display: flex; align-items: center; gap: 5px; color: var(--t3); margin-top: 2px; padding: 3px 3px 0; min-width: 0; border-top: 1px solid rgba(255, 255, 255, .05); }
+.bk-tie.draw .bk-meta { border-top-color: transparent; }
 .bk-agg { flex: none; padding: 0 4px; border-radius: 4px; background: rgba(255,255,255,.07); color: var(--t2); font-weight: 700; font-size: 9.5px; text-transform: uppercase; letter-spacing: .04em; }
-.bk-champ { position: absolute; width: 104px; height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 16px; background: radial-gradient(120% 90% at 50% 0%, rgba(245, 196, 81, .16), var(--s1) 70%); border: 1px solid rgba(245, 196, 81, .28); animation: bkIn .45s .5s both; }
-.bk-champ.mine { box-shadow: 0 0 0 1px var(--acc); }
+/* the winners: the trophy's card, edged in gold */
+.bk-champ { position: absolute; width: 104px; height: 104px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 16px;
+  background: radial-gradient(100% 80% at 50% 0%, rgba(245, 196, 81, .3), transparent 68%), linear-gradient(180deg, #1d1a12, #121009);
+  border: 1px solid rgba(245, 196, 81, .42); box-shadow: inset 0 1px 0 rgba(255, 236, 180, .18), 0 0 26px -10px rgba(245, 196, 81, .55), 0 12px 24px -16px rgba(0, 0, 0, .9);
+  animation: bkIn .45s .5s both; }
+.bk-champ .tiny { color: var(--gold); opacity: .9; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; font-size: 10px; }
+.bk-champ.mine { border-color: color-mix(in srgb, var(--acc) 60%, rgba(245, 196, 81, .5)); box-shadow: inset 0 1px 0 rgba(255, 236, 180, .18), 0 0 0 1px var(--acc), 0 0 26px -8px var(--acc); }
 .bk-verdict { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 4px; font-weight: 700; font-size: 13.5px; color: var(--t1); }
 .bk-verdict.good { color: var(--acc); }
 .bk-verdict.bad { color: var(--t2); }
@@ -2227,6 +2241,52 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .bid-money .neg { color: var(--neg); }
 .bid-money .warn { color: var(--warn); }
 
+/* ---------- entrances ----------
+   Opening a competition's page: its title card builds itself the way a broadcast graphic does. The field is there,
+   the mark slides in from its side and settles, the logo, the season and the name rise in turn, the season's progress
+   is drawn across, the rounds come up one by one, and the tabs and the page follow. Only when the page opens (not on
+   the way back to it). */
+@keyframes ch-mark-in { from { opacity: 0; translate: 14% 2%; } to { opacity: 1; translate: 0 0; } }
+@keyframes ch-rise { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+@keyframes ch-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+:is(.layer-in, .overlay-in) .comp-hero .ci-marks { animation: ch-mark-in .9s .04s cubic-bezier(.16, 1, .3, 1) both; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-top { animation: ch-rise .5s .1s cubic-bezier(.2, .8, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-name { animation: ch-rise .5s .16s cubic-bezier(.2, .8, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-prog i { animation: ch-draw .9s .3s cubic-bezier(.3, .7, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw { animation: ch-rise .38s cubic-bezier(.2, .8, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(1) { animation-delay: .26s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(2) { animation-delay: .3s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(3) { animation-delay: .34s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(4) { animation-delay: .38s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(5) { animation-delay: .42s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(6) { animation-delay: .46s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-stw:nth-child(n + 7) { animation-delay: .5s; }
+:is(.layer-in, .overlay-in) .comp-hero .ch-foot { animation: ch-rise .5s .4s cubic-bezier(.2, .8, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-page .tabs { animation: ch-rise .45s .3s cubic-bezier(.2, .8, .2, 1) both; }
+:is(.layer-in, .overlay-in) .comp-page .tabs ~ * { animation: ch-rise .5s .38s cubic-bezier(.2, .8, .2, 1) both; }
+
+/* Opening Transfers: where Central and Season rise into place, the market comes in from the side, the way deals
+   arrive: the budget card first (a light passes over it once it has landed), the tools one after another, the tabs,
+   then the day's stories. */
+@keyframes tx-in { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: none; } }
+@keyframes tx-sweep { from { transform: translateX(-110%); } to { transform: translateX(110%); } }
+.layer-in-tab .tx-top > .budget-hero { animation: tx-in .55s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tx-top > .budget-hero .hero-wage { animation: tx-in .55s .12s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tx-top > .budget-hero::before { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(100deg, transparent 32%, rgba(255, 255, 255, .13) 47%, rgba(255, 255, 255, .04) 55%, transparent 68%);
+  animation: tx-sweep 1.15s .42s cubic-bezier(.45, 0, .25, 1) both; }
+.layer-in-tab .tx-top > .grid3 > * { animation: tx-in .5s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(1) { animation-delay: .08s; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(2) { animation-delay: .13s; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(3) { animation-delay: .18s; }
+.layer-in-tab .tx-tabs { animation: tx-in .5s .2s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tc-wrap > .pad:first-child { animation: tx-in .5s .26s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tc-rail > * { animation: tx-in .6s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tc-rail > :nth-child(1) { animation-delay: .3s; }
+.layer-in-tab .tc-rail > :nth-child(2) { animation-delay: .37s; }
+.layer-in-tab .tc-rail > :nth-child(n + 3) { animation-delay: .44s; }
+.layer-in-tab .tc-wrap > :not(:first-child):not(.tc-rail) { animation: fadeUp .5s .4s cubic-bezier(.2, .8, .2, 1) both; }
+
 /* ---------- universal search (Spotlight) ---------- */
 .topbar-r { display: flex; align-items: center; gap: 6px; flex: none; }
 .search-btn svg { opacity: .92; }
@@ -2521,21 +2581,22 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .cis .bk-head .b { color: #fff; }
 .cis .bk-head.cur .b { color: var(--ci-acc); }
 .cis .bk-now { background: color-mix(in srgb, var(--ci-acc) 20%, transparent); color: var(--ci-acc); }
-.cis .bk-tie { background: linear-gradient(180deg, rgba(var(--cis-rgb), .2), rgba(var(--cis-rgb), .07)), var(--s1); border-color: rgba(var(--cis-rgb), .3); box-shadow: 0 8px 20px -14px rgba(0, 0, 0, .9); }
-.cis .bk-tie:not(:disabled):active { background: linear-gradient(180deg, rgba(var(--cis-rgb), .3), rgba(var(--cis-rgb), .12)), var(--s1); }
-.cis .bk-tie.mine { box-shadow: inset 3px 0 0 var(--ci-acc), 0 0 0 1px color-mix(in srgb, var(--ci-acc) 45%, transparent), 0 0 18px -6px color-mix(in srgb, var(--ci-acc) 60%, transparent); }
-.cis .bk-tie.draw { background: rgba(var(--cis-rgb), .04); border-color: rgba(var(--cis-rgb), .22); }
+.cis .bk-tie { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ci-acc) 38%, transparent), transparent) top / 100% 1px no-repeat, radial-gradient(120% 100% at 0% 0%, rgba(var(--cis-rgb), .24), transparent 62%), linear-gradient(180deg, rgba(var(--cis-rgb), .12), rgba(var(--cis-rgb), .04)), var(--s1); border-color: rgba(var(--cis-rgb), .28); }
+
+.cis .bk-tie.mine { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px color-mix(in srgb, var(--ci-acc) 50%, transparent), 0 0 20px -7px color-mix(in srgb, var(--ci-acc) 65%, transparent), 0 10px 22px -16px rgba(0, 0, 0, .95); }
+.cis .bk-tie.draw { background: repeating-linear-gradient(135deg, rgba(var(--cis-rgb), .055) 0 5px, transparent 5px 11px), rgba(var(--cis-rgb), .03); border-color: rgba(var(--cis-rgb), .2); }
 .cis .bk-row.me span.small { color: var(--ci-acc); }
 .cis .bk-agg { background: rgba(var(--cis-rgb), .22); color: #fff; }
-.cis .bk-maybe i { border-color: rgba(var(--cis-rgb), .45); }
-.cis .bk-champ { background: radial-gradient(120% 90% at 50% 0%, rgba(245, 196, 81, .2), color-mix(in srgb, var(--cis-deep) 80%, var(--s1)) 72%); }
-.cis .bk-champ.mine { box-shadow: 0 0 0 1px var(--ci-acc), 0 0 22px -6px var(--ci-acc); }
+.cis .bk-maybe i { background: rgba(var(--cis-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .4); }
+.cis .bk-champ { background: radial-gradient(100% 80% at 50% 0%, rgba(245, 196, 81, .3), transparent 68%), linear-gradient(180deg, color-mix(in srgb, var(--cis-deep) 70%, #1d1a12), color-mix(in srgb, var(--cis-deep) 85%, #000)); }
+.cis .bk-champ.mine { box-shadow: inset 0 1px 0 rgba(255, 236, 180, .18), 0 0 0 1px var(--ci-acc), 0 0 24px -6px var(--ci-acc); }
 .cis .bk-line-row.mine { box-shadow: inset 3px 0 0 var(--ci-acc); }
 /* on a competition's own page its logo on every fixture says nothing */
 .comp-page .fixture-row .comp-logo { display: none !important; }
 .ci { position: relative; overflow: hidden; isolation: isolate; background: var(--ci-field, #12151b); }
 .ci-art { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; border-radius: inherit; }
-.ci-art > i { position: absolute; display: block; }
+.ci-art > i, .ci-marks > i { position: absolute; display: block; }
+.ci-marks { position: absolute; inset: 0; }
 .ci-glow { inset: 0; background: var(--ci-glow, none); }
 .ci-mark { top: 50%; right: var(--ci-mx, -10%); width: calc(var(--ci-mw, .5) * 100%); aspect-ratio: var(--ci-ar, 1);
   transform: translateY(calc(-50% + var(--ci-my, 0%))) rotate(var(--ci-mr, 0deg));
@@ -2682,10 +2743,30 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
   --ci-mw: .27; --ci-mx: 4%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #c8102e 75%, transparent); }
-/* Carabao Cup: the logo's green (#008c5a) and white, the gold of its sun's rim */
-.ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .32), transparent 62%), linear-gradient(125deg, #002417 0%, #004d33 50%, #008a59 100%);
-  --ci-glow: linear-gradient(112deg, transparent 56%, rgba(255, 255, 255, .13) 56.4%, rgba(255, 255, 255, .02) 65%, transparent 65.4%), linear-gradient(112deg, transparent 69%, rgba(255, 255, 255, .09) 69.4%, rgba(255, 255, 255, .02) 76%, transparent 76.4%), linear-gradient(112deg, transparent 81%, rgba(245, 196, 0, .14) 81.4%, transparent 85%);
-  --ci-edge: linear-gradient(90deg, transparent, #f5c400 45%, transparent); }
+/* Carabao Cup: its logo's green (#008c5a) and white; the red sun with its yellow rim and the glint of light at its top
+   right, the carabao's skull over it with its horns spread, as on the logo, large and cropped at the card's edge */
+.ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .26), transparent 62%), linear-gradient(125deg, #00170e 0%, #003d28 45%, #007a4f 100%);
+  --ci-glow: radial-gradient(42% 70% at 82% 44%, rgba(255, 120, 60, .22), transparent 70%), linear-gradient(112deg, transparent 47%, rgba(255, 255, 255, .07) 47.3%, rgba(255, 255, 255, .015) 54%, transparent 54.3%);
+  --ci-mw: .56; --ci-mx: -13%; --ci-my: 7%; --ci-mark-op: 1;
+  --ci-mark-fill: linear-gradient(180deg, #2b2b2b 0%, #0d0d0d 55%, #000 100%);
+  --ci-mark2-fill: linear-gradient(180deg, #ffffff 0%, #f1f4f2 55%, #c9d3cd 100%);
+  --ci-sheen: 255, 238, 196;
+  --ci-edge: linear-gradient(90deg, transparent, #f5c400 45%, #ff4a2e 70%, transparent); }
+/* the sun: a circle in the mark's own frame (its radii as shares of a 200 x 112 box), behind the horns and the skull */
+.ci-mark.ci-sun { -webkit-mask: none; mask: none; opacity: 1;
+  background: radial-gradient(ellipse 22.5% 40.2% at 50% 52%, #ff7444 0%, #f4471f 50%, #d81b1b 86%, #ffd23f 87.5%, #ffc414 95%, transparent 96.5%);
+  animation: ci-sun 7s ease-in-out infinite; }
+@keyframes ci-sun { 0%, 100% { filter: drop-shadow(0 0 14px rgba(255, 84, 40, .26)); } 50% { filter: drop-shadow(0 0 26px rgba(255, 100, 50, .46)); } }
+.ci-mark.ci-sun-front { -webkit-mask: none; mask: none; background: none; opacity: 1; }
+/* the glint on the sun's rim: a four-pointed star of light that catches now and then */
+.ci-spark { position: absolute; left: 65%; top: 25%; width: 16%; aspect-ratio: 1; translate: -50% -50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .9) 0 6%, rgba(255, 255, 255, .35) 13%, transparent 34%); }
+.ci-spark::before { content: ''; position: absolute; inset: 0; background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath d='M0-50C2.6-11 11-2.6 50 0C11 2.6 2.6 11 0 50C-2.6 11-11 2.6-50 0C-11-2.6-2.6-11 0-50Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath d='M0-50C2.6-11 11-2.6 50 0C11 2.6 2.6 11 0 50C-2.6 11-11 2.6-50 0C-11-2.6-2.6-11 0-50Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  transform: scale(.74); animation: ci-twinkle 6.5s 1.4s ease-in-out infinite; }
+@keyframes ci-twinkle { 0%, 68%, 100% { transform: scale(.74) rotate(0deg); opacity: .82; } 78% { transform: scale(1.14) rotate(20deg); opacity: 1; } 88% { transform: scale(.8) rotate(38deg); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .ci-spark::before { animation: none; } }
 /* Copa del Rey: crimson and gold; DFB-Pokal: black and gold after the trophy; both with their nation's colours */
 .ci-CDR { --ci-field: linear-gradient(125deg, #3a0510 0%, #6d0a1c 45%, #9c1229 100%);
   --ci-glow: radial-gradient(60% 100% at 100% 0%, rgba(246, 196, 69, .32), transparent 62%), linear-gradient(115deg, transparent 62%, rgba(246, 196, 69, .1) 62.4%, transparent 72%);
@@ -2746,6 +2827,10 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
 .md-head.ci-FACUP { --ci-md-op: .2; }
+/* the Carabao Cup's match day: only its horns, spread faintly across the top; its sun and the skull stay on its own
+   card (behind the kick-off they would sit right under the time) */
+.md-head.ci-EFLCUP .ci-sun, .md-head.ci-EFLCUP .ci-sun-front, .md-head.ci-EFLCUP .ci-mark2 { display: none; }
+.md-head.ci-EFLCUP { --ci-md-op: .55; }
 /* the Bundesliga's player is a figure, not a pattern: behind the badges and the kick-off time he is only clutter, so
    the band keeps the field, its red light and the logo above the badges */
 .md-head.ci-L19 .ci-mark, .md-head.ci-L20 .ci-mark { display: none; }
