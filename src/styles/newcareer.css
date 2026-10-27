@@ -79,7 +79,7 @@
 .nc-nat-gap { border-top: 6px solid rgba(255, 255, 255, .04) !important; }
 
 /* coaching styles: a row of small tactics boards */
-.nc-styles { display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scroll-snap-type: x mandatory; scroll-padding: 0 16px; scrollbar-width: none; }
+.nc-styles { position: relative; display: flex; gap: 8px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scroll-snap-type: x mandatory; scroll-padding: 0 16px; scrollbar-width: none; }
 .nc-styles::-webkit-scrollbar { display: none; }
 .nc-style { flex: none; width: 136px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 11px 12px 12px; border-radius: var(--r); text-align: left; scroll-snap-align: start;
   background: linear-gradient(180deg, var(--s2), var(--s1)); border: 1px solid var(--line); transition: border-color .2s, background .2s, transform .12s; }
@@ -196,7 +196,7 @@
 .nc-deal-terms span { font-size: 13px; color: var(--t3); }
 .nc-deal-terms b { font-size: 14px; font-weight: 650; text-align: right; }
 /* the signature: written along the line when he signs */
-.nc-deal-sign { position: relative; padding-top: 30px; }
+.nc-deal-sign { position: relative; padding-top: 26px; }
 .nc-deal-sign svg { position: absolute; left: 4px; bottom: 20px; width: 62%; height: 36px; overflow: visible; }
 .nc-deal-sign path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 600; stroke-dashoffset: 600; }
 .nc-deal-sign.signed path { animation: nc-write .9s cubic-bezier(.5, 0, .3, 1) forwards; }

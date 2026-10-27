@@ -290,11 +290,15 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
   }
   const younger = useRepeat(() => { haptic(); props.setAge((a) => Math.max(AGE_MIN, a - 1)) })
   const older = useRepeat(() => { haptic(); props.setAge((a) => Math.min(AGE_MAX, a + 1)) })
-  // the chosen style in view (a real manager's may be far along the row)
+  // the chosen style brought into view when it is out of sight (a real manager's may be far along the row); one tapped
+  // in view stays where it is
   const styles = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const el = styles.current?.querySelector<HTMLElement>('.nc-style.on')
-    if (el && styles.current) styles.current.scrollTo({ left: Math.max(0, el.offsetLeft - 16), behavior: 'smooth' })
+    const row = styles.current, el = row?.querySelector<HTMLElement>('.nc-style.on')
+    if (!row || !el) return
+    const from = row.scrollLeft + 16, to = row.scrollLeft + row.clientWidth - 16
+    if (el.offsetLeft < from) row.scrollTo({ left: el.offsetLeft - 16, behavior: 'smooth' })
+    else if (el.offsetLeft + el.offsetWidth > to) row.scrollTo({ left: el.offsetLeft + el.offsetWidth - row.clientWidth + 16, behavior: 'smooth' })
   }, [identity.style])
   return (
     <div className="stack nc-you">
@@ -621,7 +625,7 @@ function SignStep({ raw, club, league, first, last, nation, flag, age, identity,
         </div>
         <div className={`nc-deal-sign ${signed ? 'signed' : ''}`}>
           <svg viewBox="0 0 220 40" aria-hidden><path d="M6 28c10-14 16-20 20-14s-6 16 2 14 12-18 18-16-4 16 4 14 10-12 16-12 2 10 8 9 10-10 15-9 1 8 7 8 9-7 14-7 3 6 9 6 12-5 18-5 6 4 12 4 14-3 20-3 10 2 16 1" /></svg>
-          <span>{signed ? `Signed, ${name}` : 'Manager'}</span>
+          <span>{signed ? `Signed, ${name}` : 'Manager\'s signature'}</span>
         </div>
       </div>
       <label className="nc-field"><span>Save name</span><input value={saveName} placeholder={`${club.short} Career`} maxLength={32} onChange={(e) => setSaveName(e.target.value)} /></label>
