@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
@@ -12,7 +12,6 @@ import { CheckpointList } from '../components/Checkpoints'
 import { SAVE_SCHEMA } from '../../engine/world/migrate'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
-import { clubAccent } from '../theme'
 
 type View = 'home' | 'new' | 'load' | 'settings' | 'about'
 
@@ -34,27 +33,14 @@ export function MainMenu() {
   return <Home onView={setView} />
 }
 
-/** The menu's own air, the colour drifting at the top of the screen (Home has it at full strength, the views
- *  opened from it more quietly). */
+/** The menu's own air, the colour drifting at the top of the screen. */
 function MenuFluid() {
   return <div className="menu-fluid"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
 }
 
-/** Load, Settings and Data & Credits: still the menu (its air carries on behind, quieter), coming in from the side. */
+/** Load, Settings and Data & Credits: coming in from the side. */
 function SubView({ children }: { children: ReactNode }) {
-  return (
-    <div className="menu-sub">
-      <div className="menu-sub-air" aria-hidden><MenuFluid /></div>
-      {children}
-    </div>
-  )
-}
-
-/** A save's club colour: kept with the save since 4.2, else read from the database once it is in. */
-function useSaveAccent(s: SaveMeta): string | undefined {
-  const raw = useGame((g) => g.raw)
-  const src = s.kit ? { kit: s.kit, theme: s.theme || s.kit[0] } : raw?.clubs.find((c) => c.id === s.clubId)
-  return src ? clubAccent(src) : undefined
+  return <div className="menu-sub">{children}</div>
 }
 
 /** When a save was written, the way a person says it: just now, 12 min ago, today 21:33, yesterday 21:33, 3 Oct. */
@@ -73,27 +59,28 @@ function savedAgo(ts: number, now = Date.now()): string {
 /** Hours and minutes of play. */
 const played = (min: number) => (min < 60 ? `${Math.max(1, Math.round(min))} min` : `${Math.floor(min / 60)} h${min % 60 >= 1 ? ` ${Math.round(min % 60)} min` : ''}`)
 
-/** The career to go back to, in its club's colours: where it stands, and what comes next. */
+/** The career to go back to: the menu's own card, as it always was, with its next match beneath. */
 function ContinueCard({ save, busy, onPlay }: { save: SaveMeta; busy: boolean; onPlay: () => void }) {
-  const acc = useSaveAccent(save)
   const n = save.next
   const today = n && n.date === save.date
   return (
-    <button className="menu-continue" disabled={busy} onClick={onPlay} style={acc ? ({ ['--cc' as string]: acc } as CSSProperties) : undefined}>
-      <span className="menu-continue-crest"><Badge club={saveClub(save)} size={60} /></span>
-      <span className="menu-continue-main">
-        <span className="menu-continue-k">Continue</span>
-        <b className="menu-continue-club">{save.clubName}</b>
-        <span className="menu-continue-line">{save.position ? `${ordinal(save.position)} in ${save.leagueName} · ` : ''}{fmtDate(save.date, 'full')}</span>
-        {n && (
-          <span className={`menu-continue-next ${today ? 'today' : ''}`}>
-            <span className="menu-continue-when">{today ? 'Today' : `Next · ${fmtDate(n.date, 'dm')}`}</span>
-            <Badge club={{ id: n.oppId, badge: true, sofifaTeamId: 0, name: n.opp, abbr: n.opp.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as never} size={16} />
-            <span className="ellipsis">{n.opp} {n.home ? '(H)' : '(A)'}{n.comp ? ` · ${n.comp}` : ''}</span>
-          </span>
-        )}
-      </span>
-      <span className="menu-continue-go">{busy ? <span className="spinner" /> : <Icon name="play" size={22} />}</span>
+    <button className="card tap continue-card" disabled={busy} onClick={onPlay}>
+      <div className="row" style={{ padding: 14, gap: 14 }}>
+        <Badge club={saveClub(save)} size={50} />
+        <div className="grow" style={{ textAlign: 'left', minWidth: 0 }}>
+          <div className="kicker">Continue</div>
+          <div className="h3 ellipsis" style={{ marginTop: 3 }}>{save.clubName}</div>
+          <div className="tiny muted" style={{ marginTop: 3 }}>{save.managerName} · {fmtDate(save.date, 'long')}{save.position ? ` · ${ordinal(save.position)} in ${save.leagueName}` : ''}</div>
+          {n && (
+            <div className={`continue-next ${today ? 'today' : ''}`}>
+              <span className="continue-when">{today ? 'Today' : `Next · ${fmtDate(n.date, 'dm')}`}</span>
+              <Badge club={{ id: n.oppId, badge: true, sofifaTeamId: 0, name: n.opp, abbr: n.opp.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as never} size={15} />
+              <span className="ellipsis">{n.opp} {n.home ? '(H)' : '(A)'}</span>
+            </div>
+          )}
+        </div>
+        {busy ? <div className="spinner" /> : <Icon name="play" size={26} color="var(--acc)" />}
+      </div>
     </button>
   )
 }
@@ -171,11 +158,6 @@ export function ordinal(n: number) {
   return n + (s[(v - 20) % 10] || s[v] || s[0])
 }
 
-/** A saved career's card, washed with its club's colour at the top. */
-function SaveCard({ save, children }: { save: SaveMeta; children: ReactNode }) {
-  const acc = useSaveAccent(save)
-  return <div className="card save-card" style={acc ? ({ ['--cc' as string]: acc } as CSSProperties) : undefined}>{children}</div>
-}
 
 function LoadCareer({ onBack }: { onBack: () => void }) {
   const saves = useGame((s) => s.saves)
@@ -197,13 +179,13 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
         {saves.map((s) => {
           const older = (s.schema || 1) < SAVE_SCHEMA, newer = (s.schema || 1) > SAVE_SCHEMA
           return (
-            <SaveCard key={s.id} save={s}>
+            <div key={s.id} className="card">
               <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy || newer} onClick={async () => { haptic('medium'); setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) setBusy(undefined) }}>
-                <span className="save-crest"><Badge club={saveClub(s)} size={48} /></span>
+                <Badge club={saveClub(s)} size={46} />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="t b row tight" style={{ minWidth: 0 }}><span className="ellipsis">{s.name}</span>{s.editMode && <span className="edit-flag sm" title="Edit Mode career"><Icon name="edit" size={11} strokeWidth={2.2} /></span>}</div>
-                  <div className="tiny muted" style={{ marginTop: 3 }}>{s.managerName} · {s.clubName}{s.position ? ` · ${ordinal(s.position)} in ${s.leagueName}` : ''}</div>
-                  <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'full')} · {seasonLabel(s.season)}</div>
+                  <div className="tiny muted" style={{ marginTop: 2 }}>{s.managerName} · {s.clubName}</div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'long')} · {seasonLabel(s.season)}{s.position ? ` · ${ordinal(s.position)}` : ''}</div>
                   <div className="tiny dim" style={{ marginTop: 2 }}>Saved {savedAgo(s.updated)}{s.auto ? ' (auto)' : ''}{s.playTimeMin ? ` · ${played(s.playTimeMin)} played` : ''} · {(s.size / 1e6).toFixed(1)} MB</div>
                   {(older || newer) && <span className={`save-ver ${newer ? 'newer' : ''}`}><Icon name={newer ? 'lock' : 'refresh'} size={11} />{newer ? 'Made with a newer version' : `${s.appVersion ? `v${s.appVersion}` : 'Earlier version'} · updates to v${APP_VERSION} on load`}</span>}
                 </div>
@@ -216,7 +198,7 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
                 <button className="btn xs danger" onClick={() => setDel(s)}><Icon name="trash" size={14} /></button>
               </div>
               <div className={`save-cps ${open === s.id ? 'open' : ''}`}><div>{seen.includes(s.id) && <CheckpointList careerId={s.id} />}</div></div>
-            </SaveCard>
+            </div>
           )
         })}
       </div>

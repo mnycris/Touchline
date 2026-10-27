@@ -163,6 +163,15 @@ export const CUP_DEFS: CupDef[] = [
   },
 ]
 
+/** The round a club joins a domestic cup in (the first, or the later one its league or Europe gives it), known before
+ *  that round is drawn. */
+export function entryRoundName(w: World, comp: Competition, clubId: number): string | undefined {
+  const def = CUP_DEFS.find((d) => d.key === comp.key.replace(/-\d+$/, ''))
+  if (!def || !comp.clubs.includes(clubId)) return undefined
+  const r = def.rounds.find((r, k) => (r.entry ? r.entry(w, clubId) : k === 0))
+  return r?.name
+}
+
 export const SUPER_CUPS: { key: string; name: string; short: string; country: string; dates: string; venue?: string; four?: boolean; penaltiesOnly?: boolean }[] = [
   { key: 'COMMSHIELD', name: 'FA Community Shield', short: 'Community Shield', country: 'England', dates: 'COMMSHIELD', venue: 'Wembley Stadium', penaltiesOnly: true },
   { key: 'SUPERCOPA', name: 'Supercopa de España', short: 'Supercopa', country: 'Spain', dates: 'SUPERCOPA', venue: 'Alinma Stadium, Jeddah', four: true, penaltiesOnly: true },

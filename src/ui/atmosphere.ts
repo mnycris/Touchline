@@ -12,12 +12,13 @@ import { clubAccent, hexToRgb, luminance } from './theme'
 export type Atmosphere = [string, string, string]
 
 /** The app's own air: steel night with a breath of its green. */
-const NEUTRAL: Atmosphere = ['58, 78, 108', '43, 240, 143', '16, 24, 38']
+export const NEUTRAL: Atmosphere = ['58, 78, 108', '43, 240, 143', '16, 24, 38']
 
 const rgb = (hex: string) => hexToRgb(hex).join(', ')
 const blend = (hex: string, to: [number, number, number], t: number) => hexToRgb(hex).map((v, i) => Math.round(v + (to[i] - v) * t)).join(', ')
 
-function clubAir(club: Club): Atmosphere {
+/** A club's air: its colour, its light (its second colour, or its own lifted) and its shadow. */
+export function clubAir(club: Pick<Club, 'theme' | 'kit'>): Atmosphere {
   const acc = clubAccent(club)
   // the light is the club's second colour when it has a distinct one, otherwise its own colour lifted
   const second = [club.kit?.[1], club.kit?.[0]].find((c) => c && Math.abs(luminance(c) - luminance(acc)) > 60 && luminance(c) > 40)

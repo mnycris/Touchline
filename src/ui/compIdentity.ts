@@ -11,7 +11,7 @@
 //   Serie A            navy and azure, the faceted "A", the tricolore
 //   Ligue 1            electric blue and pink on charcoal;  Ligue 2  aquamarine and purple
 //   FA Cup             navy and red, the trophy
-//   Carabao Cup        the logo's green, its red sun with the glint on its rim, the carabao's skull and horns over it
+//   Carabao Cup        the logo's green, the carabao's head and horns as one silhouette against its red sun
 //   EFL                its navy and its ball of 72 dots, one per club, with the division's own 24 lit in its colour
 //                      as its logo does: Championship gold, League One silver, League Two red
 //   Pro League         the bull in its shield, large, in the logo's red on black, Belgium's colours along the top
@@ -35,7 +35,7 @@ export interface CompIdentity {
   ar?: number
   /** the logo shown in white on this identity's colour field, the competition's own version for a coloured background */
   whiteLogo?: boolean
-  /** a sun behind the mark, with the glint of light on its rim (the Carabao Cup's red sun, as on its logo) */
+  /** a sun behind the mark (the Carabao Cup's red sun, as on its logo) */
   sun?: boolean
   /** small type, progress and rules on the field */
   accent: string

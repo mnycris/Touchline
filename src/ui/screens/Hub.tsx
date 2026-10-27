@@ -207,7 +207,7 @@ function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }
       <div className="nm-foot">
         <div className="nm-meta tiny">
           <span className="row tight" style={{ minWidth: 0 }}>
-            <span className="ellipsis">{f.roundName || comp?.short}</span>
+            <span className="ellipsis">{[comp?.short, f.roundName].filter(Boolean).join(' · ')}</span>
             {f.moved && <span className="moved-chip" title={movedText(f)!.long}><Icon name="refresh" size={10} strokeWidth={2.6} />{movedText(f)!.tag}</span>}
           </span>
           {f.derby

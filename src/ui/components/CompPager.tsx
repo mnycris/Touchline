@@ -1,7 +1,8 @@
 // Central's competitions: a page for each one the club is in this season, in the Season tab's order, swiped the way
 // the iPhone swipes (scroll snapping and its own momentum, one page at a time). It opens on the competition of the next
-// match. The dots follow the finger: the page coming in grows its dot and lights it in that competition's colour while
-// the one leaving shrinks back to grey, and the dot a swipe settles on gives a small bounce.
+// match. The dots are an iPhone's page dots: tiny grey ones, and the current one a little larger in bright grey, which
+// follows the finger from dot to dot, drawn out into a short capsule on the way (its front edge leading, its back
+// catching up) and round again where it lands.
 import { useEffect, useLayoutEffect, useRef, type CSSProperties } from 'react'
 import type { Competition, Fixture, World } from '../../domain/types'
 import { useGame, haptic } from '../../store/game'
@@ -12,13 +13,15 @@ import { compLogoKey, fixturesOf, nextFixture, seasonComps, tableAround } from '
 import { previousPositions, ZONE_COLOR, zoneFor } from '../../engine/competitions/tables'
 import { MoveArrow } from '../screens/FifaRanking'
 import { cupPath } from '../cupPath'
+import { entryRoundName } from '../../engine/competitions/cups'
 import { fmtDate } from '../../domain/dates'
 
-/** The competition's colour for its dot and the light across its page (its identity's, else a quiet white). */
-function tone(c: Competition): { dot: string; rgb: string } {
-  const ci = compIdentity(c.key)
-  return ci ? { dot: ci.accent, rgb: ci.rgb } : { dot: '#ffffff', rgb: '255, 255, 255' }
-}
+/** The competition's colour for the light across its page (its identity's, else a quiet white). */
+const tone = (c: Competition) => compIdentity(c.key)?.rgb || '255, 255, 255'
+/** the current dot's size, and how the capsule's two ends travel between dots (the front one sooner, the back later) */
+const IND = 9
+const front = (f: number) => 1 - (1 - f) ** 2
+const rear = (f: number) => f ** 2
 
 export function CompPager({ w }: { w: World }) {
   const me = w.userClubId
@@ -27,22 +30,28 @@ export function CompPager({ w }: { w: World }) {
   const home = Math.max(0, comps.findIndex((c) => c.id === next?.compId))
   const track = useRef<HTMLDivElement>(null)
   const dots = useRef<HTMLDivElement>(null)
+  const ind = useRef<HTMLElement>(null)
   const at = useRef(home)
   const frame = useRef(0)
   const settle = useRef(0)
 
-  // each dot's share of the selection, from where the track is (0 to 1; between two pages, both in part)
+  // the current dot where the track is: between two pages, a capsule from one dot towards the other
   const paint = (p: number) => {
-    dots.current?.querySelectorAll<HTMLElement>('.cpg-dot').forEach((d, i) => d.style.setProperty('--a', Math.max(0, 1 - Math.abs(p - i)).toFixed(3)))
+    const list = dots.current?.querySelectorAll<HTMLElement>('.cpg-dot')
+    if (!list?.length || !ind.current) return
+    const mid = (k: number) => list[k].offsetLeft + list[k].offsetWidth / 2
+    const q = Math.max(0, Math.min(list.length - 1, p))
+    const i = Math.min(list.length - 2, Math.floor(q)), f = list.length > 1 ? q - i : 0
+    const a = mid(Math.max(0, i)), b = list.length > 1 ? mid(i + 1) : a
+    const left = a + (b - a) * rear(f) - IND / 2, right = a + (b - a) * front(f) + IND / 2
+    ind.current.style.transform = `translate3d(${left.toFixed(2)}px, 0, 0)`
+    ind.current.style.width = `${(right - left).toFixed(2)}px`
   }
   const landed = (i: number, felt: boolean) => {
-    const list = dots.current?.querySelectorAll<HTMLElement>('.cpg-dot')
-    list?.forEach((d, k) => d.setAttribute('aria-selected', String(k === i)))
+    dots.current?.querySelectorAll<HTMLElement>('.cpg-dot').forEach((d, k) => d.setAttribute('aria-selected', String(k === i)))
     if (i === at.current) return
     at.current = i
     if (felt) haptic()
-    const d = list?.[i]
-    if (d) { d.classList.remove('pop'); void d.offsetWidth; d.classList.add('pop') }
   }
   // open on the next match's competition, and go back to it when the next match changes
   useLayoutEffect(() => {
@@ -70,11 +79,12 @@ export function CompPager({ w }: { w: World }) {
   if (!comps.length) return null
   return (
     <div className="card cpg" data-swipe-lock>
-      <div className="cpg-dots" ref={dots} role="tablist" aria-label="Your competitions">
-        {comps.map((c, i) => (
-          <button key={c.id} className="cpg-dot" role="tab" aria-label={c.name} aria-selected={i === home} style={{ ['--dc' as string]: tone(c).dot } as CSSProperties} onClick={() => { haptic(); goTo(i) }} />
-        ))}
-      </div>
+      {comps.length > 1 && (
+        <div className="cpg-dots" ref={dots} role="tablist" aria-label="Your competitions">
+          {comps.map((c, i) => <button key={c.id} className="cpg-dot" role="tab" aria-label={c.name} aria-selected={i === home} onClick={() => { haptic(); goTo(i) }} />)}
+          <i className="cpg-ind" ref={ind} aria-hidden />
+        </div>
+      )}
       <div className="cpg-track" ref={track} onScroll={onScroll}>
         {comps.map((c) => <CompPage key={c.id} w={w} c={c} />)}
       </div>
@@ -91,7 +101,7 @@ function CompPage({ w, c }: { w: World; c: Competition }) {
   const lp = path[0]?.id === 'lp' ? path[0] : undefined
   const table = c.format === 'league' || (c.format === 'uefa' && !!row && (!lp || lp.state !== 'won' || path.length === 1))
   return (
-    <button className="cpg-page" style={{ ['--pr' as string]: tone(c).rgb } as CSSProperties} onClick={() => { haptic(); go({ name: 'comp', params: { id: c.id } }) }}>
+    <button className="cpg-page" style={{ ['--pr' as string]: tone(c) } as CSSProperties} onClick={() => { haptic(); go({ name: 'comp', params: { id: c.id } }) }}>
       <div className="card-h cpg-h">
         <div className="row tight" style={{ minWidth: 0 }}><CompLogo k={compLogoKey(c)} size={20} name={c.name} /><span className="label ellipsis">{c.short}</span></div>
       </div>
@@ -138,14 +148,20 @@ function RoadPart({ w, c, path }: { w: World; c: Competition; path: ReturnType<t
   const entry = c.rounds.find((r) => r.entrants?.includes(me) || r.fixtures.some((id) => mine.some((f) => f.id === id)))
   const focus: Fixture | undefined = won || lost ? last : next || last
   const kicker = won ? 'Winners' : final ? 'Runners-up' : lost ? `Out · ${lost.name}` : next ? next.roundName || now?.name || 'Next round' : now ? now.name : c.status === 'finished' ? 'Finished' : entry ? entry.name : 'Waiting for the draw'
+  // not in it yet: the cup's own mark, and the round the club joins it in (else its next round)
+  const waiting = !focus && !won && !lost
+  const joins = waiting && !entry ? entryRoundName(w, c, me) : undefined
+  const coming = waiting ? c.rounds.find((r) => (joins ? r.name === joins : !r.drawn && r.date >= w.date)) : undefined
+  const place = (f: Fixture) => (f.neutral ? f.venue || 'Neutral venue' : f.home === me ? 'Home' : 'Away')
   const note = won ? `Won the ${c.rounds.length > 1 ? 'final' : 'match'} on ${fmtDate(last?.date || w.date, 'dm')}`
     : final ? `Lost the final on ${fmtDate(last?.date || w.date, 'dm')}`
       : lost ? (last ? `Knocked out on ${fmtDate(last.date, 'dm')}` : 'Knocked out')
-        : next ? `${next.neutral ? 'Neutral venue' : next.home === me ? 'Home' : 'Away'} · ${fmtDate(next.date, 'day')} ${fmtDate(next.date, 'dm')} · ${next.time}`
-          : last ? 'Through · the next draw is still to come' : entry ? `Enters in the ${entry.name.toLowerCase()} · ${fmtDate(entry.date, 'dm')}` : ''
+        : next ? place(next)
+          : last ? 'Through · the next draw is still to come' : entry ? `Enters in the ${entry.name.toLowerCase()} · ${fmtDate(entry.date, 'dm')}` : coming ? `${joins ? `Enters in the ${coming.name.toLowerCase()}` : coming.name} · ${fmtDate(coming.date, 'dm')}` : ''
   return (
     <div className="cpg-road">
       {path.length > 1 && <div className="cup-path">{path.map((r) => <span key={r.id} className={`cp ${r.state}`} title={r.name}>{r.short}</span>)}</div>}
+      {waiting && <span className="cpg-mark"><CompLogo k={compLogoKey(c)} size={46} name={c.name} /></span>}
       <div className={`cpg-kicker ${won ? 'won' : final ? 'second' : lost ? 'lost' : ''}`}>{(won || final) && <Icon name="trophy" size={14} />}{kicker}</div>
       {focus && <Tie w={w} f={focus} />}
       {note && <div className="tiny dim cpg-note">{note}</div>}
@@ -153,14 +169,18 @@ function RoadPart({ w, c, path }: { w: World; c: Competition; path: ReturnType<t
   )
 }
 
+/** The tie: the two crests and names, and between them the score, or the kick-off and its date. */
 function Tie({ w, f }: { w: World; f: Fixture }) {
   const h = w.clubs[f.home], a = w.clubs[f.away]
   const r = f.played && f.result
   return (
     <div className="cpg-tie">
-      <div className="cpg-side"><Badge club={h} size={34} /><span className="small b ellipsis">{h.short}</span></div>
-      <div className="cpg-mid">{r ? <span className="display">{r.score[0]}–{r.score[1]}</span> : <span className="tiny b dim">VS</span>}{r && r.pens && <span className="tiny dim">{r.pens[0]}–{r.pens[1]} pens</span>}</div>
-      <div className="cpg-side"><Badge club={a} size={34} /><span className="small b ellipsis">{a.short}</span></div>
+      <div className="cpg-side"><Badge club={h} size={44} /><span className="small b ellipsis">{h.short}</span></div>
+      <div className="cpg-mid">
+        {r ? <><span className="display">{r.score[0]}–{r.score[1]}</span>{r.pens && <span className="tiny dim">{r.pens[0]}–{r.pens[1]} pens</span>}</>
+          : <><span className="display">{f.time}</span><span className="tiny dim">{fmtDate(f.date, 'day')} {fmtDate(f.date, 'dm')}</span></>}
+      </div>
+      <div className="cpg-side"><Badge club={a} size={44} /><span className="small b ellipsis">{a.short}</span></div>
     </div>
   )
 }

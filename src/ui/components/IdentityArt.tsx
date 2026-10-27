@@ -14,7 +14,6 @@ export function IdentityArt({ ci }: { ci: CompIdentity }) {
           {ci.mark && <i className="ci-mark" />}
           {ci.mark && ci.motion === 'prism' && <i className="ci-mark ci-mark-glass" />}
           {ci.mark2 && <i className="ci-mark ci-mark2" />}
-          {ci.sun && <i className="ci-mark ci-sun-front"><i className="ci-spark" /></i>}
         </span>
       )}
       {ci.motion && <i className="ci-light" />}

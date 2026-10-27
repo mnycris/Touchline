@@ -94,42 +94,22 @@ button.card.cal-strip { display: grid; }
 .wm-wrap { position: relative; }
 .wm-ver { position: absolute; left: calc(100% + 8px); bottom: 6px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .06em; color: rgba(255, 255, 255, .42); padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .14); white-space: nowrap; }
 .wordmark span { display: block; color: var(--acc); text-shadow: 0 0 28px rgba(43, 240, 143, 0.45); }
-/* the career to go back to, in its club's colours: where it stands, and its next match */
-.menu-continue { --cc: var(--acc); position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 15px 14px 14px 16px; border-radius: 20px; text-align: left; overflow: hidden; isolation: isolate;
-  background: radial-gradient(110% 140% at 0% 0%, color-mix(in srgb, var(--cc) 38%, transparent), transparent 62%), linear-gradient(160deg, #161b24, #0d1016 78%);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 18px 40px -24px rgba(0, 0, 0, .9); transition: transform .15s cubic-bezier(.3, .7, .4, 1); }
-.menu-continue::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: repeating-linear-gradient(115deg, rgba(255, 255, 255, .022) 0 2px, transparent 2px 12px); }
-.menu-continue::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; pointer-events: none; background: linear-gradient(90deg, transparent, var(--cc) 22%, color-mix(in srgb, var(--cc) 45%, #fff) 52%, transparent 88%); opacity: .85; }
-.menu-continue:active { transform: scale(.98); }
-.menu-continue:disabled { opacity: 1; }
-.menu-continue-crest { align-self: start; margin-top: 2px; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)); }
-.menu-continue-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.menu-continue-k { font-family: var(--display); font-weight: 700; font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--acc); }
-.menu-continue-club { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: .95; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.menu-continue-line { margin-top: 1px; font-size: 12.5px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.menu-continue-next { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 6px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .07); font-size: 12.5px; font-weight: 600; color: var(--t1); }
-.menu-continue-next .ellipsis { min-width: 0; }
-.menu-continue-when { flex: none; font-family: var(--display); font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--t3); }
-.menu-continue-next.today .menu-continue-when { color: var(--gold); }
-.menu-continue-go { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 35% 25%, color-mix(in srgb, var(--cc) 70%, #fff), var(--cc) 62%);
-  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--cc) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, .3); }
-.menu-continue-go svg { margin-left: 3px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
-.menu-continue-go .spinner { width: 20px; height: 20px; border-width: 2.5px; border-color: rgba(255, 255, 255, .3); border-top-color: #fff; }
+.continue-card { background: linear-gradient(135deg, rgba(43, 240, 143, 0.14), rgba(255, 255, 255, 0.03)); border-color: rgba(43, 240, 143, 0.35); }
+/* its next match, beneath a hairline */
+.continue-next { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .07); font-size: 12px; font-weight: 600; color: var(--t1); }
+.continue-next .ellipsis { min-width: 0; }
+.continue-when { flex: none; font-family: var(--display); font-weight: 700; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--t3); }
+.continue-next.today .continue-when { color: var(--acc); }
 .menu-new { height: 56px; font-size: 19px; }
 .menu-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 2px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, .1); font-size: 12px; font-weight: 800; letter-spacing: 0; color: var(--t1); }
 .menu-credits { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px; padding: 8px; font-size: 12px; color: var(--t3); }
 .spinner.xs { width: 12px; height: 12px; border-width: 2px; }
-/* Load, Settings, Data & Credits: the menu's air carries on behind them, quieter; they come in from the side */
-.menu-sub { position: absolute; inset: 0; isolation: isolate; }
-.menu-sub-air { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, #0c1512 0%, #0b0d11 55%); }
-.menu-sub-air .menu-fluid { animation: none; opacity: .5; }
+/* Load, Settings, Data & Credits come in from the side */
+.menu-sub { position: absolute; inset: 0; }
 .menu-sub > .screen { animation: menu-sub-in .42s cubic-bezier(.16, 1, .3, 1) backwards; }
 .menu-sub > .topbar { animation: menu-sub-fade .3s ease-out backwards; }
 @keyframes menu-sub-in { from { opacity: 0; transform: translateX(26px); } }
 @keyframes menu-sub-fade { from { opacity: 0; } }
-/* a saved career, washed with its club's colour */
-.card.save-card { background: radial-gradient(90% 130% at 0% 0%, color-mix(in srgb, var(--cc, transparent) 24%, transparent), transparent 58%), linear-gradient(180deg, var(--s2), var(--s1)); }
-.save-crest { flex: none; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .45)); }
 
 /* ---------- new career ---------- */
 .stepbar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); padding: 0; overflow: hidden; }
@@ -158,7 +138,7 @@ button.card.cal-strip { display: grid; }
 
 /* the next match, after FotMob's live card: each club's colour from its own side, meeting in the dark at the centre,
    crests over names, the competition's mark over the kick-off; the match's details and the ways in beneath */
-.nm { position: relative; border-radius: 24px; overflow: hidden; isolation: isolate; background: #0c0e14;
+.nm { position: relative; border-radius: var(--r-lg); overflow: hidden; isolation: isolate; background: var(--s1);
   box-shadow: 0 14px 34px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(255, 255, 255, .07); }
 .nm-band { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; width: 100%;
   padding: 22px 10px 19px; color: #fff; text-align: center;
@@ -177,16 +157,16 @@ button.card.cal-strip { display: grid; }
 .nm-time { font-family: var(--display); font-size: 25px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; margin-top: 1px; }
 .nm-when { font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .7); white-space: nowrap; }
 .nm.today .nm-when { color: var(--acc); }
-.nm-foot { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid rgba(255, 255, 255, .06);
-  background: linear-gradient(90deg in oklab, color-mix(in oklab, var(--hc) 14%, #0c0e14), #0c0e14 50%, color-mix(in oklab, var(--ac) 14%, #0c0e14)); }
-.nm-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; color: rgba(255, 255, 255, .8); }
+.nm-foot { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid rgba(255, 255, 255, .06); background: linear-gradient(180deg, var(--s2), var(--s1)); }
+.nm-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; color: var(--t2); }
 .nm-meta > span { min-width: 0; }
-.nm-venue, .nm-derby { flex: 0 1 auto; justify-content: flex-end; color: rgba(255, 255, 255, .55); }
+.nm-venue, .nm-derby { flex: 0 1 auto; justify-content: flex-end; color: var(--t3); }
 .nm-derby { color: #ffb08a; }
 .nm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.nm-actions .btn:not(.primary) { background: rgba(255, 255, 255, .08); }
+.nm-actions .btn:not(.primary) { background: var(--s3); }
 
-/* Central's competitions: one page each, swiped; the dots in the corner follow the finger (--a: how selected) */
+/* Central's competitions: one page each, swiped; the page dots in the corner, as an iPhone's: tiny grey dots, and the
+   current one larger in bright grey, following the finger and drawn out into a capsule between two dots (CompPager) */
 .cpg { position: relative; padding: 0; overflow: hidden; }
 .cpg-track { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .cpg-track::-webkit-scrollbar { display: none; }
@@ -194,29 +174,24 @@ button.card.cal-strip { display: grid; }
   background: radial-gradient(130% 75% at 0% 0%, rgba(var(--pr), .13), transparent 58%); }
 .cpg-page:active { background-color: rgba(255, 255, 255, .02); }
 .cpg-h { padding-right: 104px; }
-.cpg-dots { position: absolute; top: 7px; right: 8px; z-index: 2; display: flex; align-items: center; }
-.cpg-dot { --a: 0; width: 17px; height: 30px; display: grid; place-items: center; }
-.cpg-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%;
-  background: color-mix(in oklab, var(--dc) calc(var(--a) * 100%), rgba(255, 255, 255, .24));
-  transform: scale(calc(1 + var(--a) * .62));
-  box-shadow: 0 0 calc(var(--a) * 10px) calc(var(--a) * 1.5px) color-mix(in srgb, var(--dc) calc(var(--a) * 70%), transparent); }
-/* the dot a swipe comes to rest on gives a small bounce */
-.cpg-dot.pop::before { animation: cpg-pop .42s cubic-bezier(.3, 1.6, .45, 1); }
-@keyframes cpg-pop { 0% { transform: scale(1.2); } 55% { transform: scale(1.95); } 100% { transform: scale(1.62); } }
-.cpg-road { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 2px 14px 14px; }
-.cpg-road .cpg-tie { margin: auto 0; }
-.cpg-road .cup-path { margin-top: 0; }
-.cpg-kicker { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--t2); }
+.cpg-dots { position: absolute; top: 7px; right: 10px; z-index: 2; display: flex; align-items: center; }
+.cpg-dot { width: 15px; height: 30px; display: grid; place-items: center; }
+.cpg-dot::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .3); }
+.cpg-ind { position: absolute; left: 0; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 5px; background: #e4e7ec; pointer-events: none; will-change: transform, width; }
+.cpg-road { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 0 14px 16px; text-align: center; }
+.cpg-road .cup-path { align-self: stretch; justify-content: center; margin-top: 0; }
+.cpg-kicker { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--t2); }
 .cpg-kicker.won { color: var(--gold); }
 .cpg-kicker.lost { color: var(--neg); }
 .cpg-kicker.second { color: #c9d2de; }
-.cpg-tie { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 12px 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); }
-.cpg-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+/* the tie itself, open on the page: crests and names either side, the score or the kick-off between */
+.cpg-tie { align-self: stretch; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; }
+.cpg-side { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
 .cpg-side span { max-width: 100%; }
-.cpg-mid { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 54px; }
-.cpg-mid .display { font-size: 24px; }
-.cpg-note { text-align: center; }
-@media (prefers-reduced-motion: reduce) { .cpg-dot.pop::before { animation: none; } }
+.cpg-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 76px; }
+.cpg-mid .display { font-size: 26px; font-variant-numeric: tabular-nums; }
+.cpg-note { max-width: 100%; }
+.cpg-mark { opacity: .9; filter: drop-shadow(0 6px 14px rgba(0, 0, 0, .4)); }
 .tile { padding: 12px; min-height: 108px; }
 .mini-btn { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px 6px; min-height: 72px; }
 .mini-btn span { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t2); text-align: center; }
@@ -2805,30 +2780,18 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
   --ci-mw: .27; --ci-mx: 4%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #c8102e 75%, transparent); }
-/* Carabao Cup: its logo's green (#008c5a) and white; the red sun with its yellow rim and the glint of light at its top
-   right, the carabao's skull over it with its horns spread, as on the logo, large and cropped at the card's edge */
+/* Carabao Cup: its logo's green (#008c5a); the carabao's head and horns from the logo as one silhouette cut in the
+   field's own deep green, standing against the logo's red sun, which keeps a fine gold rim; large and cropped at the
+   card's edge, the way the family's trophies and marks are */
 .ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .26), transparent 62%), linear-gradient(125deg, #00170e 0%, #003d28 45%, #007a4f 100%);
-  --ci-glow: radial-gradient(42% 70% at 82% 44%, rgba(255, 120, 60, .22), transparent 70%), linear-gradient(112deg, transparent 47%, rgba(255, 255, 255, .07) 47.3%, rgba(255, 255, 255, .015) 54%, transparent 54.3%);
-  --ci-mw: .56; --ci-mx: -13%; --ci-my: 7%; --ci-mark-op: 1;
-  --ci-mark-fill: linear-gradient(180deg, #2b2b2b 0%, #0d0d0d 55%, #000 100%);
-  --ci-mark2-fill: linear-gradient(180deg, #ffffff 0%, #f1f4f2 55%, #c9d3cd 100%);
+  --ci-mw: .56; --ci-mx: -13%; --ci-my: 7%; --ci-mark-op: 1; --ci-mark2-op: 1;
+  --ci-mark-fill: linear-gradient(180deg, #003322 0%, #001a10 100%);
+  --ci-mark2-fill: linear-gradient(180deg, #003322 0%, #001a10 100%);
   --ci-sheen: 255, 238, 196;
-  --ci-edge: linear-gradient(90deg, transparent, #f5c400 45%, #ff4a2e 70%, transparent); }
-/* the sun: a circle in the mark's own frame (its radii as shares of a 200 x 112 box), behind the horns and the skull */
-.ci-mark.ci-sun { -webkit-mask: none; mask: none; opacity: 1;
-  background: radial-gradient(ellipse 22.5% 40.2% at 50% 52%, #ff7444 0%, #f4471f 50%, #d81b1b 86%, #ffd23f 87.5%, #ffc414 95%, transparent 96.5%);
-  animation: ci-sun 7s ease-in-out infinite; }
-@keyframes ci-sun { 0%, 100% { filter: drop-shadow(0 0 14px rgba(255, 84, 40, .26)); } 50% { filter: drop-shadow(0 0 26px rgba(255, 100, 50, .46)); } }
-.ci-mark.ci-sun-front { -webkit-mask: none; mask: none; background: none; opacity: 1; }
-/* the glint on the sun's rim: a four-pointed star of light that catches now and then */
-.ci-spark { position: absolute; left: 65%; top: 25%; width: 16%; aspect-ratio: 1; translate: -50% -50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, .9) 0 6%, rgba(255, 255, 255, .35) 13%, transparent 34%); }
-.ci-spark::before { content: ''; position: absolute; inset: 0; background: #fff;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath d='M0-50C2.6-11 11-2.6 50 0C11 2.6 2.6 11 0 50C-2.6 11-11 2.6-50 0C-11-2.6-2.6-11 0-50Z'/%3E%3C/svg%3E") center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-50 -50 100 100'%3E%3Cpath d='M0-50C2.6-11 11-2.6 50 0C11 2.6 2.6 11 0 50C-2.6 11-11 2.6-50 0C-11-2.6-2.6-11 0-50Z'/%3E%3C/svg%3E") center / contain no-repeat;
-  transform: scale(.74); animation: ci-twinkle 6.5s 1.4s ease-in-out infinite; }
-@keyframes ci-twinkle { 0%, 68%, 100% { transform: scale(.74) rotate(0deg); opacity: .82; } 78% { transform: scale(1.14) rotate(20deg); opacity: 1; } 88% { transform: scale(.8) rotate(38deg); opacity: .9; } }
-@media (prefers-reduced-motion: reduce) { .ci-spark::before { animation: none; } }
+  --ci-edge: linear-gradient(90deg, transparent, #f5c400 45%, #d61f26 70%, transparent); }
+/* the sun: a circle in the mark's own frame (its radii as shares of a 200 x 112 box), behind the head and the horns */
+.ci-mark.ci-sun { -webkit-mask: none; mask: none; opacity: 1; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .35));
+  background: radial-gradient(ellipse 22.5% 40.2% at 50% 52%, #d41c24 0%, #ad131b 55%, #7a0c14 86%, rgba(214, 170, 60, .85) 87.5%, rgba(214, 170, 60, .5) 92%, transparent 93.5%); }
 /* Copa del Rey: crimson and gold; DFB-Pokal: black and gold after the trophy; both with their nation's colours */
 .ci-CDR { --ci-field: linear-gradient(125deg, #3a0510 0%, #6d0a1c 45%, #9c1229 100%);
   --ci-glow: radial-gradient(60% 100% at 100% 0%, rgba(246, 196, 69, .32), transparent 62%), linear-gradient(115deg, transparent 62%, rgba(246, 196, 69, .1) 62.4%, transparent 72%);
@@ -2889,10 +2852,11 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
 .md-head.ci-FACUP { --ci-md-op: .2; }
-/* the Carabao Cup's match day: only its horns, spread faintly across the top; its sun and the skull stay on its own
-   card (behind the kick-off they would sit right under the time) */
-.md-head.ci-EFLCUP .ci-sun, .md-head.ci-EFLCUP .ci-sun-front, .md-head.ci-EFLCUP .ci-mark2 { display: none; }
-.md-head.ci-EFLCUP { --ci-md-op: .55; }
+/* the Carabao Cup's match day: the head and horns faintly across the band, without the sun (behind the kick-off it
+   would sit right under the time) */
+.md-head.ci-EFLCUP .ci-sun { display: none; }
+.md-head.ci-EFLCUP { --ci-md-op: .7; }
+.md-head.ci-EFLCUP .ci-mark2 { opacity: var(--ci-md-op); }
 /* the Bundesliga's player is a figure, not a pattern: behind the badges and the kick-off time he is only clutter, so
    the band keeps the field, its red light and the logo above the badges */
 .md-head.ci-L19 .ci-mark, .md-head.ci-L20 .ci-mark { display: none; }

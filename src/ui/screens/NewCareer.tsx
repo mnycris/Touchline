@@ -1,25 +1,33 @@
-// Starting a career: the first thing anyone sees of the game, told as taking a job. Who you are (on a manager's pass
-// that fills in as you type), where (the leagues in their own colours), which club (each one opened before you take
-// it), the rules you play by, and the appointment itself, signed, before the world is built. Five steps, each one
-// screen, with a way back to any of them.
+// Starting a career: the first thing anyone sees of the game, told as taking a job. Who you are (a manager's card that
+// fills in as you type), where (the leagues, the biggest in their own identity), which club (each one opened before you
+// take it), the rules you play by, and the appointment itself, signed, before the world is built. Five steps under the
+// app's own top bar, each one screen, with a way back to any of them.
 import { DeepLeaguePicker, type PickLeague } from '../components/DeepLeaguePicker'
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from 'react'
 import { useGame, haptic } from '../../store/game'
 import type { RawClub, RawDb, RawLeague } from '../../data/rawTypes'
 import type { BuildStage } from '../../data/createWorld'
 import type { AvatarConfig, CareerSettings } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CompLogo, Face, Flag, ManagerAvatar, Ovr, PosChip, Stars } from '../components/atoms'
-import { Seg, Sheet, Toggle } from '../components/layout'
+import { Seg, Sheet, Toggle, TopBar } from '../components/layout'
+import { ClubFog } from '../components/ClubFog'
 import { IdentityArt } from '../components/IdentityArt'
 import { compIdentity, identityClass, identityVars } from '../compIdentity'
+import { clubAir, NEUTRAL } from '../atmosphere'
 import { clubRatings, leagueClubs, rawBudget, rawExpectation, rawSquads, starRating } from '../rawHelpers'
 import { fmtMoney } from '../../domain/finance'
 import { clubAccent } from '../theme'
 
 type Step = 'you' | 'league' | 'club' | 'rules' | 'sign'
 type Stage = BuildStage | 'saved'
-const STEPS: { id: Step; label: string }[] = [{ id: 'you', label: 'You' }, { id: 'league', label: 'League' }, { id: 'club', label: 'Club' }, { id: 'rules', label: 'Rules' }, { id: 'sign', label: 'Sign' }]
+const STEPS: { id: Step; title: string }[] = [
+  { id: 'you', title: 'Create Manager' },
+  { id: 'league', title: 'Choose League' },
+  { id: 'club', title: 'Choose Club' },
+  { id: 'rules', title: 'Career Settings' },
+  { id: 'sign', title: 'Your Appointment' },
+]
 
 const AVATAR_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899', '#64748b']
 const DEFAULT_AVATAR: AvatarConfig = { skin: 1, hair: 2, hairColor: 2, beard: 1, eyes: 0, brows: 0, glasses: 0, outfit: 'Suit', outfitColor: '#1A2233', tie: true }
@@ -36,23 +44,24 @@ const STYLES: { id: string; line: string }[] = [
 interface ManagerIdentity { real?: string; color: string; style: string }
 /** The manager he was making before he tried a real one, given back if he returns to his own. */
 interface Draft { first: string; last: string; nation: string; age: number; style: string }
+const AGE_MIN = 30, AGE_MAX = 72
 
 /** Ways to play, each a set of the career settings; anything else is a custom set. */
-const PRESETS: { id: string; name: string; line: string; icon: string; s: Pick<CareerSettings, 'difficulty' | 'transferDifficulty' | 'startingBudget' | 'injuries' | 'growth' | 'sacking'> }[] = [
-  { id: 'relaxed', name: 'Relaxed', icon: 'morale', line: 'Kinder matches and deals, more to spend, a patient board', s: { difficulty: 'Amateur', transferDifficulty: 'Easy', startingBudget: 'High', injuries: 'Low', growth: 'Normal', sacking: false } },
-  { id: 'classic', name: 'Classic', icon: 'whistle', line: 'The game as it is meant to be played', s: { difficulty: 'Professional', transferDifficulty: 'Normal', startingBudget: 'Default', injuries: 'Normal', growth: 'Normal', sacking: true } },
-  { id: 'hardcore', name: 'Hardcore', icon: 'fire', line: 'The best sides at their best, hard deals, less money', s: { difficulty: 'Legendary', transferDifficulty: 'Hard', startingBudget: 'Low', injuries: 'High', growth: 'Normal', sacking: true } },
+const PRESETS: { id: string; name: string; line: string; level: number; s: Pick<CareerSettings, 'difficulty' | 'transferDifficulty' | 'startingBudget' | 'injuries' | 'growth' | 'sacking'> }[] = [
+  { id: 'relaxed', name: 'Relaxed', level: 1, line: 'Kinder matches and deals, more to spend, a patient board', s: { difficulty: 'Amateur', transferDifficulty: 'Easy', startingBudget: 'High', injuries: 'Low', growth: 'Normal', sacking: false } },
+  { id: 'classic', name: 'Classic', level: 2, line: 'The game as it is meant to be played', s: { difficulty: 'Professional', transferDifficulty: 'Normal', startingBudget: 'Default', injuries: 'Normal', growth: 'Normal', sacking: true } },
+  { id: 'hardcore', name: 'Hardcore', level: 3, line: 'The best sides at their best, hard deals, less money', s: { difficulty: 'Legendary', transferDifficulty: 'Hard', startingBudget: 'Low', injuries: 'High', growth: 'Normal', sacking: true } },
 ]
 const presetOf = (s: CareerSettings) => PRESETS.find((p) => (Object.keys(p.s) as (keyof typeof p.s)[]).every((k) => s[k] === p.s[k]))?.id
 
-/** What the board asks, as a tag and its colour. */
-function challenge(text: string): { tag: string; tone: string } {
-  if (/win the league|title/i.test(text)) return { tag: 'Title', tone: 'gold' }
-  if (/promotion/i.test(text)) return { tag: 'Promotion', tone: 'green' }
-  if (/europe/i.test(text)) return { tag: 'Europe', tone: 'blue' }
-  if (/top half/i.test(text)) return { tag: 'Top half', tone: 'teal' }
-  if (/relegation/i.test(text)) return { tag: 'Survival', tone: 'red' }
-  return { tag: 'Mid-table', tone: 'grey' }
+/** What the board asks, in a word. */
+function challenge(text: string): string {
+  if (/win the league|title/i.test(text)) return 'Title'
+  if (/promotion/i.test(text)) return 'Promotion'
+  if (/europe/i.test(text)) return 'Europe'
+  if (/top half/i.test(text)) return 'Top half'
+  if (/relegation/i.test(text)) return 'Survival'
+  return 'Mid-table'
 }
 
 export function NewCareer({ onExit }: { onExit: () => void }) {
@@ -100,9 +109,10 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
   if (!raw) {
     return (
       <div className="nc">
-        <Backdrop />
+        <ClubFog atmo={NEUTRAL} />
+        <TopBar title="New Career" back onBack={onExit} search={false} />
         <div className="nc-loading">
-          {dbError ? <><Icon name="warning" size={32} color="var(--neg)" /><div className="muted">Could not load the football database. {dbError}</div><button className="btn" onClick={() => loadDb()}>Retry</button><button className="btn" onClick={onExit}>Back</button></> : <><div className="spinner" /><div className="muted small">Loading the EA SPORTS FC 27 database…</div></>}
+          {dbError ? <><Icon name="warning" size={32} color="var(--neg)" /><div className="muted">Could not load the football database. {dbError}</div><button className="btn" onClick={() => loadDb()}>Retry</button></> : <><div className="spinner" /><div className="muted small">Loading the EA SPORTS FC 27 database…</div></>}
         </div>
       </div>
     )
@@ -111,7 +121,6 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
   const club = clubId ? raw.clubs.find((c) => c.id === clubId) : undefined
   const league = leagueId ? raw.leagues.find((l) => l.id === leagueId) : undefined
   const flag = raw.nations.find((n) => n.name === nation)?.flag
-  const tint = club ? clubAccent(club) : undefined
 
   const build = async (onStage: (s: Stage) => Promise<void>) => {
     if (!club) return
@@ -130,61 +139,45 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
     if (!club) return
     haptic('heavy')
     setSigning(true)
-    window.setTimeout(() => setBuilding(true), 900)
+    // the name is written along the line first
+    window.setTimeout(() => setBuilding(true), 1150)
   }
 
   const valid = first.trim().length >= 1 && last.trim().length >= 2
-  const view: Record<Step, { title: ReactNode; sub?: string; body: ReactNode; cta?: ReactNode }> = {
+  const view: Record<Step, { body: ReactNode; cta?: ReactNode }> = {
     you: {
-      title: <>Who's<br />in charge?</>,
-      sub: 'Make your own manager, or step into a real one\'s shoes.',
       body: <YouStep raw={raw} first={first} last={last} setFirst={setFirst} setLast={setLast} nation={nation} setNation={setNation} age={age} setAge={setAge} identity={identity} setIdentity={setIdentity} flag={flag} keepDraft={(d) => { draft.current = d }} draft={() => draft.current} />,
-      cta: <button className="btn primary block nc-go" disabled={!valid} onClick={next}>{valid ? <>Continue <Icon name="forward" size={18} /></> : 'Add your name to continue'}</button>,
+      cta: <button className="btn primary block nc-go" disabled={!valid} onClick={next}>Continue <Icon name="forward" size={18} /></button>,
     },
     league: {
-      title: <>Where will<br />you manage?</>,
-      sub: 'Every league plays its real 2026/27 season.',
       body: <LeagueStep raw={raw} onPick={(id) => { setLeagueId(id); if (id !== leagueId) setClubId(undefined); next() }} />,
     },
     club: {
-      title: <>Choose<br />your club</>,
-      sub: league ? `${league.name} · open one to see the job` : undefined,
       body: league ? <ClubStep raw={raw} league={league} picked={clubId} onOpen={(id) => { haptic(); setPeek(id) }} /> : null,
     },
     rules: {
-      title: <>Set the<br />rules</>,
-      sub: 'Pick how you want to play. Everything can be fine-tuned.',
       body: <RulesStep settings={settings} setSettings={setSettings} leagues={raw.leagues} own={club?.leagueId} editMode={editMode} setEditMode={setEditMode} />,
       cta: <button className="btn primary block nc-go" onClick={next}>Continue <Icon name="forward" size={18} /></button>,
     },
     sign: {
-      title: <>The<br />appointment</>,
-      body: club ? <SignStep raw={raw} club={club} league={league} first={first} last={last} nation={nation} flag={flag} age={age} identity={identity} settings={settings} editMode={editMode} saveName={saveName} setSaveName={setSaveName} /> : null,
-      cta: club ? <SignButton name={`${first.trim()} ${last.trim()}`} onSign={sign} /> : undefined,
+      body: club ? <SignStep raw={raw} club={club} league={league} first={first} last={last} nation={nation} flag={flag} age={age} identity={identity} settings={settings} editMode={editMode} saveName={saveName} setSaveName={setSaveName} signed={signing} /> : null,
+      cta: club ? <button className="btn primary block nc-go" disabled={signing} onClick={sign}>{signing ? <><Icon name="check" size={19} /> Signed</> : <><Icon name="contract" size={19} /> Sign the contract</>}</button> : undefined,
     },
   }
   const v = view[step]
   const peeked = step === 'club' && peek != null ? raw.clubs.find((c) => c.id === peek) : undefined
   return (
-    <div className="nc" style={tint ? ({ ['--nc-tint' as string]: tint } as CSSProperties) : undefined}>
-      <Backdrop tinted={!!tint} />
-      <header className="nc-top">
-        <button className="iconbtn" onClick={back} aria-label={idx === 0 ? 'Back to the menu' : 'Back'}><Icon name="back" size={20} /></button>
-        <nav className="nc-rail" aria-label="Steps">
-          {STEPS.map((s, i) => (
-            <button key={s.id} className={`nc-seg ${i < idx ? 'done' : i === idx ? 'on' : ''}`} disabled={i >= idx || signing} aria-current={i === idx ? 'step' : undefined} onClick={() => go(s.id)}>
-              <i /><span>{s.label}</span>
-            </button>
-          ))}
-        </nav>
-      </header>
-      <div className="nc-body" key={step}>
-        <div className={`nc-title nc-in-${dir}`}>
-          <div className="nc-kicker">{String(idx + 1).padStart(2, '0')} · {STEPS[idx].label}</div>
-          <h1>{v.title}</h1>
-          {v.sub && <p>{v.sub}</p>}
-        </div>
-        <div className={`nc-content nc-in-${dir}`}>{v.body}</div>
+    <div className="nc">
+      {/* the app's own air until there is a club, then the club's */}
+      <ClubFog key={club?.id ?? 'app'} className="nc-air" atmo={club ? clubAir(club) : NEUTRAL} />
+      <TopBar title={STEPS[idx].title} sub={`Step ${idx + 1} of ${STEPS.length}`} back onBack={back} search={false} />
+      <nav className="nc-rail" aria-label="Steps">
+        {STEPS.map((s, i) => (
+          <button key={s.id} className={i < idx ? 'done' : i === idx ? 'on' : ''} disabled={i >= idx || signing} aria-label={s.title} aria-current={i === idx ? 'step' : undefined} onClick={() => go(s.id)}><i /></button>
+        ))}
+      </nav>
+      <div className={`screen no-nav nc-body ${v.cta ? 'has-cta' : ''}`} key={step}>
+        <div className={`pad nc-in-${dir}`}>{v.body}</div>
       </div>
       {v.cta && <div className="nc-cta">{v.cta}</div>}
       {peeked && <ClubPreview raw={raw} club={peeked} onClose={() => setPeek(undefined)} onTake={() => { haptic('heavy'); setPeek(undefined); setClubId(peeked.id); go('rules') }} />}
@@ -192,19 +185,17 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
   )
 }
 
-/** The menu's air: slow colour over a pitch drawn in faint lines; once a club is chosen, its colour comes in. */
-function Backdrop({ tinted }: { tinted?: boolean }) {
-  return (
-    <div className={`nc-bg ${tinted ? 'tinted' : ''}`} aria-hidden>
-      <div className="menu-fluid"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
-      <svg className="nc-pitch" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice">
-        <g fill="none" stroke="rgba(255,255,255,.05)" strokeWidth="2">
-          <rect x="30" y="40" width="340" height="520" rx="4" /><line x1="30" y1="300" x2="370" y2="300" /><circle cx="200" cy="300" r="62" />
-          <rect x="110" y="40" width="180" height="90" /><rect x="110" y="470" width="180" height="90" />
-        </g>
-      </svg>
-    </div>
-  )
+/** Press to step once, hold to keep stepping. */
+function useRepeat(fn: () => void) {
+  const cur = useRef(fn)
+  useEffect(() => { cur.current = fn })
+  const timer = useRef<number>(undefined)
+  const stop = () => { window.clearTimeout(timer.current); window.clearInterval(timer.current) }
+  useEffect(() => stop, [])
+  return {
+    onPointerDown: () => { cur.current(); stop(); timer.current = window.setTimeout(() => { timer.current = window.setInterval(() => cur.current(), 70) }, 380) },
+    onPointerUp: stop, onPointerLeave: stop, onPointerCancel: stop,
+  }
 }
 
 // ----------------------------------------------------------------- you
@@ -238,28 +229,29 @@ function StyleGlyph({ id }: { id: string }) {
   )
 }
 
-/** The manager's pass: who he is, filled in as he is made. */
-function ManagerPass({ first, last, nation, flag, age, identity }: { first: string; last: string; nation: string; flag?: string; age: number; identity: ManagerIdentity }) {
-  const name = `${first} ${last}`.trim()
+/** The manager's card: who he is, filled in as he is made. */
+function ManagerCard({ first, last, nation, flag, age, identity }: { first: string; last: string; nation: string; flag?: string; age: number; identity: ManagerIdentity }) {
+  const name = `${first.trim()} ${last.trim()}`.trim()
+  const style = STYLES.find((s) => s.id === identity.style)
   return (
-    <div className="nc-pass" style={{ ['--pc' as string]: identity.color } as CSSProperties}>
-      <i className="nc-pass-sheen" key={`${name}|${identity.color}|${identity.real || ''}`} aria-hidden />
-      <div className="nc-pass-photo">
-        {identity.real ? <ManagerAvatar name={identity.real} size={92} radius={22} nation={nation} />
-          : name ? <Avatar name={name} size={92} radius={22} color={identity.color} />
-          : <div className="avatar nc-pass-blank" style={{ width: 92, height: 92, borderRadius: 22, ['--av' as string]: identity.color } as CSSProperties}><Icon name="manager" size={46} /></div>}
+    <div className="nc-id" style={{ ['--pc' as string]: identity.color } as CSSProperties}>
+      <i className="nc-id-sheen" key={`${name}|${identity.color}|${identity.real || ''}`} aria-hidden />
+      <div className="nc-id-top">
+        {identity.real ? <ManagerAvatar name={identity.real} size={68} radius={18} nation={nation} />
+          : name ? <Avatar name={name} size={68} radius={18} color={identity.color} />
+          : <div className="avatar nc-id-blank" style={{ width: 68, height: 68, borderRadius: 18, ['--av' as string]: identity.color } as CSSProperties}><Icon name="manager" size={32} /></div>}
+        <div className="nc-id-main">
+          <span className="nc-id-k">{identity.real ? 'Real manager' : 'Manager'} · 2026/27</span>
+          <b className={`nc-id-name ${name ? '' : 'empty'}`}>{name || 'Your name'}</b>
+          <span className="nc-id-meta"><Flag code={flag} size={12} />{nation} · {age}</span>
+        </div>
       </div>
-      <div className="nc-pass-main">
-        <span className="nc-pass-k">Manager · 2026/27</span>
-        <b className={`nc-pass-name ${name ? '' : 'empty'}`}>{first.trim() || 'Your'}<br />{last.trim() || 'name'}</b>
-        <span className="nc-pass-meta"><Flag code={flag} size={12} />{nation} · {age}</span>
-      </div>
-      <div className="nc-pass-style"><StyleGlyph id={identity.style} /><span>{identity.style}{identity.real ? ' · real manager' : ''}</span></div>
+      <div className="nc-id-style"><StyleGlyph id={identity.style} /><b>{identity.style}</b><span className="ellipsis">{style?.line}</span></div>
     </div>
   )
 }
 
-function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s: string) => void; setLast: (s: string) => void; nation: string; setNation: (s: string) => void; age: number; setAge: (n: number) => void; identity: ManagerIdentity; setIdentity: (i: ManagerIdentity) => void; flag?: string; keepDraft: (d: Draft) => void; draft: () => Draft | undefined }) {
+function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s: string) => void; setLast: (s: string) => void; nation: string; setNation: (s: string) => void; age: number; setAge: Dispatch<SetStateAction<number>>; identity: ManagerIdentity; setIdentity: (i: ManagerIdentity) => void; flag?: string; keepDraft: (d: Draft) => void; draft: () => Draft | undefined }) {
   const { raw, identity, setIdentity } = props
   const [mode, setMode] = useState<'custom' | 'real'>(identity.real ? 'real' : 'custom')
   const [natOpen, setNatOpen] = useState(false)
@@ -284,7 +276,7 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
     props.setFirst(parts.length > 1 ? parts.slice(0, -1).join(' ') : m.name)
     props.setLast(parts.length > 1 ? parts[parts.length - 1] : m.name)
     props.setNation(m.nationality)
-    props.setAge(Math.max(30, Math.min(72, m.age)))
+    props.setAge(Math.max(AGE_MIN, Math.min(AGE_MAX, m.age)))
     setIdentity({ ...identity, real: m.name, style: STYLES.some((s) => s.id === m.vision) ? m.vision : 'Balanced' })
   }
   const switchMode = (v: 'custom' | 'real') => {
@@ -296,33 +288,36 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
       props.setFirst(d.first); props.setLast(d.last); props.setNation(d.nation); props.setAge(d.age)
     }
   }
-  const pct = ((props.age - 30) / (72 - 30)) * 100
+  const younger = useRepeat(() => { haptic(); props.setAge((a) => Math.max(AGE_MIN, a - 1)) })
+  const older = useRepeat(() => { haptic(); props.setAge((a) => Math.min(AGE_MAX, a + 1)) })
+  // the chosen style in view (a real manager's may be far along the row)
+  const styles = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = styles.current?.querySelector<HTMLElement>('.nc-style.on')
+    if (el && styles.current) styles.current.scrollTo({ left: Math.max(0, el.offsetLeft - 16), behavior: 'smooth' })
+  }, [identity.style])
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <ManagerPass first={props.first} last={props.last} nation={props.nation} flag={props.flag} age={props.age} identity={identity} />
-      <div className="nc-modes" role="radiogroup" aria-label="Manager">
-        <button role="radio" aria-checked={mode === 'custom'} className={`nc-mode ${mode === 'custom' ? 'on' : ''}`} onClick={() => switchMode('custom')}>
-          <span className="nc-mode-ic"><Icon name="edit" size={18} /></span><b>Your own</b><span>Name, nation, colours</span>
-        </button>
-        <button role="radio" aria-checked={mode === 'real'} className={`nc-mode ${mode === 'real' ? 'on' : ''}`} onClick={() => switchMode('real')}>
-          <span className="nc-mode-faces">{reals.slice(0, 3).map((m) => <ManagerAvatar key={m.name} name={m.name} size={26} nation={m.nationality} clubs={m.club ? [m.club.name] : []} />)}</span><b>A real manager</b><span>{reals.length} to choose from</span>
-        </button>
-      </div>
+    <div className="stack nc-you">
+      <ManagerCard first={props.first} last={props.last} nation={props.nation} flag={props.flag} age={props.age} identity={identity} />
+      <Seg items={[{ id: 'custom', label: 'Your own' }, { id: 'real', label: 'Real manager' }]} value={mode} onChange={switchMode} />
       {mode === 'custom' ? (
         <div className="nc-form">
-          <div className="nc-names">
-            <label className="nc-input"><span>First name</span><input value={props.first} maxLength={18} onChange={(e) => props.setFirst(e.target.value)} placeholder="First name" autoComplete="off" /></label>
-            <label className="nc-input"><span>Last name</span><input value={props.last} maxLength={20} onChange={(e) => props.setLast(e.target.value)} placeholder="Last name" autoComplete="off" /></label>
+          <div className="nc-row2">
+            <label className="nc-field"><span>First name</span><input value={props.first} maxLength={18} onChange={(e) => props.setFirst(e.target.value)} placeholder="First name" autoComplete="off" /></label>
+            <label className="nc-field"><span>Last name</span><input value={props.last} maxLength={20} onChange={(e) => props.setLast(e.target.value)} placeholder="Last name" autoComplete="off" /></label>
           </div>
-          <button className="nc-input nc-pick" onClick={() => { haptic(); setNatOpen(true) }}><span>Nationality</span><b><Flag code={props.flag} size={14} />{props.nation}<Icon name="down" size={16} /></b></button>
-          <div className="nc-input nc-age">
-            <span>Age</span>
-            <div className="row" style={{ gap: 14 }}>
-              <b className="display">{props.age}</b>
-              <input type="range" min={30} max={72} value={props.age} aria-label="Age" style={{ ['--p' as string]: `${pct}%` } as CSSProperties} onChange={(e) => props.setAge(Number(e.target.value))} />
+          <div className="nc-row2 nc-na">
+            <button className="nc-field nc-pick" onClick={() => { haptic(); setNatOpen(true) }}><span>Nationality</span><b><Flag code={props.flag} size={14} /><span className="ellipsis">{props.nation}</span><Icon name="down" size={16} /></b></button>
+            <div className="nc-field nc-age">
+              <span>Age</span>
+              <div className="nc-age-row">
+                <button aria-label="Younger" disabled={props.age <= AGE_MIN} {...younger}><Icon name="minus" size={15} /></button>
+                <b>{props.age}</b>
+                <button aria-label="Older" disabled={props.age >= AGE_MAX} {...older}><Icon name="plus" size={15} /></button>
+              </div>
             </div>
           </div>
-          <div className="nc-input">
+          <div className="nc-field nc-colours">
             <span>Badge colour</span>
             <div className="nc-swatches">{AVATAR_COLORS.map((c) => <button key={c} aria-label={c} className={`swatch ${identity.color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => { haptic(); setIdentity({ ...identity, color: c }) }} />)}</div>
           </div>
@@ -343,8 +338,8 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
         </div>
       )}
       <div>
-        <div className="nc-sec">Coaching style</div>
-        <div className="nc-styles" role="radiogroup" aria-label="Coaching style">
+        <div className="label nc-sec">Coaching style</div>
+        <div className="nc-styles" ref={styles} role="radiogroup" aria-label="Coaching style">
           {STYLES.map((s) => (
             <button key={s.id} role="radio" aria-checked={identity.style === s.id} className={`nc-style ${identity.style === s.id ? 'on' : ''}`} onClick={() => { haptic(); setIdentity({ ...identity, style: s.id }) }}>
               <StyleGlyph id={s.id} /><b>{s.id}</b><span>{s.line}</span>
@@ -367,7 +362,7 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
 }
 
 // ----------------------------------------------------------------- league
-/** The leagues with their own identity, shown large first, in this order. */
+/** The leagues with their own identity, shown first, in this order. */
 const FEATURED = [13, 53, 19, 31, 16, 10, 308, 4, 14]
 const COUNTRY_ORDER = ['England', 'Spain', 'Germany', 'Italy', 'France', 'Portugal', 'Netherlands', 'Belgium', 'Scotland', 'Türkiye', 'Saudi Arabia', 'United States']
 
@@ -388,18 +383,17 @@ function LeagueStep({ raw, onPick }: { raw: RawDb; onPick: (id: number) => void 
           const ci = compIdentity(`L${l.id}`)
           const top = leagueClubs(raw, l).slice(0, 3)
           return (
-            <button key={l.id} className={`nc-lg ${i === 0 ? 'wide' : ''} ${ci ? identityClass(ci) : ''}`} style={ci ? identityVars(ci) : undefined} onClick={() => { haptic('medium'); onPick(l.id) }}>
-              {ci && <IdentityArt ci={ci} />}
-              <span className="nc-lg-logo"><CompLogo k={`L${l.id}`} size={i === 0 ? 46 : 34} name={l.name} /></span>
+            <button key={l.id} className={`nc-lg ${i === 0 ? 'wide' : ''} ${ci ? identityClass(ci).replace(/ ci-(sheen|prism)/, '') : ''}`} style={ci ? identityVars(ci) : undefined} onClick={() => { haptic('medium'); onPick(l.id) }}>
+              {ci && <IdentityArt ci={{ ...ci, motion: undefined }} />}
+              <span className="nc-lg-logo"><CompLogo k={`L${l.id}`} size={i === 0 ? 40 : 30} name={l.name} /></span>
               <span className="nc-lg-name">{l.name}</span>
-              <span className="nc-lg-meta"><Flag code={l.flag} size={10} />{l.clubs.length} clubs<span className="nc-lg-crests">{top.map((c) => <Badge key={c.id} club={c as never} size={i === 0 ? 18 : 15} />)}</span></span>
-              <span className="nc-lg-stars"><Stars n={Math.max(0.5, l.prestige / 2)} size={10} /></span>
+              <span className="nc-lg-meta"><Flag code={l.flag} size={10} />{l.clubs.length} clubs<span className="nc-lg-crests">{top.map((c) => <Badge key={c.id} club={c as never} size={i === 0 ? 17 : 14} />)}</span></span>
             </button>
           )
         })}
       </div>
       <div>
-        <div className="nc-sec">More leagues</div>
+        <div className="label nc-sec">More leagues</div>
         <div className="card list nc-more">
           {rest.map((l) => (
             <button key={l.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => { haptic(); onPick(l.id) }}>
@@ -426,24 +420,23 @@ function ClubStep({ raw, league, picked, onOpen }: { raw: RawDb; league: RawLeag
   }, [raw, clubs, sort])
   return (
     <div className="stack" style={{ gap: 12 }}>
-      <div className="row" style={{ gap: 12 }}>
-        <CompLogo k={`L${league.id}`} size={36} name={league.name} />
-        <div className="grow"><div className="tiny dim">{league.country} · {clubs.length} clubs · {league.rele ? `${league.rele} go down` : 'no relegation'}</div></div>
+      <div className="row nc-lghead">
+        <CompLogo k={`L${league.id}`} size={34} name={league.name} />
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="t ellipsis">{league.name}</div>
+          <div className="tiny dim row tight"><Flag code={league.flag} size={10} />{league.country} · {clubs.length} clubs · {league.rele ? `${league.rele} go down` : 'no relegation'}</div>
+        </div>
       </div>
       <Seg small items={[{ id: 'rating', label: 'Strongest' }, { id: 'budget', label: 'Richest' }, { id: 'name', label: 'A–Z' }]} value={sort} onChange={(v) => { haptic(); setSort(v) }} />
       <div className="nc-clubs">
-        {sorted.map((c) => {
-          const ch = challenge(rawExpectation(raw, c))
-          return (
-            <button key={c.id} className={`nc-club ${picked === c.id ? 'picked' : ''}`} style={{ ['--cc' as string]: clubAccent(c) } as CSSProperties} onClick={() => onOpen(c.id)}>
-              <span className={`nc-tag ${ch.tone}`}>{ch.tag}</span>
-              <span className="nc-club-crest"><Badge club={c as never} size={56} /></span>
-              <b className="ellipsis">{c.short}</b>
-              <Stars n={starRating(c.squadAvg)} size={10} />
-              <span className="nc-club-money">{fmtMoney(rawBudget(raw, c), { short: true })} to spend</span>
-            </button>
-          )
-        })}
+        {sorted.map((c) => (
+          <button key={c.id} className={`nc-club ${picked === c.id ? 'picked' : ''}`} style={{ ['--cc' as string]: clubAccent(c) } as CSSProperties} onClick={() => onOpen(c.id)}>
+            <span className="nc-club-crest"><Badge club={c as never} size={54} /></span>
+            <b className="ellipsis">{c.short}</b>
+            <Stars n={starRating(c.squadAvg)} size={10} />
+            <span className="nc-club-foot"><b>{fmtMoney(rawBudget(raw, c), { short: true })}</b><span>{challenge(rawExpectation(raw, c))}</span></span>
+          </button>
+        ))}
       </div>
     </div>
   )
@@ -457,28 +450,27 @@ function ClubPreview({ raw, club, onClose, onTake }: { raw: RawDb; club: RawClub
   const byId = new Map(raw.clubs.map((c) => [c.id, c]))
   const hist = raw.history[String(club.leagueId)]
   const lastPos = hist ? hist.findIndex((h) => h.clubId === club.id) + 1 : 0
-  const acc = clubAccent(club)
   const exp = rawExpectation(raw, club)
-  const ch = challenge(exp)
   const young = squad.filter((p) => p.age <= 21).sort((a, b) => b.pot - a.pot).slice(0, 6)
   const [leaving, setLeaving] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const close = () => { haptic(); setLeaving(true); window.setTimeout(onClose, 220) }
   const ord = (n: number) => `${n}${['th', 'st', 'nd', 'rd'][n % 10 > 3 || Math.floor(n / 10) % 10 === 1 ? 0 : n % 10]}`
   return (
-    <div className={`nc-cp ${leaving ? 'out' : ''}`} role="dialog" aria-label={club.name} style={{ ['--cc' as string]: acc, ['--cc2' as string]: club.kit?.[1] || '#0a0f18' } as CSSProperties}>
-      <div className="nc-cp-scroll">
+    <div className={`nc-cp ${leaving ? 'out' : ''}`} role="dialog" aria-label={club.name}>
+      <ClubFog atmo={clubAir(club)} />
+      <div className="screen no-nav nc-cp-scroll" onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 190)}>
         <div className="nc-cp-hero">
-          <button className="iconbtn nc-cp-x" onClick={close} aria-label="Close"><Icon name="close" size={20} /></button>
-          <div className="nc-cp-crest"><Badge club={club as never} size={112} /></div>
+          <div className="nc-cp-crest"><Badge club={club as never} size={96} /></div>
           <div className="nc-cp-name">{club.name}</div>
-          <div className="nc-cp-lg">{lg && <CompLogo k={`L${lg.id}`} size={18} name={lg.name} />}{lg?.name}<span className="dot" /><Stars n={starRating(club.squadAvg)} size={11} /></div>
+          <div className="nc-cp-lg">{lg && <CompLogo k={`L${lg.id}`} size={16} name={lg.name} />}<span>{lg?.name}</span><Stars n={starRating(club.squadAvg)} size={11} /></div>
           <div className="nc-cp-ratings">{([['OVR', r.ovr], ['ATT', r.att], ['MID', r.mid], ['DEF', r.def]] as const).map(([k, v]) => <div key={k}><span>{k}</span><b>{v}</b></div>)}</div>
         </div>
-        <div className="nc-cp-body">
-          <div className="nc-job">
-            <div className="nc-job-row"><span>The board wants</span><b><i className={`nc-tag ${ch.tone}`}>{ch.tag}</i>{exp}</b></div>
-            <div className="nc-job-row"><span>Transfer budget</span><b>{fmtMoney(rawBudget(raw, club))}</b></div>
-            {club.manager && <div className="nc-job-row"><span>You replace</span><b>{club.manager.name}</b></div>}
+        <div className="pad stack nc-cp-body">
+          <div className="card list nc-job">
+            <div className="li"><span className="muted">The board wants</span><b>{exp}</b></div>
+            <div className="li"><span className="muted">Transfer budget</span><b>{fmtMoney(rawBudget(raw, club))}</b></div>
+            {club.manager && <div className="li"><span className="muted">You replace</span><b>{club.manager.name}</b></div>}
           </div>
           <div className="nc-facts">
             <div><Icon name="stadium" size={15} /><span>{club.stadium || 'Stadium'}</span><b>{club.capacity ? club.capacity.toLocaleString() : '—'}</b></div>
@@ -486,71 +478,91 @@ function ClubPreview({ raw, club, onClose, onTake }: { raw: RawDb; club: RawClub
             <div><Icon name="globe" size={15} /><span>City</span><b>{club.city || club.country}</b></div>
             <div><Icon name="calendar" size={15} /><span>Founded</span><b>{club.founded || '—'}</b></div>
           </div>
-          <div className="nc-sec">Key players</div>
-          <div className="nc-players">
-            {squad.slice(0, 8).map((p) => (
-              <div key={p.id} className="nc-pl">
-                <Face p={{ id: p.id, nation: p.nation, name: p.name } as never} size={58} radius={16} />
-                <span className="nc-pl-ovr"><Ovr v={p.ovr} size="sm" /></span>
-                <b className="ellipsis">{p.name.split(' ').slice(-1)[0]}</b>
-                <span className="row tight"><PosChip pos={p.pos} /><span className="tiny dim">{p.age}</span></span>
-              </div>
-            ))}
-          </div>
-          {young.length > 0 && <>
-            <div className="nc-sec">Prospects</div>
+          <div>
+            <div className="label nc-sec">Key players</div>
             <div className="nc-players">
-              {young.map((p) => (
+              {squad.slice(0, 8).map((p) => (
                 <div key={p.id} className="nc-pl">
-                  <Face p={{ id: p.id, nation: p.nation, name: p.name } as never} size={50} radius={14} />
-                  <span className="nc-pl-ovr pot"><i>POT</i>{p.pot}</span>
+                  <Face p={{ id: p.id, nation: p.nation, name: p.name } as never} size={56} radius={14} />
                   <b className="ellipsis">{p.name.split(' ').slice(-1)[0]}</b>
-                  <span className="row tight"><PosChip pos={p.pos} /><span className="tiny dim">{p.age}</span></span>
+                  <span className="nc-pl-foot"><PosChip pos={p.pos} /><Ovr v={p.ovr} size="sm" /></span>
                 </div>
               ))}
             </div>
-          </>}
-          {club.rivals.length > 0 && <>
-            <div className="nc-sec">Rivals</div>
-            <div className="card list">
-              {club.rivals.map(([id, name, lvl]) => byId.get(id) && (
-                <div key={id} className="li">
-                  <Badge club={byId.get(id) as never} size={32} />
-                  <div className="meta"><div className="t">{byId.get(id)!.name}</div><div className="s">{name}</div></div>
-                  <span className="row tight">{Array.from({ length: lvl }, (_, i) => <Icon key={i} name="fire" size={14} color="var(--neg)" />)}</span>
-                </div>
-              ))}
+          </div>
+          {young.length > 0 && (
+            <div>
+              <div className="label nc-sec">Prospects</div>
+              <div className="nc-players">
+                {young.map((p) => (
+                  <div key={p.id} className="nc-pl">
+                    <Face p={{ id: p.id, nation: p.nation, name: p.name } as never} size={56} radius={14} />
+                    <b className="ellipsis">{p.name.split(' ').slice(-1)[0]}</b>
+                    <span className="nc-pl-foot"><PosChip pos={p.pos} /><span className="nc-pot"><i>POT</i>{p.pot}</span></span>
+                  </div>
+                ))}
+              </div>
             </div>
-          </>}
+          )}
+          {club.rivals.length > 0 && (
+            <div>
+              <div className="label nc-sec">Rivals</div>
+              <div className="card list">
+                {club.rivals.map(([id, name, lvl]) => byId.get(id) && (
+                  <div key={id} className="li">
+                    <Badge club={byId.get(id) as never} size={32} />
+                    <div className="meta"><div className="t">{byId.get(id)!.name}</div><div className="s">{name}</div></div>
+                    <span className="row tight">{Array.from({ length: lvl }, (_, i) => <Icon key={i} name="fire" size={14} color="var(--neg)" />)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
-      <div className="nc-cta"><button className="btn block nc-take" onClick={onTake}><Icon name="handshake" size={19} /> Take the job</button></div>
+      <div className={`nc-cp-bar ${scrolled ? 'on' : ''}`} aria-hidden={!scrolled}><span className="ellipsis">{club.name}</span></div>
+      <button className="iconbtn nc-cp-x" onClick={close} aria-label="Close"><Icon name="close" size={20} /></button>
+      <div className="nc-cta"><button className="btn primary block nc-go" onClick={onTake}>Take the job <Icon name="forward" size={18} /></button></div>
     </div>
   )
 }
 
 // ----------------------------------------------------------------- rules
+/** A way to play, as how hard it is: one, two or three bars. */
+function Level({ n }: { n: number }) {
+  return <span className="nc-level" aria-hidden>{[1, 2, 3].map((i) => <i key={i} className={i <= n ? 'on' : ''} />)}</span>
+}
+
 function RulesStep({ settings, setSettings, leagues, own, editMode, setEditMode }: { settings: CareerSettings; setSettings: (s: CareerSettings) => void; leagues: PickLeague[]; own?: number; editMode: boolean; setEditMode: (v: boolean) => void }) {
   const set = (p: Partial<CareerSettings>) => setSettings({ ...settings, ...p })
   const preset = presetOf(settings)
   const [custom, setCustom] = useState(!preset)
   const diffs: CareerSettings['difficulty'][] = ['Beginner', 'Amateur', 'Semi-Pro', 'Professional', 'World Class', 'Legendary', 'Ultimate']
+  const isCustom = custom || !preset
   return (
-    <div className="stack" style={{ gap: 16 }}>
-      <div className="nc-presets" role="radiogroup" aria-label="How you want to play">
-        {PRESETS.map((p) => (
-          <button key={p.id} role="radio" aria-checked={preset === p.id && !custom} className={`nc-preset ${p.id} ${preset === p.id && !custom ? 'on' : ''}`} onClick={() => { haptic(); setCustom(false); set(p.s) }}>
-            <span className="nc-preset-ic"><Icon name={p.icon} size={20} /></span>
-            <b>{p.name}{p.id === 'classic' && <i>Recommended</i>}</b>
-            <span>{p.line}</span>
-            <span className="nc-preset-k">{p.s.difficulty} · {p.s.transferDifficulty.toLowerCase()} deals · {p.s.startingBudget === 'Default' ? 'usual' : p.s.startingBudget.toLowerCase()} budget</span>
-          </button>
-        ))}
-        <button role="radio" aria-checked={custom || !preset} className={`nc-preset custom ${custom || !preset ? 'on' : ''}`} onClick={() => { haptic(); setCustom(true) }}>
-          <span className="nc-preset-ic"><Icon name="settings" size={20} /></span><b>Custom</b><span>Set each one yourself</span>
+    <div className="stack" style={{ gap: 12 }}>
+      <div className="card list nc-presets" role="radiogroup" aria-label="How you want to play">
+        {PRESETS.map((p) => {
+          const on = preset === p.id && !custom
+          return (
+            <button key={p.id} role="radio" aria-checked={on} className={`li tap nc-preset ${on ? 'on' : ''}`} onClick={() => { haptic(); setCustom(false); set(p.s) }}>
+              <Level n={p.level} />
+              <span className="meta">
+                <span className="t">{p.name}{p.id === 'classic' && <i className="nc-rec">Recommended</i>}</span>
+                <span className="s">{p.line}</span>
+                <span className="s nc-preset-k">{p.s.difficulty} · {p.s.transferDifficulty.toLowerCase()} deals · {p.s.startingBudget === 'Default' ? 'usual' : p.s.startingBudget.toLowerCase()} budget</span>
+              </span>
+              <span className="nc-radio" />
+            </button>
+          )
+        })}
+        <button role="radio" aria-checked={isCustom} className={`li tap nc-preset ${isCustom ? 'on' : ''}`} onClick={() => { haptic(); setCustom(true) }}>
+          <span className="nc-level custom" aria-hidden><Icon name="settings" size={17} /></span>
+          <span className="meta"><span className="t">Custom</span><span className="s">Set each one yourself</span></span>
+          <span className="nc-radio" />
         </button>
       </div>
-      {(custom || !preset) && (
+      {isCustom && (
         <div className="stack fade-up" style={{ gap: 12 }}>
           <div className="card pad-card stack" style={{ gap: 10 }}>
             <div className="label">Match difficulty</div>
@@ -582,45 +594,38 @@ function RulesStep({ settings, setSettings, leagues, own, editMode, setEditMode 
 }
 
 // ----------------------------------------------------------------- sign
-function SignStep({ raw, club, league, first, last, nation, flag, age, identity, settings, editMode, saveName, setSaveName }: { raw: RawDb; club: RawClub; league?: RawLeague; first: string; last: string; nation: string; flag?: string; age: number; identity: ManagerIdentity; settings: CareerSettings; editMode: boolean; saveName: string; setSaveName: (s: string) => void }) {
+function SignStep({ raw, club, league, first, last, nation, flag, age, identity, settings, editMode, saveName, setSaveName, signed }: { raw: RawDb; club: RawClub; league?: RawLeague; first: string; last: string; nation: string; flag?: string; age: number; identity: ManagerIdentity; settings: CareerSettings; editMode: boolean; saveName: string; setSaveName: (s: string) => void; signed: boolean }) {
   const budget = rawBudget(raw, club) * (settings.startingBudget === 'High' ? 1.6 : settings.startingBudget === 'Low' ? 0.6 : 1)
-  const exp = rawExpectation(raw, club)
-  const ch = challenge(exp)
   const preset = PRESETS.find((p) => p.id === presetOf(settings))
+  const name = `${first.trim()} ${last.trim()}`
   return (
-    <div className="stack" style={{ gap: 14 }}>
-      <div className="nc-deal" style={{ ['--cc' as string]: clubAccent(club), ['--pc' as string]: identity.color } as CSSProperties}>
-        <div className="nc-deal-crest"><Badge club={club as never} size={92} /></div>
-        <div className="nc-deal-k">Official · {club.name}</div>
+    <div className="stack" style={{ gap: 12 }}>
+      <div className="nc-deal" style={{ ['--cc' as string]: clubAccent(club) } as CSSProperties}>
+        <div className="nc-deal-head">
+          <div className="nc-deal-k">Official<span>2026/27</span></div>
+          <Badge club={club as never} size={58} />
+        </div>
         <div className="nc-deal-who">
-          {identity.real ? <ManagerAvatar name={identity.real} size={54} radius={14} nation={nation} /> : <Avatar name={`${first} ${last}`} size={54} radius={14} color={identity.color} />}
+          {identity.real ? <ManagerAvatar name={identity.real} size={50} radius={14} nation={nation} /> : <Avatar name={name} size={50} radius={14} color={identity.color} />}
           <div className="grow" style={{ minWidth: 0 }}>
-            <b className="nc-deal-name ellipsis">{first} {last}</b>
-            <span className="tiny row tight" style={{ opacity: 0.85 }}><Flag code={flag} size={11} />{nation} · {age} · {identity.style}</span>
+            <b className="nc-deal-name ellipsis">{name}</b>
+            <span className="tiny muted row tight"><Flag code={flag} size={11} />{nation} · {age} · {identity.style}</span>
           </div>
         </div>
-        <div className="nc-deal-line">is appointed manager of {club.name}{league ? `, ${league.name}` : ''}, for the 2026/27 season.</div>
+        <p className="nc-deal-line">is appointed manager of <b>{club.name}</b>{league ? `, ${league.name},` : ''} for the 2026/27 season.</p>
         <div className="nc-deal-terms">
-          <div><span>The board wants</span><b><i className={`nc-tag ${ch.tone}`}>{ch.tag}</i>{exp}</b></div>
+          <div><span>The board wants</span><b>{rawExpectation(raw, club)}</b></div>
           <div><span>Transfer budget</span><b>{fmtMoney(budget)}</b></div>
           <div><span>Rules</span><b>{preset ? preset.name : 'Custom'} · {settings.difficulty}</b></div>
           {editMode && <div><span>Edit Mode</span><b style={{ color: 'var(--gold)' }}>On, for good</b></div>}
         </div>
+        <div className={`nc-deal-sign ${signed ? 'signed' : ''}`}>
+          <svg viewBox="0 0 220 40" aria-hidden><path d="M6 28c10-14 16-20 20-14s-6 16 2 14 12-18 18-16-4 16 4 14 10-12 16-12 2 10 8 9 10-10 15-9 1 8 7 8 9-7 14-7 3 6 9 6 12-5 18-5 6 4 12 4 14-3 20-3 10 2 16 1" /></svg>
+          <span>{signed ? `Signed, ${name}` : 'Manager'}</span>
+        </div>
       </div>
-      <label className="nc-input"><span>Save name</span><input value={saveName} placeholder={`${club.short} Career`} maxLength={32} onChange={(e) => setSaveName(e.target.value)} /></label>
+      <label className="nc-field"><span>Save name</span><input value={saveName} placeholder={`${club.short} Career`} maxLength={32} onChange={(e) => setSaveName(e.target.value)} /></label>
     </div>
-  )
-}
-
-/** Sign the contract: the name is written along the line, and the career begins. */
-function SignButton({ name, onSign }: { name: string; onSign: () => void }) {
-  const [signed, setSigned] = useState(false)
-  return (
-    <button className={`btn primary block nc-sign ${signed ? 'signed' : ''}`} disabled={signed} onClick={() => { setSigned(true); onSign() }}>
-      {signed
-        ? <svg className="nc-signature" viewBox="0 0 220 40" aria-label={`Signed, ${name}`}><path d="M6 28c10-14 16-20 20-14s-6 16 2 14 12-18 18-16-4 16 4 14 10-12 16-12 2 10 8 9 10-10 15-9 1 8 7 8 9-7 14-7 3 6 9 6 12-5 18-5 6 4 12 4 14-3 20-3 10 2 16 1" /></svg>
-        : <><Icon name="contract" size={20} /> Sign the contract</>}
-    </button>
   )
 }
 
@@ -657,12 +662,12 @@ function Building({ raw, club, onBuild }: { raw: RawDb; club: RawClub; onBuild: 
     void painted().then(() => sleep(160)).then(() => begin.current(onStage))
   }, [])
   return (
-    <div className="nc nc-building" style={{ ['--nc-tint' as string]: clubAccent(club) } as CSSProperties}>
-      <Backdrop tinted />
+    <div className="nc nc-building" style={{ ['--cc' as string]: clubAccent(club) } as CSSProperties}>
       <div className="nc-build">
-        <div className="nc-build-crest"><Badge club={club as never} size={128} /></div>
+        <div className="nc-build-crest"><Badge club={club as never} size={104} /></div>
         <div className="nc-build-name">{club.name}</div>
-        <div className="nc-build-k">Building the 2026/27 football world</div>
+        <div className="nc-build-k">Building the 2026/27 season</div>
+        <div className="nc-build-bar"><i style={{ width: `${(n / STAGES.length) * 100}%` }} /></div>
         <div className="nc-build-lines">
           {lines.map((l, i) => (
             <div key={l} className={`nc-build-line ${i < n ? 'on' : i === n ? 'now' : ''}`}>

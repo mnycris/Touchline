@@ -110,7 +110,7 @@ if (await conv.count()) {
 await page.goto(URL)
 await page.waitForTimeout(1500)
 await shot('menu-continue')
-await page.locator('.menu-continue').click()
+await page.locator('.continue-card').click()
 await page.waitForSelector('.continue-btn', { timeout: 30000 })
 await shot('reloaded-hub')
 console.log(errors.length ? errors.join('\n') : 'no errors')

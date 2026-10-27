@@ -56,7 +56,7 @@ await page.locator('[aria-label="Back"], .iconbtn').first().click()
 await shot('back-home', 700)
 // pressing Continue: the career loading
 if (SAVES.length) {
-  await page.locator('.menu-continue').click()
+  await page.locator('.continue-card').click()
   await shot('continue-pressed', 120)
   await page.waitForSelector('.continue-btn', { timeout: 90000 })
   await shot('continued', 900)
