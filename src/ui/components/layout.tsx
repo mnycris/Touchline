@@ -143,13 +143,41 @@ function useIndicator(value: unknown) {
   return [ref, pos] as const
 }
 
+/** The nearest ancestor that scrolls up and down (a screen, a sheet). */
+function scroller(el: HTMLElement | null): HTMLElement | null {
+  for (let p = el?.parentElement; p; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY
+    if (oy === 'auto' || oy === 'scroll') return p
+  }
+  return null
+}
+
+/**
+ * Another tab opens at its own beginning, not wherever the last one had been scrolled to: when the tab bar has
+ * scrolled away or is pinned at the top, the page comes back to where the bar sits at the top of the view, so the new
+ * tab's content starts right under it; while the bar is still in view nothing moves. (Coming back to a screen still
+ * finds it where it was left: see Screen.)
+ */
+function openAtTop(bar: HTMLElement | null) {
+  const box = scroller(bar)
+  if (!bar || !box) return
+  const pad = parseFloat(getComputedStyle(box).paddingTop) || 0
+  // where the bar sits in the page when nothing is pinned (a sticky bar is measured at its place in the flow)
+  const was = bar.style.position
+  bar.style.position = 'static'
+  const natural = bar.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop
+  bar.style.position = was
+  const at = Math.max(0, Math.round(natural - pad))
+  if (box.scrollTop > at + 1) requestAnimationFrame(() => { box.scrollTop = at })
+}
+
 /** Sticky tabs must be a direct child of the screen (a wrapper would stop them sticking): space them with `style`. */
 export function Tabs<T extends string>({ items, value, onChange, sticky, style }: { items: { id: T; label: ReactNode; badge?: number }[]; value: T; onChange: (v: T) => void; sticky?: boolean; style?: React.CSSProperties }) {
   const [ref, pos] = useIndicator(value)
   return (
     <div ref={ref} style={style} className={`tabs ${sticky ? 'sticky' : ''} ${pos ? 'has-ind' : ''}`}>
       {items.map((i) => (
-        <button key={i.id} className={`tab ${value === i.id ? 'on' : ''}`} onClick={() => { haptic(); onChange(i.id) }}>
+        <button key={i.id} className={`tab ${value === i.id ? 'on' : ''}`} onClick={() => { haptic(); if (i.id !== value) openAtTop(ref.current); onChange(i.id) }}>
           {i.label}
           {!!i.badge && <span className="pill" style={{ marginLeft: 6, background: 'var(--neg)', color: '#fff', height: 17, padding: '0 5px' }}>{i.badge}</span>}
         </button>
@@ -164,7 +192,7 @@ export function Seg<T extends string | number>({ items, value, onChange, small }
   return (
     <div ref={ref} className={`seg ${pos ? 'has-ind' : ''}`}>
       {items.map((i) => (
-        <button key={String(i.id)} className={value === i.id ? 'on' : ''} style={small ? { height: 30, fontSize: 12 } : undefined} onClick={() => { haptic(); onChange(i.id) }}>{i.label}</button>
+        <button key={String(i.id)} className={value === i.id ? 'on' : ''} style={small ? { height: 30, fontSize: 12 } : undefined} onClick={() => { haptic(); if (i.id !== value) openAtTop(ref.current); onChange(i.id) }}>{i.label}</button>
       ))}
       {pos && <i className={`seg-ind ${pos.ready ? 'ready' : ''}`} aria-hidden style={{ width: pos.w, transform: `translateX(${pos.x}px)` }} />}
     </div>
