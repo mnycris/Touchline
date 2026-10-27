@@ -6,20 +6,18 @@ import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components
 import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
-import { calendarOthers, compLogoKey, fixturesOf, leagueOf, nextFixture, opponent, outcomeFor, scoreLine, tableAround, userClub, lastResult, playerStatus } from '../selectors'
-import { ZONE_COLOR, zoneFor, sortTable, previousPositions } from '../../engine/competitions/tables'
-import { MoveArrow } from './FifaRanking'
+import { calendarOthers, compLogoKey, fixturesOf, nextFixture, opponent, outcomeFor, scoreLine, userClub, lastResult, playerStatus } from '../selectors'
 import { rosterOf } from '../../engine/world/roster'
 import { currentWindow } from '../../engine/competitions/calendar'
 import { unreadCount } from '../../engine/world/messages'
 import { boardMood } from '../../engine/world/board'
 import { userFixtureOn, watchedToday } from '../../engine/world/advance'
-import { ordinal } from './Menu'
 import type { Fixture, World } from '../../domain/types'
 import { Celebration } from '../components/Celebration'
 import { kitColors } from '../components/LivePitch'
 import { underWhite } from '../theme'
 import { FixtureRow } from './Match'
+import { CompPager } from '../components/CompPager'
 import { intlStage, userOnDuty } from '../../engine/world/international'
 
 const WD = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
@@ -34,7 +32,6 @@ export function Hub() {
 
   const next = nextFixture(w, club.id)
   const today = userFixtureOn(w, w.date)
-  const league = leagueOf(w, club.id)
   const last = lastResult(w, club.id)
   const squad = rosterOf(w, club.id)
   const injured = squad.filter((p) => p.injury)
@@ -94,7 +91,7 @@ export function Hub() {
           </Tile>
         </div>
 
-        {league && <MiniTable w={w} />}
+        <CompPager w={w} />
 
         <div className="grid2">
           <Tile icon="squad" label="Squad Status" onClick={() => go({ name: 'squadStatus' })}>
@@ -176,52 +173,52 @@ function MiniBtn({ icon, label, onClick }: { icon: string; label: string; onClic
   )
 }
 
+/** Competitions whose logo reads cleanly as a white mark (the others keep their own art: as a silhouette some become a
+ *  plain shield or square). */
+const WHITE_MARK = new Set(['ASIAN', 'BELCUP', 'CDR', 'CI', 'DFLSC', 'FACUP', 'GOLD', 'L1', 'L10', 'L13', 'L16', 'L17', 'L2012', 'L2149', 'L308', 'L31', 'L330', 'L341', 'L350', 'L351', 'L4', 'L41', 'L50', 'L53', 'L54', 'L68', 'L83', 'SCI', 'SUPERCOPA', 'TACA', 'TDC', 'TURCUP', 'UCL', 'UECL', 'UEL', 'WC'])
+
+/**
+ * The next match, as FotMob's live card draws one: the home club's colour on the left and the away club's on the right,
+ * meeting in the dark between them, each crest over its name, and in the middle the competition's mark over the
+ * kick-off. Below, what the match is and the two ways into it.
+ */
 function NextMatchCard({ w, f, today }: { w: World; f: Fixture; today: boolean }) {
   const open = useGame((s) => s.open)
   const go = useGame((s) => s.go)
   const comp = w.competitions[f.compId]
   const home = w.clubs[f.home], away = w.clubs[f.away]
   const days = diffDays(f.date, w.date)
-  // position in this match's own competition (league, league phase); nothing for a knockout tie
-  const ctx = comp?.table && !f.tieId ? comp : undefined
-  const lg = (id: number) => { const c = ctx || (f.tieId ? undefined : leagueOf(w, id)); if (!c?.table?.find((r) => r.clubId === id)?.p) return ''; const t = sortTable(w, c); const i = t.findIndex((r) => r.clubId === id); return i >= 0 ? `${ordinal(i + 1)}${c.format === 'uefa' ? ` in the ${c.short}` : ''}` : '' }
   const [hc, ac] = kitColors(home, away).map(underWhite)
+  const key = comp ? compLogoKey(comp) : ''
+  const when = today ? 'Today' : days === 1 ? 'Tomorrow' : `${fmtDate(f.date, 'day')} · in ${days} days`
+  const venue = f.venue || (f.neutral ? 'Neutral venue' : home.stadium)
+  const enter = () => { haptic(); open(today ? { name: 'prematch' } : { name: 'prematch', params: { id: f.id } }) }
   return (
-    <div className="hero next-match duo" style={{ ['--hc' as any]: hc, ['--ac' as any]: ac }}>
-      <div style={{ position: 'relative', zIndex: 1, padding: '14px 14px 16px' }}>
-        <div className="row between" style={{ gap: 10 }}>
-          <div className="row tight" style={{ minWidth: 0 }}>
-            {comp && <span style={{ flex: 'none' }}><CompLogo k={compLogoKey(comp)} size={22} name={comp.name} /></span>}
-            <span className="label ellipsis" style={{ color: 'rgba(255,255,255,.85)', minWidth: 0 }}>{comp?.short} · {f.roundName}</span>
+    <div className={`nm${today ? ' today' : ''}`} style={{ ['--hc' as string]: hc, ['--ac' as string]: ac } as React.CSSProperties}>
+      <button className="nm-band" onClick={enter} aria-label={`${home.name} v ${away.name}, ${comp?.name || ''}, ${when}, ${f.time}`}>
+        <span className="nm-club"><Badge club={home} size={54} /><b>{home.short}</b></span>
+        <span className="nm-mid">
+          {comp && <CompLogo k={key} size={28} name={comp.name} mono={WHITE_MARK.has(key.replace(/[-_]\d+$/, ''))} />}
+          <b className="nm-time">{f.time}</b>
+          <span className="nm-when">{when}</span>
+        </span>
+        <span className="nm-club"><Badge club={away} size={54} /><b>{away.short}</b></span>
+      </button>
+      <div className="nm-foot">
+        <div className="nm-meta tiny">
+          <span className="row tight" style={{ minWidth: 0 }}>
+            <span className="ellipsis">{f.roundName || comp?.short}</span>
             {f.moved && <span className="moved-chip" title={movedText(f)!.long}><Icon name="refresh" size={10} strokeWidth={2.6} />{movedText(f)!.tag}</span>}
-          </div>
-          <span className="pill" style={{ background: today ? 'var(--acc)' : 'rgba(0,0,0,.35)', color: today ? '#03170c' : '#fff' }}>{today ? 'MATCH DAY' : days === 1 ? 'TOMORROW' : `${days} DAYS`}</span>
+          </span>
+          {f.derby
+            ? <span className="row tight nm-derby"><Icon name="fire" size={12} color="#ff8a5c" /><span className="ellipsis">{f.derby}</span></span>
+            : <span className="row tight nm-venue"><Icon name="stadium" size={12} /><span className="ellipsis">{venue}</span></span>}
         </div>
-        <div className="row" style={{ marginTop: 14, alignItems: 'flex-start' }}>
-          <div className="col center grow" style={{ gap: 6 }}>
-            <Badge club={home} size={64} />
-            <div className="b ellipsis" style={{ maxWidth: 120, textAlign: 'center' }}>{home.short}</div>
-            <div className="tiny" style={{ opacity: 0.7 }}>{lg(home.id)}</div>
-          </div>
-          <div className="col center" style={{ paddingTop: 16, minWidth: 80 }}>
-            <div className="display" style={{ fontSize: 30 }}>{f.time}</div>
-            <div className="tiny" style={{ opacity: 0.8, marginTop: 4 }}>{fmtDate(f.date, 'day')}</div>
-          </div>
-          <div className="col center grow" style={{ gap: 6 }}>
-            <Badge club={away} size={64} />
-            <div className="b ellipsis" style={{ maxWidth: 120, textAlign: 'center' }}>{away.short}</div>
-            <div className="tiny" style={{ opacity: 0.7 }}>{lg(away.id)}</div>
-          </div>
-        </div>
-        <div className="row tight tiny" style={{ justifyContent: 'center', opacity: 0.85, marginTop: 10 }}>
-          <Icon name="stadium" size={14} /> {f.venue || (f.neutral ? 'Neutral venue' : home.stadium)}
-          {f.derby && <><span style={{ opacity: 0.5 }}>·</span><Icon name="fire" size={14} color="#ff8a5c" /> {f.derby}</>}
-        </div>
-        <div className="row" style={{ marginTop: 14 }}>
-          <button className="btn sm grow" style={{ background: 'rgba(0,0,0,.28)' }} onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={16} /> Team Sheet</button>
+        <div className="nm-actions">
+          <button className="btn sm" onClick={() => go({ name: 'tactics' })}><Icon name="tactics" size={15} /> Team Sheet</button>
           {today
-            ? <button className="btn sm primary grow" onClick={() => open({ name: 'prematch' })}><Icon name="play" size={16} /> Match Day</button>
-            : <button className="btn sm grow" style={{ background: 'rgba(0,0,0,.28)' }} onClick={() => open({ name: 'prematch', params: { id: f.id } })}><Icon name="eye" size={16} /> Preview</button>}
+            ? <button className="btn sm primary" onClick={() => open({ name: 'prematch' })}><Icon name="play" size={15} /> Match Day</button>
+            : <button className="btn sm" onClick={() => open({ name: 'prematch', params: { id: f.id } })}><Icon name="eye" size={15} /> Preview</button>}
         </div>
       </div>
     </div>
@@ -328,37 +325,6 @@ function CalendarStrip({ w }: { w: World }) {
           </div>
         )
       })}
-    </button>
-  )
-}
-
-function MiniTable({ w }: { w: World }) {
-  const go = useGame((s) => s.go)
-  const comp = leagueOf(w, w.userClubId)!
-  const rows = tableAround(w, comp, w.userClubId, 2)
-  const prev = previousPositions(w, comp)
-  const total = comp.table?.length || 20
-  return (
-    <button className="card tap" onClick={() => go({ name: 'comp', params: { id: comp.id } })}>
-      <div className="card-h">
-        <div className="row tight"><CompLogo k={compLogoKey(comp)} size={20} name={comp.name} /><span className="label">{comp.short}</span></div>
-        <span className="tiny dim">Matchday {Math.max(...(comp.table || []).map((r) => r.p), 0)}</span>
-      </div>
-      <table className="tbl">
-        <thead><tr><th style={{ width: prev ? 44 : 30 }}>#</th><th className="l">Club</th><th>P</th><th>GD</th><th>PTS</th></tr></thead>
-        <tbody>
-          {rows.map((r) => {
-            const z = zoneFor(w, comp, r.pos, total)
-            return (
-              <tr key={r.clubId} className={r.clubId === w.userClubId ? 'me' : ''}>
-                <td><span className="tbl-pos"><span className="zone-num" style={{ borderColor: ZONE_COLOR[z] }}>{r.pos}</span>{prev?.has(r.clubId) && <MoveArrow move={prev.get(r.clubId)! - r.pos} size={9} />}</span></td>
-                <td className="l"><div className="row tight"><Badge club={w.clubs[r.clubId]} size={20} /><span className="ellipsis b" style={{ maxWidth: 150 }}>{w.clubs[r.clubId].short}</span></div></td>
-                <td>{r.p}</td><td>{r.gf - r.ga > 0 ? '+' : ''}{r.gf - r.ga}</td><td className="b">{r.pts - (r.ded || 0)}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
     </button>
   )
 }

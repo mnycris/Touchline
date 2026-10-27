@@ -151,13 +151,14 @@ export function Flag({ w, nation, code, size = 18 }: { w?: World; nation?: strin
 }
 
 /** Competition logo in its official colours; designed emblem when no licensed art exists. */
-export function CompLogo({ k, size = 32, name, color }: { k: string; size?: number; name?: string; color?: string; mono?: boolean }) {
+/** `mono`: the logo as a white mark (for logos whose outline reads on its own; see WHITE_MARK in Hub). */
+export function CompLogo({ k, size = 32, name, color, mono }: { k: string; size?: number; name?: string; color?: string; mono?: boolean }) {
   const direct = compLogoUrls(k)
   const wq = direct.length ? undefined : compWikiQuery(k)
   const wiki = useWiki(wq, !!wq)
   const srcs = direct.length ? direct : wiki ? [wiki] : []
   if (srcs.length) {
-    return <ImgChain srcs={srcs} alt={name || k} className="comp-logo" style={{ height: size, maxWidth: size * 1.6, objectFit: 'contain', display: 'block' }} fallback={<CompEmblem k={k} size={size} name={name} color={color} />} />
+    return <ImgChain srcs={srcs} alt={name || k} className={`comp-logo${mono ? ' mono' : ''}`} style={{ height: size, maxWidth: size * 1.6, objectFit: 'contain', display: 'block' }} fallback={<CompEmblem k={k} size={size} name={name} color={color} />} />
   }
   return <CompEmblem k={k} size={size} name={name} color={color} />
 }

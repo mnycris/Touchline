@@ -120,6 +120,68 @@ button.card.cal-strip { display: grid; }
   background: radial-gradient(46% 90% at 50% 42%, rgba(255, 255, 255, .09), transparent 72%), linear-gradient(180deg, rgba(4, 6, 10, 0) 38%, rgba(4, 6, 10, .5) 100%), linear-gradient(100deg in oklab, var(--hc) 6%, var(--ac) 94%);
 }
 .next-match.duo .b, .next-match.duo .display, .next-match.duo .tiny { text-shadow: 0 1px 8px rgba(0, 0, 0, .35); }
+
+/* the next match, after FotMob's live card: each club's colour from its own side, meeting in the dark at the centre,
+   crests over names, the competition's mark over the kick-off; the match's details and the ways in beneath */
+.nm { position: relative; border-radius: 24px; overflow: hidden; isolation: isolate; background: #0c0e14;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(255, 255, 255, .07); }
+.nm-band { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; width: 100%;
+  padding: 22px 10px 19px; color: #fff; text-align: center;
+  background:
+    radial-gradient(90% 120% at 50% -20%, rgba(255, 255, 255, .13), transparent 62%),
+    linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, .26)),
+    linear-gradient(90deg in oklab, var(--hc) 0%, color-mix(in oklab, var(--hc) 42%, #0c0e14) 33%, #0c0e14 50%, color-mix(in oklab, var(--ac) 42%, #0c0e14) 67%, var(--ac) 100%);
+  transition: filter .18s ease; }
+.nm-band:active { filter: brightness(1.1); }
+.nm-club { display: flex; flex-direction: column; align-items: center; gap: 9px; min-width: 0; }
+.nm-club img, .nm-club svg { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .3)); }
+.nm-club b { max-width: 100%; font-size: 15px; font-weight: 700; letter-spacing: .005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 10px rgba(0, 0, 0, .4); }
+.nm-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 96px; padding: 0 4px; }
+.nm-mid .comp-logo { filter: drop-shadow(0 2px 8px rgba(0, 0, 0, .4)); }
+.nm-mid .comp-logo.mono { filter: brightness(0) invert(1) drop-shadow(0 2px 8px rgba(0, 0, 0, .4)); }
+.nm-time { font-family: var(--display); font-size: 25px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; margin-top: 1px; }
+.nm-when { font-size: 11.5px; font-weight: 600; color: rgba(255, 255, 255, .7); white-space: nowrap; }
+.nm.today .nm-when { color: var(--acc); }
+.nm-foot { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid rgba(255, 255, 255, .06);
+  background: linear-gradient(90deg in oklab, color-mix(in oklab, var(--hc) 14%, #0c0e14), #0c0e14 50%, color-mix(in oklab, var(--ac) 14%, #0c0e14)); }
+.nm-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; color: rgba(255, 255, 255, .8); }
+.nm-meta > span { min-width: 0; }
+.nm-venue, .nm-derby { flex: 0 1 auto; justify-content: flex-end; color: rgba(255, 255, 255, .55); }
+.nm-derby { color: #ffb08a; }
+.nm-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.nm-actions .btn:not(.primary) { background: rgba(255, 255, 255, .08); }
+
+/* Central's competitions: one page each, swiped; the dots in the corner follow the finger (--a: how selected) */
+.cpg { position: relative; padding: 0; overflow: hidden; }
+.cpg-track { display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.cpg-track::-webkit-scrollbar { display: none; }
+.cpg-page { flex: 0 0 100%; min-width: 0; scroll-snap-align: center; scroll-snap-stop: always; display: flex; flex-direction: column; text-align: left;
+  background: radial-gradient(130% 75% at 0% 0%, rgba(var(--pr), .13), transparent 58%); }
+.cpg-page:active { background-color: rgba(255, 255, 255, .02); }
+.cpg-h { padding-right: 104px; }
+.cpg-dots { position: absolute; top: 7px; right: 8px; z-index: 2; display: flex; align-items: center; }
+.cpg-dot { --a: 0; width: 17px; height: 30px; display: grid; place-items: center; }
+.cpg-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in oklab, var(--dc) calc(var(--a) * 100%), rgba(255, 255, 255, .24));
+  transform: scale(calc(1 + var(--a) * .62));
+  box-shadow: 0 0 calc(var(--a) * 10px) calc(var(--a) * 1.5px) color-mix(in srgb, var(--dc) calc(var(--a) * 70%), transparent); }
+/* the dot a swipe comes to rest on gives a small bounce */
+.cpg-dot.pop::before { animation: cpg-pop .42s cubic-bezier(.3, 1.6, .45, 1); }
+@keyframes cpg-pop { 0% { transform: scale(1.2); } 55% { transform: scale(1.95); } 100% { transform: scale(1.62); } }
+.cpg-road { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 2px 14px 14px; }
+.cpg-road .cpg-tie { margin: auto 0; }
+.cpg-road .cup-path { margin-top: 0; }
+.cpg-kicker { display: flex; align-items: center; gap: 6px; font-family: var(--display); font-weight: 800; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--t2); }
+.cpg-kicker.won { color: var(--gold); }
+.cpg-kicker.lost { color: var(--neg); }
+.cpg-kicker.second { color: #c9d2de; }
+.cpg-tie { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; padding: 12px 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); }
+.cpg-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.cpg-side span { max-width: 100%; }
+.cpg-mid { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 54px; }
+.cpg-mid .display { font-size: 24px; }
+.cpg-note { text-align: center; }
+@media (prefers-reduced-motion: reduce) { .cpg-dot.pop::before { animation: none; } }
 .tile { padding: 12px; min-height: 108px; }
 .mini-btn { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px 6px; min-height: 72px; }
 .mini-btn span { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t2); text-align: center; }

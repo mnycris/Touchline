@@ -155,7 +155,7 @@ const shortRound = (name: string) => {
 }
 
 /** The user's road through a cup: rounds played (won or lost), the current one and the ones still ahead. */
-function cupPath(w: World, c: Competition): { id: string; name: string; short: string; state: 'won' | 'lost' | 'now' | 'ahead' }[] {
+export function cupPath(w: World, c: Competition): { id: string; name: string; short: string; state: 'won' | 'lost' | 'now' | 'ahead' }[] {
   const me = w.userClubId
   const mine = (id: string) => { const f = w.fixtures[id]; return !!f && (f.home === me || f.away === me) }
   const out: ReturnType<typeof cupPath> = []
