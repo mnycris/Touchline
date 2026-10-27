@@ -257,7 +257,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     if (club.id !== w.userClubId) {
       const m = w.managers[club.managerId]
       const f = formationOf(m?.formation || '4-3-3 Holding').id
-      club.sheets = [buildSheet(w, club, f, tacticsForManager(m?.vision || 'Balanced', f))]
+      club.sheets = [buildSheet(w, club, f, tacticsForManager(m?.vision || 'Balanced', f), { flexible: true })]
       club.activeSheet = 'first'
     }
   }

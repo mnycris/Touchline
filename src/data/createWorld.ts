@@ -199,7 +199,8 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
     assignRolesAndNumbers(w, club)
     const mgr = w.managers[club.managerId]
     const formation = formationOf(mgr?.formation || '4-3-3 Holding').id
-    const sheet = buildSheet(w, club, formation, tacticsForManager(mgr?.vision || 'Balanced', formation))
+    // (in the variant of his formation that suits the players he has: see aiFormation)
+    const sheet = buildSheet(w, club, formation, tacticsForManager(mgr?.vision || 'Balanced', formation), { flexible: true })
     club.sheets = [sheet]
     club.activeSheet = sheet.id
   }
@@ -233,7 +234,14 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   if (opts.manager.style) {
     for (const sh of userClub.sheets) sh.tactics = tacticsForManager(opts.manager.style, sh.formation)
   }
-  // user team sheets: First Team + saved alternatives
+  // user team sheets: First Team + saved alternatives. The new manager starts from the shape his predecessor played,
+  // unless the squad is plainly built for another one (the best players must not start on the bench because a
+  // formation has no place for them)
+  {
+    const s0 = userClub.sheets[0]
+    const best = buildSheet(w, userClub, s0.formation, s0.tactics, { flexible: 'any' })
+    userClub.sheets[0] = { ...best, tactics: best.formation === s0.formation ? s0.tactics : { ...s0.tactics, ...((best.formation.startsWith('5') || best.formation.startsWith('3')) ? { width: Math.max(s0.tactics.width, 60) } : {}) } }
+  }
   const base = userClub.sheets[0]
   userClub.sheets = [
     { ...base, id: 'first', name: 'First Team' },

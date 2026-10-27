@@ -1,7 +1,7 @@
 import type { Club, Competition, Player, Position, SlotRole, TeamSheet, TeamTactics, World } from '../../domain/types'
 import { BENCH_SIZE, DEFAULT_TACTICS, FORMATIONS, MENTALITIES, POS_GROUP, ROLE_GROUP, ROLES, VISION_TACTICS, formationOf } from '../../domain/constants'
 import { A } from '../../domain/types'
-import { bestRole, posRating, roleFit } from '../../domain/ratings'
+import { bestRole, posRating, roleFit, similarity } from '../../domain/ratings'
 import { rosterOf } from '../world/roster'
 import { nationalSquad } from '../world/international'
 
@@ -26,11 +26,26 @@ export function isAvailable(w: World, p: Player, comp?: Competition): boolean {
   return true
 }
 
+/**
+ * How much a manager holds back from playing a man away from his natural position (rating points), on top of what
+ * his attributes lose there (posRating). A player is picked where he plays: in his main position, or one so like it
+ * that it is the same job (a left winger on the left of midfield); the further a slot is from it, the clearer an
+ * improvement he has to be on whoever else could play there. Listed positions only mean he can, not that he should
+ * (a winger who can lead the line is still a winger); somewhere he has never played costs more again.
+ */
+export function familiarity(p: Player, pos: Position): number {
+  const main = p.positions[0]
+  if (main === pos) return 0
+  const simMain = similarity(main, pos)
+  const simAny = p.positions.includes(pos) ? 1 : Math.max(...p.positions.map((q) => similarity(q, pos)))
+  return FAM_MAIN * (1 - simMain) + FAM_NEW * (1 - simAny) + (simAny < 0.9 ? FAM_NEW_STEP : 0)
+}
+const FAM_MAIN = 4
+const FAM_NEW = 2.5
+const FAM_NEW_STEP = 1
+
 function selectionScore(w: World, p: Player, pos: Position, rotate: number): number {
-  let r = posRating(p, pos)
-  // managers trust a player where he has played: his main position first, a listed one nearly as much, and somewhere
-  // he has never played only when he is clearly the better option (the rating already counts the attribute mismatch)
-  if (p.positions[0] !== pos) r -= p.positions.includes(pos) ? 0.6 : 2.5
+  let r = posRating(p, pos) - familiarity(p, pos)
   const fit = p.fitness
   // a player who starts short of full fitness fades badly late on: freshness is worth real rating points
   if (fit < 95) r -= (95 - fit) * (0.24 + rotate * 0.2)
@@ -43,6 +58,7 @@ function selectionScore(w: World, p: Player, pos: Position, rotate: number): num
  * Hungarian method) so that no swap or chain of moves between positions would make the side stronger.
  */
 export function pickXI(w: World, players: Player[], formationId: string, rotate = 0): number[] {
+  const worth = starWorth(players)
   const f = formationOf(formationId)
   const slots = f.slots
   const xi: number[] = new Array(slots.length).fill(0)
@@ -54,13 +70,25 @@ export function pickXI(w: World, players: Player[], formationId: string, rotate 
   if (!out.length) return xi
   // one score per distinct slot position
   const byPos = new Map<Position, number[]>()
-  for (const i of rows) if (!byPos.has(slots[i].pos)) byPos.set(slots[i].pos, out.map((p) => selectionScore(w, p, slots[i].pos, rotate)))
+  for (const i of rows) if (!byPos.has(slots[i].pos)) byPos.set(slots[i].pos, out.map((p) => worth(selectionScore(w, p, slots[i].pos, rotate))))
   const n = Math.min(rows.length, out.length)
   const cost = (r: number, c: number) => -byPos.get(slots[rows[r]].pos)![c]
   const asg = assign(n, out.length, cost)
   for (let r = 0; r < n; r++) if (asg[r] >= 0) xi[rows[r]] = out[asg[r]].id
   return xi
 }
+
+/**
+ * What a player is worth to the XI at a selection score: above the squad's usual level, every point counts double. A
+ * manager's best players are the ones the side is built around (they decide matches), so leaving one out, or the
+ * shape having no place for him, costs more than a marginal gain anywhere else wins back.
+ */
+function starWorth(players: Player[]): (s: number) => number {
+  const top = players.filter((p) => p.positions[0] !== 'GK').map((p) => p.ovr).sort((a, b) => b - a).slice(0, 14)
+  const level = top.length ? top.reduce((a, b) => a + b, 0) / top.length : 60
+  return (s) => s + STAR_K * Math.max(0, s - level)
+}
+const STAR_K = 1
 
 /** Minimum-cost assignment of n rows to distinct columns of m ≥ n (Hungarian method with potentials, O(n²m)). */
 function assign(n: number, m: number, cost: (r: number, c: number) => number): number[] {
@@ -185,33 +213,35 @@ export function tacticsForManager(vision: string, formation: string): TeamTactic
   return base
 }
 
-/** How strong an XI is in a formation: the summed selection scores of its players in their slots. */
-function xiScore(w: World, xi: number[], formationId: string, rotate: number): number {
+/** How strong an XI is in a formation: its players' worth in their slots (see starWorth). */
+function xiScore(w: World, xi: number[], formationId: string, rotate: number, squad: Player[]): number {
   const f = formationOf(formationId)
+  const worth = starWorth(squad)
   let t = 0
-  xi.forEach((id, i) => { const p = w.players[id]; if (p && f.slots[i]) t += selectionScore(w, p, f.slots[i].pos, rotate) })
+  xi.forEach((id, i) => { const p = w.players[id]; if (p && f.slots[i]) t += worth(selectionScore(w, p, f.slots[i].pos, rotate)) })
   return t
 }
 
 /**
  * The shape an AI manager actually sends out: his preferred formation, unless a variant of it (4-2-3-1 wide or narrow,
  * the 4-3-3s ...) clearly suits the players he has available better (a narrow 4-2-3-1 is no use with his best player a
- * right winger).
+ * right winger). With `any`, any formation, the preferred family still favoured (a new manager starting from what his
+ * predecessor played, unless the squad is plainly built for something else).
  */
-export function aiFormation(w: World, squad: Player[], preferred: string, rotate = 0): string {
+export function aiFormation(w: World, squad: Player[], preferred: string, rotate = 0, any = false): string {
   const pref = formationOf(preferred)
   let best = pref.id, bs = -1e9
   for (const f of FORMATIONS) {
-    if (f.family !== pref.family) continue
-    const sc = xiScore(w, pickXI(w, squad, f.id, rotate), f.id, rotate) + (f.id === pref.id ? 4 : 0)
+    if (f.family !== pref.family && !any) continue
+    const sc = xiScore(w, pickXI(w, squad, f.id, rotate), f.id, rotate, squad) + (f.id === pref.id ? 4 : 0) + (any && f.family === pref.family ? 3 : 0)
     if (sc > bs) { bs = sc; best = f.id }
   }
   return best
 }
 
-export function buildSheet(w: World, club: Club, formationId: string, tactics: TeamTactics, opts: { comp?: Competition; rotate?: number; id?: string; name?: string; flexible?: boolean } = {}): TeamSheet {
+export function buildSheet(w: World, club: Club, formationId: string, tactics: TeamTactics, opts: { comp?: Competition; rotate?: number; id?: string; name?: string; flexible?: boolean | 'any' } = {}): TeamSheet {
   const squad = squadOf(w, club.id).filter((p) => isAvailable(w, p, opts.comp))
-  if (opts.flexible) formationId = aiFormation(w, squad, formationId, opts.rotate || 0)
+  if (opts.flexible) formationId = aiFormation(w, squad, formationId, opts.rotate || 0, opts.flexible === 'any')
   const xi = pickXI(w, squad, formationId, opts.rotate || 0)
   const bench = pickBench(w, squad, xi)
   const sp = setPieceTakers(w, xi)
