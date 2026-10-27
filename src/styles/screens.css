@@ -2122,24 +2122,38 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .tc-sort-t button.on { background: var(--s4); color: var(--t1); }
 .chip .chip-n { margin-left: -2px; font-size: 10.5px; font-weight: 700; opacity: .55; font-variant-numeric: tabular-nums; }
 
-/* wages: the bill against the budget, an offer on top */
+/* wages: the bill as a share of the club's income, the board's line marked, an offer on top */
 .hero-wage { text-align: right; color: inherit; }
-.wi { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 12px; background: var(--s2); }
+.hero-wage .display small { font-size: 13px; font-weight: 600; opacity: .75; margin-left: 3px; }
+.wi { display: flex; flex-direction: column; gap: 7px; padding: 10px 12px; border-radius: 12px; background: var(--s2); }
+.wi-head { display: flex; align-items: center; gap: 8px; }
+.wi-head .num { display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; text-align: right; }
+.wi-head .num svg { color: var(--t3); }
 .wi-bar { position: relative; height: 8px; border-radius: 4px; background: var(--s4); overflow: visible; }
 .wi-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
-.wi-bill { left: 0; background: var(--t3); }
+/* beyond the board's line: the same track, faintly striped, so the line reads as a threshold rather than a goal */
+.wi-past { right: 0; border-radius: 0 4px 4px 0 !important; background: repeating-linear-gradient(-45deg, transparent 0 3px, rgba(255,255,255,.07) 3px 5px); }
+.wi-bill { left: 0; background: var(--t3); transition: width .3s ease; }
 .wi-add { background: var(--acc); border-radius: 0 4px 4px 0 !important; transition: width .3s ease, left .3s ease; }
-.wi.over .wi-add { background: var(--neg); }
+.wi.warn .wi-add { background: var(--warn); }
+.wi.bad .wi-add { background: var(--neg); }
 .wi-bar b { position: absolute; top: -4px; width: 2px; height: 16px; margin-left: -1px; border-radius: 1px; background: var(--t1); }
-.wi-line { display: flex; justify-content: space-between; gap: 8px; }
 .wi-plus { color: var(--acc); font-weight: 700; }
-.wi.over .wi-plus { color: var(--neg); }
-.wi-verdict { font-weight: 700; }
-.wi-how { display: inline-flex; align-items: center; gap: 5px; align-self: flex-start; color: var(--t2); padding: 2px 0; }
+.wi.warn .wi-plus { color: var(--warn); }
+.wi.bad .wi-plus { color: var(--neg); }
+.wi-verdict { font-weight: 700; color: var(--pos); }
+.wi-verdict.warn { color: var(--warn); }
+.wi-verdict.bad { color: var(--neg); }
+.wi-cost { display: flex; flex-direction: column; gap: 2px; }
+.wsum { display: flex; flex-direction: column; gap: 9px; }
+.wsum .warn { color: var(--warn); }
+.wsum .bad { color: var(--neg); }
+.wi-cost .neg { color: var(--neg); }
 .ws-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.ws-nums > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; background: var(--s2); }
+.ws-nums > div { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: 12px; background: var(--s2); min-width: 0; }
 .ws-nums b { font-family: var(--display); font-size: 18px; }
-.ws-nums .neg b { color: var(--neg); }
+.ws-nums .warn b { color: var(--warn); }
+.ws-nums .bad b { color: var(--neg); }
 .ws-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .ws-row + .ws-row { border-top: 1px solid var(--line); }
 .ws-facts { display: flex; flex-direction: column; gap: 10px; }
@@ -2149,6 +2163,7 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .bid-money > div { display: flex; gap: 7px; align-items: flex-start; }
 .bid-money svg { flex: none; margin-top: 1px; }
 .bid-money .neg { color: var(--neg); }
+.bid-money .warn { color: var(--warn); }
 
 /* ---------- universal search (Spotlight) ---------- */
 .topbar-r { display: flex; align-items: center; gap: 6px; flex: none; }

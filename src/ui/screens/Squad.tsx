@@ -8,11 +8,12 @@ import { Chips, HubActions, Screen, Seg } from '../components/layout'
 import { POS_GROUP, POS_ORDER, formationOf } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
-import { ageOf, avgRating, fixturesOf, playerStatus, totals, userClub } from '../selectors'
+import { ageOf, avgRating, fixturesOf, playerStatus, totals, userClub, wageColor } from '../selectors'
 import { dutyTeam } from '../../engine/world/international'
 import { formLabel, moraleLevel, moraleColor, moraleIcon, ovrColor, posRating } from '../../domain/ratings'
 import { wageBill, loanedOut } from '../../engine/world/userActions'
 import { yearsLeft } from '../../engine/world/transfers'
+import { WageSummary } from '../components/Wages'
 import { fmtDate } from '../../domain/dates'
 import { callName } from '../../engine/match/commentary'
 
@@ -92,7 +93,7 @@ export function SquadHub() {
           <div><div className="label">Players</div><div className="display">{squad.length}</div></div>
           <div><div className="label">Avg OVR</div><div className="display">{avgOvr}</div></div>
           <div><div className="label">Avg Age</div><div className="display">{avgAge}</div></div>
-          <div><div className="label">Wages/wk</div><div className="display" style={{ color: bill > club.finance.wageBudget ? 'var(--neg)' : undefined }}>{fmtMoney(bill, { short: true })}</div></div>
+          <div><div className="label">Wages/wk</div><div className="display" style={{ color: wageColor(w, bill) }}>{fmtMoney(bill, { short: true })}</div></div>
         </div>
         <div className="grid4" style={{ marginTop: 10 }}>
           <QuickBtn icon="tactics" label="Team Sheet" onClick={() => go({ name: 'tactics' })} />
@@ -321,9 +322,7 @@ export function Contracts() {
     <Screen title="Contracts" back>
       <div className="pad">
         <div className="card pad-card">
-          <div className="row between"><span className="label">Wage bill</span><b>{fmtMoney(bill)}/wk</b></div>
-          <div className="bar" style={{ marginTop: 8 }}><i style={{ width: `${Math.min(100, (bill / club.finance.wageBudget) * 100)}%`, background: bill > club.finance.wageBudget ? 'var(--neg)' : 'var(--club)' }} /></div>
-          <div className="row between tiny dim" style={{ marginTop: 6 }}><span>Budget {fmtMoney(club.finance.wageBudget)}/wk</span><span>Room {fmtMoney(Math.max(0, club.finance.wageBudget - bill))}</span></div>
+          <WageSummary w={w} bill={bill} />
         </div>
       </div>
       <div className="pad" style={{ marginTop: 10 }}>

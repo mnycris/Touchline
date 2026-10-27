@@ -34,6 +34,7 @@ import { aOrAn } from '../../domain/words'
 import { aiLoanMarket } from './loans'
 import { registerTrophy } from './honours'
 import { historyAfterMatch } from './history'
+import { monthlyBroadcasting, monthlyCommercial, monthlyRunningCosts, WAGES_HEALTHY, wagesToIncome } from './clubFinance'
 
 export type StopReason = 'match' | 'inbox' | 'deadline' | 'season-end' | 'window' | 'sacked' | 'none' | 'limit' | 'watch'
 
@@ -267,6 +268,7 @@ function endOfDay(w: World, rng: Rng) {
     checkPromises(w)
     if (!w.flags.unemployed) {
       updateBoardConfidence(w)
+      wageWatch(w)
       if (userJobSecurity(w)) w.flags.stopSacked = true
     }
     aiManagerReview(w, rng)
@@ -369,16 +371,48 @@ function weeklyFinances(w: World) {
 function monthlyFinances(w: World) {
   for (const club of Object.values(w.clubs)) {
     if (club.national) continue
-    const lg = w.leagues[club.leagueId]
-    const tv = Math.round(((lg?.wealth || 2) ** 2.2) * 95_000 * (0.8 + club.prestige.intl * 0.05))
-    const spons = Math.round(club.reputation ** 1.8 * 90)
+    const tv = monthlyBroadcasting(w, club)
+    const spons = monthlyCommercial(w, club)
     club.finance.balance += tv + spons
     club.finance.revenueSeason += tv + spons
     if (club.id === w.userClubId) {
       club.finance.ledger.push({ date: w.date, label: 'Broadcasting revenue', amount: tv, kind: 'tv' })
       club.finance.ledger.push({ date: w.date, label: 'Commercial & sponsorship', amount: spons, kind: 'other' })
+      // the club beyond the squad: staff, the ground, travel, the academy
+      const run = monthlyRunningCosts(w, club)
+      club.finance.balance -= run
+      club.finance.expensesSeason += run
+      club.finance.ledger.push({ date: w.date, label: 'Staff & running costs', amount: -run, kind: 'other' })
     }
   }
+}
+
+/** The board's line on wages: a word from the chairman the week they go past it (once, until they come back under). */
+function wageWatch(w: World) {
+  const club = w.clubs[w.userClubId]
+  if (!club) return
+  // an overdrawn account: the board freezes new spending until it's back in the black (see spendingFrozen)
+  if (club.finance.balance >= 0) w.flags.overdrawn = undefined
+  else if (!w.flags.overdrawn) {
+    w.flags.overdrawn = w.date
+    sendInbox(w, {
+      from: staffNames(w).chairman, fromRole: 'Chairman', category: 'Board', subject: 'The club is overdrawn',
+      body: `Our account is ${fmtMoney(-club.finance.balance)} overdrawn. Until it is back in the black the board will not sanction new signings, fees or pay rises; renewals on the same money can go ahead. A sale is the quickest way back.`,
+      actions: [{ label: 'Finances', action: 'openBoard', primary: true }, { label: 'Contracts', action: 'openContracts' }],
+    })
+  }
+  const o = w.board.objectives.find((x) => x.season === w.season && x.status === 'active' && x.metric === 'wageShare')
+  if (!o) return
+  const share = wagesToIncome(w, club, wageBill(w, club.id))
+  if (share <= o.target - 0.03) { w.flags.wageWarned = undefined; return }
+  if (share <= o.target || w.flags.wageWarned === w.season) return
+  w.flags.wageWarned = w.season
+  const pct = (v: number) => `${Math.round(v * 100)}%`
+  sendInbox(w, {
+    from: staffNames(w).chairman, fromRole: 'Chairman', category: 'Board', subject: 'The wage bill',
+    body: `Wages now take ${pct(share)} of the club's income, past the ${pct(o.target)} we agreed. Every week they stay there counts against the board's confidence, and money that pays wages is money the board can't give you for transfers next summer. A sale, a loan or a contract not renewed would bring it back.`,
+    actions: [{ label: 'Contracts', action: 'openContracts', primary: true }, { label: 'Board', action: 'openBoard' }],
+  })
 }
 
 function contractWatch(w: World, rng: Rng) {
@@ -494,7 +528,10 @@ function simulateRemaining(w: World, rng: Rng) {
 
 function generateNewSeasonInbox(w: World) {
   const staff = staffNames(w)
-  sendInbox(w, { from: staff.chairman, fromRole: 'Chairman', category: 'Board', subject: 'Board objectives for the new season', body: `The board has set out its expectations for the ${w.season}/${(w.season + 1) % 100} season. Transfer budget: ${fmtMoney(w.clubs[w.userClubId].finance.transferBudget)}.`, actions: [{ label: 'View Objectives', action: 'openBoard', primary: true }] })
+  const hold = w.flags.wageHold as { season: number; share: number; held: number } | undefined
+  const pct = (v: number) => `${Math.round(v * 100)}%`
+  const held = hold && hold.season === w.season ? ` Wages took ${pct(hold.share)} of the club's income last season, more than the ${pct(WAGES_HEALTHY)} the board will carry, so ${pct(hold.held)} of it has been held back to pay them.` : ''
+  sendInbox(w, { from: staff.chairman, fromRole: 'Chairman', category: 'Board', subject: 'Board objectives for the new season', body: `The board has set out its expectations for the ${w.season}/${(w.season + 1) % 100} season. Transfer budget: ${fmtMoney(w.clubs[w.userClubId].finance.transferBudget)}.${held}`, actions: [{ label: 'View Objectives', action: 'openBoard', primary: true }] })
 }
 
 /** First-day setup for a brand new career. */
@@ -507,7 +544,7 @@ export function careerIntro(w: World) {
   const lg = w.leagues[club.leagueId]
   const comp = Object.values(w.competitions).find((c) => c.format === 'league' && c.clubs.includes(club.id))
   const first = nextUserFixture(w)
-  sendInbox(w, { from: staff.chairman, fromRole: 'Chairman', category: 'Board', subject: `Welcome to ${club.name}`, body: `Welcome to ${club.name}, ${w.user.firstName}. Everyone at ${club.stadium || club.name} is excited about the season ahead. The board has set clear objectives, and your transfer budget for the summer is ${fmtMoney(club.finance.transferBudget)} with a weekly wage budget of ${fmtMoney(club.finance.wageBudget)}.${w.flags.replacedManager ? ` You take over from ${w.flags.replacedManager}.` : ''}`, actions: [{ label: 'View Objectives', action: 'openBoard', primary: true }, { label: 'Transfer Hub', action: 'openTransfers' }] })
+  sendInbox(w, { from: staff.chairman, fromRole: 'Chairman', category: 'Board', subject: `Welcome to ${club.name}`, body: `Welcome to ${club.name}, ${w.user.firstName}. Everyone at ${club.stadium || club.name} is excited about the season ahead. The board has set clear objectives, and your transfer budget for the summer is ${fmtMoney(club.finance.transferBudget)}. Wages are paid from what the club earns: the squad's take ${Math.round(wagesToIncome(w, club, wageBill(w, club.id)) * 100)}% of it now, and the board asks only that they stay sustainable.${w.flags.replacedManager ? ` You take over from ${w.flags.replacedManager}.` : ''}`, actions: [{ label: 'View Objectives', action: 'openBoard', primary: true }, { label: 'Transfer Hub', action: 'openTransfers' }] })
   sendInbox(w, { from: staff.assistant, fromRole: 'Assistant Manager', category: 'Assistant', subject: 'Pre-season plan', body: `Boss, the squad reports back for pre-season today. ${first ? `Our first competitive fixture is ${w.clubs[first.home].short} v ${w.clubs[first.away].short} on ${fmtDate(first.date, 'long')} (${w.competitions[first.compId]?.short}).` : ''} I'd recommend reviewing the squad, setting training plans and checking the tactics before then.`, actions: [{ label: 'Squad Hub', action: 'openSquad', primary: true }, { label: 'Tactics', action: 'openTactics' }] })
   sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Scouting', subject: 'Scouting network', body: `We have one scout on the books. Set up the Global Transfer Network to identify targets, and send our youth scout out to find the next generation of talent.`, actions: [{ label: 'Scouting', action: 'openScouting', primary: true }, { label: 'Youth Academy', action: 'openYouth' }] })
   postNews(w, { headline: `${club.short} appoint ${w.user.firstName} ${w.user.lastName}`, body: `${club.name} have confirmed the appointment of ${w.user.firstName} ${w.user.lastName} as their new manager ahead of the ${w.season}/${(w.season + 1) % 100} ${lg?.short ?? ''} season.`, kind: 'manager', playerIds: [], clubIds: [club.id], importance: 5, userRelated: true })

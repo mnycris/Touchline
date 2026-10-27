@@ -286,13 +286,15 @@ export function ClubMoneyEditor({ club, onClose }: { club: Club; onClose: () => 
   const [t, setT] = useState(club.finance.transferBudget)
   const [wg, setWg] = useState(club.finance.wageBudget)
   const [b, setB] = useState(club.finance.balance)
+  const user = useGame((s) => s.world?.userClubId) === club.id
   const step = (v: number) => (Math.abs(v) >= 100_000_000 ? 10_000_000 : Math.abs(v) >= 10_000_000 ? 1_000_000 : 250_000)
   return (
     <div className="card ed-card fade-up">
       <div className="ed-head"><span className="ed-badge"><Icon name="edit" size={13} strokeWidth={2.3} /> Editing</span><span className="grow" /><span className="small b">{club.short} finances</span></div>
       <div className="ed-body stack" style={{ gap: 12 }}>
         <div className="ed-line"><span className="small">Transfer budget</span><Stepper value={t} min={0} max={2_000_000_000} step={step(t)} onChange={setT} fmt={(v) => fmtMoney(v, { short: true })} /></div>
-        <div className="ed-line"><span className="small">Wage budget / wk</span><Stepper value={wg} min={0} max={20_000_000} step={wg >= 1_000_000 ? 50_000 : 10_000} onChange={setWg} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+        {/* the manager's club has no wage budget (wages are judged against income); an AI club recruits within one */}
+        {!user && <div className="ed-line"><span className="small">Wage budget / wk</span><Stepper value={wg} min={0} max={20_000_000} step={wg >= 1_000_000 ? 50_000 : 10_000} onChange={setWg} fmt={(v) => fmtMoney(v, { short: true })} /></div>}
         <div className="ed-line"><span className="small">Bank balance</span><Stepper value={b} min={-1_000_000_000} max={5_000_000_000} step={step(b)} onChange={setB} fmt={(v) => fmtMoney(v, { short: true })} /></div>
       </div>
       <div className="ed-foot">
@@ -374,7 +376,7 @@ export function ClubEditor({ w, club, onClose }: { w: World; club: Club; onClose
         {tab === 'money' && (
           <>
             <div className="ed-line"><span className="small">Transfer budget</span><Stepper value={t} min={0} max={2_000_000_000} step={step(t)} label="Transfer budget" money onChange={setT} fmt={(v) => fmtMoney(v, { short: true })} /></div>
-            <div className="ed-line"><span className="small">Wage budget / wk</span><Stepper value={wg} min={0} max={20_000_000} step={wg >= 1_000_000 ? 50_000 : 10_000} label="Weekly wage budget" money onChange={setWg} fmt={(v) => fmtMoney(v, { short: true })} /></div>
+            {!user && <div className="ed-line"><span className="small">Wage budget / wk</span><Stepper value={wg} min={0} max={20_000_000} step={wg >= 1_000_000 ? 50_000 : 10_000} label="Weekly wage budget" money onChange={setWg} fmt={(v) => fmtMoney(v, { short: true })} /></div>}
             <div className="ed-line"><span className="small">Bank balance</span><Stepper value={b} min={-1_000_000_000} max={5_000_000_000} step={step(b)} label="Bank balance" money onChange={setB} fmt={(v) => fmtMoney(v, { short: true })} /></div>
           </>
         )}

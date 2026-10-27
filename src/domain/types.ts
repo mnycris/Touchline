@@ -119,6 +119,8 @@ export interface Player {
   sellOn?: { clubId: number; pct: number }
   untouchable?: boolean
   joinedDate?: ISODate
+  /** the move into his club the starting database had just made (it settles him in like a move made in the career) */
+  arrivedOn?: ISODate
   trainingPlan: TrainingPlan
   devPlan: string // development plan id
   devTargetPos?: Position // position conversion in progress
@@ -198,7 +200,11 @@ export interface TeamSheet {
 export interface ClubFinance {
   balance: number
   transferBudget: number
-  wageBudget: number // weekly
+  wageBudget: number // weekly; the AI's own recruiting line (the manager's club has none: see clubFinance)
+  /** What the club's income runs at against the league-wide formulas (set once, from what it was paying its squad). */
+  incomeScale?: number
+  /** Money a club's owners put in on top each year, through the sponsorship they arrange. */
+  backing?: number
   revenueSeason: number
   expensesSeason: number
   ledger: { date: ISODate; label: string; amount: number; kind: 'transfer' | 'wages' | 'prize' | 'gate' | 'tv' | 'bonus' | 'other' }[]

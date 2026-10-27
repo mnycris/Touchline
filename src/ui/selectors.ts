@@ -5,6 +5,7 @@ import { watchList } from '../engine/world/advance'
 import { follows } from '../engine/world/follow'
 import { positionOf, sortTable } from '../engine/competitions/tables'
 import { ageOn } from '../domain/dates'
+import { wageLine, wagesToIncome, wageTone } from '../engine/world/clubFinance'
 import { emptyLine } from '../engine/world/matchRunner'
 import { isSuspendedFor } from '../engine/match/selection'
 import { editionLogoKey } from '../services/assets'
@@ -148,4 +149,13 @@ export function compLogoKey(c: Competition) {
 
 export function clubShort(w: World, id: number) {
   return w.clubs[id]?.short || 'TBD'
+}
+
+/** A share as a whole percentage (0.437 → "44%"). */
+export const pct = (v: number) => `${Math.round(v * 100)}%`
+
+/** The colour a wage figure takes: none while within the board's line, amber past it, red past what a club can carry. */
+export function wageColor(w: World, bill: number): string | undefined {
+  const tone = wageTone(wagesToIncome(w, w.clubs[w.userClubId], bill), wageLine(w))
+  return tone === 'ok' ? undefined : tone === 'warn' ? 'var(--warn)' : 'var(--neg)'
 }

@@ -13,7 +13,8 @@ import { finaliseObjectives, generateObjectives, updateBoardConfidence } from '.
 import { seasonAwards } from './awards'
 import { isRetiring, seasonAging } from './development'
 import { postNews, sendInbox, staffNames } from './messages'
-import { rosterOf, touchRoster, setPlayerClub } from './roster'
+import { rosterOf, touchRoster, setPlayerClub, wageBill } from './roster'
+import { WAGES_HEALTHY, wagesToIncome } from './clubFinance'
 import { closeCareerEntry, completeLoanPurchase, contractDemand, notableExit, roleForBuyer, trimHistory } from './transfers'
 import { namesInUse } from '../../domain/names'
 import { generateProspect } from './scouting'
@@ -157,7 +158,7 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     const t = archive.tables[comp.key]
     t.forEach((row, i) => {
       const club = w.clubs[row.clubId]
-      const prize = roundValue((lg?.wealth || 3) ** 2 * 380_000 * (1 + (t.length - i) / t.length))
+      const prize = roundValue((lg?.wealth || 3) ** 2 * 380_000 * (1 + (t.length - i) / t.length) * (club.finance.incomeScale ?? 1))
       club.finance.balance += prize
       club.finance.revenueSeason += prize
       if (club.id === w.userClubId) club.finance.ledger.push({ date: w.date, label: `${comp.short} prize money (${i + 1}${suffix(i + 1)})`, amount: prize, kind: 'prize' })
@@ -246,10 +247,15 @@ export function seasonRollover(w: World, rng: Rng): SeasonArchive {
     club.squadAvg = top.length ? Math.round(top.reduce((a, b) => a + b, 0) / top.length * 10) / 10 : club.squadAvg
     club.prestige.intl = clamp(Math.round((club.squadAvg - 59.5) / 2.25), 1, 10)
     const base = clubBudget(value, lg, club.prestige.intl)
-    // AI clubs: structural budget by financial style, plus part of what they didn't spend (sales already added during the year)
-    club.finance.transferBudget = club.id === w.userClubId
-      ? roundValue(base * (0.6 + w.board.overall / 125) + Math.max(0, club.finance.transferBudget * 0.3))
-      : roundValue(Math.min(base * 2.2, base * STYLE_BUDGET[finStyle(w, club)] + Math.max(0, club.finance.transferBudget) * 0.35))
+    // the manager's: what the board's confidence earns, less a part held back while wages take more of the club's
+    // income than it will carry (the money has to pay them). AI clubs: structural budget by financial style, plus part
+    // of what they didn't spend (sales already added during the year)
+    if (club.id === w.userClubId) {
+      const share = wagesToIncome(w, club, wageBill(w, club.id))
+      const held = share > WAGES_HEALTHY ? clamp((share - WAGES_HEALTHY) * 2.5, 0.1, 0.65) : 0
+      w.flags.wageHold = held ? { season: season + 1, share, held } : undefined
+      club.finance.transferBudget = roundValue((base * (0.6 + w.board.overall / 125) + Math.max(0, club.finance.transferBudget * 0.3)) * (1 - held))
+    } else club.finance.transferBudget = roundValue(Math.min(base * 2.2, base * STYLE_BUDGET[finStyle(w, club)] + Math.max(0, club.finance.transferBudget) * 0.35))
     club.finance.wageBudget = Math.round(squad.reduce((a, p) => a + p.contract.wage, 0) * 1.08)
     club.finance.revenueSeason = 0
     club.finance.expensesSeason = 0

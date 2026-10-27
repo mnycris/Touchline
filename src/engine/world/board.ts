@@ -4,6 +4,9 @@ import { ageOn } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { positionOf } from '../competitions/tables'
 import { rosterOf, wageBill } from './roster'
+import { WAGES_HEALTHY, wagesToIncome, wageTarget } from './clubFinance'
+
+export const wageObjectiveText = (line: number) => `Keep wages within ${Math.round(line * 100)}% of the club's income`
 
 const PRIORITY_W: Record<Priority, number> = { Critical: 3, 'Very High': 2.3, High: 1.7, Medium: 1.2, Low: 0.8 }
 export const CATEGORY_W: Record<ObjectiveCategory, number> = { 'Domestic Success': 0.38, 'Continental Success': 0.18, Financial: 0.18, 'Brand Exposure': 0.12, 'Youth Development': 0.14 }
@@ -56,8 +59,9 @@ export function generateObjectives(w: World, rng: Rng) {
   } else {
     add('Continental Success', exp <= 6 ? 'Medium' : 'Low', exp <= 6 ? 'Qualify for European competition' : 'Build towards European football', 'europeQual', exp <= 6 ? 1 : 0)
   }
-  // ---- financial
-  add('Financial', 'High', 'Keep the wage bill within budget', 'wageBudget', 1)
+  // ---- financial: wages against what the club earns (football's own measure), and money in the bank
+  const wageLine = wageTarget(wagesToIncome(w, club, wageBill(w, club.id)))
+  add('Financial', 'High', wageObjectiveText(wageLine), 'wageShare', wageLine)
   add('Financial', club.finance.transferBudget > 50_000_000 ? 'Medium' : 'High', `Finish the season with a balance above ${fmtMoney(Math.max(0, club.finance.balance * 0.6))}`, 'balance', Math.round(Math.max(0, club.finance.balance * 0.6)))
   // ---- brand exposure
   if (club.prestige.intl >= 7) add('Brand Exposure', 'High', 'Sign a world-class player (OVR 84+)', 'marquee', 84)
@@ -105,10 +109,11 @@ export function evaluateObjective(w: World, o: Objective): number {
       }
       return clamp((idx + 1) / (o.target + 1), 0, 1)
     }
-    case 'wageBudget': {
-      // the same bill the manager sees: loans at the share the club pays
-      const bill = wageBill(w, club.id)
-      return bill <= club.finance.wageBudget ? 1 : clamp(1 - (bill - club.finance.wageBudget) / club.finance.wageBudget * 4, 0, 1)
+    case 'wageShare': case 'wageBudget': {
+      // the same bill the manager sees (loans at the share the club pays) against the season's dependable income
+      const share = wagesToIncome(w, club, wageBill(w, club.id))
+      const line = o.metric === 'wageShare' ? o.target : WAGES_HEALTHY
+      return share <= line ? 1 : clamp(1 - (share - line) / 0.15, 0, 1)
     }
     case 'balance': return clamp(club.finance.balance / Math.max(1, o.target), 0, 1)
     case 'marquee': return w.transfers.history.some((t) => t.to === club.id && t.season === w.season && (w.players[t.playerId]?.ovr || 0) >= o.target) ? 1 : 0

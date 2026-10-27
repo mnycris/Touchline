@@ -12,13 +12,16 @@ import { takeNewFixtures } from '../competitions/fixtures'
 import { rebuildReputations } from './reputation'
 import { migrateHonours } from './honours'
 import { sortTable } from '../competitions/tables'
-import { dedupeNumbers, dropFromSheets } from './roster'
+import { dedupeNumbers, dropFromSheets, wageBill } from './roster'
 import { fillGaps } from '../match/selection'
 import { BENCH_SIZE } from '../../domain/constants'
 import { fillThinSquads } from './squadFill'
+import { markSummerArrivals, SETTLE_DAYS } from './transfers'
+import { calibrateIncomes, wagesToIncome, wageTarget } from './clubFinance'
+import { wageObjectiveText } from './board'
 
 /** The schema this build writes. Bump it with a new entry in MIGRATIONS whenever saves need converting. */
-export const SAVE_SCHEMA = 7
+export const SAVE_SCHEMA = 9
 
 interface Migration { to: number; name: string; run: (w: World) => void }
 
@@ -61,6 +64,26 @@ const MIGRATIONS: Migration[] = [
   // monthly awards were saved with the month's name only, and trophies waited for the end of the season
   { to: 6, name: 'Personal awards dated, and this season\'s trophies in the cabinet', run: (w) => migrateHonours(w, (c) => (c.format === 'league' ? sortTable(w, c)[0]?.clubId : c.winner)) },
   { to: 7, name: 'International competitions drawn from the game world\'s eligible nations', run: (w) => applyNationExclusions(w) },
+  // players the starting database had just moved settle in like signings made in the career (while it still matters)
+  {
+    to: 8, name: 'This summer\'s arrivals settling in at their new clubs',
+    run: (w) => {
+      const start = w.user.history[0]?.from || '2026-07-01'
+      if (w.date < addDays(start, SETTLE_DAYS)) markSummerArrivals(w, start)
+    },
+  },
+  // no weekly wage budget any more: each club's income sized to what it pays, and the board's objective on wages
+  // measured against that income
+  {
+    to: 9, name: 'Club finances: wages judged against income, no separate wage budget',
+    run: (w) => {
+      calibrateIncomes(w)
+      const club = w.clubs[w.userClubId]
+      if (!club) return
+      const line = wageTarget(wagesToIncome(w, club, wageBill(w, club.id)))
+      for (const o of w.board.objectives) if (o.metric === 'wageBudget' && o.status === 'active') Object.assign(o, { metric: 'wageShare', target: line, text: wageObjectiveText(line) })
+    },
+  },
 ]
 
 export interface MigrationReport { from: number; to: number; applied: string[]; steps: { to: number; name: string }[]; repaired: number }

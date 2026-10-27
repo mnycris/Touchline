@@ -83,11 +83,36 @@ function lastMove(w: World, id: number): string | undefined {
   }
   return c.at.get(id)
 }
-/** Days since a player's last permanent move in this career (free agents and loanees excluded). */
+/** Days since a player's last permanent move, in this career or the one the starting database had just made (free
+ *  agents and loanees excluded). */
 export function daysSinceMove(w: World, p: Player): number | undefined {
   if (!p.clubId || p.loan) return undefined
-  const d0 = lastMove(w, p.id)
+  const a = lastMove(w, p.id), b = p.arrivedOn
+  const d0 = a && b ? (a > b ? a : b) : a || b
   return d0 ? diffDays(w.date, d0) : undefined
+}
+
+/**
+ * The players the starting database had just moved, given their date of arrival. Its own join dates can't tell on
+ * their own (most players carry the date the data was taken), but an established player at a club whose other
+ * records do carry real dates was at another club in the previous year's data. A club where most players have the
+ * data's date is mostly a gap in that data, not a summer of upheaval: there only the stars count (the previous data
+ * knew every one of them, so the data's date can only mean a move). The youngsters are left alone (mostly just up
+ * from the academy).
+ */
+export function markSummerArrivals(w: World, dataDate: string) {
+  const byClub = new Map<number, Player[]>()
+  for (const p of Object.values(w.players)) {
+    if (!p.clubId || p.regen || p.academy || p.loan || ageOn(p.dob, dataDate) < 21) continue
+    const list = byClub.get(p.clubId)
+    if (list) list.push(p)
+    else byClub.set(p.clubId, [p])
+  }
+  for (const squad of byClub.values()) {
+    const fresh = squad.filter((p) => p.joinedDate === dataDate)
+    const gap = fresh.length > squad.length * 0.65
+    for (const p of fresh) if (!gap || p.ovr >= 80) p.arrivedOn = dataDate
+  }
 }
 /** Days since a player's last move, when that is within the settling-in period. */
 export function settlingIn(w: World, p: Player): number | undefined {
@@ -356,8 +381,10 @@ export function executeTransfer(w: World, o: TransferOffer, terms?: ContractOffe
       signedOn: w.date, signingBonus: c.signingBonus, bonuses: { goal: c.bonusGoal, cleanSheet: c.bonusCleanSheet, appearance: c.bonusApp },
     }
     p.wage = c.wage
+    // the manager's signing-on fee is paid like a transfer fee: from the budget the board gives him
     if (c.signingBonus && to.id === w.userClubId) {
       to.finance.balance -= c.signingBonus
+      to.finance.transferBudget = Math.max(0, to.finance.transferBudget - c.signingBonus)
       to.finance.ledger.push({ date: w.date, label: `Signing bonus: ${p.name}`, amount: -c.signingBonus, kind: 'bonus' })
     }
   }

@@ -9,6 +9,7 @@ import { aggregateBefore } from '../competitions/cups'
 import { applyResultToTable } from '../competitions/tables'
 import { rosterOf } from './roster'
 import { nationalSquad } from './international'
+import { ticketPrice } from './clubFinance'
 
 export function emptyLine(): StatLine {
   return { apps: 0, starts: 0, subs: 0, mins: 0, goals: 0, assists: 0, cleanSheets: 0, yellows: 0, reds: 0, ratingSum: 0, rated: 0, motm: 0, shots: 0, sot: 0, xg: 0, saves: 0, conceded: 0, tackles: 0, keyPasses: 0, passes: 0, passesCompleted: 0 }
@@ -260,9 +261,7 @@ export function applyMatchResult(w: World, f: Fixture, result: MatchResult, rng:
   // --- gate receipts
   const home = w.clubs[f.home]
   if (home && !f.neutral && !home.national) {
-    const lg = w.leagues[home.leagueId]
-    const ticket = 12 + (lg?.wealth || 3) * 6.5 + home.prestige.domestic * 1.5
-    const gate = Math.round(result.attendance * ticket * (comp?.format === 'uefa' ? 1.6 : 1))
+    const gate = Math.round(result.attendance * ticketPrice(w, home) * (comp?.format === 'uefa' ? 1.6 : 1))
     home.finance.balance += gate
     home.finance.revenueSeason += gate
     if (f.home === w.userClubId) home.finance.ledger.push({ date: f.date, label: `Gate receipts v ${w.clubs[f.away].short}`, amount: gate, kind: 'gate' })

@@ -11,6 +11,8 @@ import { setupSeason } from '../engine/competitions/setupSeason'
 import { fillThinSquads } from '../engine/world/squadFill'
 import type { RawDb } from './rawTypes'
 import { computeReputations } from '../engine/world/reputation'
+import { markSummerArrivals } from '../engine/world/transfers'
+import { calibrateIncomes } from '../engine/world/clubFinance'
 
 export interface NewCareerOptions {
   clubId: number
@@ -137,6 +139,8 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
     const p = buildPlayer(row, raw.playerFields, start)
     w.players[p.id] = p
   }
+  // the moves the database had just made settle those players in, like a move made in the career
+  markSummerArrivals(w, start)
   // ---- clubs
   const leagueRank: Record<number, number[]> = {}
   for (const c of raw.clubs) if (c.leagueId) (leagueRank[c.leagueId] ||= []).push(c.id)
@@ -265,6 +269,8 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   }
   const real: Record<string, [string, string, number, number, number][]> = raw.fixtures
   setupSeason(w, 2026, { realFixtures: real, uefaPots: pots, superCups, ciSeeds: hist(31).slice(0, 8) }, rng)
+  // each club's income sized to what it pays its squad (its leagues are known now)
+  calibrateIncomes(w)
   // title holders
   const addTrophy = (clubId: number, compKey: string) => { if (w.clubs[clubId]) w.clubs[clubId].trophies.push({ compKey, season: 2025 }) }
   for (const [lid, rows] of Object.entries(raw.history)) if (rows[0]) addTrophy(rows[0].clubId, `L${lid}`)

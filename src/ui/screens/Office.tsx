@@ -13,6 +13,7 @@ import { addDays, ageOn, fmtDate, seasonLabel } from '../../domain/dates'
 import { boardMood, CATEGORY_W, generateObjectives, updateBoardConfidence } from '../../engine/world/board'
 import { acceptJob, applyForJob, vacancies } from '../../engine/world/managers'
 import { wageBill } from '../../engine/world/userActions'
+import { WageSummary } from '../components/Wages'
 import { worldRng } from '../../engine/world/advance'
 import { compLogoKey, leaguePos, userClub } from '../selectors'
 import { ordinal } from './Menu'
@@ -100,10 +101,7 @@ function Finances({ w }: { w: World }) {
         <div className="card pad-card"><div className="label">Season revenue</div><div className="display pos" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.revenueSeason)}</div></div>
         <div className="card pad-card"><div className="label">Season expenses</div><div className="display neg" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.expensesSeason)}</div></div>
       </div>
-      <div className="card pad-card">
-        <div className="row between"><span className="label">Weekly wages</span><b>{fmtMoney(bill)} / {fmtMoney(f.wageBudget)}</b></div>
-        <div className="bar" style={{ marginTop: 8 }}><i style={{ width: `${Math.min(100, (bill / f.wageBudget) * 100)}%`, background: bill > f.wageBudget ? 'var(--neg)' : 'var(--club)' }} /></div>
-      </div>
+      <div className="card pad-card"><WageSummary w={w} bill={bill} /></div>
       <Seg small items={[{ id: 'all', label: 'All' }, { id: 'revenue', label: 'Income' }, { id: 'wages', label: 'Wages' }, { id: 'transfer', label: 'Transfers' }]} value={filter} onChange={setFilter} />
       <div className="card list">
         {!ledger.length && <div className="li muted small">No transactions yet.</div>}

@@ -13,6 +13,7 @@ import { postNews, sendInbox, staffNames } from './messages'
 import { currentWindow, isWindowOpen } from '../competitions/calendar'
 import { blockedText, openContractTalks, respondToContract, talksBlock, type TalkLine, type Talks } from './negotiation'
 import { loanSuitor } from './loans'
+import { WAGES_LIMIT, wagesToIncome, wageTarget } from './clubFinance'
 
 export interface Outcome { ok: boolean; text: string; status?: string; counter?: number; demand?: ContractOffer; replies?: TalkLine[] }
 
@@ -35,9 +36,18 @@ function withRng<T>(w: World, fn: (rng: Rng) => T): T {
 export function wageBill(w: World, clubId = w.userClubId): number {
   return clubWageBill(w, clubId)
 }
-export function wageRoom(w: World): number {
-  const c = w.clubs[w.userClubId]
-  return c.finance.wageBudget - wageBill(w)
+/** What a signing-on or loyalty fee can draw on: the transfer budget, less a fee already agreed for him. */
+export function bonusRoom(w: World, offerId?: string): number {
+  const o = offerId ? w.transfers.offers[offerId] : undefined
+  return Math.max(0, w.clubs[w.userClubId].finance.transferBudget - (o && !o.type.startsWith('loan') ? o.fee : 0))
+}
+/**
+ * While the club's account is overdrawn the board sanctions no new spending: no fees, no new players' wages, no pay
+ * rises (renewing on the same money is fine). A sale or a release is the way back.
+ */
+export function spendingFrozen(w: World): string | undefined {
+  const b = w.clubs[w.userClubId]?.finance.balance ?? 0
+  return b < 0 ? `The board has frozen new spending while the club's account is ${fmtMoney(-b)} overdrawn. A sale or a release will bring it back.` : undefined
 }
 
 // ---------------------------------------------------------------- squad status
@@ -176,6 +186,8 @@ export function openTalks(w: World, p: Player): Outcome {
 /** Live negotiation room: the selling club responds immediately. */
 export function submitBid(w: World, p: Player, terms: BidTerms, existing?: string): Outcome & { offerId: string } {
   const club = w.clubs[w.userClubId]
+  const frozen = spendingFrozen(w)
+  if (frozen) return { ok: false, text: frozen, offerId: existing || '' }
   if (!terms.type.startsWith('loan') && terms.fee > club.finance.transferBudget) return { ok: false, text: `That exceeds your transfer budget of ${fmtMoney(club.finance.transferBudget)}.`, offerId: existing || '' }
   let o = existing ? w.transfers.offers[existing] : undefined
   if (o && ['Offer Rejected', 'Counter Offer', 'Offer Submitted'].includes(o.status)) {
@@ -217,8 +229,11 @@ export function acceptCounter(w: World, offerId: string): Outcome {
 export function proposeContract(w: World, offerId: string | undefined, p: Player, c: ContractOffer, attempt: number): Outcome {
   const club = w.clubs[w.userClubId]
   const isLoan = offerId ? w.transfers.offers[offerId]?.type.startsWith('loan') : false
-  if (!isLoan && c.wage > wageRoom(w) + (p.clubId === club.id ? p.contract.wage : 0)) return { ok: false, text: `The wage exceeds your remaining weekly wage budget (${fmtMoney(Math.max(0, wageRoom(w)))}).` }
-  if (c.signingBonus > club.finance.balance) return { ok: false, text: 'The club cannot afford that signing bonus.' }
+  // any wage can be offered (the board judges the bill against income); a signing-on fee is paid from the transfer budget
+  const frozen = spendingFrozen(w)
+  if (frozen) return { ok: false, text: frozen }
+  const room = bonusRoom(w, offerId)
+  if (!isLoan && c.signingBonus > room) return { ok: false, text: `That signing-on fee is more than the transfer budget can cover: ${fmtMoney(room)} is left${offerId && w.transfers.offers[offerId]?.fee ? ' after the transfer fee' : ''}.` }
   if (talksBlock(w, p.id)) return { ok: false, text: withRng(w, (rng) => blockedText(w, p, rng)) || 'Talks are frozen.', status: 'reject' }
   void attempt
   const r = withRng(w, (rng) => respondToContract(w, openContractTalks(w, p, 'sign', rng, offerId), c, rng))
@@ -249,7 +264,9 @@ export function proposeContract(w: World, offerId: string | undefined, p: Player
 }
 
 export function renewContract(w: World, p: Player, c: ContractOffer, attempt: number): Outcome {
-  if (c.wage - p.contract.wage > wageRoom(w)) return { ok: false, text: `The raise exceeds your wage budget (room ${fmtMoney(Math.max(0, wageRoom(w)))}/wk).` }
+  const frozen = spendingFrozen(w)
+  if (frozen && (c.wage > p.contract.wage || c.signingBonus > 0)) return { ok: false, text: `${frozen} Until then he can only be offered what he earns now, with no bonus.` }
+  if (c.signingBonus > bonusRoom(w)) return { ok: false, text: `That loyalty bonus is more than the transfer budget can cover (${fmtMoney(bonusRoom(w))}).` }
   if (talksBlock(w, p.id)) return { ok: false, text: withRng(w, (rng) => blockedText(w, p, rng)) || 'Talks are frozen.', status: 'reject' }
   void attempt
   const r = withRng(w, (rng) => respondToContract(w, openContractTalks(w, p, 'renew', rng), c, rng))
@@ -258,7 +275,11 @@ export function renewContract(w: World, p: Player, c: ContractOffer, attempt: nu
   p.contract = { until: w.season + c.years, wage: c.wage, role: c.role, releaseClause: c.releaseClause, signedOn: w.date, signingBonus: c.signingBonus, bonuses: { goal: c.bonusGoal, cleanSheet: c.bonusCleanSheet, appearance: c.bonusApp } }
   p.wage = c.wage
   p.morale = clamp(p.morale + 10, 0, 100)
-  if (c.signingBonus) { club.finance.balance -= c.signingBonus; club.finance.ledger.push({ date: w.date, label: `Loyalty bonus: ${p.name}`, amount: -c.signingBonus, kind: 'bonus' }) }
+  if (c.signingBonus) {
+    club.finance.balance -= c.signingBonus
+    club.finance.transferBudget = Math.max(0, club.finance.transferBudget - c.signingBonus)
+    club.finance.ledger.push({ date: w.date, label: `Loyalty bonus: ${p.name}`, amount: -c.signingBonus, kind: 'bonus' })
+  }
   ;(w.flags.renewed ||= {})[p.id] = w.date
   if (p.ovr >= 78) postNews(w, { headline: `${p.name} commits future to ${club.short}`, body: `${p.name} has signed a new contract with ${club.name} running until June ${w.season + c.years}.`, kind: 'contract', playerIds: [p.id], clubIds: [club.id], importance: 3, userRelated: true })
   return { ok: true, text: `${p.name} signs a new deal until ${w.season + c.years}.`, status: 'accept' }
@@ -274,6 +295,8 @@ export function renewalDemand(w: World, p: Player): ContractOffer {
 // ---------------------------------------------------------------- delegation & pending deals
 export function delegateTransfer(w: World, p: Player, maxFee: number, type: 'transfer' | 'loan'): Outcome {
   const club = w.clubs[w.userClubId]
+  const frozen = spendingFrozen(w)
+  if (frozen) return { ok: false, text: frozen }
   if (type === 'transfer' && maxFee > club.finance.transferBudget) return { ok: false, text: 'Maximum fee exceeds your transfer budget.' }
   ;(w.flags.delegated ||= {})[p.id] = { maxFee, type, date: addDays(w.date, 2) }
   const t = w.transfers.targets[p.id] || (w.transfers.targets[p.id] = { playerId: p.id, added: w.date, status: 'Club Approached' })
@@ -307,17 +330,24 @@ export function processPendingDeals(w: World, rng: Rng) {
       o.status = 'Offer Submitted'
     }
     if (res === 'accept' && o) {
+      const loan = d.type === 'loan'
       const demand = contractDemand(w, p, club.id, roleForBuyer(w, p, club.id))
-      const ok = demand.wage <= wageRoom(w) && playerInterest(w, p, club.id) >= 30
+      // a signing-on fee only from what the budget has left after the fee; a wage only as far as the club can carry
+      demand.signingBonus = loan ? 0 : Math.min(demand.signingBonus, bonusRoom(w, o.id))
+      const weekly = loan ? Math.round((p.contract.wage || p.wage) * (o.loanWageSplit ?? 60) / 100) : demand.wage
+      const now = wagesToIncome(w, club, wageBill(w))
+      const affordable = wagesToIncome(w, club, wageBill(w) + weekly) <= Math.max(WAGES_LIMIT, wageTarget(now))
+      const ok = affordable && playerInterest(w, p, club.id) >= 30
       if (ok) {
         if (open) executeTransfer(w, o, demand)
         else { o.contractTerms = demand; o.status = 'Awaiting Window'; syncOfferStory(w, o) }
-        sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Deal done: ${p.name}`, body: `I've agreed a ${d.type === 'loan' ? 'loan' : `fee of ${fmtMoney(o.fee)}`} with ${w.clubs[o.toClubId]?.name} and personal terms of ${fmtMoney(demand.wage)}/wk over ${demand.years} years.${open ? '' : ' He joins when the window opens.'}`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id, image: { kind: 'player', id: p.id } })
+        const terms = loan ? `${o.loanWageSplit ?? 60}% of his wages` : `personal terms of ${fmtMoney(demand.wage)}/wk over ${demand.years} years${demand.signingBonus ? ` with a ${fmtMoney(demand.signingBonus)} signing-on fee` : ''}`
+        sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `Deal done: ${p.name}`, body: `I've agreed a ${loan ? 'loan' : `fee of ${fmtMoney(o.fee)}`} with ${w.clubs[o.toClubId]?.name} and ${terms}.${open ? '' : ' He joins when the window opens.'}`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id, primary: true }], playerId: p.id, image: { kind: 'player', id: p.id } })
         continue
       }
       o.status = 'Negotiations Failed'
-      syncOfferStory(w, o, `The clubs agreed a fee, but ${callName(p.name)}'s wage demands were beyond ${club.short}.`)
-      sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `${p.name}: personal terms failed`, body: `The clubs agreed a fee, but ${p.name}'s demands (${fmtMoney(demand.wage)}/wk) were beyond what we can offer.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id })
+      syncOfferStory(w, o, affordable ? `The clubs agreed a fee, but ${callName(p.name)} chose not to join ${club.short}.` : `The clubs agreed a fee, but ${callName(p.name)}'s wage demands were beyond ${club.short}.`)
+      sendInbox(w, { from: staff.director, fromRole: 'Sporting Director', category: 'Transfers', subject: `${p.name}: personal terms failed`, body: affordable ? `The clubs agreed a fee, but ${p.name} wasn't convinced by the move and his agent ended the talks.` : `The clubs agreed a fee, but ${p.name}'s demands (${fmtMoney(demand.wage)}/wk) would take our wages past what the club can sustain, so I didn't commit to them. You can still talk to his agent yourself.`, actions: [{ label: 'View Player', action: 'openPlayer', payload: p.id }], playerId: p.id })
       continue
     }
     if (o) { if (o.status !== 'Negotiations Failed') o.status = 'Negotiations Failed'; syncOfferStory(w, o, `${w.clubs[o.toClubId]?.short} would not sell ${callName(p.name)} within ${club.short}'s limit of ${fmtMoney(d.maxFee)}.`) }

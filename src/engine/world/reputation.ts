@@ -52,6 +52,9 @@ function stature(c: RepInput) {
   return c.squadAvg * 1.9 - 72 + 4 * 2.2 + (cap - 0.5) * 12 - 2
 }
 
+/** Stature on its own 1–10 scale (the table's, or read from the club as above): what its name carries commercially. */
+export const statureOf = (c: RepInput): number => clamp((stature(c) - 40) / 7.5, 1, 10)
+
 /** Reputation for every club, ranked together and laid onto the curve. */
 export function computeReputations(clubs: RepInput[]): Map<number, number> {
   const rows = clubs.map((c) => { const now = sporting(c); return { c, now, x: 0.5 * now + 0.5 * stature(c) } })

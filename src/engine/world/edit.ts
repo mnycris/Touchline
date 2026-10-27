@@ -82,7 +82,8 @@ export function editTransfer(w: World, playerId: number, toClubId: number, kind:
   if (!p || !to || p.clubId === toClubId) return false
   if (p.academy) p.academy = false
   const role = roleFor(w, p, toClubId)
-  const terms: ContractOffer | undefined = kind === 'loan' ? undefined : { ...contractDemand(w, p, toClubId, role), role }
+  // the contract he'd ask for, without a signing-on fee nobody negotiated
+  const terms: ContractOffer | undefined = kind === 'loan' ? undefined : { ...contractDemand(w, p, toClubId, role), role, signingBonus: 0 }
   const o: TransferOffer = {
     id: `edit-${playerId}-${w.date}`, playerId, fromClubId: toClubId, toClubId: p.clubId, type: kind === 'loan' ? 'loan' : kind === 'free' ? 'free' : 'transfer',
     fee: kind === 'transfer' ? Math.max(0, Math.round(fee)) : 0, sellOn: 0, status: 'Offer Accepted', history: [], patience: 100, created: w.date,
