@@ -12,14 +12,14 @@
 // Frames: every side works in its own "team frame" (x 0 → 100 toward the opponent goal, y 0 = its left touchline).
 // `this.b` is the ball in the frame of the side in possession. See pitch.ts.
 // ============================================================================
-import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, ReplayStep, ShotInfo, TeamMatchStats, TeamSheet, TeamTactics, MatchScript, ScriptEvent } from '../../domain/types'
+import type { MatchEvent, MatchPlayerStats, MatchResult, PenaltyKick, Player, Position, RatingPart, ReplayStep, ShotInfo, TeamMatchStats, TeamSheet, TeamTactics, MatchScript, ScriptEvent } from '../../domain/types'
 import { A } from '../../domain/types'
 import { Rng, clamp } from '../../domain/rng'
 import { formationOf, POS_GROUP, ROLE_GROUP, ROLES, type Formation } from '../../domain/constants'
 import { bestRole, posRating } from '../../domain/ratings'
 import { BODY_PARTS, callName, line } from './commentary'
 import { type Pt, type RoleShift, type ShapeInput, type ShotContext, BLOCK, roleShift, baseXg, chanceXg, encodeHeat, flip, heatIndex, HEAT_H, HEAT_W, inBox, logit, metres, playerSpot, sigmoid, toAbs } from './pitch'
-import { computeRating, GAIN, GOAL_W, PAR, RGROUP, RP, type RG } from './rating'
+import { computeRating, GAIN, GOAL_W, parOf, PARTS, RGROUP, RP, teamPart, type RG, type RateInput } from './rating'
 import { keeperQuality, takePenalty, takerQuality } from './penalty'
 import { cloneLedger, emptyLedger, lane, third, type Ledger } from './ledger'
 import { changeReports } from './analysis'
@@ -139,8 +139,11 @@ interface LP {
   /** flat bonus in attribute points (form + team day + home) */
   fb: number
   rp: number
-  /** positional par accumulated with his minutes (see rating.ts PAR) */
+  /** the par of his role accumulated with his minutes (see rating.ts parOf) */
   pd: number
+  /** rating points earned and par owed, part by part (in the order of rating.ts PARTS): his rating's breakdown */
+  rc: number[]
+  pc: number[]
   ga: number
   gd: number
   gm: Partial<Record<RG, number>>
@@ -259,6 +262,7 @@ const THRU_FROM: Record<RG, number> = { GK: -1.5, CB: -0.9, FB: -0.3, DM: -0.3, 
 const LN_DEMAND = Object.fromEntries(Object.entries(DEMAND).map(([k, v]) => [k, Math.log(v)])) as Record<RG, number>
 
 const ZB: Bias = { sh: 0, ca: 0, dr: 0, cr: 0, pf: 0, rw: 0, bx: 0, dw: 0 }
+const PART_IX = Object.fromEntries(PARTS.map((p, i) => [p, i])) as Record<RatingPart, number>
 /** How often a ball the defence touches near its goal goes behind for a corner (about five a side, as the top leagues). */
 const CORNER_K = 0.72
 /** How much each man more (or fewer) around the box than usual changes an open-play chance in it (see shoot), and the
@@ -617,7 +621,7 @@ export class MatchSim {
     for (const k of p.playstylesPlus) if (PS_KEYS.includes(k)) ps[k] = 6
     const lp: LP = {
       p, side, slot, pos, g: RGROUP[pos], role, focus, energy: clamp(p.fitness, 20, 100), on, yellow: false, red: false, injured: false,
-      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, pd: 0, ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, apri: 0, cutK: 0, star: 0, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
+      form, fam: 1, cf: [1, 1, 1], fb: 0, rp: 0, pd: 0, rc: PARTS.map(() => 0), pc: PARTS.map(() => 0), ga: 0, gd: 0, gm: {}, st, heat: new Float32Array(HEAT_W * HEAT_H), jx: 0, jy: 0, at: { x: 50, y: 50 }, ps, bias: ZB, rs: roleShift(role, pos), pb: psBonus(ps), inv: false, apri: 0, cutK: 0, star: 0, q1: { x: 0, y: 0 }, q2: { x: 0, y: 0 },
     }
     this.placed(lp)
     return lp
@@ -1360,14 +1364,14 @@ export class MatchSim {
     const victim = this.nearestOutfield(V.on, flip(lp.at)).l || V.on[0]
     F.stats.fouls++
     lp.st.fouls++
-    this.rp(lp, RP.foul)
-    if (victim) { victim.st.foulsWon++; this.rp(victim, RP.foulWon) }
+    this.rp(lp, RP.foul, 'disc')
+    if (victim) { victim.st.foulsWon++; this.rp(victim, RP.foulWon, 'duel') }
     if (e.kind === 'red') this.sendOff(lp, false)
     else if (lp.yellow) this.sendOff(lp, true)
     else {
       lp.yellow = true
       lp.st.yellow = true
-      this.rp(lp, RP.yellow)
+      this.rp(lp, RP.yellow, 'disc')
       F.stats.yellows++
       this.ev('yellow', F.idx, line(this.crng, 'yellow', { p: callName(lp.p.name) }), { player: lp.p.id, player2: victim?.p.id })
     }
@@ -1774,13 +1778,17 @@ export class MatchSim {
   }
 
   // =========================================================== bookkeeping helpers
-  private rp(l: LP, v: number) { l.rp += v * GAIN[l.g] }
+  private rp(l: LP, v: number, part: RatingPart) {
+    const x = v * GAIN[l.g]
+    l.rp += x
+    l.rc[PART_IX[part]] += x
+  }
   private touch(l: LP, w = 1) {
     l.st.touches++
     const S = this.sides[l.side]
     S.stats.touches++
     if (this.detail) l.heat[heatIndex(l.side === this.ps ? this.b : flip(this.b))] += w
-    if (l.side === this.ps && inBox(this.b)) { l.st.boxTouches++; S.stats.boxTouches++; this.rp(l, RP.boxTouch) }
+    if (l.side === this.ps && inBox(this.b)) { l.st.boxTouches++; S.stats.boxTouches++; this.rp(l, RP.boxTouch, 'threat') }
   }
   static trace: string[] | null = null
   /** a harness collecting each minute's momentum ingredients (scripts/qa/momentum-check.ts) */
@@ -1821,7 +1829,7 @@ export class MatchSim {
     old.lastLoss = this.T
     win.led.won[third(at.x)]++
     if (this.T - win.lastLoss <= 8) win.led.quickWon++
-    if (this.b.x > 66) for (const d of this.sides[to].on) if (d.g === 'CB' || d.g === 'FB' || d.g === 'DM' || d.g === 'GK') this.rp(d, RP.snuffed)
+    if (this.b.x > 66) for (const d of this.sides[to].on) if (d.g === 'CB' || d.g === 'FB' || d.g === 'DM' || d.g === 'GK') this.rp(d, RP.snuffed, 'defend')
     if (MatchSim.dbg) { dbg('lost' + Math.min(9, Math.floor(this.b.x / 10))); dbg(`s${this.ps}.lost${Math.min(9, Math.floor(this.b.x / 10))}`) }
     this.lossBall = { x: this.b.x, y: this.b.y }
     // how exposed is the side that lost it, read off the pitch as it stands: how many of its men are goal-side of the
@@ -1875,13 +1883,13 @@ export class MatchSim {
       this.car = a.l
       a.l.st.recoveries++
       X.stats.recoveries++
-      this.rp(a.l, RP.recovery)
+      this.rp(a.l, RP.recovery, 'defend')
       this.chain.pass = undefined
       this.log('rec', X.idx, a.l, at, at, true)
     } else {
       d.l.st.recoveries++
       Y.stats.recoveries++
-      this.rp(d.l, RP.recovery)
+      this.rp(d.l, RP.recovery, 'defend')
       this.log('rec', Y.idx, d.l, flip(at), flip(at), true)
       this.turnover(Y.idx, d.l, flip(at))
     }
@@ -2005,18 +2013,18 @@ export class MatchSim {
       // shrugs him off
       c.st.duelsWon++
       X.stats.duelsWon++
-      this.rp(c, RP.duelWon)
-      this.rp(d, RP.duelLost)
+      this.rp(c, RP.duelWon, 'duel')
+      this.rp(d, RP.duelLost, 'duel')
       return -1
     }
     c.st.dispossessed++
     c.st.possLost++
-    this.rp(c, RP.dispossessed + RP.duelLost)
+    this.rp(c, RP.dispossessed + RP.duelLost, 'carry')
     d.st.tackles++
     d.st.duelsWon++
     Y.stats.tackles++
     Y.stats.duelsWon++
-    this.rp(d, (d.g === 'CB' || d.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon)
+    this.rp(d, (d.g === 'CB' || d.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon, 'defend')
     this.log('tackle', Y.idx, d, flip(this.b), flip(this.b), true, c)
     if (this.b.x < 40 && Y.tactics.pressing > 55) this.note('pressWin', 2, { p: callName(d.p.name), t: Y.name, o: X.name })
     else this.note('tackleLine', 1.2, { p: callName(d.p.name), q: callName(c.p.name) })
@@ -2026,7 +2034,6 @@ export class MatchSim {
   }
 
   private foulProb(def: LP, att: LP, k: number, at: Pt = this.b) {
-    const Y = this.sides[def.side]
     // defenders stay on their feet in their own box (whatever their position: a penalty is a penalty)
     const box = att.side === this.ps && inBox(at)
     if (box) k *= 0.06
@@ -2311,7 +2318,7 @@ export class MatchSim {
         r.st.offsides++
         if (MatchSim.dbg) dbg(`s${X.idx}.offside`)
         X.stats.offsides++
-        this.rp(r, RP.offside)
+        this.rp(r, RP.offside, 'threat')
         this.log('off', X.idx, c, from, to, false, r)
         if (this.ctx.commentary && this.rng.next() < 0.6) this.ev('offside', X.idx, line(this.crng, 'offside', { p: callName(r.p.name) }), { player: r.p.id })
         const gk = Y.gk || Y.on[0]
@@ -2330,11 +2337,11 @@ export class MatchSim {
           if (duel === 'foul') return dur
           if (duel === 'lost') {
             c.st.possLost++
-            this.rp(c, RP.longFail)
+            this.rp(c, RP.longFail, 'pass')
             this.log('long', X.idx, c, from, to, false, r)
             m.l.st.clearances++
             Y.stats.clearances++
-            this.rp(m.l, RP.clearance)
+            this.rp(m.l, RP.clearance, 'defend')
             this.loose({ x: clamp(to.x - 12 - this.rng.next() * 10, 5, 95), y: clamp(to.y + (this.rng.next() - 0.5) * 30, 5, 95) }, -0.35)
             return dur
           }
@@ -2347,10 +2354,10 @@ export class MatchSim {
       if (fwdKind) LX.fwdOk++
       if (isLong) LX.longOk++
       if (kind === 'through') LX.throughOk++
-      this.rp(c, from.x < 33 ? RP.passOwn : from.x < 66 ? RP.passMid : RP.passFinal)
-      if (to.x - from.x >= 14 && to.x > 50) this.rp(c, RP.progPass)
-      if (isLong) { c.st.longBallsOk++; this.rp(c, RP.longOk) }
-      if (kind === 'through') this.rp(c, RP.throughOk)
+      this.rp(c, from.x < 33 ? RP.passOwn : from.x < 66 ? RP.passMid : RP.passFinal, 'pass')
+      if (to.x - from.x >= 14 && to.x > 50) this.rp(c, RP.progPass, 'pass')
+      if (isLong) { c.st.longBallsOk++; this.rp(c, RP.longOk, 'pass') }
+      if (kind === 'through') this.rp(c, RP.throughOk, 'pass')
       this.log(isLong ? 'long' : kind === 'through' ? 'through' : 'pass', X.idx, c, from, to, true, r)
       this.chain.pass = { from: c, kind, n: this.n }
       this.chain.solo = false
@@ -2379,8 +2386,8 @@ export class MatchSim {
     }
     // failed
     c.st.possLost++
-    this.rp(c, from.x < 33 ? RP.passFailOwn : from.x < 66 ? RP.passFailMid : RP.passFailFinal)
-    if (isLong) this.rp(c, RP.longFail)
+    this.rp(c, from.x < 33 ? RP.passFailOwn : from.x < 66 ? RP.passFailMid : RP.passFailFinal, 'pass')
+    if (isLong) this.rp(c, RP.longFail, 'pass')
     const u = this.rng.next()
     // a loose pass under no real pressure in your own third is a genuine mistake
     const err = from.x < 30 && pr < 0.3 && !isLong && this.rng.next() < 0.35 ? c : undefined
@@ -2414,8 +2421,8 @@ export class MatchSim {
       dfd.st.duelsWon++
       Y.stats.tackles++
       Y.stats.duelsWon++
-      this.rp(dfd, (dfd.g === 'CB' || dfd.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon)
-      this.rp(r, RP.duelLost)
+      this.rp(dfd, (dfd.g === 'CB' || dfd.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon, 'defend')
+      this.rp(r, RP.duelLost, 'duel')
       r.st.possLost++
       this.log(isLong ? 'long' : 'pass', X.idx, c, from, to, false, r)
       this.log('tackle', Y.idx, dfd, flip(to), flip(to), true, r)
@@ -2426,7 +2433,7 @@ export class MatchSim {
     if (it && (inLane || u < 0.45)) {
       it.st.interceptions++
       Y.stats.interceptions++
-      this.rp(it, RP.interception)
+      this.rp(it, RP.interception, 'defend')
       const at = lane.l === it ? it.at : to
       this.log(isLong ? 'long' : 'pass', X.idx, c, from, at, false, r)
       this.log('int', Y.idx, it, flip(at), flip(at), true)
@@ -2451,7 +2458,7 @@ export class MatchSim {
       if (this.rng.next() < pSweep) {
         if (MatchSim.dbg) dbg(`s${X.idx}.ro.sweep`)
         gk.st.sweeps++
-        this.rp(gk, RP.sweep)
+        this.rp(gk, RP.sweep, 'keep')
         this.log('claim', Y.idx, gk, flip(this.b), flip(this.b), true)
         this.turnover(Y.idx, gk, flip(this.b), { dis: 0.2 })
         return 1.5
@@ -2486,17 +2493,17 @@ export class MatchSim {
         cover.l.st.tackles++
         Y.stats.tackles++
         Y.stats.duelsWon++
-        this.rp(cover.l, RP.tackleDef + RP.duelWon)
+        this.rp(cover.l, RP.tackleDef + RP.duelWon, 'defend')
         r.st.possLost++
-        this.rp(r, RP.duelLost)
+        this.rp(r, RP.duelLost, 'duel')
         this.log('tackle', Y.idx, cover.l, flip(this.b), flip(this.b), true, r)
         this.turnover(Y.idx, cover.l, flip(this.b), { dis: 0.1 })
         return 1.5
       }
       r.st.duelsWon++
       X.stats.duelsWon++
-      this.rp(r, RP.duelWon)
-      this.rp(cover.l, RP.duelLost)
+      this.rp(r, RP.duelWon, 'duel')
+      this.rp(cover.l, RP.duelLost, 'duel')
     }
     return 1.5
   }
@@ -2515,7 +2522,7 @@ export class MatchSim {
     this.b = { x: from.x + dx, y: clamp(y, 2, 98) }
     if (MatchSim.dbg) { dbg('carry'); dbg('carryDx', dx); if (inBox(this.b) && !inBox(from)) dbg('boxCarry'); if (this.b.x >= 80 && from.x < 80) dbg('c80') }
     if (dx >= 10) X.led.progCarries++
-    if (dx >= 10 && this.b.x > 50) { this.rp(c, RP.carryProg); if (dx >= 15) this.note('progCarry', 1, { p: callName(c.p.name), o: this.sides[1 - X.idx].name, t: X.name }) }
+    if (dx >= 10 && this.b.x > 50) { this.rp(c, RP.carryProg, 'carry'); if (dx >= 15) this.note('progCarry', 1, { p: callName(c.p.name), o: this.sides[1 - X.idx].name, t: X.name }) }
     this.log('carry', X.idx, c, from, this.b, true)
     return (0.5 + metres(from, this.b) / 5.6) * Math.max(0.85, tf)
   }
@@ -2554,9 +2561,9 @@ export class MatchSim {
       X.stats.dribblesOk++
       X.led.dribblesOk++
       X.stats.duelsWon++
-      this.rp(c, RP.dribbleOk + RP.duelWon)
+      this.rp(c, RP.dribbleOk + RP.duelWon, 'carry')
       def.st.dribbledPast++
-      this.rp(def, RP.dribbledPast + RP.duelLost)
+      this.rp(def, RP.dribbledPast + RP.duelLost, 'defend')
       this.b = to || { x: clamp(from.x + 4 + this.rng.next() * 6, 1, 97), y: clamp(from.y + (this.rng.next() - 0.5) * 8 + (c.role === 'Inside Forward' ? (50 - from.y) * 0.15 : 0), 2, 98) }
       this.dis = Math.min(0.9, this.dis + 0.18)
       this.chain.solo = true
@@ -2567,12 +2574,12 @@ export class MatchSim {
     this.log('drib', X.idx, c, from, from, false, def)
     if (this.rng.next() < this.foulProb(def, c, 1.15)) return 1.5 + this.foul(def, c, 'tackle')
     c.st.possLost++
-    this.rp(c, RP.dribbleFail + RP.duelLost)
+    this.rp(c, RP.dribbleFail + RP.duelLost, 'carry')
     def.st.tackles++
     def.st.duelsWon++
     Y.stats.tackles++
     Y.stats.duelsWon++
-    this.rp(def, (def.g === 'CB' || def.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon)
+    this.rp(def, (def.g === 'CB' || def.g === 'FB' ? RP.tackleDef : RP.tackle) + RP.duelWon, 'defend')
     this.log('tackle', Y.idx, def, flip(from), flip(from), true, c)
     // deep in their half a defender's block or poke away often goes behind
     if (from.x > 78 && this.rng.next() < 0.3 * CORNER_K) { this.cornerFor(X.idx); return 2 }
@@ -2585,7 +2592,7 @@ export class MatchSim {
     const from = { x: this.b.x, y: this.b.y }
     c.st.clearances++
     X.stats.clearances++
-    this.rp(c, inBox(flip(from)) ? RP.clearanceBox : RP.clearance)
+    this.rp(c, inBox(flip(from)) ? RP.clearanceBox : RP.clearance, 'defend')
     const to = { x: clamp(from.x + 30 + this.rng.next() * 25, 30, 80), y: clamp(from.y + (this.rng.next() - 0.5) * 50, 3, 97) }
     this.log('clear', X.idx, c, from, to, true)
     if (this.rng.next() < 0.22) { this.out(to.y < 50 ? { x: to.x, y: 0 } : { x: to.x, y: 100 }, true); return 3.5 }
@@ -2630,8 +2637,8 @@ export class MatchSim {
     w.st.duelsWon++
     ;(won ? A_ : D).stats.aerialsWon++
     ;(won ? A_ : D).stats.duelsWon++
-    this.rp(w, (w.g === 'CB' || w.g === 'FB' ? RP.aerialWonDef : RP.aerialWon) + RP.duelWon * 0.5)
-    this.rp(l, RP.aerialLost)
+    this.rp(w, (w.g === 'CB' || w.g === 'FB' ? RP.aerialWonDef : RP.aerialWon) + RP.duelWon * 0.5, 'duel')
+    this.rp(l, RP.aerialLost, 'duel')
     return won ? 'won' : 'lost'
   }
 
@@ -2649,11 +2656,11 @@ export class MatchSim {
     const bl = this.nearestOutfield(Y.on, from)
     if (bl.l && this.rng.next() < 0.08 + 0.3 * pr) {
       c.st.possLost++
-      this.rp(c, RP.crossFail)
+      this.rp(c, RP.crossFail, 'pass')
       bl.l.st.blocks++
       bl.l.st.clearances++
       Y.stats.clearances++
-      this.rp(bl.l, RP.clearance)
+      this.rp(bl.l, RP.clearance, 'defend')
       this.log('cross', X.idx, c, from, from, false)
       if (this.rng.next() < 0.5 * CORNER_K) this.cornerFor(X.idx)
       else this.loose({ x: from.x - 6 - this.rng.next() * 10, y: from.y + (50 - from.y) * 0.3 }, -0.1)
@@ -2670,7 +2677,7 @@ export class MatchSim {
     const delivery = sigmoid(-0.15 + 0.042 * (this.crs(c) - this.ref) - 0.6 * pr + (low ? 0.2 : 0))
     if (!tgt || this.rng.next() > delivery) {
       c.st.possLost++
-      this.rp(c, RP.crossFail)
+      this.rp(c, RP.crossFail, 'pass')
       this.log('cross', X.idx, c, from, spot, false)
       const u = this.rng.next()
       if (u < 0.22) { this.out({ x: 99, y: spot.y }); return dur }
@@ -2679,7 +2686,7 @@ export class MatchSim {
       if (m) {
         m.st.clearances++
         Y.stats.clearances++
-        this.rp(m, RP.clearanceBox)
+        this.rp(m, RP.clearanceBox, 'defend')
         this.note('crossCleared', 1, { p: callName(m.p.name), q: callName(c.p.name) })
       }
       if (this.rng.next() < 0.42 * CORNER_K) this.cornerFor(X.idx)
@@ -2691,7 +2698,7 @@ export class MatchSim {
       const pClaim = 0.1 * Math.exp((this.gkClaim(gk) - this.ref) / 22) * (spot.x > 92 ? 1.7 : 1)
       if (this.rng.next() < pClaim) {
         c.st.possLost++
-        this.rp(c, RP.crossFail)
+        this.rp(c, RP.crossFail, 'pass')
         this.log('cross', X.idx, c, from, spot, false)
         return dur + this.gkClaim_(gk, Y, spot, true)
       }
@@ -2702,11 +2709,11 @@ export class MatchSim {
     const bb = clamp(this.boxBalance(X, Y), -5, 3)
     if (mk && bb < 0 && this.rng.next() < -bb * 0.035) {
       c.st.possLost++
-      this.rp(c, RP.crossFail)
+      this.rp(c, RP.crossFail, 'pass')
       this.log('cross', X.idx, c, from, spot, false, tgt)
       mk.st.clearances++
       Y.stats.clearances++
-      this.rp(mk, RP.clearanceBox)
+      this.rp(mk, RP.clearanceBox, 'defend')
       if (this.rng.next() < 0.4 * CORNER_K) this.cornerFor(X.idx)
       else this.loose({ x: 64 + this.rng.next() * 14, y: 22 + this.rng.next() * 56 }, -0.4)
       return dur
@@ -2721,7 +2728,7 @@ export class MatchSim {
       X.led.crossesOk++
       X.led.passesOk++
       c.st.passesCompleted++
-      this.rp(c, RP.crossOk)
+      this.rp(c, RP.crossOk, 'pass')
       this.log('cross', X.idx, c, from, spot, true, tgt)
       this.chain.pass = { from: c, kind: 'cross', n: this.n }
       this.b = spot
@@ -2740,12 +2747,12 @@ export class MatchSim {
       return dur + res
     }
     c.st.possLost++
-    this.rp(c, RP.crossFail)
+    this.rp(c, RP.crossFail, 'pass')
     this.log('cross', X.idx, c, from, spot, false, tgt)
     if (mk) {
       mk.st.clearances++
       Y.stats.clearances++
-      this.rp(mk, RP.clearanceBox)
+      this.rp(mk, RP.clearanceBox, 'defend')
       this.note('crossCleared', 1, { p: callName(mk.p.name), q: callName(c.p.name) })
       // the rare own goal from a defender under pressure at the near post
       if (this.rng.next() < 0.011) return dur + this.ownGoal(mk, X, Y)
@@ -2759,13 +2766,13 @@ export class MatchSim {
     const punch = !clean || this.rng.next() < 0.25
     if (punch) {
       gk.st.punches++
-      this.rp(gk, RP.punch)
+      this.rp(gk, RP.punch, 'keep')
       this.log('claim', Y.idx, gk, flip(spot), flip(spot), true)
       this.loose({ x: 66 + this.rng.next() * 12, y: 25 + this.rng.next() * 50 }, -0.3)
       return 1.5
     }
     gk.st.claims++
-    this.rp(gk, RP.claim)
+    this.rp(gk, RP.claim, 'keep')
     this.log('claim', Y.idx, gk, flip(spot), flip(spot), true)
     this.turnover(Y.idx, gk, flip(spot), { dis: 0.15 })
     this.pending = { kind: 'gkhold', side: Y.idx, at: { x: 8, y: 50 }, dead: 5 + this.rng.next() * 6, taker: gk }
@@ -2791,7 +2798,7 @@ export class MatchSim {
       if (this.rng.next() < p) {
         gk.st.passesCompleted++
         X.passesDone++
-        this.rp(gk, RP.gkDistOk)
+        this.rp(gk, RP.gkDistOk, 'keep')
         this.log('pass', X.idx, gk, from, r.at, true, r)
         this.b = { ...r.at }
         this.car = r
@@ -2799,13 +2806,13 @@ export class MatchSim {
         return (2 + metres(from, r.at) / 14) * tf
       }
       gk.st.possLost++
-      this.rp(gk, RP.gkDistFail)
+      this.rp(gk, RP.gkDistFail, 'keep')
       const it = this.nearestOutfield(Y.on, r.at).l
       this.log('pass', X.idx, gk, from, r.at, false, r)
       if (it) {
         it.st.interceptions++
         Y.stats.interceptions++
-        this.rp(it, RP.interception)
+        this.rp(it, RP.interception, 'defend')
         this.turnover(Y.idx, it, flip(r.at), { err: gk, dis: 0.35 })
       }
       return 2.5 * tf
@@ -2823,7 +2830,7 @@ export class MatchSim {
     const acc = sigmoid(0.9 + 0.035 * (this.e(gk, A.gkKicking) - this.ref + 2))
     if (this.rng.next() > acc) {
       gk.st.possLost++
-      this.rp(gk, RP.gkDistFail * 0.5)
+      this.rp(gk, RP.gkDistFail * 0.5, 'keep')
       this.log('long', X.idx, gk, from, to, false, r)
       if (this.rng.next() < 0.4) { this.out({ x: to.x, y: to.y < 50 ? 0 : 100 }); return 5 }
       if (m) this.turnover(Y.idx, m, flip(to), { dis: 0.05 })
@@ -2835,7 +2842,7 @@ export class MatchSim {
       gk.st.passesCompleted++
       gk.st.longBallsOk++
       X.passesDone++
-      this.rp(gk, RP.gkDistOk)
+      this.rp(gk, RP.gkDistOk, 'keep')
       this.log('long', X.idx, gk, from, to, true, r)
       // flick-ons and knock-downs land near a team-mate more often than not
       this.b = to
@@ -2887,14 +2894,14 @@ export class MatchSim {
     if (passer) {
       passer.st.keyPasses++
       passer.st.xa += xg
-      this.rp(passer, RP.keyPass + RP.xaMul * xg)
-      if (big) { passer.st.bcc++; this.rp(passer, RP.bigChanceCreated) }
+      this.rp(passer, RP.keyPass + RP.xaMul * xg, 'create')
+      if (big) { passer.st.bcc++; this.rp(passer, RP.bigChanceCreated, 'create') }
     }
     let errBy: LP | undefined
     if (this.chain.err && this.n - this.chain.errN <= 5 && this.chain.err.side !== c.side) {
       errBy = this.chain.err
       errBy.st.errors++
-      this.rp(errBy, RP.errorShot)
+      this.rp(errBy, RP.errorShot, 'disc')
       this.chain.err = undefined
     }
     let sk = ctx.header ? this.hfin(c) : ctx.volley ? this.vol(c) : inside ? this.fin(c) : this.lsh(c)
@@ -2916,8 +2923,8 @@ export class MatchSim {
     if (!force && blocker && this.rng.next() < pBlock * clamp(1 + (this.e(blocker, A.defAwareness) - this.ref) / 80 + blocker.pb.block / 20, 0.6, 1.4)) {
       blocker.st.blocks++
       Y.stats.blocks++
-      this.rp(blocker, RP.block)
-      this.rp(c, RP.blocked)
+      this.rp(blocker, RP.block, 'defend')
+      this.rp(c, RP.blocked, 'threat')
       const si = this.detail ? shotInfo('blocked', undefined, blocker) : undefined
       this.log('shot', X.idx, c, b, blocker.at, false)
       this.log('block', Y.idx, blocker, flip(blocker.at), flip(blocker.at), true)
@@ -2950,7 +2957,7 @@ export class MatchSim {
       c.st.xgot += xgot
       X.stats.xgot += xgot
       if (gk) gk.st.xgotFaced += xgot
-      this.rp(c, RP.sot)
+      this.rp(c, RP.sot, 'threat')
       if (!force && (how === 'through' || how === 'counter') && this.rng.next() < 0.035) {
         this.log('shot', X.idx, c, b, goalPt, true)
         c.st.offsides++
@@ -2973,13 +2980,13 @@ export class MatchSim {
       c.st.xgot += xgot
       X.stats.xgot += xgot
       Y.stats.saves++
-      this.rp(c, RP.sot)
+      this.rp(c, RP.sot, 'threat')
       if (gk) {
         gk.st.saves++
         gk.st.xgotFaced += xgot
-        this.rp(gk, RP.save + RP.saveXgot * xgot)
+        this.rp(gk, RP.save + RP.saveXgot * xgot, 'keep')
       }
-      if (big) { c.st.bcm++; X.stats.bigChancesMissed++; this.rp(c, RP.bigChanceMissed * 0.6) }
+      if (big) { c.st.bcm++; X.stats.bigChancesMissed++; this.rp(c, RP.bigChanceMissed * 0.6, 'threat') }
       const si = this.detail ? shotInfo('saved', xgot) : undefined
       const end = this.shotEnd(X, si, { x: 99, y: 50 })
       this.log('shot', X.idx, c, b, { x: 99, y: end.y }, false)
@@ -3008,19 +3015,19 @@ export class MatchSim {
           this.chain.pass = undefined
           return 2 + this.shoot(a, { rebound: true, pressure: 0.55 }, 'rebound')
         }
-        if (d) { d.st.clearances++; Y.stats.clearances++; this.rp(d, RP.clearanceBox) }
+        if (d) { d.st.clearances++; Y.stats.clearances++; this.rp(d, RP.clearanceBox, 'defend') }
         this.loose({ x: 66 + this.rng.next() * 12, y: 25 + this.rng.next() * 50 }, -0.4)
       } else {
         const d = this.nearestOutfield(Y.on, b).l
-        if (d) { d.st.clearances++; Y.stats.clearances++; this.rp(d, RP.clearanceBox); this.loose({ x: 60 + this.rng.next() * 15, y: 20 + this.rng.next() * 60 }, -0.5) }
+        if (d) { d.st.clearances++; Y.stats.clearances++; this.rp(d, RP.clearanceBox, 'defend'); this.loose({ x: 60 + this.rng.next() * 15, y: 20 + this.rng.next() * 60 }, -0.5) }
         else this.out({ x: 99, y: 50 })
       }
       return 2
     }
     // off target
     const wood = this.rng.next() < 0.075
-    this.rp(c, big ? RP.offTargetBig : RP.offTarget)
-    if (big) { c.st.bcm++; X.stats.bigChancesMissed++; this.rp(c, RP.bigChanceMissed) }
+    this.rp(c, big ? RP.offTargetBig : RP.offTarget, 'threat')
+    if (big) { c.st.bcm++; X.stats.bigChancesMissed++; this.rp(c, RP.bigChanceMissed, 'threat') }
     const si = this.detail ? shotInfo(wood ? 'post' : 'off') : undefined
     this.log('shot', X.idx, c, b, this.shotEnd(X, si, { x: 100, y: 38 }), false)
     this.ev(wood ? 'woodwork' : 'miss', X.idx, `${intro} ${line(this.crng, wood ? 'woodwork' : big ? 'missBig' : 'miss', v)}`.trim(), { player: c.p.id, player2: passer?.p.id, xg: r2(xg), big, loc, how, shot: si })
@@ -3092,9 +3099,9 @@ export class MatchSim {
     this.score[X.idx]++
     X.stats.sot = X.stats.sot // already counted
     c.st.goals++
-    this.rp(c, RP.goal * GOAL_W[c.g] + RP.goalXgMul * (0.5 - Math.min(xg, 0.8)))
-    if (passer) { passer.st.assists++; this.rp(passer, RP.assist * (passer.g === 'CB' || passer.g === 'FB' ? 1.1 : 1)) }
-    if (errBy) this.rp(errBy, RP.errorGoal - RP.errorShot)
+    this.rp(c, RP.goal * GOAL_W[c.g] + RP.goalXgMul * (0.5 - Math.min(xg, 0.8)), 'threat')
+    if (passer) { passer.st.assists++; this.rp(passer, RP.assist * (passer.g === 'CB' || passer.g === 'FB' ? 1.1 : 1), 'create') }
+    if (errBy) this.rp(errBy, RP.errorGoal - RP.errorShot, 'disc')
     this.conceded(Y, xgot)
     X.threat += 1.2
     const lead = this.score[X.idx] - this.score[Y.idx]
@@ -3119,12 +3126,12 @@ export class MatchSim {
     const gk = Y.gk
     if (gk) {
       gk.st.conceded++
-      this.rp(gk, RP.concededGk + RP.concededGkXgot * (1 - xgot))
+      this.rp(gk, RP.concededGk + RP.concededGkXgot * (1 - xgot), 'keep')
     }
     for (const l of Y.on) {
       l.ga++
-      if (l.g === 'CB' || l.g === 'FB') this.rp(l, RP.concededDef)
-      else if (l.g === 'DM') this.rp(l, RP.concededDm)
+      if (l.g === 'CB' || l.g === 'FB') this.rp(l, RP.concededDef, 'defend')
+      else if (l.g === 'DM') this.rp(l, RP.concededDm, 'defend')
     }
     for (const s of this.sides) for (const l of s.on) l.gd += s === Y ? -1 : 1
   }
@@ -3141,7 +3148,7 @@ export class MatchSim {
     if (room !== undefined && room <= 0) { this.cornerFor(X.idx); return 2 }
     this.score[X.idx]++
     d.st.ownGoals++
-    this.rp(d, RP.ownGoal)
+    this.rp(d, RP.ownGoal, 'disc')
     this.conceded(Y, 0.6)
     X.threat += 1
     this.log('goal', Y.idx, d, flip(this.b), { x: 0, y: 50 }, false)
@@ -3274,9 +3281,9 @@ export class MatchSim {
     const m0 = this.nearestOutfield(Y.on, spot).l
     if (this.rng.next() > delivery) {
       taker.st.possLost++
-      this.rp(taker, RP.crossFail)
+      this.rp(taker, RP.crossFail, 'pass')
       this.log(kind, X.idx, taker, from, { x: 95, y: from.y < 50 ? 30 : 70 }, false)
-      if (m0) { m0.st.clearances++; Y.stats.clearances++; this.rp(m0, RP.clearanceBox) }
+      if (m0) { m0.st.clearances++; Y.stats.clearances++; this.rp(m0, RP.clearanceBox, 'defend') }
       if (this.rng.next() < 0.25) this.cornerFor(X.idx)
       else this.loose({ x: 70 + this.rng.next() * 10, y: 30 + this.rng.next() * 40 }, -0.35)
       return 3
@@ -3302,7 +3309,7 @@ export class MatchSim {
       taker.st.crossesOk++
       taker.st.passesCompleted++
       X.stats.crossesOk++
-      this.rp(taker, RP.crossOk)
+      this.rp(taker, RP.crossOk, 'pass')
       this.log(kind, X.idx, taker, from, spot, true, tgt)
       this.chain.pass = { from: taker, kind: how, n: this.n }
       this.b = spot
@@ -3317,7 +3324,7 @@ export class MatchSim {
     this.log(kind, X.idx, taker, from, spot, false, tgt)
     mk.st.clearances++
     Y.stats.clearances++
-    this.rp(mk, RP.clearanceBox)
+    this.rp(mk, RP.clearanceBox, 'defend')
     if (this.rng.next() < 0.009) return 3 + this.ownGoal(mk, X, Y)
     const u = this.rng.next()
     if (u < 0.22) this.cornerFor(X.idx)
@@ -3349,7 +3356,7 @@ export class MatchSim {
     // direct free kicks are shots like any other: on the shot map, in the goal frame and in the replay alike
     const fs = (res: ShotInfo['res'], xgotV?: number, wallAt?: Pt) => (this.detail ? this.placeShot(X, res, { inside: false, body: k.p.foot === 'L' ? 'L' : 'R', xgot: xgotV, at: wallAt, gk }) : undefined)
     if (this.rng.next() < 0.26) {
-      this.rp(k, RP.blocked)
+      this.rp(k, RP.blocked, 'threat')
       const wall = { x: at.x + 8, y: 50 }
       this.log('shot', X.idx, k, at, wall, false)
       this.ev('chance', X.idx, `${callName(k.p.name)} strikes the free kick... ${line(this.crng, 'blocked', v)}`, { player: k.p.id, xg: r2(xg), loc, how: 'freekick', shot: fs('blocked', undefined, wall) })
@@ -3371,7 +3378,7 @@ export class MatchSim {
       k.st.sot++
       k.st.xgot += xgot
       if (gk) gk.st.xgotFaced += xgot
-      this.rp(k, RP.sot)
+      this.rp(k, RP.sot, 'threat')
       const si = fs('goal', xgot)
       this.log('goal', X.idx, k, at, this.shotEnd(X, si, { x: 100, y: 46 }), true)
       this.goal(k, undefined, 'freekick', xg, xgot, `${callName(k.p.name)} steps up...`, loc, undefined, si)
@@ -3383,8 +3390,8 @@ export class MatchSim {
       k.st.sot++
       k.st.xgot += xgot
       Y.stats.saves++
-      this.rp(k, RP.sot)
-      if (gk) { gk.st.saves++; gk.st.xgotFaced += xgot; this.rp(gk, RP.save + RP.saveXgot * xgot) }
+      this.rp(k, RP.sot, 'threat')
+      if (gk) { gk.st.saves++; gk.st.xgotFaced += xgot; this.rp(gk, RP.save + RP.saveXgot * xgot, 'keep') }
       const si = fs('saved', xgot)
       this.log('shot', X.idx, k, at, { x: 99, y: this.shotEnd(X, si, { x: 99, y: 45 }).y }, false)
       this.ev('save', X.idx, `${callName(k.p.name)} curls the free kick goalwards... ${line(this.crng, xgot > 0.35 ? 'saveGreat' : 'saveGood', v)}`, { player: k.p.id, xg: r2(xg), loc, how: 'freekick', shot: si })
@@ -3392,7 +3399,7 @@ export class MatchSim {
       else if (gk) { this.turnover(Y.idx, gk, { x: 5, y: 50 }, { dis: 0.1 }); this.pending = { kind: 'gkhold', side: Y.idx, at: { x: 6, y: 50 }, dead: 6, taker: gk } }
       return 2
     }
-    this.rp(k, RP.offTarget)
+    this.rp(k, RP.offTarget, 'threat')
     const si = fs('off')
     this.log('shot', X.idx, k, at, this.shotEnd(X, si, { x: 100, y: 40 }), false)
     this.ev('miss', X.idx, `${callName(k.p.name)} goes for goal from the free kick... ${line(this.crng, 'miss', v)}`, { player: k.p.id, xg: r2(xg), loc, how: 'freekick', shot: si })
@@ -3409,9 +3416,9 @@ export class MatchSim {
     F.stats.fouls++
     F.led.fouls++
     def.st.fouls++
-    this.rp(def, RP.foul)
+    this.rp(def, RP.foul, 'disc')
     victim.st.foulsWon++
-    this.rp(victim, RP.foulWon)
+    this.rp(victim, RP.foulWon, 'duel')
     this.log('foul', F.idx, def, flip(at), flip(at), false, victim)
     const box = inBox(at)
     const clearChance = this.chain.oneOnOne || (this.counter && at.x > 70 && this.dis > 0.5)
@@ -3440,7 +3447,7 @@ export class MatchSim {
       else {
         def.yellow = true
         def.st.yellow = true
-        this.rp(def, RP.yellow)
+        this.rp(def, RP.yellow, 'disc')
         F.stats.yellows++
         this.ev('yellow', F.idx, line(this.crng, 'yellow', { p: callName(def.p.name) }), { player: def.p.id, player2: victim.p.id })
       }
@@ -3451,9 +3458,9 @@ export class MatchSim {
     this.car = null
     if (box) {
       victim.st.penWon++
-      this.rp(victim, RP.penWon)
+      this.rp(victim, RP.penWon, 'create')
       def.st.penConceded++
-      this.rp(def, RP.penConceded)
+      this.rp(def, RP.penConceded, 'disc')
       V.threat += 0.8
       const cardType = [...this.events].reverse().find((e) => e.min === this.minute && e.player === def.p.id && (e.type === 'yellow' || e.type === 'red' || e.type === 'secondYellow'))
       // the award goes before the card in the feed
@@ -3475,7 +3482,7 @@ export class MatchSim {
     lp.st.red = true
     lp.on = false
     lp.subOff = this.minute
-    this.rp(lp, second ? RP.secondYellow : RP.red)
+    this.rp(lp, second ? RP.secondYellow : RP.red, 'disc')
     S.stats.reds++
     if (second) S.stats.yellows++
     this.ev(second ? 'secondYellow' : 'red', S.idx, line(this.crng, second ? 'secondYellow' : 'red', { p: callName(lp.p.name), t: S.name }), { player: lp.p.id })
@@ -3546,7 +3553,7 @@ export class MatchSim {
       dbg(waste ? 'misconduct.time' : 'misconduct.dissent')
       l.yellow = true
       l.st.yellow = true
-      this.rp(l, RP.yellow)
+      this.rp(l, RP.yellow, 'disc')
       s.stats.yellows++
       this.ev('yellow', s.idx, line(this.crng, waste ? 'yellowTime' : 'yellowDissent', { p: callName(l.p.name) }), { player: l.p.id })
     }
@@ -3597,7 +3604,7 @@ export class MatchSim {
       X.led.sot++
       this.score[X.idx]++
       taker.st.goals++
-      this.rp(taker, RP.goal * 0.75)
+      this.rp(taker, RP.goal * 0.75, 'threat')
       this.conceded(Y, 0.9)
       if (gk) gk.st.xgotFaced += 0.9
       X.threat += 1.2
@@ -3609,13 +3616,13 @@ export class MatchSim {
     }
     X.stats.bigChancesMissed++
     taker.st.bcm++
-    this.rp(taker, -0.45)
+    this.rp(taker, -0.45, 'threat')
     if (res === 'saved') {
       taker.st.sot++
       taker.st.xgot += 0.7
       X.stats.sot++
       Y.stats.saves++
-      if (gk) { gk.st.saves++; gk.st.xgotFaced += 0.7; this.rp(gk, RP.penSave) }
+      if (gk) { gk.st.saves++; gk.st.xgotFaced += 0.7; this.rp(gk, RP.penSave, 'keep') }
     }
     this.log('pen', X.idx, taker, { x: 88.6, y: 50 }, { x: 100, y: res === 'miss' ? (want === 'L' ? 38 : 62) : goalY }, false)
     const key = res === 'saved' ? 'penSaved' : res === 'post' ? 'penPost' : 'penWide'
@@ -3734,7 +3741,12 @@ export class MatchSim {
       for (const lp of s.on) {
         lp.st.mins++
         lp.gm[lp.g] = (lp.gm[lp.g] || 0) + 1
-        lp.pd += (GAIN[lp.g] * PAR[lp.g]) / 90
+        const par = parOf(lp.g, lp.role)
+        for (let i = 0; i < par.length; i++) {
+          const x = (GAIN[lp.g] * par[i]) / 90
+          lp.pc[i] += x
+          lp.pd += x
+        }
         const stam = lp.p.attrs[A.stamina]
         const age = ageAt(lp.p, this.ctx.year ?? 2026)
         const ageF = age >= 33 ? 1.15 : age >= 31 ? 1.08 : age <= 20 ? 0.96 : 1
@@ -3946,12 +3958,26 @@ export class MatchSim {
     this.timeline.push({ m: this.minute, add: this.added, p: Math.round(p * 100) / 100, s: k === 'play' ? this.ps : atk, x: r1(ab.x), y: r1(ab.y), k, mom: Math.round(mom * 100) / 100, ev: evStart, acts: this.acts })
   }
 
-  private liveRating(l: LP, final = false): number {
+  private rateInput(l: LP, final: boolean): RateInput {
     const reg = this.phase === 'ET1' || this.phase === 'ET2' || this.phase === 'ETHT' ? 120 : 90
     const gf = this.score[l.side], ga = this.score[1 - l.side]
-    const r = computeRating({ rp: l.rp - l.pd, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 })
+    return { rp: l.rp - l.pd, mins: l.st.mins, gm: l.gm, ga: l.ga, gd: l.gd, prog: clamp(this.minute / reg, 0, 1), final, res: gf > ga ? 1 : gf < ga ? -1 : 0 }
+  }
+
+  private liveRating(l: LP, final = false): number {
+    const reg = this.phase === 'ET1' || this.phase === 'ET2' || this.phase === 'ETHT' ? 120 : 90
+    const r = computeRating(this.rateInput(l, final))
     const told = this.ctx.script?.form?.[l.p.id]
     return told ? clamp(Math.round((r + told * 0.3 * clamp(this.minute / reg, 0.3, 1)) * 10) / 10, 3, 10) : r
+  }
+
+  /** What moved a player's rating, part by part against his role's par, and the team's share. */
+  private breakdown(l: LP): MatchPlayerStats['rb'] {
+    if (!l.st.mins) return undefined
+    const out: NonNullable<MatchPlayerStats['rb']> = {}
+    PARTS.forEach((p, i) => { const v = l.rc[i] - l.pc[i]; if (Math.abs(v) >= 0.005) out[p] = r2(v) })
+    out.team = r2(teamPart(this.rateInput(l, this.finished)))
+    return out
   }
 
   private finalRatings() {
@@ -3967,7 +3993,7 @@ export class MatchSim {
   }
 
   private statsOut(l: LP): PStats {
-    return { ...l.st, xg: r2(l.st.xg), xa: r2(l.st.xa), xgot: r2(l.st.xgot), xgotFaced: r2(l.st.xgotFaced), heat: encodeHeat(l.heat), energy: Math.round(l.energy) }
+    return { ...l.st, xg: r2(l.st.xg), xa: r2(l.st.xa), xgot: r2(l.st.xgot), xgotFaced: r2(l.st.xgotFaced), heat: encodeHeat(l.heat), energy: Math.round(l.energy), rb: this.breakdown(l) }
   }
 
   private teamOut(s: Side): FullTeamStats {

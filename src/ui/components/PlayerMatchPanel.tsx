@@ -1,8 +1,9 @@
 // FotMob-style match performance panel: tap a player in a line-up during (or after) a match to see his rating,
 // heat map and the stats the engine recorded for him, grouped and ordered by what matters for his position.
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
-import type { Club, MatchEvent, MatchPlayerStats, World } from '../../domain/types'
-import { RGROUP, type RG } from '../../engine/match/rating'
+import type { Club, MatchEvent, MatchPlayerStats, RatingPart, World } from '../../domain/types'
+import { CLEAN_SHEET, PART_LABEL, PARTS, RGROUP, type RG } from '../../engine/match/rating'
+import { InfoTip } from './InfoTip'
 import { decodeHeat, HEAT_H, HEAT_W } from '../../engine/match/pitch'
 import { Badge, Face, Flag } from './atoms'
 import { POS_NAME } from '../../domain/constants'
@@ -144,6 +145,37 @@ function Section({ title, rows, st }: { title: string; rows: Row[]; st: MatchPla
   )
 }
 
+/**
+ * What made the rating: each kind of contribution against a typical player in his role over the same minutes, and the
+ * team's share, as bars either side of par. Parts that came out about level are left out.
+ */
+function RatingBreakdown({ rb, rating, g }: { rb: NonNullable<MatchPlayerStats['rb']>; rating: number; g: RG }) {
+  const rows = ([...PARTS, 'team'] as (RatingPart | 'team')[]).map((k) => [k, rb[k] ?? 0] as const).filter(([, v]) => Math.abs(v) >= 0.08)
+  if (!rows.length) return null
+  const max = Math.max(0.6, ...rows.map(([, v]) => Math.abs(v)))
+  const team = CLEAN_SHEET[g] > 0 ? 'Result & clean sheet' : 'Result'
+  return (
+    <div className="pmp-sec pmp-rb">
+      <div className="pmp-h pmp-rb-h">
+        <span>What made the {rating.toFixed(1)}</span>
+        <InfoTip title="Match ratings">
+          <p>Every player starts a match at 6.0 and moves with what he does.</p>
+          <p>Each part is weighed against a typical player in the same role over the same minutes, so a holding midfielder isn't marked down for seeing less of the ball than a number 10.</p>
+          <p>Goals and assists always count in full. The result, and a clean sheet for keepers and defenders, is the team's share.</p>
+          <p>The scale tightens at both ends: a 9 takes something special.</p>
+        </InfoTip>
+      </div>
+      {rows.map(([k, v]) => (
+        <div key={k} className="pmp-rb-row">
+          <span>{k === 'team' ? team : PART_LABEL[k]}</span>
+          <span className="pmp-rb-bar"><i className={v > 0 ? 'pos' : 'neg'} style={{ width: `${(Math.min(1, Math.abs(v) / max) * 50).toFixed(1)}%` }} /></span>
+          <span className={`pmp-rb-v ${v > 0 ? 'pos' : 'neg'}`}>{v > 0 ? '+' : '−'}{Math.abs(v).toFixed(1)}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export interface PlayerMatchPanelProps {
   w: World
   st?: MatchPlayerStats
@@ -174,7 +206,6 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
     ...(gk ? [['Saves', n(st.saves)], ['Goals conceded', n(st.conceded)], ['Goals prevented', `${prevented >= 0 ? '+' : ''}${prevented.toFixed(2)}`]] as Row[] : []),
     ...(!gk ? [['Goals', st.goals], ['Assists', st.assists]] as Row[] : []),
     ...(!gk && !def ? [['Expected goals (xG)', x2(st.xg)], ['Expected assists (xA)', x2(st.xa)]] as Row[] : []),
-    ['Touches', n(st.touches)],
     ['Accurate passes', frac(st.passesCompleted, st.passes)],
     ...(!gk ? [['Chances created', st.keyPasses]] as Row[] : []),
     ...(def && !gk ? [['Tackles won', st.tackles], ['Interceptions', st.interceptions]] as Row[] : []),
@@ -249,6 +280,7 @@ export function PlayerMatchPanel({ w, st, club, events, motm, live, onClose, onP
           </div>
         </div>
 
+        {played && st.rb && <RatingBreakdown rb={st.rb} rating={st.rating} g={g} />}
         {played && ext && (
           <>
             <div className="pmp-sec pmp-heat-sec">

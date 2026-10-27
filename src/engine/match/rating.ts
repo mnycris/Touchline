@@ -1,9 +1,12 @@
 // Event-driven player ratings (FotMob-like). Every on-ball and defensive action adds rating points valued by the
 // position group the player occupied when he performed it, so moving a player mid-match only changes how his *later*
 // actions are valued; nothing he already did is re-scored and the number never jumps.
-// Each minute also measures him against his position's par (what an average player there earns per 90), so a busy
-// role like the number 10 doesn't inflate just by touching the ball more: the rating is what he did beyond the norm.
-import type { Position } from '../../domain/types'
+// Each minute also measures him against the par of his role (what an average player in that role earns per 90, kind
+// of contribution by kind of contribution), so a busy role like the number 10 doesn't inflate just by touching the ball
+// more, and a quiet one like the holding midfielder isn't marked down for the touches his job doesn't bring: the rating
+// is what he did beyond what the role asks. The same split is the breakdown a player's rating is explained by.
+import type { Position, RatingPart } from '../../domain/types'
+import { ROLE_PAR } from './ratingPar'
 
 export type RG = 'GK' | 'CB' | 'FB' | 'DM' | 'CM' | 'AM' | 'W' | 'ST'
 export const RG_LIST: RG[] = ['GK', 'CB', 'FB', 'DM', 'CM', 'AM', 'W', 'ST']
@@ -44,6 +47,28 @@ export const RP = {
  * (calibrated with scripts/qa/rating-par.ts). A player is rated on what he does beyond it.
  */
 export const PAR: Record<RG, number> = { GK: 0.26, CB: 0.86, FB: 0.68, DM: 1.34, CM: 1.43, AM: 1.21, W: 0.88, ST: 0.78 }
+
+/** The kinds of contribution a rating is made of, in the order a breakdown lists them. */
+export const PARTS: RatingPart[] = ['threat', 'create', 'pass', 'carry', 'defend', 'duel', 'keep', 'disc']
+export const PART_LABEL: Record<RatingPart, string> = {
+  threat: 'Goal threat', create: 'Chance creation', pass: 'Passing', carry: 'Carrying', defend: 'Defending', duel: 'Duels', keep: 'Goalkeeping', disc: 'Discipline',
+}
+
+const parCache = new Map<string, number[]>()
+/**
+ * Par per 90 for a role, part by part (in the order of PARTS): the role's own, measured over the big five's AI sides
+ * (scripts/qa/rating-par.ts writes ratingPar.ts); a role too rare to measure takes its position group's.
+ */
+export function parOf(g: RG, role: string): number[] {
+  const key = `${g}|${role}`
+  let v = parCache.get(key)
+  if (!v) {
+    const t = ROLE_PAR[key] || ROLE_PAR[g]
+    v = t ? PARTS.map((p) => t[p] || 0) : PARTS.map((p) => (p === 'threat' ? PAR[g] : 0))
+    parCache.set(key, v)
+  }
+  return v
+}
 /** How strongly actions move the rating in each group (defenders' work is quieter but decides games). */
 export const GAIN: Record<RG, number> = { GK: 1, CB: 1.15, FB: 1.15, DM: 1.1, CM: 1, AM: 1, W: 1, ST: 1 }
 /** What an average full match is worth above the 6.0 starting point, before the result and a clean sheet. */
@@ -73,9 +98,9 @@ export interface RateInput {
  * Turn accumulated rating points into a 3–10 rating. Base 6.0; a quiet but tidy 90 minutes lands around 6.6–6.9,
  * a goal is worth ≈ +1, and the scale compresses above 7.4 so 9+ stays special.
  */
-export function computeRating(x: RateInput): number {
-  // the lift comes early: a sub who plays his part in a cameo reads around 6.4, not 6.1
-  let r = 6.0 + x.rp + LIFT * Math.min(1, x.mins / 90) ** 0.7
+/** The team's share of a rating: a clean sheet kept while he was on, and the result. */
+export function teamPart(x: RateInput): number {
+  let r = 0
   const share = (g: RG) => (x.mins ? (x.gm[g] || 0) / x.mins : 0)
   // clean sheet builds up with the minutes he keeps it; nothing if his team conceded while he was on
   if (x.ga === 0 && x.mins > 0) {
@@ -88,6 +113,12 @@ export function computeRating(x: RateInput): number {
   const presence = Math.min(1, x.mins / 90)
   if (x.final) r += (x.res > 0 ? 0.16 : x.res < 0 ? -0.1 : 0.02) * presence
   else r += (x.gd > 0 ? 0.08 : x.gd < 0 ? -0.05 : 0) * presence * x.prog
+  return r
+}
+
+export function computeRating(x: RateInput): number {
+  // the lift comes early: a sub who plays his part in a cameo reads around 6.4, not 6.1
+  let r = 6.0 + x.rp + LIFT * Math.min(1, x.mins / 90) ** 0.7 + teamPart(x)
   // the scale stretches thin at both ends: 9+ takes something special, and a bad day rarely reads below 5
   if (r > 7.4) r = 7.4 + (r - 7.4) * 0.72
   if (r < 6.3) r = 6.3 - (6.3 - r) * 0.72

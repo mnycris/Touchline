@@ -434,6 +434,9 @@ export interface PenaltyKick {
   res: 'goal' | 'saved' | 'miss' | 'post'
 }
 
+/** A kind of contribution to a match rating (see PARTS in engine/match/rating.ts). */
+export type RatingPart = 'threat' | 'create' | 'pass' | 'carry' | 'defend' | 'duel' | 'keep' | 'disc'
+
 export interface MatchPlayerStats {
   id: number
   side: 0 | 1
@@ -453,6 +456,11 @@ export interface MatchPlayerStats {
   conceded?: number; xgot?: number; xgotFaced?: number; claims?: number; punches?: number; sweeps?: number
   /** 12×8 touch heat map, one base-36 digit per cell */
   heat?: string
+  /**
+   * What moved his rating: each kind of contribution against an average player in his role over his minutes, and the
+   * team's share (the result and a clean sheet). Matches played in the full engine only.
+   */
+  rb?: Partial<Record<RatingPart | 'team', number>>
 }
 
 export interface TeamMatchStats {
