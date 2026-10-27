@@ -48,7 +48,9 @@ export function fillThinSquads(w: World, rng?: Rng, opts: { start?: boolean } = 
     const wage = Math.max(500, Math.round((wages[Math.floor(wages.length / 2)] || 2000) * 0.6 / 50) * 50)
     const nation = c.country
     const used = new Set(squad.map((p) => p.jersey))
-    while (rosterOf(w, c.id).length < MIN_SQUAD) {
+    // (counted here, and the roster index refreshed once at the end: rebuilding it per player is a full pass each)
+    const made: Player[] = []
+    while (before + made.length < MIN_SQUAD) {
       // the position group furthest below what a squad needs, then the thinnest overall
       const g = [...NEED].sort((a, b) => (have[a[0]] - a[1]) - (have[b[0]] - b[1]))[0][0]
       const slots = GROUP_POS[g]
@@ -59,12 +61,12 @@ export function fillThinSquads(w: World, rng?: Rng, opts: { start?: boolean } = 
       used.add(n)
       p.jersey = n
       w.players[p.id] = p
-      touchRoster(w)
+      made.push(p)
       have[g]++
       added++
     }
     if (mine && !opts.start) {
-      const fresh = rosterOf(w, c.id).slice(before)
+      const fresh = made
       sendInbox(w, {
         from: 'Club Secretary', fromRole: 'Administration', category: 'Squad', subject: 'Squad numbers made up',
         body: `We were down to ${before} registered players, short of a matchday squad, so the club has registered ${fresh.length} squad players to make up the numbers: ${fresh.map((p) => `${p.name} (${p.positions[0]}, ${p.ovr})`).join(', ')}. Sign players of your own to replace them whenever you like.`,
@@ -72,6 +74,7 @@ export function fillThinSquads(w: World, rng?: Rng, opts: { start?: boolean } = 
       })
     }
   }
+  if (added) touchRoster(w)
   return added
 }
 

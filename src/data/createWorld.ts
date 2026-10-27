@@ -112,7 +112,26 @@ function mainNation(w: World, country: string) {
   return map[country] || country
 }
 
+/** The stages of building a world, each reported once it is done: the players, the clubs (squads, managers, values),
+ *  and the season (fixtures, cups, draws, finances). */
+export type BuildStage = 'players' | 'clubs' | 'season'
+
 export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
+  const it = buildWorld(raw, opts)
+  for (let r = it.next(); ; r = it.next()) if (r.done) return r.value
+}
+
+/** The same world, with the page given a chance to paint between the stages (each one reported, and awaited, first). */
+export async function createWorldAsync(raw: RawDb, opts: NewCareerOptions, onStage?: (s: BuildStage) => void | Promise<void>): Promise<World> {
+  const it = buildWorld(raw, opts)
+  for (let r = it.next(); ; r = it.next()) {
+    if (r.done) return r.value
+    await onStage?.(r.value)
+    await new Promise((res) => setTimeout(res, 0))
+  }
+}
+
+function* buildWorld(raw: RawDb, opts: NewCareerOptions): Generator<BuildStage, World> {
   const seed = opts.seed ?? (Date.now() & 0x7fffffff)
   const rng = new Rng(seed)
   const start = raw.startDate
@@ -141,6 +160,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   }
   // the moves the database had just made settle those players in, like a move made in the career
   markSummerArrivals(w, start)
+  yield 'players'
   // ---- clubs
   const leagueRank: Record<number, number[]> = {}
   for (const c of raw.clubs) if (c.leagueId) (leagueRank[c.leagueId] ||= []).push(c.id)
@@ -252,6 +272,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
     { ...buildSheet(w, userClub, base.formation, { ...base.tactics }, { rotate: 1, id: 'cup', name: 'Cup XI' }) },
   ]
   applyDifficultyBudget(w)
+  yield 'clubs'
   // ---- 2026/27 UEFA with real pots (unlicensed clubs replaced by the best eligible database clubs)
   const pots = replaceUnlicensed(w, raw)
   // ---- super cups 2026/27 from real 2025/26 honours
@@ -282,6 +303,7 @@ export function createWorld(raw: RawDb, opts: NewCareerOptions): World {
   // ---- staff pools
   seedScouts(w, rng)
   w.rng = rng.state
+  yield 'season'
   return w
 }
 

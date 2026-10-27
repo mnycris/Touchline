@@ -6,7 +6,7 @@
 import type { Club, World } from '../../domain/types'
 import { roundValue } from '../../domain/finance'
 import { statureOf } from './reputation'
-import { wageBill } from './roster'
+import { wageBills } from './roster'
 
 /** How a club's income compares with the league-wide formulas below (each club's own size, see calibrateIncomes). */
 const scaleOf = (club: Club) => club.finance.incomeScale ?? 1
@@ -37,9 +37,25 @@ export const ticketPrice = (w: World, club: Club): number =>
  * top, so this is the dependable part of it.
  */
 export function seasonIncome(w: World, club: Club): number {
-  const league = Object.values(w.competitions).find((c) => c.format === 'league' && c.season === w.season && c.clubs.includes(club.id))
-  const homeGames = league ? Math.max(1, league.clubs.length - 1) : 19
-  return Math.round((monthlyBroadcasting(w, club) + monthlyCommercial(w, club)) * 12 + club.capacity * 0.9 * ticketPrice(w, club) * homeGames)
+  return Math.round((monthlyBroadcasting(w, club) + monthlyCommercial(w, club)) * 12 + club.capacity * 0.9 * ticketPrice(w, club) * homeLeagueGames(w, club.id))
+}
+
+// Each club's home league games this season, read from the competitions once and kept until the season or the set of
+// competitions changes (looking through every competition for each club, each time, came to a fifth of a second for
+// the whole world, at its creation and at every month's accounts).
+const homeGamesOf = new WeakMap<World, { season: number; comps: number; games: Map<number, number> }>()
+function homeLeagueGames(w: World, clubId: number): number {
+  const comps = Object.keys(w.competitions).length
+  let c = homeGamesOf.get(w)
+  if (!c || c.season !== w.season || c.comps !== comps) {
+    const games = new Map<number, number>()
+    for (const comp of Object.values(w.competitions)) {
+      if (comp.format !== 'league' || comp.season !== w.season) continue
+      for (const id of comp.clubs) if (!games.has(id)) games.set(id, Math.max(1, comp.clubs.length - 1))
+    }
+    homeGamesOf.set(w, (c = { season: w.season, comps, games }))
+  }
+  return c.games.get(clubId) ?? 19
 }
 
 /** The share of the season's income a weekly wage bill takes. */
@@ -77,11 +93,12 @@ export const monthlyRunningCosts = (w: World, club: Club): number => Math.round(
  * owners who make up the difference.
  */
 export function calibrateIncomes(w: World) {
+  const bills = wageBills(w)
   for (const club of Object.values(w.clubs)) {
     if (club.national) continue
     delete club.finance.incomeScale
     delete club.finance.backing
-    const bill = wageBill(w, club.id) * 52
+    const bill = (bills.get(club.id) || 0) * 52
     const formula = seasonIncome(w, club)
     if (!bill || !formula) continue
     const fs = bill / formula

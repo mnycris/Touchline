@@ -105,6 +105,19 @@ export function wageBill(w: World, clubId: number): number {
   return Math.round(s)
 }
 
+/** Every club's weekly wage bill at once, the same as wageBill for each, in one pass over the players (wageBill looks
+ *  through all of them for each club's loanees, so asking it for every club is a pass per club). */
+export function wageBills(w: World): Map<number, number> {
+  const out = new Map<number, number>()
+  const add = (clubId: number, x: number) => { if (x) out.set(clubId, (out.get(clubId) || 0) + x) }
+  for (const p of allPlayers(w)) {
+    if (!p.academy) add(p.clubId, wageShare(p, p.clubId))
+    if (p.loan && p.loan.fromClubId !== p.clubId) add(p.loan.fromClubId, wageShare(p, p.loan.fromClubId))
+  }
+  for (const [id, s] of out) out.set(id, Math.round(s))
+  return out
+}
+
 /** Cached array of every player (valid until the roster version changes). */
 export function allPlayers(w: World): Player[] {
   return index(w).all

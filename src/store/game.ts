@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { MatchResult, World } from '../domain/types'
 import type { RawDb } from '../data/rawTypes'
-import { createWorld, type NewCareerOptions } from '../data/createWorld'
+import { createWorldAsync, type BuildStage, type NewCareerOptions } from '../data/createWorld'
 import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, setWatched, simulateDay, userFixtureOn, watchedOn, watchedToday, worldRng, type StopReason } from '../engine/world/advance'
 import { createSim, simulateFixture } from '../engine/world/matchRunner'
 import { createOthers, type OtherLive } from '../engine/world/liveDay'
@@ -102,7 +102,8 @@ interface GameState {
   saves: SaveMeta[]
   loadDb: () => Promise<RawDb | undefined>
   refreshSaves: () => Promise<void>
-  startCareer: (opts: NewCareerOptions) => Promise<void>
+  /** builds the world stage by stage (each reported, and awaited, as it is done: the last is 'saved') and opens it */
+  startCareer: (opts: NewCareerOptions, onStage?: (s: BuildStage | 'saved') => void | Promise<void>) => Promise<void>
   loadCareer: (id: string) => Promise<boolean>
   deleteCareer: (id: string) => Promise<void>
   /** a named snapshot of the current career */
@@ -224,15 +225,17 @@ export const useGame = create<GameState>((set, get) => ({
     }
   },
 
-  async startCareer(opts) {
+  async startCareer(opts, onStage) {
     const raw = await get().loadDb()
     if (!raw) return
-    const w = createWorld(raw, opts)
+    const w = await createWorldAsync(raw, opts, onStage)
     markNotesSeen(w, APP_VERSION)
     careerIntro(w)
     w.flags.assistantSubs = get().prefs.assistantSubs
+    // saved before it opens, so the first screen of the career is never held up by the save
+    try { await saveCareer(w, saveMetaOf(w, w.meta.id, false)) } catch { get().notify('Save failed — storage unavailable', 'err') }
+    await onStage?.('saved')
     set({ world: w, saveId: w.meta.id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [] })
-    await get().save(false)
   },
 
   async loadCareer(id) {
