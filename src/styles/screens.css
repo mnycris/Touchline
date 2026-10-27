@@ -639,10 +639,7 @@ select.input option { background: #151b27; }
 .fl-energy { width: 36px; height: 4px; margin-top: 2px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); overflow: hidden; }
 .fl-energy i { display: block; height: 100%; border-radius: 3px; transition: width 0.6s ease; }
 /* a player in a position that doesn't suit him: amber somewhat, orange out of position, red unsuited */
-.fl-suit { position: absolute; left: -3px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--pitch); z-index: 2; }
-.fl-suit.s1 { background: #f2c94c; }
-.fl-suit.s2 { background: #f2994a; }
-.fl-suit.s3 { background: #eb5757; }
+.fl-suit { position: absolute; left: -5px; top: -5px; z-index: 2; pointer-events: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .45)); }
 .fl-avg { display: inline-grid; place-items: center; min-width: 30px; height: 21px; padding: 0 6px; border-radius: 7px; background: var(--s3); color: var(--t1); font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 .fl-avg.rt { color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }
 .fl-empty { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; color: rgba(255, 255, 255, 0.6); font-size: 10px; font-weight: 700; }

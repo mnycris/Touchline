@@ -394,7 +394,7 @@ export function LiveMatch() {
 
       <div className="match-body">
         {!pitchOpen && <Presence id={moment?.id}>{moment && <div style={{ position: 'relative', height: moment.kind === 'kick' ? 372 : 150 }}><MomentView m={moment} w={w} sim={sim} onClose={nextMoment} /></div>}</Presence>}
-        {brk && !spectator && !held.size && (
+        {brk && !spectator && !held.size && tab === 'feed' && (
           <Presence id={htShut === `${sim.phase}:${f.id}` ? undefined : `${sim.phase}:${f.id}`}>
             {htShut !== `${sim.phase}:${f.id}` && (
               <div className="htr-wrap">
@@ -404,7 +404,7 @@ export function LiveMatch() {
             )}
           </Presence>
         )}
-        {brk && !spectator && !held.size && htShut === `${sim.phase}:${f.id}` && (
+        {brk && !spectator && !held.size && tab === 'feed' && htShut === `${sim.phase}:${f.id}` && (
           <button className="htr-reopen" onClick={() => { haptic(); setHtShut(undefined) }}><Icon name="stats" size={15} /> {sim.phase === 'HT' ? 'Half-time report' : 'Break report'} <Icon name="down" size={14} /></button>
         )}
         {tab === 'feed' && (
@@ -704,10 +704,13 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open:
   const r = (id: number) => ratings.find((x) => x.id === id)
   const outR = out ? r(out) : undefined
   const lineup = sideFromSim(w, sim, side)
-  const doSub = (inId: number) => {
-    if (!out) return
-    const ok = sim.substitute(side, out, inId, waiting.includes(out) ? 'injury' : 'tactical')
-    if (ok) { haptic('medium'); useGame.getState().notify(`${callName(w.players[inId].name)} on for ${callName(w.players[out].name)}`, 'ok'); setOut(undefined) } else useGame.getState().notify('No substitutions or windows left', 'err')
+  // a substitute picked first, waiting for the player he is to replace
+  const [inn, setInn] = useState<number>()
+  useEffect(() => { if (!open) setInn(undefined) }, [open])
+  const doSub = (inId: number, outId = out) => {
+    if (!outId) return
+    const ok = sim.substitute(side, outId, inId, waiting.includes(outId) ? 'injury' : 'tactical')
+    if (ok) { haptic('medium'); useGame.getState().notify(`${callName(w.players[inId].name)} on for ${callName(w.players[outId].name)}`, 'ok'); setOut(undefined); setInn(undefined) } else useGame.getState().notify('No substitutions or windows left', 'err')
     force()
   }
   // a slot nobody on the pitch occupies (after a red card, or after moving someone out of it)
@@ -725,6 +728,8 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open:
       return
     }
     if (!tp.id || !onIds.includes(tp.id)) return
+    // the substitute was picked first: this is the man he replaces
+    if (inn) { doSub(inn, tp.id); return }
     if (!out) { setOut(tp.id); return }
     if (out === tp.id) { if (!waiting.includes(out)) setOut(undefined); return }
     // two players on the pitch: swap their positions
@@ -755,13 +760,15 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open:
         <div style={{ marginTop: 12 }}>
           {waiting.length > 0 && <div className="card pad-card small" style={{ background: 'rgba(255,77,94,.1)', marginBottom: 10 }}><b className="neg">Injury:</b> {waiting.map((id) => w.players[id]?.name).join(', ')} can't continue. Choose a replacement.</div>}
           <TeamLineup w={w} side={lineup} onTap={onPitchTap} sel={out} mode="live" energy />
-          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span>{lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? <span className="dim"> · or tap the empty position</span> : null}{(() => { const x = lineup.xi.find((q) => q?.id === out); return x?.suit ? <div className={`suit-note s${x.suit}`}>{x.suitNote}</div> : null })()}</> : lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? 'Tap a player, then a substitute, a team-mate to swap with, or the empty position to fill it.' : 'Tap a player on the pitch, then a substitute. Tap two players to swap their positions.'}</div>
+          <div className="label" style={{ margin: '12px 0 6px', textTransform: 'none', letterSpacing: 0 }}>{out ? <>Bring on for <b style={{ color: 'var(--t1)' }}>{callName(w.players[out].name)}</b> <span className="dim">({outR?.pos} · {Math.round(outR?.energy || 0)}% energy)</span>{lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? <span className="dim"> · or tap the empty position</span> : null}{(() => { const x = lineup.xi.find((q) => q?.id === out); return x?.suit ? <div className={`suit-note s${x.suit}`}>{x.suitNote}</div> : null })()}</>
+            : inn ? <>Bring <b style={{ color: 'var(--t1)' }}>{callName(w.players[inn].name)}</b> on: tap the player he replaces</>
+              : lineup.xi.some((x, i) => vacantSlot(i) && (!x || x.red)) ? 'Tap a player, then a substitute, a team-mate to swap with, or the empty position to fill it.' : 'Tap a player and a substitute, either way round. Tap two players to swap their positions.'}</div>
           <div className="card list">
             {benchSorted.map((id) => {
               const p = w.players[id]
               const fit = outR ? posRating(p, outR.pos) : p.ovr
               return (
-                <BenchRowFM key={id} w={w} s={{ id, pos: p.positions.join(' / ') }} club={club} onTap={out ? () => doSub(id) : undefined}
+                <BenchRowFM key={id} w={w} s={{ id, pos: p.positions.join(' / ') }} club={club} sel={inn === id} onTap={() => { if (out) doSub(id); else { haptic(); setInn(inn === id ? undefined : id) } }}
                   right={<div className="col" style={{ alignItems: 'flex-end' }}><Ovr v={fit} size="sm" />{outR ? <SuitTag p={p} pos={outR.pos} /> : <span className="tiny dim">{Math.round(p.fitness)}%</span>}</div>} />
               )
             })}

@@ -205,6 +205,10 @@ function swap(w: World, s: TeamSheet, a: Sel, b: Sel) {
   } else if ((a.kind === 'bench' && !a.id) || (b.kind === 'bench' && !b.id)) {
     // moving a starter to an empty bench slot is not allowed (XI must stay full); a bench player tapped twice is a no-op
     return
+  } else if (a.kind === 'bench' && b.kind === 'bench') {
+    // two substitutes trade places (both found first: the first write would otherwise leave one of them listed twice)
+    const i = s.bench.indexOf(ida), j = s.bench.indexOf(idb)
+    if (i >= 0 && j >= 0) { s.bench[i] = idb; s.bench[j] = ida }
   } else {
     set(a, idb)
     set(b, ida)

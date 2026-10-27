@@ -92,26 +92,38 @@ export function sideFromSheet(w: World, clubId: number, sheet: Pick<TeamSheet, '
 
 export function sideFromSim(w: World, sim: MatchSim, side: 0 | 1): LSide {
   const clubId = side === 0 ? sim.home.clubId : sim.away.clubId
-  const f = formationOf(sim.sideFormation(side))
   const rs = sim.liveRatings(side)
   const cap = sim.captain(side)
   const og = new Map<number, number>()
   for (const e of sim.events) if (e.type === 'owngoal' && e.player && e.side !== side) og.set(e.player, (og.get(e.player) || 0) + 1)
-  const mk = (r: (typeof rs)[number]): LPl => {
+  const mk = (r: (typeof rs)[number], started?: boolean): LPl => {
     const p = w.players[r.id]
-    const su = p && r.on ? suitability(p, r.pos, r.role) : undefined
+    const su = p && r.on && !sim.finished ? suitability(p, r.pos, r.role) : undefined
     return {
-      id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, assists: r.assists, penMissed: r.penMissed, og: og.get(r.id), yellow: r.yellow, red: r.red, subOn: r.subOn, subOff: r.red ? undefined : r.subOff,
+      id: r.id, rating: r.played ? r.rating : undefined, goals: r.goals, assists: r.assists, penMissed: r.penMissed, og: og.get(r.id), yellow: r.yellow, red: r.red,
+      // (a starter's line shows when he went off; a substitute's, when he came on)
+      subOn: started ? undefined : r.subOn, subOff: r.red ? undefined : r.subOff,
       captain: r.id === cap, injured: r.injured, energy: r.energy, pos: r.pos, suit: su?.level, suitNote: su ? `${su.label}. ${su.note}` : undefined,
     }
   }
+  const rating = xiRating(rs.filter((r) => r.played && (r.subOn == null || r.subOn === 0) && r.rating > 0).map((r) => r.rating))
+  // at full time the line-ups are the teams as they started, the substitutes on the bench and every change marked
+  if (sim.finished) {
+    const start = sim.startingSheet(side)
+    const ids = new Set(start.lineup)
+    const by = new Map(rs.map((r) => [r.id, r]))
+    const xi = start.lineup.map((id) => { const r = by.get(id); return r ? mk(r, true) : undefined })
+    const bench = rs.filter((r) => !ids.has(r.id)).sort((a, b) => (b.played ? 1 : 0) - (a.played ? 1 : 0) || (a.subOn ?? 999) - (b.subOn ?? 999)).map((r) => mk(r))
+    return { club: w.clubs[clubId], formation: formationOf(start.formation), xi, bench, manager: managerOf(w, clubId), rating }
+  }
+  const f = formationOf(sim.sideFormation(side))
   const xi: (LPl | undefined)[] = f.slots.map((_, i) => {
     const r = rs.find((x) => x.on && x.slot === i) || rs.find((x) => x.red && x.slot === i && !rs.some((y) => y.on && y.slot === i))
     return r ? mk(r) : undefined
   })
   const onXi = new Set(xi.filter(Boolean).map((x) => x!.id))
-  const bench = rs.filter((r) => !onXi.has(r.id)).sort((a, b) => (b.played ? 1 : 0) - (a.played ? 1 : 0) || (a.subOn ?? a.subOff ?? 999) - (b.subOn ?? b.subOff ?? 999)).map(mk)
-  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId), rating: xiRating(rs.filter((r) => r.played && (r.subOn == null || r.subOn === 0) && r.rating > 0).map((r) => r.rating)) }
+  const bench = rs.filter((r) => !onXi.has(r.id)).sort((a, b) => (b.played ? 1 : 0) - (a.played ? 1 : 0) || (a.subOn ?? a.subOff ?? 999) - (b.subOn ?? b.subOff ?? 999)).map((r) => mk(r))
+  return { club: w.clubs[clubId], formation: f, xi, bench, manager: managerOf(w, clubId), rating }
 }
 
 /** The average match rating of the players who started (only once there are ratings to average). */
@@ -187,7 +199,7 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
         {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
-        {(mode === 'sheet' || energy) && !!s.suit && <span className={`fl-suit s${s.suit}`} title={s.suitNote} aria-label={s.suitNote} />}
+        {(mode === 'sheet' || energy) && !!s.suit && <SuitArc level={s.suit} size={size} note={s.suitNote} />}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
         {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
@@ -195,6 +207,23 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
       {(s.subOff != null || s.subOn != null) && <div className="fl-subm">{s.subOn != null && <span className="pos">{s.subOn}'</span>}{s.subOff != null && <span className="neg">{s.subOff}'</span>}</div>}
       {(mode === 'sheet' || energy) && s.energy != null && s.energy < (energy ? 101 : 85) && <EnergyBar v={s.energy} />}
     </button>
+  )
+}
+
+/**
+ * Out of position, drawn as a fine arc hugging the lower left of his face: the further from his game, the longer and
+ * warmer it runs (can play there, out of position, unsuited). Nothing at all in his own position.
+ */
+const SUIT_ARC: Record<1 | 2 | 3, { deg: number; color: string }> = { 1: { deg: 52, color: '#f2c94c' }, 2: { deg: 92, color: '#f2994a' }, 3: { deg: 140, color: '#eb5757' } }
+function SuitArc({ level, size, note }: { level: 1 | 2 | 3; size: number; note?: string }) {
+  const { deg, color } = SUIT_ARC[level]
+  const box = size + 10, r = size / 2 + 3, c = 2 * Math.PI * r, len = (c * deg) / 360
+  // (the arc is centred on the lower left of the face; SVG angles run clockwise from three o'clock)
+  return (
+    <svg className="fl-suit" width={box} height={box} viewBox={`0 0 ${box} ${box}`} role="img" aria-label={note}>
+      {note && <title>{note}</title>}
+      <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeDasharray={`${len} ${c}`} transform={`rotate(${135 - deg / 2} ${box / 2} ${box / 2})`} />
+    </svg>
   )
 }
 

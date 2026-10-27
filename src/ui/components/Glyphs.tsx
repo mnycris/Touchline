@@ -3,9 +3,9 @@
 import { useId } from 'react'
 
 /**
- * The football: one design everywhere (goal marks, shot maps, replays, the spinning ball). White with the same dark
- * keyline as the boot, turned a little so it reads as a sphere: a central panel, five panels foreshortened toward the
- * rim and fine seams, shaded from the top left. At badge sizes the seams drop out and the centre panel grows.
+ * The football: one design everywhere and at every size (goal marks, the goal card, shot maps, replays, the penalty).
+ * White with the same dark keyline as the boot, turned a little so it reads as a sphere: a bold central panel and five
+ * panels foreshortened toward the rim, shaded from the top left. No seam lines: at any size they only read as stripes.
  */
 const BALL_CENTRE = 'M10.76 7.85Q12.82 8.47 14.56 9.71Q14.62 11.85 13.98 13.9Q11.95 14.61 9.81 14.63Q8.51 12.93 7.82 10.9Q9.04 9.13 10.76 7.85Z'
 const BALL_RIM = [
@@ -15,7 +15,8 @@ const BALL_RIM = [
   'M9.16 17.81Q10.39 19.07 11.14 20.49Q10.28 21.52 9.03 22.24Q7.29 21.67 5.76 20.64Q5.55 19.22 5.84 17.91Q7.42 17.62 9.16 17.81Z',
   'M5.59 11.1Q4.78 12.65 3.66 13.8Q2.41 13.31 1.34 12.34Q1.35 10.5 1.85 8.73Q3.14 8.1 4.48 7.97Q5.24 9.38 5.59 11.1Z',
 ]
-const BALL_SEAMS = 'M10.76 7.85L10.88 5.63M14.56 9.71L17.71 8.96M13.98 13.9L16.65 16.49M9.81 14.63L9.16 17.81M7.82 10.9L5.59 11.1M13.51 3.6L17.69 5.64M20.46 10.84L19.81 15.44M15.71 19.69L11.14 20.49M5.84 17.91L3.66 13.8M4.48 7.97L7.71 4.62'
+/** the centre panel drawn a quarter larger, so the ball reads as one at a glance */
+const CENTRE_GROW = 'translate(11.6 11.4) scale(1.25) translate(-11.6 -11.4)'
 export function Ball({ size = 12, style, className, own }: { size?: number; style?: React.CSSProperties; className?: string; own?: boolean }) {
   const id = useId().replace(/:/g, '')
   const small = size <= 13
@@ -29,10 +30,9 @@ export function Ball({ size = 12, style, className, own }: { size?: number; styl
       </defs>
       <circle cx="12" cy="12" r="10.6" fill={`url(#bg${id})`} />
       <g clipPath={`url(#bc${id})`} fill={ink}>
-        <path d={BALL_CENTRE} transform={small ? 'translate(11.6 11.4) scale(1.25) translate(-11.6 -11.4)' : undefined} />
+        <path d={BALL_CENTRE} transform={CENTRE_GROW} />
         {BALL_RIM.map((d) => <path key={d} d={d} />)}
       </g>
-      {!small && <path d={BALL_SEAMS} clipPath={`url(#bc${id})`} stroke={ink} strokeWidth=".75" strokeLinecap="round" fill="none" />}
       <circle cx="12" cy="12" r="10.6" fill="none" stroke={ink} strokeWidth={small ? 1.8 : 1.3} />
     </svg>
   )
@@ -50,9 +50,8 @@ export function BallG({ cx, cy, r, own, className }: { cx: number; cy: number; r
         <radialGradient id={`gg${id}`} cx="35%" cy="28%" r="80%"><stop offset="0" stopColor="#fff" /><stop offset=".6" stopColor="#eef0f3" /><stop offset="1" stopColor="#bcc3cc" /></radialGradient>
       </defs>
       <circle cx="12" cy="12" r="10.6" fill={`url(#gg${id})`} />
-      <g clipPath={`url(#gc${id})`} fill={ink}><path d={BALL_CENTRE} />{BALL_RIM.map((d) => <path key={d} d={d} />)}</g>
-      <path d={BALL_SEAMS} clipPath={`url(#gc${id})`} stroke={ink} strokeWidth=".75" strokeLinecap="round" fill="none" />
-      <circle cx="12" cy="12" r="10.6" fill="none" stroke={ink} strokeWidth="1.5" />
+      <g clipPath={`url(#gc${id})`} fill={ink}><path d={BALL_CENTRE} transform={CENTRE_GROW} />{BALL_RIM.map((d) => <path key={d} d={d} />)}</g>
+      <circle cx="12" cy="12" r="10.6" fill="none" stroke={ink} strokeWidth="1.4" />
     </g>
   )
 }

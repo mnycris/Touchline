@@ -4070,6 +4070,8 @@ export class MatchSim {
     return { ...this.statsOut(l), rating: this.finished ? l.st.rating : this.liveRating(l) }
   }
   captain(side: 0 | 1) { return this.sides[side].input.sheet.captain }
+  /** The XI a side started with, in the formation it started in (for the line-ups at full time). */
+  startingSheet(side: 0 | 1) { const s = this.sides[side].input.sheet; return { lineup: s.lineup, formation: s.formation } }
   sideTactics(side: 0 | 1) { return this.sides[side].tactics }
   sideShape(side: 0 | 1) { return this.sides[side].shape }
   sideFormation(side: 0 | 1) { return this.sides[side].formation }
