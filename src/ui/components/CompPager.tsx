@@ -11,7 +11,7 @@ import { compIdentity } from '../compIdentity'
 import { compLogoKey, fixturesOf, nextFixture, seasonComps, tableAround } from '../selectors'
 import { previousPositions, ZONE_COLOR, zoneFor } from '../../engine/competitions/tables'
 import { MoveArrow } from '../screens/FifaRanking'
-import { cupPath } from '../screens/Competitions'
+import { cupPath } from '../cupPath'
 import { fmtDate } from '../../domain/dates'
 
 /** The competition's colour for its dot and the light across its page (its identity's, else a quiet white). */
