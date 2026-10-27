@@ -400,6 +400,8 @@ class Side {
   slots: Formation['slots']
   subsUsed = 0
   windowsUsed = 0
+  /** the manager has made a change of his own this match: from then on the changes are his, not his assistant's */
+  handsOn = false
   aiMentality = 0
   /** what an AI manager last read from the game (see aiRead), and the changes he has already made */
   readAt = { lostOwn: 0, oppCtrShots: 0, done: [] as string[] }
@@ -767,6 +769,26 @@ export class MatchSim {
   private scriptHolds(id: number): boolean {
     const ev = this.ctx.script?.events
     return !!ev && ev.some((e) => !this.scriptDone.has(e.id) && (e.player === id || e.assist === id))
+  }
+
+  /** Whose job the changes on a side are: an AI side's manager's, or the manager's assistant's, until he makes one of
+   *  his own (see managerSub). */
+  private assisted(s: Side): boolean {
+    return !s.input.controlledByUser || (!!this.ctx.assistantSubs && !s.handsOn)
+  }
+
+  /** The manager leaves the rest of the match to his assistant (playing it out at once): the changes are the assistant's
+   *  again, whatever the manager did before. */
+  handBack() {
+    this.ctx.assistantSubs = true
+    for (const s of this.sides) s.handsOn = false
+  }
+
+  /** A substitution the manager makes himself: it goes through, and the rest of the match's changes are his. */
+  managerSub(side: 0 | 1, outId: number, inId: number, reason: 'tactical' | 'injury' = 'tactical'): boolean {
+    const ok = this.substitute(side, outId, inId, reason)
+    if (ok) this.sides[side].handsOn = true
+    return ok
   }
 
   substitute(side: 0 | 1, outId: number, inId: number, reason: 'tactical' | 'injury' = 'tactical'): boolean {
@@ -3504,7 +3526,7 @@ export class MatchSim {
         this.placed(victim)
       }
       S.refresh()
-    } else if (!S.input.controlledByUser || this.ctx.assistantSubs) this.redReaction(S, lp)
+    } else if (this.assisted(S)) this.redReaction(S, lp)
   }
 
   /**
@@ -3695,7 +3717,7 @@ export class MatchSim {
     this.debt += 50 + this.rng.next() * 60
     this.ev('injury', side, line(this.crng, 'injury', { p: callName(lp.p.name), t: this.sides[side].name, part: this.crng.pick(BODY_PARTS) }), { player: lp.p.id })
     const S = this.sides[side]
-    const userControlled = S.input.controlledByUser && !this.ctx.assistantSubs
+    const userControlled = !this.assisted(S)
     if (userControlled) {
       this.injuredWaiting.push({ side, lp })
       lp.energy = Math.min(lp.energy, 35)
@@ -3787,7 +3809,7 @@ export class MatchSim {
 
   private aiHalfTime() {
     for (const s of this.sides) {
-      if (s.input.controlledByUser && !this.ctx.assistantSubs) continue
+      if (!this.assisted(s)) continue
       if (this.lead(s) < 0 && this.rng.next() < 0.55) this.aiAttackingSub(s)
       // a struggling player is hooked at the break now and then
       const poor = s.on.filter((l) => l.pos !== 'GK' && this.liveRating(l) < 6.0).sort((a, b) => this.liveRating(a) - this.liveRating(b))[0]
@@ -3806,7 +3828,7 @@ export class MatchSim {
 
   private aiManage() {
     for (const s of this.sides) {
-      const auto = !s.input.controlledByUser || this.ctx.assistantSubs
+      const auto = this.assisted(s)
       const lead = this.lead(s)
       const agg = this.ctx.aggregate ? (s.idx === 0 ? this.ctx.aggregate[0] - this.ctx.aggregate[1] : this.ctx.aggregate[1] - this.ctx.aggregate[0]) : 0
       const effLead = lead + agg

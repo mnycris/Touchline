@@ -315,7 +315,7 @@ export function LiveMatch() {
   const simToEnd = () => {
     haptic('medium')
     setMoments([])
-    sim.ctx.assistantSubs = true
+    sim.handBack()
     let guard = 0
     while (!sim.finished && guard++ < 400) {
       if (sim.injuredWaiting.length) sim.autoResolveInjuries()
@@ -709,7 +709,7 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open:
   useEffect(() => { if (!open) setInn(undefined) }, [open])
   const doSub = (inId: number, outId = out) => {
     if (!outId) return
-    const ok = sim.substitute(side, outId, inId, waiting.includes(outId) ? 'injury' : 'tactical')
+    const ok = sim.managerSub(side, outId, inId, waiting.includes(outId) ? 'injury' : 'tactical')
     if (ok) { haptic('medium'); useGame.getState().notify(`${callName(w.players[inId].name)} on for ${callName(w.players[outId].name)}`, 'ok'); setOut(undefined); setInn(undefined) } else useGame.getState().notify('No substitutions or windows left', 'err')
     force()
   }

@@ -72,7 +72,12 @@ export interface AppPrefs {
   matchSpeed: number
   /** the three speed buttons in the match centre (0.2×–6×) */
   speeds: [number, number, number]
-  sound: boolean; reduceMotion: boolean; assistantSubs: boolean; stopOn: StopPrefs
+  sound: boolean; reduceMotion: boolean
+  /** the assistant makes the changes in matches (injuries, tired legs) until the manager makes one of his own */
+  assistantSubs: boolean
+  stopOn: StopPrefs
+  /** which one-time changes to these settings have been made (1: the assistant's substitutions on, in 4.2) */
+  prefsRev?: number
   /** Edit Mode: don't show the Edited tag on scripted matches (a display preference; the record of the edit stays) */
   hideEdited?: boolean
   /** the four jumps offered by holding Continue, in days (1-30) */
@@ -198,7 +203,7 @@ export const useGame = create<GameState>((set, get) => ({
   stacks: emptyStacks(),
   overlay: [],
   advancing: false,
-  prefs: { haptics: true, matchSpeed: 1, speeds: DEFAULT_SPEEDS, sound: false, reduceMotion: false, assistantSubs: false, stopOn: { offers: true, injuries: true, scouting: false, conversations: true, news: false } },
+  prefs: { haptics: true, matchSpeed: 1, speeds: DEFAULT_SPEEDS, sound: false, reduceMotion: false, assistantSubs: true, prefsRev: 1, stopOn: { offers: true, injuries: true, scouting: false, conversations: true, news: false } },
   stopRequested: false,
   saves: [],
   searchOpen: false,
@@ -225,6 +230,9 @@ export const useGame = create<GameState>((set, get) => ({
       // older installs had fixed 1×/2×/4× buttons
       if (!Array.isArray(prefs.speeds) || prefs.speeds.length !== 3) prefs.speeds = DEFAULT_SPEEDS
       if (!prefs.speeds.includes(prefs.matchSpeed)) prefs.matchSpeed = prefs.speeds[1]
+      // 4.2: the assistant looks after the changes in a match until the manager makes his own, so it is on for everyone
+      // once (off was only ever the old default: a side nobody changed tired badly in the last half hour)
+      if ((prefs.prefsRev ?? 0) < 1) { prefs.assistantSubs = true; prefs.prefsRev = 1; setKV('prefs', prefs).catch(() => {}) }
       set({ prefs })
     }
   },
@@ -261,6 +269,8 @@ export const useGame = create<GameState>((set, get) => ({
     const rep = migrateWorld(w, backedUp, (await listSaves().catch(() => [])).find((m) => m.id === id)?.appVersion)
     touchRoster(w)
     clearMemory()
+    // (the setting is the app's, kept in step with the career it opens)
+    w.flags.assistantSubs = get().prefs.assistantSubs
     set({ world: w, saveId: id, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined })
     await setKV('lastSave', id)
     if (rep.applied.length || rep.mailed) get().notify(`Career updated to v${APP_VERSION}`, 'ok')
@@ -300,6 +310,7 @@ export const useGame = create<GameState>((set, get) => ({
     w.meta.id = cp.careerId
     touchRoster(w)
     clearMemory()
+    w.flags.assistantSubs = get().prefs.assistantSubs
     set({ world: w, saveId: cp.careerId, v: get().v + 1, tab: 'central', stacks: emptyStacks(), overlay: [], live: undefined, newsDrop: undefined })
     await get().save(true)
     await setKV('lastSave', cp.careerId)

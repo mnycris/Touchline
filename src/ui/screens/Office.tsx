@@ -478,7 +478,7 @@ export function CareerSettingsScreen() {
         <div className="card">
           <div className="card-h"><span className="label">Match speed buttons</span></div>
           <SpeedEditor />
-          <Toggle label="Assistant manages substitutions" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
+          <Toggle label="Assistant manages substitutions" sub="Until you make a substitution yourself: then the rest of that match is yours" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
         </div>
         <div className="card">
           <div className="card-h"><span className="label">Device</span></div>

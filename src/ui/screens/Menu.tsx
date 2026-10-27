@@ -235,7 +235,7 @@ export function AppSettings({ onBack }: { onBack: () => void }) {
         <div className="card">
           <div className="card-h"><div className="label">Match speed buttons</div></div>
           <SpeedEditor />
-          <Toggle label="Assistant manages substitutions" sub="Your assistant makes changes for injuries and fatigue during live matches" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
+          <Toggle label="Assistant manages substitutions" sub="Your assistant makes the changes for injuries and tired legs in your matches. Make a substitution yourself and the rest of that match is yours." on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
         </div>
         <div className="card">
           <div className="card-h"><div className="label">Device</div></div>
