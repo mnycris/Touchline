@@ -208,9 +208,13 @@ const STAR_USE = 0.5
  */
 const PASS_SKILL = 0.055
 /** How much of the last minutes' momentum carries into this one (see frame). */
-const MOM_CARRY = 0.45
-/** Seconds on the ball in a minute that count as one unit of pressure in the momentum graph (see frame). */
-const MOM_BALL = 75
+const MOM_CARRY = 0.55
+/** The momentum graph's ingredients (see frame): a minute's threat, each entry into the box, and the seconds on the ball
+ *  in it that make one unit of pressure; and how sharply a difference in pressure turns into the graph's height. */
+const MOM_THREAT = 1.3
+const MOM_BOX_ENTRY = 0.2
+const MOM_BOX_SEC = 12
+const MOM_K = 1.2
 /** How far each step of an attacking mentality pushes the line up and the press on (a defensive one drops both by 6 and 5). */
 const MENT_LINE_UP = 4
 const MENT_PRESS_UP = 3
@@ -401,6 +405,10 @@ class Side {
   /** this minute's time on the ball in the opponent's half, and in the final third (for momentum) */
   minHalf = 0
   minFinal = 0
+  /** seconds on the ball in the opponent's box this minute, and entries into it and into the final third so far (for the minute's count) */
+  minBox = 0
+  momBox = 0
+  momEnt = 0
   threat = 0
   passesDone = 0
   dayForm = 0
@@ -900,6 +908,7 @@ export class MatchSim {
       if (this.ctx.commentary && this.addedPlanned > 0) this.push({ min: endMin, type: 'info', side: -1, text: line(this.crng, 'added', { x: this.addedPlanned }) })
     }
     if (this.evenBase && this.minute % 5 === 0 && this.added === 0) this.keepEven()
+    if (this.added === 0 && this.sides.some((s) => this.timeWasting(s))) this.wasted++
     const evStart = this.events.length
     this.simMinute()
     this.played++
@@ -951,6 +960,7 @@ export class MatchSim {
   private kickoff(side: 0 | 1) {
     if (this.phase === '1H' || this.phase === 'ET1') this.firstKick = side
     this.debt = 0
+    this.wasted = 0
     this.pending = { kind: 'kickoff', side, at: { x: 50, y: 50 }, dead: 0 }
   }
 
@@ -958,26 +968,32 @@ export class MatchSim {
     return { home: this.home.short, away: this.away.short, venue: this.ctx.venue, att: this.ctx.attendance.toLocaleString('en-GB'), derby: this.ctx.derby, comp: this.ctx.compName }
   }
 
+  /**
+   * The stoppage the fourth official shows: the time this period actually lost. Changes made together are one
+   * stoppage (a side bringing on two men at once costs barely more than one); a goal costs its celebration and the
+   * restart; an injury treated on the pitch, a penalty and a goal checked off by VAR cost real minutes; a booking a
+   * few seconds, a sending-off more; time-wasting counts only for the minutes a side was really doing it. On top of
+   * that, the seconds every half loses anyway, and a little of the official's own judgement. Changes made at the break
+   * cost the half nothing.
+   */
   private plannedStoppage(): number {
-    const ev = this.events.filter((e) => this.inCurrentPeriod(e))
-    const goals = ev.filter((e) => e.type === 'goal' || e.type === 'penGoal' || e.type === 'owngoal').length
-    const subs = ev.filter((e) => e.type === 'sub').length
-    const cards = ev.filter((e) => e.type === 'yellow' || e.type === 'red' || e.type === 'secondYellow').length
-    const inj = ev.filter((e) => e.type === 'injury').length
-    const pens = ev.filter((e) => e.type === 'penalty' || e.type === 'var').length
-    const waste = this.sides.some((s) => s.tactics.timeWasting) ? 1.2 : 0
-    const base = this.phase === '1H' ? 1.4 : this.phase === '2H' ? 2.2 : 0.4
-    const x = base + goals * 0.45 + subs * (this.phase === '2H' ? 0.3 : 0.2) + cards * 0.25 + inj * 0.9 + pens * 0.8 + waste + this.rng.next() * 1.4
+    let from = this.events.length - 1
+    while (from >= 0 && this.events[from].type !== 'kickoff' && this.events[from].type !== 'et') from--
+    const ev = this.events.slice(from + 1)
+    const n = (...types: MatchEvent['type'][]) => ev.filter((e) => types.includes(e.type)).length
+    const subs = ev.filter((e) => e.type === 'sub')
+    const windows = new Set(subs.map((e) => `${e.side}:${e.min}:${e.add || 0}`)).size
+    const lost = 0.5 * n('goal', 'penGoal', 'owngoal') + 0.3 * windows + 0.08 * (subs.length - windows) + 0.15 * n('yellow')
+      + 0.5 * n('red', 'secondYellow') + 1.0 * n('injury') + 0.7 * n('penalty') + 1.2 * ev.filter((e) => e.type === 'var' && e.xg !== undefined).length
+      + 0.04 * this.wasted
+    const base = this.phase === '1H' ? 1.4 : this.phase === '2H' ? 1.5 : 0.3
+    const x = base + lost + (this.rng.next() - 0.5)
     const max = this.phase === '1H' ? 7 : this.phase === '2H' ? 10 : 3
     return clamp(Math.round(x), this.phase === '2H' ? 2 : this.phase === '1H' ? 1 : 0, max)
   }
 
-  private inCurrentPeriod(e: MatchEvent) {
-    if (this.phase === '1H') return e.min <= 45
-    if (this.phase === '2H') return e.min > 45 && e.min <= 90
-    if (this.phase === 'ET1') return e.min > 90 && e.min <= 105
-    return e.min > 105
-  }
+  /** minutes of this period a side spent wasting time (it adds to the stoppage) */
+  private wasted = 0
 
   private endPeriod() {
     const v = { ...this.venueVars(), hs: this.score[0], as: this.score[1] }
@@ -1043,7 +1059,7 @@ export class MatchSim {
     this.aiManage()
     this.acts = []
     this.notable = null
-    for (const s of this.sides) { s.minSec = 0; s.minHalf = 0; s.minFinal = 0; s.threat = 0 }
+    for (const s of this.sides) { s.minSec = 0; s.minHalf = 0; s.minFinal = 0; s.minBox = 0; s.threat = 0 }
     let t = this.debt + this.runScript()
     let guard = 0
     while (t < 60 && guard++ < 90) {
@@ -1074,6 +1090,7 @@ export class MatchSim {
       S.minSec += dt
       if (x0 >= 50) S.minHalf += dt
       if (x0 >= 66.6) S.minFinal += dt
+      if (box0) S.minBox += dt
       S.led.sec += dt
       if (x0 >= 66.6) S.led.tFinal += dt
       else if (x0 < 33.3) S.led.tOwn += dt
@@ -1766,6 +1783,8 @@ export class MatchSim {
     if (l.side === this.ps && inBox(this.b)) { l.st.boxTouches++; S.stats.boxTouches++; this.rp(l, RP.boxTouch) }
   }
   static trace: string[] | null = null
+  /** a harness collecting each minute's momentum ingredients (scripts/qa/momentum-check.ts) */
+  static momLog: number[][] | null = null
   private log(k: ActKind, s: 0 | 1, p: LP, from: Pt, to: Pt, ok: boolean, q?: LP) {
     if (!this.detail && !MatchSim.trace) return
     if (MatchSim.trace) MatchSim.trace.push(`${this.minute}' ${s} ${k.padEnd(7)} ${p.pos.padEnd(3)} ${from.x.toFixed(0).padStart(3)},${from.y.toFixed(0).padStart(3)} -> ${to.x.toFixed(0).padStart(3)},${to.y.toFixed(0).padStart(3)} ${ok ? 'ok' : 'XX'} ${q ? q.pos : ''}`)
@@ -2014,9 +2033,11 @@ export class MatchSim {
     else k *= FOUL_POS[def.g] * (att.side === this.ps && at.x > 68 ? 0.6 : 1)
     // (and just outside it a defender thinks twice too: a free kick there is half a chance given away)
     const agg = this.e(def, A.aggression), tk = this.tackleS(def)
+    // a man on a yellow stays on his feet, and above all lets a break go rather than pull it down
+    const booked = def.yellow ? (this.counter ? 0.3 : 0.5) : 1
     return clamp(
-      0.26 * k * Math.pow(Math.max(20, agg) / 65, 1.05) * (1 + (this.ref - tk) / 90) * (def.energy < 50 ? 1.2 : 1) * (def.yellow ? 0.6 : 1)
-      * (Y.tactics.defApproach === 'Aggressive' ? 1.2 : 1) * (this.ctx.derby ? 1.12 : 1) * (1 + (this.drib(att) - this.ref) / 150) * (1 + def.bias.dw * 0.25),
+      0.26 * k * Math.pow(Math.max(20, agg) / 65, 1.05) * (1 + (this.ref - tk) / 90) * (def.energy < 50 ? 1.2 : 1) * booked
+      * (this.ctx.derby ? 1.12 : 1) * (1 + (this.drib(att) - this.ref) / 150) * (1 + def.bias.dw * 0.25),
       0.02, 0.45,
     )
   }
@@ -3397,12 +3418,21 @@ export class MatchSim {
     const strict = this.ctx.strictness * (this.ctx.derby ? 1.12 : 1) * (this.minute > 75 ? 1.1 : 1) * (F.idx === 0 && !this.ctx.neutral ? 0.92 : 1) * this.temper()
     const agg = this.e(def, A.aggression)
     const tactical = this.counter && this.dis > 0.3
+    // a foul that stops a break is a booking when the break was going somewhere: near the fouler's own goal nearly
+    // always, a tug in the counter-press deep in the other half far less often
+    const promising = tactical ? 1 + 1.2 * clamp((at.x - 20) / 50, 0.15, 1) : 1
     const pRed = clearChance ? (box ? 0.07 : 0.25) * strict : 0.0022 * strict * (agg / 70) * (kind === 'aerial' ? 0.5 : 1)
-    const pYel = 0.13 * CARD_POS[def.g] * Math.pow(Math.max(20, agg) / 65, 0.6) * strict * (tactical ? 2.4 : 1) * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.55 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
+    // (a man already booked is given more benefit of the doubt: referees think twice before a second yellow)
+    const pYel = 0.14 * CARD_POS[def.g] * Math.pow(Math.max(20, agg) / 65, 0.6) * strict * promising * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.35 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
     let dead = 18 + this.rng.next() * 14 + (at.x > 66 ? 10 : 0)
     // Edit Mode: the card for a scripted penalty's foul
     const fc = this.forceCard
     const u = fc === 'red' ? -1 : fc === 'yellow' ? pRed + pYel * 0.5 : fc === 'none' ? 2 : this.rng.next()
+    if (MatchSim.dbg) {
+      const out = u < pRed ? '>red' : u < pRed + pYel ? (def.yellow ? '>2nd' : '>yellow') : ''
+      dbg(`foul.${kind}${tactical ? '.tactical' : ''}${clearChance ? '.chance' : ''}${box ? '.box' : ''}${out}`)
+      dbg(`by.${F.tactics.defApproach}.${kind}${tactical ? '.tactical' : ''}${out}`)
+    }
     if (u < pRed) { this.sendOff(def, false); dead += 40 }
     else if (u < pRed + pYel) {
       dead += 22
@@ -3417,7 +3447,7 @@ export class MatchSim {
     } else if (!box && this.ctx.commentary && this.crng.next() < 0.14) {
       this.ev('foul', F.idx, line(this.crng, 'foul', { p: callName(def.p.name), q: callName(victim.p.name) }), { player: def.p.id, player2: victim.p.id })
     }
-    if (!this.forcePen && this.rng.next() < 0.011 * this.ctx.injuryRate * (0.6 + victim.p.hidden.injuryProne / 80) * (kind === 'aerial' ? 0.6 : 1)) this.injure(victim)
+    if (!this.forcePen && this.rng.next() < 0.008 * this.ctx.injuryRate * (0.6 + victim.p.hidden.injuryProne / 80) * (kind === 'aerial' ? 0.6 : 1)) this.injure(victim)
     this.car = null
     if (box) {
       victim.st.penWon++
@@ -3499,15 +3529,21 @@ export class MatchSim {
     }
   }
 
-  /** Dissent and time-wasting bookings that don't come from a foul. */
+  /**
+   * Dissent and time-wasting bookings that don't come from a foul (about a quarter of a season's yellows). A side
+   * protecting a lead late on slows every restart down whether it was told to or not, and is booked for it now and
+   * then; one told to waste time, far more often.
+   */
   private misconduct() {
     for (const s of this.sides) {
-      const waste = this.timeWasting(s)
-      const p = 0.0016 * this.ctx.strictness * this.temper() * (this.ctx.derby ? 1.3 : 1) + (waste ? 0.012 : 0)
+      const lead = s.idx === 0 ? this.score[0] - this.score[1] : this.score[1] - this.score[0]
+      const waste = this.timeWasting(s) || (lead > 0 && this.minute > 75)
+      const p = 0.0025 * this.ctx.strictness * this.temper() * (this.ctx.derby ? 1.3 : 1) + (this.timeWasting(s) ? 0.012 : waste ? 0.004 : 0)
       if (this.rng.next() >= p) continue
       const pool = s.on.filter((l) => !l.yellow)
       if (!pool.length) continue
       const l = this.rng.weighted(pool, (x) => Math.pow(x.p.hidden.temperament / 60, 1.4) + (waste && x.pos === 'GK' ? 3 : 0))
+      dbg(waste ? 'misconduct.time' : 'misconduct.dissent')
       l.yellow = true
       l.st.yellow = true
       this.rp(l, RP.yellow)
@@ -3886,13 +3922,22 @@ export class MatchSim {
     const [H, Aw] = this.sides
     const tot = H.minSec + Aw.minSec
     const p = tot > 0 ? H.minSec / tot : 0.5
-    // momentum is pressure, as the match graphs show it: the chances and set pieces a side had this minute and its
-    // time on the ball in the other half (most of all in the final third); and, a little, simply having the ball, so a
-    // side that keeps it is seen to be in control even when it isn't threatening, and one that barely has it doesn't
-    // own the graph on the strength of a few quick breaks. Carried over a few minutes, so a side camped in the other
-    // half shows as a spell, not a coin toss from one minute to the next
-    const press = (s: Side) => s.threat + s.minFinal / 13 + s.minHalf / 40 + s.minSec / MOM_BALL
-    const raw = Math.tanh((press(H) - press(Aw)) * 1.1)
+    // momentum is danger, as the match graphs show it: the chances and set pieces a side had this minute (its threat),
+    // the times it got into the box and the time it spent there with the ball. Possession on its own isn't pressure: a
+    // side passing it about in front of a deep block doesn't own the graph, and one breaking twice into the box does.
+    // Carried over a few minutes, so a spell of pressure shows as a spell, not a coin toss from one minute to the next
+    // (weighed against what happened in the matches by scripts/qa/momentum-check.ts)
+    const press = (s: Side, e: [number, number]) => MOM_THREAT * s.threat + MOM_BOX_ENTRY * e[0] + s.minBox / MOM_BOX_SEC
+    // (entries into the box and the final third this minute)
+    const ents = (s: Side) => {
+      const e = s.led.entries[0] + s.led.entries[1] + s.led.entries[2]
+      const r: [number, number] = [s.led.boxEntries - s.momBox, e - s.momEnt]
+      s.momBox = s.led.boxEntries; s.momEnt = e
+      return r
+    }
+    const eh = ents(H), ea = ents(Aw)
+    if (MatchSim.momLog) MatchSim.momLog.push([H.threat, eh[0], eh[1], H.minBox, H.minFinal, H.minHalf, H.minSec, Aw.threat, ea[0], ea[1], Aw.minBox, Aw.minFinal, Aw.minHalf, Aw.minSec])
+    const raw = Math.tanh((press(H, eh) - press(Aw, ea)) * MOM_K)
     this.momS = this.momS * MOM_CARRY + raw * (1 - MOM_CARRY)
     const mom = clamp(this.momS, -1, 1)
     const ab = toAbs(this.ps, this.b)

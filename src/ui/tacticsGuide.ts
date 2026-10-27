@@ -50,7 +50,7 @@ export const GUIDES: Record<TacticKey, Guide> = {
       { id: 'Deep', label: 'Deep', text: 'Drop off as a unit and protect the box: compact between the lines, narrow, with little pressing in their half. They will have the ball, but chances through a crowded box are worse ones.' },
       { id: 'Balanced', label: 'Balanced', text: 'A mid block that engages from halfway.' },
       { id: 'High', label: 'High', text: 'Engage higher up and close down their build-up; their keeper plays it short less often.' },
-      { id: 'Aggressive', label: 'Aggressive', text: 'As High, and players step out harder and go to ground more: more tackles, about a fifth more fouls (and bookings).' },
+      { id: 'Aggressive', label: 'Aggressive', text: 'As High, and players step out harder and go to ground more: more tackles, and around half as many fouls and bookings again.' },
     ],
     gives: ['Toward Aggressive: the ball won higher up and more often, and their keeper forced long.'],
     costs: ['Toward Aggressive: more fouls and cards, and the men who step out leave gaps behind them. Toward Deep: territory and the ball conceded.'],

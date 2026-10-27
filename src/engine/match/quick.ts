@@ -18,6 +18,8 @@ import { keeperQuality, penaltyChance, takerQuality } from './penalty'
 const ASSIST_W: Record<RG, number> = { GK: 0.02, CB: 0.1, FB: 0.45, DM: 0.3, CM: 0.65, AM: 1, W: 0.95, ST: 0.45 }
 // bookings per 90 by position as the action engine gives them (aggression sharpens it, but only a little)
 const CARD_W: Record<RG, number> = { GK: 0.08, CB: 0.75, FB: 0.68, DM: 1.15, CM: 1.05, AM: 0.78, W: 0.6, ST: 0.62 }
+/** Bookings a side collects a match by how it defends, as the action engine gives them (scripts/qa/discipline.ts). */
+const BOOKINGS: Record<string, number> = { Deep: 1.5, Balanced: 1.6, High: 2.15, Aggressive: 3.05 }
 const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.1, AM: 0.96, W: 1.05, ST: 0.95 }
 /**
  * Shots per 90 and xG per shot by position, as top-flight players (and the action engine) produce them. Shots are
@@ -205,13 +207,13 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   // --- cards
   for (const i of [0, 1] as const) {
     const pool = ps.filter((q) => q.side === i)
-    const ny = poisson(rng, 1.48 * ctx.strictness * (ctx.derby ? 1.2 : 1))
+    const ny = poisson(rng, BOOKINGS[sides[i].sheet.tactics.defApproach] * ctx.strictness * (ctx.derby ? 1.2 : 1))
     for (let c = 0; c < ny; c++) {
       const q = rng.weighted(pool, (x) => CARD_W[x.g] * Math.pow(x.p.attrs[A.aggression] / 65, 0.9) * (x.mins / 90))
       if (!q) continue
       const minute = clamp(Math.round(q.on + rng.next() * Math.max(1, q.off - q.on)), 1, 90)
       if (q.st.yellow) {
-        if (rng.next() < 0.18 && !q.st.red) { q.st.red = true; q.off = Math.min(q.off, minute); q.mins = Math.max(1, q.off - q.on); events.push({ min: minute, type: 'secondYellow', side: i, player: q.p.id, text: '' }) }
+        if (rng.next() < 0.3 && !q.st.red) { q.st.red = true; q.off = Math.min(q.off, minute); q.mins = Math.max(1, q.off - q.on); events.push({ min: minute, type: 'secondYellow', side: i, player: q.p.id, text: '' }) }
         continue
       }
       q.st.yellow = true
@@ -230,7 +232,7 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   }
   // --- injuries
   for (const q of ps) {
-    const pInj = 0.013 * ctx.injuryRate * (0.6 + q.p.hidden.injuryProne / 60) * (q.mins / 90) * (q.p.fitness < 70 ? 1.6 : 1)
+    const pInj = 0.009 * ctx.injuryRate * (0.6 + q.p.hidden.injuryProne / 60) * (q.mins / 90) * (q.p.fitness < 70 ? 1.6 : 1)
     if (rng.next() < pInj) q.st.injured = true
   }
   events.sort((x, y) => x.min - y.min)

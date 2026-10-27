@@ -126,8 +126,8 @@ export function outlookFrom(score: [number, number], gf: number, ga: number): Ou
 /** The game state from the manager's side, for the effect table. */
 export const stateOf = (score: [number, number], minute: number): GameState => (minute < 3 ? 'kickoff' : score[0] < score[1] ? 'losing' : score[0] > score[1] ? 'winning' : 'level')
 
-/** Stoppage time a half usually gets in the match engine (first, second), measured (scripts/qa/option-fit.ts). */
-const STOPPAGE: [number, number] = [3.4, 5.4]
+/** Stoppage time a half usually gets in the match engine (first, second), measured (scripts/qa/stoppage.ts). */
+const STOPPAGE: [number, number] = [2.7, 4.5]
 
 /**
  * The football still to play in normal time, minute by minute: the clock each is played at (stoppage counts as 45 or
