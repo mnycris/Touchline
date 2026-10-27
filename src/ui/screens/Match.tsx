@@ -103,7 +103,7 @@ export function FixtureRow({ w, f, clubId }: { w: World; f: Fixture; clubId?: nu
 }
 
 /** An upcoming fixture: watch it live (today, or stop the calendar on its day) or open either club. */
-function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => void }) {
+export function FixtureSheet({ w, f, onClose }: { w: World; f: Fixture; onClose: () => void }) {
   const go = useGame((s) => s.go)
   const watch = useGame((s) => s.watchFixture)
   const live = useGame((s) => s.live)

@@ -13,8 +13,8 @@ import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { previousPositions, sortTable, ZONE_COLOR, ZONE_LABEL, zoneFor, type Zone } from '../../engine/competitions/tables'
-import { ageOf, calendarOthers, compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, seasonComps, standing } from '../selectors'
-import { FixtureRow } from './Match'
+import { ageOf, calendarOthers, compLogoKey, fixturesOf, leagueOf, opponent, outcomeFor, scoreLine, seasonComps, standing } from '../selectors'
+import { FixtureRow, FixtureSheet } from './Match'
 import { rosterOf, allPlayers } from '../../engine/world/roster'
 import { POS_ORDER, formationOf } from '../../domain/constants'
 import { ordinal } from './Menu'
@@ -811,27 +811,80 @@ function ClubOverview({ w, clubId }: { w: World; clubId: number }) {
 // ============================================================================ calendar
 const WD = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
-type CalEvent = { icon: string; text: string; color?: string; f?: Fixture; kind?: 'nt' | 'watch' | 'follow' }
-/**
- * A calendar fixture: the club's own, or another one with a line underneath saying why it is on his calendar (a
- * national team game with his players in it, a match he is set to watch, a club he follows).
- */
-function CalFixture({ w, e }: { w: World; e: CalEvent }) {
-  if (!e.kind) return <FixtureRow w={w} f={e.f!} clubId={w.userClubId} />
+type CalEvent = { icon: string; text: string; color?: string; f?: Fixture }
+/** What a day holds for him: his match, the matches he is set to watch, his followed clubs' games, his players'
+ * national team games and the season's dates (windows, breaks, draws, the review). */
+interface CalDay { own?: Fixture; watch: Fixture[]; follow: { f: Fixture; club: number }[]; nt: CalEvent[]; events: CalEvent[] }
+type CalShow = 'all' | 'mine' | 'watch' | 'follow'
+
+/** A national team game with his players in it: the row, and which of his players are in it. */
+function CalNational({ w, e }: { w: World; e: CalEvent }) {
   return (
-    <div className={`cal-nt ${e.kind}`}>
+    <div className="cal-nt">
       <FixtureRow w={w} f={e.f!} />
       <div className="tiny dim row tight cal-nt-who"><Icon name={e.icon} size={12} color={e.color} /><span className="ellipsis">{e.text}</span></div>
     </div>
   )
 }
+
+/**
+ * Someone else's match on his calendar, in one line: the club he follows picked out (the other side quieter), or for a
+ * match he is set to watch, the eye. Tapping it offers to watch it or to open either club (a result opens the match).
+ */
+function CalMatch({ w, f, club, watch }: { w: World; f: Fixture; club?: number; watch?: boolean }) {
+  const [sheet, setSheet] = useState(false)
+  const go = useGame((s) => s.go)
+  const comp = w.competitions[f.compId]
+  const h = w.clubs[f.home], a = w.clubs[f.away]
+  const lit = (id: number) => (club == null || id === club ? ' on' : '')
+  return (
+    <>
+      <button className={`cal-m ${watch ? 'watch' : 'follow'}`} onClick={() => { haptic(); if (f.played) go({ name: 'fixture', params: { id: f.id } }); else setSheet(true) }}>
+        <span className="cal-m-comp">{comp && <CompLogo k={compLogoKey(comp)} size={14} name={comp.name} />}</span>
+        <span className={`cal-m-t r${lit(h.id)}`}>{h.short}</span>
+        <Badge club={h} size={17} />
+        <span className="cal-m-s">{f.played ? scoreLine(f) : f.time}</span>
+        <Badge club={a} size={17} />
+        <span className={`cal-m-t${lit(a.id)}`}>{a.short}</span>
+        <span className="cal-m-why">{watch ? <Icon name="eye" size={13} color="var(--acc)" /> : <Icon name="star" size={11} color="var(--gold)" />}</span>
+      </button>
+      {sheet && <FixtureSheet w={w} f={f} onClose={() => setSheet(false)} />}
+    </>
+  )
+}
+
+/**
+ * The other matches of a day in its cell: a match he is watching as its two crests ringed in green, else the clubs he
+ * follows that play, as a small stack of their crests. Smaller, in the corner, when the day already shows his match or
+ * an event (then the eye for a watched match, the crest of a club he follows).
+ */
+function CellOthers({ w, day, corner }: { w: World; day: CalDay; corner: boolean }) {
+  if (day.watch.length) {
+    const f = day.watch[0]
+    return corner
+      ? <span className="cal-o corner watch" aria-label="A match you're watching"><Icon name="eye" size={9} strokeWidth={2.6} /></span>
+      : <span className="cal-o watch" aria-label={`Watching ${w.clubs[f.home]?.short} v ${w.clubs[f.away]?.short}`}><Badge club={w.clubs[f.home]} size={14} /><Badge club={w.clubs[f.away]} size={14} /></span>
+  }
+  if (!day.follow.length) return null
+  const clubs = [...new Set(day.follow.map((x) => x.club))]
+  const shown = clubs.slice(0, corner ? 1 : 2)
+  return (
+    <span className={`cal-o follow${corner ? ' corner' : ''}`} aria-label={`Clubs you follow play: ${clubs.map((id) => w.clubs[id]?.short).join(', ')}`}>
+      {shown.map((id) => <Badge key={id} club={w.clubs[id]} size={corner ? 11 : 14} />)}
+      {!corner && clubs.length > shown.length && <b>+{clubs.length - shown.length}</b>}
+    </span>
+  )
+}
+
 export function CalendarScreen() {
   const w = useWorld()
   const advance = useGame((s) => s.advance)
   const advancing = useGame((s) => s.advancing)
   const [month, setMonth] = useRemember('month', w.date.slice(0, 7))
+  const [show, setShow] = useRemember<CalShow>('calShow', 'all')
   const [sel, setSel] = useState<string>()
-  const fx = fixturesOf(w, w.userClubId)
+  const me = w.userClubId
+  const fx = fixturesOf(w, me)
   const first = `${month}-01`
   const lead = (weekday(first) + 6) % 7
   const days: (string | null)[] = [...Array(lead).fill(null)]
@@ -841,35 +894,43 @@ export function CalendarScreen() {
   const review = seasonReviewDate(w)
   const all = fixturesByDate(w)
   const myNations = useMemo(() => new Map([...userNations(w)].map(([id, ps]) => [id, ps.map((p) => p.name.split(' ').slice(-1)[0])])), [w.date, w.userClubId])
-  const events = (d: string) => {
-    const out: CalEvent[] = []
-    const f = fx.find((x) => x.date === d)
-    if (f) out.push({ icon: 'ball', text: `${w.clubs[f.home].short} v ${w.clubs[f.away].short} · ${w.competitions[f.compId]?.short}`, f })
-    // the matches he is set to watch, and his followed clubs'
-    for (const { f: x, watch, club } of calendarOthers(w, d)) {
-      if (watch) out.push({ icon: 'eye', text: `You're watching this one${club ? ` · you follow ${w.clubs[club]?.short}` : ''}`, color: 'var(--acc)', f: x, kind: 'watch' })
-      else out.push({ icon: 'star', text: `You follow ${w.clubs[club!]?.short}`, color: 'var(--gold)', f: x, kind: 'follow' })
+  const dayOf = (d: string): CalDay => {
+    const day: CalDay = { own: fx.find((x) => x.date === d), watch: [], follow: [], nt: [], events: [] }
+    for (const { f, watch, club } of calendarOthers(w, d)) {
+      if (watch) day.watch.push(f)
+      else if (club != null) day.follow.push({ f, club })
     }
     for (const win of w.windows) {
-      if (win.open === d) out.push({ icon: 'transfers', text: `${win.name} transfer window opens`, color: 'var(--tw)' })
-      if (win.close === d) out.push({ icon: 'deadline', text: `${win.name} deadline day`, color: 'var(--neg)' })
+      if (win.open === d) day.events.push({ icon: 'transfers', text: `${win.name} transfer window opens`, color: 'var(--tw)' })
+      if (win.close === d) day.events.push({ icon: 'deadline', text: `${win.name} deadline day`, color: 'var(--neg)' })
     }
-    for (const b of w.intlBreaks) if (b.start === d) out.push({ icon: 'globe', text: 'International break begins', color: 'var(--info)' })
-    for (const c of Object.values(w.competitions)) for (const r of c.rounds) if (!r.drawn && addDays(r.date, -10) === d && c.clubs.includes(w.userClubId)) out.push({ icon: 'bracket', text: `${c.short} ${r.name} draw`, color: 'var(--gold)' })
+    for (const b of w.intlBreaks) if (b.start === d) day.events.push({ icon: 'globe', text: 'International break begins', color: 'var(--info)' })
+    for (const c of Object.values(w.competitions)) for (const r of c.rounds) if (!r.drawn && addDays(r.date, -10) === d && c.clubs.includes(me)) day.events.push({ icon: 'bracket', text: `${c.short} ${r.name} draw`, color: 'var(--gold)' })
     for (const x of all.get(d) || []) {
       const players = myNations.get(x.home) || myNations.get(x.away)
-      if (players) out.push({ icon: 'globe', text: players.join(', '), color: 'var(--info)', f: x, kind: 'nt' })
+      if (players) day.nt.push({ icon: 'globe', text: players.join(', '), color: 'var(--info)', f: x })
     }
-    if (d === review) out.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
-    return out
+    if (d === review) day.events.push({ icon: 'season', text: 'Season review', color: 'var(--gold)' })
+    return day
   }
   const inWindow = (d: string) => w.windows.some((x) => d >= x.open && d <= x.close)
   const inBreak = (d: string) => w.intlBreaks.some((x) => d >= x.start && d <= x.end)
+  const monthDays = days.filter((d): d is string => !!d).map((d) => ({ d, day: dayOf(d) }))
   const monthFx = fx.filter((f) => f.date.slice(0, 7) === month)
-  const res = monthFx.filter((f) => f.played).map((f) => outcomeFor(f, w.userClubId))
+  const res = monthFx.filter((f) => f.played).map((f) => outcomeFor(f, me))
   const comps = [...new Set(monthFx.map((f) => f.compId))].map((id) => w.competitions[id]).filter(Boolean)
-  const agenda = days.filter((d): d is string => !!d).map((d) => ({ d, ev: events(d) })).filter((x) => x.ev.length)
-  const selEvents = sel ? events(sel) : []
+  const watching = watchList(w).length > 0
+  const following = follows(w).some((x) => x.kind === 'club')
+  // what the month at a glance shows: everything, or one kind of thing
+  const showing: CalShow = (show === 'watch' && !watching) || (show === 'follow' && !following) ? 'all' : show
+  const keep = (day: CalDay): CalDay => showing === 'all' ? day
+    : showing === 'mine' ? { ...day, watch: [], follow: [] }
+      : showing === 'watch' ? { watch: day.watch, follow: [], nt: [], events: [] }
+        : { watch: [], follow: day.follow, nt: [], events: [] }
+  const busy = (day: CalDay) => !!day.own || day.watch.length > 0 || day.follow.length > 0 || day.nt.length > 0 || day.events.length > 0
+  const agenda = monthDays.map((x) => ({ d: x.d, day: keep(x.day) })).filter((x) => busy(x.day))
+  const selDay = sel ? dayOf(sel) : undefined
+  const eventLine = (e: CalEvent, i: number) => <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>
   return (
     <Screen title="Calendar" sub={fmtDate(w.date, 'full')} back>
       <div className="pad">
@@ -888,42 +949,61 @@ export function CalendarScreen() {
           {WD.map((d) => <div key={d} className="tiny dim b" style={{ textAlign: 'center', paddingBottom: 2 }}>{d}</div>)}
           {days.map((d, i) => {
             if (!d) return <div key={i} />
-            const f = fx.find((x) => x.date === d)
-            const ev = events(d)
+            const day = monthDays.find((x) => x.d === d)!.day
+            const f = day.own
             const past = d < w.date
-            const o = f?.played ? outcomeFor(f, w.userClubId) : undefined
-            const home = f?.home === w.userClubId
-            // a match he is watching (green) or a followed club's (gold): in place of the day's dot, or in the corner
-            // when the day already shows his own match or an event
-            const mine = ev.find((e) => e.kind !== 'watch' && e.kind !== 'follow')
-            const tags = ev.some((e) => e.kind === 'watch') || ev.some((e) => e.kind === 'follow') ? (
-              <span className={`cal-tags ${f || mine ? 'corner' : ''}`}>{ev.some((e) => e.kind === 'watch') && <i className="w" />}{ev.some((e) => e.kind === 'follow') && <i className="f" />}</span>
-            ) : null
+            const o = f?.played ? outcomeFor(f, me) : undefined
+            const home = f?.home === me
+            const ev = day.events[0]
+            const others = day.watch.length > 0 || day.follow.length > 0
             return (
-              <button key={d} className={`cal-cell ${d === w.date ? 'today' : ''} ${sel === d ? 'sel' : ''} ${past ? 'past' : ''} ${f ? 'has-fx' : ''} ${inWindow(d) ? 'win' : ''} ${inBreak(d) ? 'intl' : ''}`} onClick={() => { haptic(); setSel(sel === d ? undefined : d) }}>
+              <button key={d} className={`cal-cell ${d === w.date ? 'today' : ''} ${sel === d ? 'sel' : ''} ${past ? 'past' : ''} ${f ? 'has-fx' : ''} ${!f && day.watch.length ? 'has-watch' : ''} ${inWindow(d) ? 'win' : ''} ${inBreak(d) ? 'intl' : ''}`} onClick={() => { haptic(); setSel(sel === d ? undefined : d) }}>
                 <span className="cal-n">{Number(d.slice(8))}</span>
                 {f ? (
                   <>
-                    <span className={`cal-fx ${o || ''}`}><Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /></span>
+                    <span className={`cal-fx ${o || ''}`}><Badge club={w.clubs[opponent(f, me)]} size={20} /></span>
                     <span className={`cal-sub ${o || ''}`}>{f.played && f.result ? `${home ? f.result.score[0] : f.result.score[1]}-${home ? f.result.score[1] : f.result.score[0]}` : home ? 'H' : 'A'}</span>
                   </>
-                ) : mine ? <Icon name={mine.icon} size={14} color={mine.color} /> : tags || (all.get(d)?.length ? <span className="cal-dot" /> : <span />)}
-                {(f || mine) && tags}
+                ) : ev ? (
+                  <><Icon name={ev.icon} size={14} color={ev.color} /><span /></>
+                ) : others ? (
+                  <><CellOthers w={w} day={day} corner={false} /><span className="cal-sub o">{day.watch[0] && !day.watch[0].played ? day.watch[0].time : ''}</span></>
+                ) : (
+                  <><span>{all.get(d)?.length ? <span className="cal-dot" /> : null}</span><span /></>
+                )}
+                {(f || ev) && others && <CellOthers w={w} day={day} corner />}
               </button>
             )
           })}
         </div>
         <div className="row wrap tiny dim cal-legend">
           <span><i className="lg-win" />Transfer window</span><span><i className="lg-intl" />International break</span><span><i className="lg-w" />Won</span><span><i className="lg-l" />Lost</span>
-          {watchList(w).length > 0 && <span><i className="lg-watch" />Watching</span>}{follows(w).some((x) => x.kind === 'club') && <span><i className="lg-follow" />Clubs you follow</span>}
+          {watching && <span><i className="lg-watch" />Watching</span>}{following && <span><i className="lg-follow" />Clubs you follow</span>}
         </div>
       </div>
-      {sel && (
+      {sel && selDay && (
         <div className="pad stack fade-up" style={{ marginTop: 12 }} key={sel}>
           <div className="label">{fmtDate(sel, 'full')}</div>
-          <div className="card list">
-            {selEvents.length ? selEvents.map((e, i) => e.f ? <CalFixture key={i} w={w} e={e} /> : <div key={i} className="li" style={{ minHeight: 46 }}><Icon name={e.icon} size={18} color={e.color} /><div className="meta small">{e.text}</div></div>) : <div className="li muted small">No events for your club. {all.get(sel)?.length ? `${all.get(sel)!.length} fixtures worldwide.` : ''}</div>}
-          </div>
+          {(selDay.own || selDay.events.length > 0 || selDay.nt.length > 0) && (
+            <div className="card list">
+              {selDay.own && <FixtureRow w={w} f={selDay.own} clubId={me} />}
+              {selDay.nt.map((e, i) => <CalNational key={i} w={w} e={e} />)}
+              {selDay.events.map(eventLine)}
+            </div>
+          )}
+          {selDay.watch.length > 0 && (
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="label row tight cal-sec"><Icon name="eye" size={13} color="var(--acc)" />Watching</div>
+              <div className="card list cal-watch">{selDay.watch.map((f) => <FixtureRow key={f.id} w={w} f={f} />)}</div>
+            </div>
+          )}
+          {selDay.follow.length > 0 && (
+            <div className="stack" style={{ gap: 6 }}>
+              <div className="label row tight cal-sec"><Icon name="star" size={12} color="var(--gold)" />Clubs you follow</div>
+              <div className="card cal-ms">{selDay.follow.map(({ f, club }) => <CalMatch key={f.id} w={w} f={f} club={club} />)}</div>
+            </div>
+          )}
+          {!busy(selDay) && <div className="card pad-card small muted">Nothing for your club this day.{all.get(sel)?.length ? ` ${all.get(sel)!.length} fixtures elsewhere.` : ''}</div>}
           {sel > w.date && (
             <button className="btn club block" disabled={advancing} onClick={() => { haptic('medium'); advance(sel) }}>
               <Icon name="ffwd" size={18} /> Advance to {fmtDate(sel, 'dm')}
@@ -934,15 +1014,30 @@ export function CalendarScreen() {
       )}
       {!sel && (
         <div className="pad" style={{ marginTop: 14 }}>
-          <div className="label" style={{ margin: '0 2px 8px' }}>{fmtDate(first, 'month').split(' ')[0]} at a glance</div>
-          {!agenda.length && <div className="card pad-card small muted">Nothing scheduled for your club this month.</div>}
+          <div className="row between" style={{ margin: '0 2px 8px', gap: 10 }}>
+            <div className="label">{fmtDate(first, 'month').split(' ')[0]} at a glance</div>
+          </div>
+          {(watching || following) && (
+            <div style={{ marginBottom: 10 }}>
+              <Seg small items={[{ id: 'all' as const, label: 'All' }, { id: 'mine' as const, label: 'My club' }, ...(watching ? [{ id: 'watch' as const, label: 'Watching' }] : []), ...(following ? [{ id: 'follow' as const, label: 'Following' }] : [])]} value={showing} onChange={(v) => { haptic(); setShow(v) }} />
+            </div>
+          )}
+          {!agenda.length && <div className="card pad-card small muted">{showing === 'watch' ? 'No matches marked to watch this month.' : showing === 'follow' ? "The clubs you follow don't play this month." : 'Nothing scheduled for your club this month.'}</div>}
           {agenda.length > 0 && (
             <div className="card list cal-agenda">
-              {agenda.map(({ d, ev }) => (
+              {agenda.map(({ d, day }) => (
                 <div key={d} className={`cal-ag ${d < w.date ? 'past' : ''} ${d === w.date ? 'today' : ''}`}>
                   <button className="cal-ag-d" onClick={() => { haptic(); setSel(d) }}><b className="display">{Number(d.slice(8))}</b><span className="tiny dim">{fmtDate(d, 'day')}</span></button>
                   <div className="grow" style={{ minWidth: 0 }}>
-                    {ev.map((e, i) => e.f ? <CalFixture key={i} w={w} e={e} /> : <div key={i} className="cal-ag-ev small"><Icon name={e.icon} size={15} color={e.color} /><span>{e.text}</span></div>)}
+                    {day.own && <FixtureRow w={w} f={day.own} clubId={me} />}
+                    {day.nt.map((e, i) => <CalNational key={i} w={w} e={e} />)}
+                    {day.events.map(eventLine)}
+                    {(day.watch.length > 0 || day.follow.length > 0) && (
+                      <div className="cal-ms">
+                        {day.watch.map((f) => <CalMatch key={f.id} w={w} f={f} watch />)}
+                        {day.follow.map(({ f, club }) => <CalMatch key={f.id} w={w} f={f} club={club} />)}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
