@@ -111,22 +111,9 @@ button.card.cal-strip { display: grid; }
 @keyframes menu-sub-in { from { opacity: 0; transform: translateX(26px); } }
 @keyframes menu-sub-fade { from { opacity: 0; } }
 
-/* ---------- new career ---------- */
-.stepbar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); padding: 0; overflow: hidden; }
-.stepbar i { display: block; height: 100%; background: var(--acc); border-radius: 2px; transition: width 0.4s; }
-.avatar-stage { display: flex; justify-content: center; padding: 6px 0 4px; }
-.avatar-stage svg { box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.08); }
+/* a competition's logo on a small tile */
 .logo-tile { width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); flex: none; }
 .logo-tile.lg { width: 64px; height: 64px; border-radius: 16px; }
-.club-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.club-card { position: relative; display: flex; flex-direction: column; align-items: center; padding: 14px 10px 12px; border-radius: 16px; overflow: hidden;
-  background: linear-gradient(170deg, color-mix(in srgb, var(--cc) 55%, #0b0f18) 0%, #0b0f18 70%); border: 1px solid rgba(255, 255, 255, 0.09); text-align: center; }
-.club-card::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(115deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 12px); pointer-events: none; }
-.club-card:active { transform: scale(0.97); }
-.club-card-top { width: 70px; height: 70px; border-radius: 50%; display: grid; place-items: center; background: rgba(0, 0, 0, 0.25); }
-.club-hero { min-height: 190px; }
-.rating-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.15); text-align: center; }
-
 /* ---------- hub ---------- */
 .next-match { background: linear-gradient(145deg, rgba(var(--club-rgb), 1) 0%, var(--club-deep) 75%); }
 /* both clubs: home colour behind the home badge, away colour behind the away badge, blended through the centre */
@@ -346,8 +333,8 @@ button.card.cal-strip { display: grid; }
   animation: bkIn .38s var(--d, 0ms) cubic-bezier(.2, .8, .3, 1) both; transition: transform .15s, filter .15s; }
 .bk-tie:not(:disabled):active { transform: scale(.97); filter: brightness(1.12); }
 .bk-tie.mine { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px rgba(var(--acc-rgb, 31, 214, 122), .4), 0 0 18px -8px rgba(var(--acc-rgb, 31, 214, 122), .6), 0 10px 22px -16px rgba(0, 0, 0, .95); }
-/* not drawn yet: an empty slot, hatched faintly, waiting for its names */
-.bk-tie.draw { background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .03) 0 5px, transparent 5px 11px), rgba(255, 255, 255, .012); border-color: rgba(255, 255, 255, .06); box-shadow: none; }
+/* not drawn yet: an empty slot, quiet, waiting for its names */
+.bk-tie.draw { background: rgba(255, 255, 255, .018); border-color: rgba(255, 255, 255, .06); box-shadow: none; }
 @keyframes bkIn { from { opacity: 0; transform: translateX(-8px) } }
 .bk-row { position: relative; display: flex; align-items: center; gap: 6px; height: 21px; padding: 0 3px; border-radius: 7px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--tc, #8a93a3) 20%, transparent), transparent 62%); }
@@ -649,7 +636,6 @@ select.input option { background: #151b27; }
 .avatar { position: relative; flex: none; overflow: hidden; display: grid; place-items: center; background: linear-gradient(160deg, var(--av), color-mix(in srgb, var(--av) 45%, #0b0d11)); color: #fff; font-weight: 800; letter-spacing: 0.02em; font-family: var(--body); }
 .avatar img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 20%; display: block; background: #d9dde3; }
 .avatar span { line-height: 1; }
-.manager-preview { display: flex; align-items: center; gap: 16px; padding: 16px; border-radius: 16px; background: var(--s1); }
 .face img.wiki { object-fit: cover; object-position: 50% 18%; }
 .comp-logo { flex: none; }
 
@@ -2244,8 +2230,8 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .wi-head .num svg { color: var(--t3); }
 .wi-bar { position: relative; height: 8px; border-radius: 4px; background: var(--s4); overflow: visible; }
 .wi-bar i { position: absolute; top: 0; bottom: 0; border-radius: 4px; }
-/* beyond the board's line: the same track, faintly striped, so the line reads as a threshold rather than a goal */
-.wi-past { right: 0; border-radius: 0 4px 4px 0 !important; background: repeating-linear-gradient(-45deg, transparent 0 3px, rgba(255,255,255,.07) 3px 5px); }
+/* beyond the board's line: the same track a shade lighter, so the line reads as a threshold rather than a goal */
+.wi-past { right: 0; border-radius: 0 4px 4px 0 !important; background: rgba(255, 255, 255, .05); }
 .wi-bill { left: 0; background: var(--t3); transition: width .3s ease; }
 .wi-add { background: var(--acc); border-radius: 0 4px 4px 0 !important; transition: width .3s ease, left .3s ease; }
 .wi.warn .wi-add { background: var(--warn); }
@@ -2621,7 +2607,7 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .cis .bk-tie { background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ci-acc) 38%, transparent), transparent) top / 100% 1px no-repeat, radial-gradient(120% 100% at 0% 0%, rgba(var(--cis-rgb), .24), transparent 62%), linear-gradient(180deg, rgba(var(--cis-rgb), .12), rgba(var(--cis-rgb), .04)), var(--s1); border-color: rgba(var(--cis-rgb), .28); }
 
 .cis .bk-tie.mine { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 0 0 1px color-mix(in srgb, var(--ci-acc) 50%, transparent), 0 0 20px -7px color-mix(in srgb, var(--ci-acc) 65%, transparent), 0 10px 22px -16px rgba(0, 0, 0, .95); }
-.cis .bk-tie.draw { background: repeating-linear-gradient(135deg, rgba(var(--cis-rgb), .055) 0 5px, transparent 5px 11px), rgba(var(--cis-rgb), .03); border-color: rgba(var(--cis-rgb), .2); }
+.cis .bk-tie.draw { background: rgba(var(--cis-rgb), .04); border-color: rgba(var(--cis-rgb), .16); }
 .cis .bk-row.me span.small { color: var(--ci-acc); }
 .cis .bk-agg { background: rgba(var(--cis-rgb), .22); color: #fff; }
 .cis .bk-maybe i { background: rgba(var(--cis-rgb), .1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .4); }
@@ -3337,16 +3323,20 @@ button.card.sr-hon { display: flex; flex-direction: column; align-items: center;
 .wr-head { display: flex; align-items: center; gap: 12px; margin: 2px 0 14px; }
 .wr-ic { width: 40px; height: 40px; border-radius: 13px; display: grid; place-items: center; flex: none; color: var(--acc); background: color-mix(in srgb, var(--acc) 14%, transparent); }
 .wr-list { display: flex; flex-direction: column; gap: 10px; }
-/* the two clubs' colours meeting in the middle, as a lock-screen match card has them */
-.wr-card { position: relative; display: block; width: 100%; padding: 10px 12px 12px; border-radius: 18px; text-align: left; overflow: hidden; border: 1px solid var(--line2);
-  background: linear-gradient(100deg, color-mix(in srgb, var(--home-c) 30%, var(--s2)) 0%, var(--s2) 46%, var(--s2) 54%, color-mix(in srgb, var(--away-c) 30%, var(--s2)) 100%);
-  transition: transform .15s; }
-.wr-card:active { transform: scale(.98); }
-.wr-comp { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--t2); font-weight: 600; min-width: 0; }
-.wr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 8px; }
-.wr-side { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
-.wr-side b { font-size: 13.5px; max-width: 100%; }
-.wr-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.wr-time { font-family: var(--display); font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: .01em; font-variant-numeric: tabular-nums; }
-.wr-go { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; background: var(--acc); color: #03170c; font-weight: 800; font-size: 12px; }
+/* the match as Central's next match is drawn: each club's colour from its own side, meeting in the dark at the centre */
+.wr-card { position: relative; display: block; width: 100%; padding: 10px 12px 14px; border-radius: var(--r); text-align: left; overflow: hidden; color: #fff;
+  background:
+    radial-gradient(90% 120% at 50% -20%, rgba(255, 255, 255, .1), transparent 62%),
+    linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, .24)),
+    linear-gradient(90deg in oklab, var(--hc) 0%, color-mix(in oklab, var(--hc) 42%, #0c0e14) 33%, #0c0e14 50%, color-mix(in oklab, var(--ac) 42%, #0c0e14) 67%, var(--ac) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); transition: transform .15s, filter .15s; }
+.wr-card:active { transform: scale(.98); filter: brightness(1.08); }
+.wr-comp { display: flex; align-items: center; justify-content: center; gap: 6px; color: rgba(255, 255, 255, .78); font-weight: 600; min-width: 0; }
+.wr-row { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; margin-top: 10px; }
+.wr-side { display: flex; flex-direction: column; align-items: center; gap: 7px; min-width: 0; }
+.wr-side img, .wr-side svg { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, .3)); }
+.wr-side b { font-size: 14px; max-width: 100%; text-shadow: 0 1px 10px rgba(0, 0, 0, .4); }
+.wr-mid { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 84px; }
+.wr-time { font-family: var(--display); font-weight: 700; font-size: 25px; line-height: 1; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.wr-go { display: inline-flex; align-items: center; gap: 5px; font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); }
 .wr-skip { margin-top: 14px; }

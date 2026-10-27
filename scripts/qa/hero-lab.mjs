@@ -19,8 +19,8 @@ await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 }
 await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
 await page.getByText('Continue').first().click()
 await page.getByText(LEAGUE, { exact: true }).first().click()
-await page.locator('.club-card').nth(0).click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.locator('.nc-club').nth(0).click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 60000 })
 const ok = await page.evaluate((key) => {
   const g = window.__game.getState(), w = g.world

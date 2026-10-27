@@ -24,7 +24,7 @@ await page.screenshot({ path: `${OUT}/01-sheet.png` })
 await page.locator('.fl-pl').nth(1).click().catch(() => {})
 await page.waitForTimeout(500)
 await page.screenshot({ path: `${OUT}/02-selected.png` })
-const box = await page.locator('.fl-wrap').first().boundingBox()
+const box = (await page.locator('.fl-wrap').count()) ? await page.locator('.fl-wrap').first().boundingBox() : null
 if (box) await page.screenshot({ path: `${OUT}/03-zoom.png`, clip: { x: box.x, y: box.y + 40, width: box.width, height: Math.min(520, box.height) } })
 console.log(errors.join('\n') || 'no errors')
 await browser.close()

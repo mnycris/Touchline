@@ -13,8 +13,8 @@ await page.goto('http://localhost:5173/')
 await page.getByText('New Career').first().click()
 await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
 await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
-await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.club-card').nth(0).click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.nc-club').nth(0).click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 60000 })
 // a few academy players (the youngest at the club, moved down), and the scouted prospects of a few weeks' scouting
 await page.evaluate(() => {

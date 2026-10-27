@@ -19,8 +19,8 @@ await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input
 const edit = page.locator('button', { hasText: /Edit Mode/ }).first()
 if (await edit.count()) await edit.click().catch(() => {})
 await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click()
-await page.locator('.club-card', { hasText: 'Arsenal' }).first().click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.locator('.nc-club', { hasText: 'Arsenal' }).first().click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 90000 })
 const res = await page.evaluate(async (date) => {
   const mr = await import('/src/engine/world/matchRunner.ts')

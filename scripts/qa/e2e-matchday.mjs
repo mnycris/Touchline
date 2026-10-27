@@ -15,8 +15,8 @@ await page.goto('http://localhost:4173/')
 await page.getByText('New Career').first().click()
 await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
 await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
-await page.getByText('Continue').first().click(); await page.getByText(process.argv[3] || 'Premier League').first().click(); await page.locator('.club-card').nth(Number(process.argv[4] || 1)).click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.getByText('Continue').first().click(); await page.getByText(process.argv[3] || 'Premier League').first().click(); await page.locator('.nc-club').nth(Number(process.argv[4] || 1)).click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 60000 })
 for (let i = 0; i < 14; i++) {
   if (await page.getByText('Play match').count()) break

@@ -13,8 +13,8 @@ await page.goto('http://localhost:5173/')
 await page.getByText('New Career').first().click()
 await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
 await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
-await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.club-card').nth(9).click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.nc-club').nth(9).click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 90000 })
 // shortlist a few players and make a bid via store
 await page.evaluate(() => {

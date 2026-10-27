@@ -1,5 +1,6 @@
-// Watched matches and followed clubs on the calendar, and Continue stopping for a watched match on a busy day (when
-// the day's games are simulated in batches). Needs the dev server (the store is exposed there):
+// Watched matches and followed clubs on the calendar: the month with a watched match on a busy day and two followed
+// clubs, and that day opened. (Continue stopping on the day for it: watch-reminder.mjs.) Needs the dev server (the store
+// is exposed there):
 //   npx vite --port 5173 & node scripts/qa/watch-calendar.mjs <out-dir>
 import { chromium } from 'playwright'
 import fs from 'node:fs'
@@ -13,8 +14,8 @@ await page.goto('http://localhost:5173/')
 await page.getByText('New Career').first().click()
 await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
 await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
-await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.club-card').nth(0).click()
-await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.nc-club').nth(0).click()
+await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
 await page.waitForSelector('.continue-btn', { timeout: 60000 })
 // a big match on a busy day without one of ours, and two clubs to follow
 const pick = await page.evaluate(() => {
@@ -45,35 +46,11 @@ for (let k = 0; k < 3; k++) {
 await page.waitForTimeout(500)
 const sc = page.locator('.screen').last()
 await sc.screenshot({ path: `${OUT}/calendar-month.png` })
-console.log('cells with tags', await page.locator('.cal-tags').count(), '· watched cells', await page.locator('.cal-tags i.w').count())
-await page.locator('.cal-cell', { has: page.locator('.cal-tags i.w') }).first().click()
+console.log('days with others\' matches', await page.locator('.cal-o').count(), '· watched days', await page.locator('.cal-cell.has-watch').count())
+await page.locator('.cal-cell.has-watch').first().click()
 await page.waitForTimeout(600)
 await page.evaluate(() => { const s = [...document.querySelectorAll('.screen')].pop(); s.scrollTop = s.scrollHeight })
 await page.waitForTimeout(400)
 await sc.screenshot({ path: `${OUT}/calendar-day.png` })
-// back to Central and Continue until something stops us
-await page.evaluate(() => window.__game.getState().closeAll?.())
-await page.evaluate(() => window.__game.getState().go({ name: 'central' }))
-await page.waitForTimeout(500)
-let stoppedFor
-for (let i = 0; i < 40; i++) {
-  const st = await page.evaluate(() => { const g = window.__game.getState(); return { date: g.world.date, live: g.live?.fixtureId, spectator: !!g.live?.spectator } })
-  if (st.live) { stoppedFor = st; break }
-  if (st.date > pick.date) break
-  // our own match: quick-sim it and carry on
-  const quick = page.getByRole('button', { name: /Quick sim/ })
-  if (await quick.count()) { await quick.first().click(); await page.waitForTimeout(600) }
-  await page.evaluate(() => { const g = window.__game.getState(); g.closeAll(); g.go({ name: 'central' }) })
-  await page.waitForTimeout(300)
-  const b = page.locator('.continue-btn')
-  if (/Match Day/i.test(await b.innerText())) { await b.click(); await page.waitForTimeout(800); continue }
-  await b.click().catch(() => {})
-  await page.waitForTimeout(300)
-  await page.waitForFunction(() => !window.__game.getState().advancing, null, { timeout: 120000 })
-  await page.waitForTimeout(300)
-}
-const after = await page.evaluate((id) => { const g = window.__game.getState(), w = g.world; return { date: w.date, played: !!w.fixtures[id].played, live: g.live?.fixtureId } }, pick.id)
-console.log(stoppedFor ? `stopped with live ${stoppedFor.live === pick.id ? 'THE WATCHED MATCH' : stoppedFor.live} on ${stoppedFor.date}${stoppedFor.spectator ? ' (spectator)' : ''}` : 'never stopped for it', '· now', JSON.stringify(after))
-if (stoppedFor) await page.screenshot({ path: `${OUT}/stopped.png` })
 console.log(errors.length ? errors.join('\n') : 'no errors')
 await browser.close()

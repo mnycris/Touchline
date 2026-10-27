@@ -9,7 +9,8 @@ import { compLogoKey } from '../selectors'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo } from './atoms'
 import { Sheet } from './layout'
-import { kitColors, kitVars } from './LivePitch'
+import { kitColors } from './LivePitch'
+import { underWhite } from '../theme'
 
 export function WatchReminder() {
   const open = useGame((s) => s.watchPrompt)
@@ -40,12 +41,14 @@ export function WatchReminder() {
   )
 }
 
-/** One match on the list: both crests in their colours, the competition and the kick-off between them. */
+/** One match on the list, drawn as Central's next match is: each club's colour from its own side meeting in the dark
+ *  at the centre, the crests over their names, the kick-off between them, and the way in under it. */
 function WatchCard({ w, f, onWatch }: { w: World; f: Fixture; onWatch: () => void }) {
   const home = w.clubs[f.home], away = w.clubs[f.away], comp = w.competitions[f.compId]
   if (!home || !away) return null
+  const [hc, ac] = kitColors(home, away).map(underWhite)
   return (
-    <button className="wr-card" style={kitVars(kitColors(home, away))} onClick={onWatch}>
+    <button className="wr-card" style={{ ['--hc' as string]: hc, ['--ac' as string]: ac } as React.CSSProperties} onClick={onWatch}>
       <div className="wr-comp tiny">{comp && <CompLogo k={compLogoKey(comp)} size={15} name={comp.name} />}<span className="ellipsis">{comp?.short || comp?.name}{f.roundName ? ` · ${f.roundName}` : ''}</span></div>
       <div className="wr-row">
         <div className="wr-side"><Badge club={home} size={40} /><b className="ellipsis">{home.short}</b></div>

@@ -11,8 +11,8 @@ if (phase === 'old') {
   await page.getByText('New Career').first().click()
   await page.waitForSelector('input[placeholder="First name"]', { timeout: 30000 })
   await page.fill('input[placeholder="First name"]', 'Jo'); await page.fill('input[placeholder="Last name"]', 'Silva')
-  await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.club-card').nth(0).click()
-  await page.getByRole('button', { name: /^Manage/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Start Career').first().click()
+  await page.getByText('Continue').first().click(); await page.getByText('Premier League').first().click(); await page.locator('.nc-club').nth(0).click()
+  await page.getByRole('button', { name: /Take the job/ }).click(); await page.getByText('Continue').first().click(); await page.getByText('Sign the contract').first().click()
   await page.waitForSelector('.continue-btn', { timeout: 60000 })
   for (let i = 0; i < 12; i++) {
     if (await page.getByText(/Play Match|Play match/).count()) { await page.getByText(/Quick Sim|Quick sim/).click(); await page.waitForTimeout(1500); await page.locator('.btn.primary', { hasText: 'Continue' }).click(); await page.waitForTimeout(500); continue }
