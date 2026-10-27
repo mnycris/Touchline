@@ -94,7 +94,42 @@ button.card.cal-strip { display: grid; }
 .wm-wrap { position: relative; }
 .wm-ver { position: absolute; left: calc(100% + 8px); bottom: 6px; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .06em; color: rgba(255, 255, 255, .42); padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, .14); white-space: nowrap; }
 .wordmark span { display: block; color: var(--acc); text-shadow: 0 0 28px rgba(43, 240, 143, 0.45); }
-.continue-card { background: linear-gradient(135deg, rgba(43, 240, 143, 0.14), rgba(255, 255, 255, 0.03)); border-color: rgba(43, 240, 143, 0.35); }
+/* the career to go back to, in its club's colours: where it stands, and its next match */
+.menu-continue { --cc: var(--acc); position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; width: 100%; padding: 15px 14px 14px 16px; border-radius: 20px; text-align: left; overflow: hidden; isolation: isolate;
+  background: radial-gradient(110% 140% at 0% 0%, color-mix(in srgb, var(--cc) 38%, transparent), transparent 62%), linear-gradient(160deg, #161b24, #0d1016 78%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .08), 0 18px 40px -24px rgba(0, 0, 0, .9); transition: transform .15s cubic-bezier(.3, .7, .4, 1); }
+.menu-continue::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: repeating-linear-gradient(115deg, rgba(255, 255, 255, .022) 0 2px, transparent 2px 12px); }
+.menu-continue::after { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 1.5px; pointer-events: none; background: linear-gradient(90deg, transparent, var(--cc) 22%, color-mix(in srgb, var(--cc) 45%, #fff) 52%, transparent 88%); opacity: .85; }
+.menu-continue:active { transform: scale(.98); }
+.menu-continue:disabled { opacity: 1; }
+.menu-continue-crest { align-self: start; margin-top: 2px; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .5)); }
+.menu-continue-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.menu-continue-k { font-family: var(--display); font-weight: 700; font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--acc); }
+.menu-continue-club { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: .95; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-continue-line { margin-top: 1px; font-size: 12.5px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-continue-next { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 6px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, .07); font-size: 12.5px; font-weight: 600; color: var(--t1); }
+.menu-continue-next .ellipsis { min-width: 0; }
+.menu-continue-when { flex: none; font-family: var(--display); font-weight: 700; font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--t3); }
+.menu-continue-next.today .menu-continue-when { color: var(--gold); }
+.menu-continue-go { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: radial-gradient(circle at 35% 25%, color-mix(in srgb, var(--cc) 70%, #fff), var(--cc) 62%);
+  box-shadow: 0 10px 24px -8px color-mix(in srgb, var(--cc) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, .3); }
+.menu-continue-go svg { margin-left: 3px; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
+.menu-continue-go .spinner { width: 20px; height: 20px; border-width: 2.5px; border-color: rgba(255, 255, 255, .3); border-top-color: #fff; }
+.menu-new { height: 56px; font-size: 19px; }
+.menu-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; margin-left: 2px; padding: 0 6px; border-radius: 99px; background: rgba(255, 255, 255, .1); font-size: 12px; font-weight: 800; letter-spacing: 0; color: var(--t1); }
+.menu-credits { display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px; padding: 8px; font-size: 12px; color: var(--t3); }
+.spinner.xs { width: 12px; height: 12px; border-width: 2px; }
+/* Load, Settings, Data & Credits: the menu's air carries on behind them, quieter; they come in from the side */
+.menu-sub { position: absolute; inset: 0; isolation: isolate; }
+.menu-sub-air { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, #0c1512 0%, #0b0d11 55%); }
+.menu-sub-air .menu-fluid { animation: none; opacity: .5; }
+.menu-sub > .screen { animation: menu-sub-in .42s cubic-bezier(.16, 1, .3, 1) backwards; }
+.menu-sub > .topbar { animation: menu-sub-fade .3s ease-out backwards; }
+@keyframes menu-sub-in { from { opacity: 0; transform: translateX(26px); } }
+@keyframes menu-sub-fade { from { opacity: 0; } }
+/* a saved career, washed with its club's colour */
+.card.save-card { background: radial-gradient(90% 130% at 0% 0%, color-mix(in srgb, var(--cc, transparent) 24%, transparent), transparent 58%), linear-gradient(180deg, var(--s2), var(--s1)); }
+.save-crest { flex: none; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .45)); }
 
 /* ---------- new career ---------- */
 .stepbar { height: 4px; margin: 0 16px 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); padding: 0; overflow: hidden; }

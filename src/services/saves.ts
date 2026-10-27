@@ -19,6 +19,10 @@ export interface SaveMeta {
   /** save schema and app version it was written with */
   schema?: number
   appVersion?: string
+  /** the club's colours and its next match, for the menu (saves from before 4.2 have neither) */
+  kit?: [string, string]
+  theme?: string
+  next?: { oppId: number; opp: string; home: boolean; date: string; comp: string }
 }
 
 /** A named snapshot of a career the manager can go back to (separate from the rolling autosave). */

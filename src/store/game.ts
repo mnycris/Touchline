@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { MatchResult, World } from '../domain/types'
 import type { RawDb } from '../data/rawTypes'
 import { createWorldAsync, type BuildStage, type NewCareerOptions } from '../data/createWorld'
-import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, setWatched, simulateDay, userFixtureOn, watchedOn, watchedToday, worldRng, type StopReason } from '../engine/world/advance'
+import { advance as advanceWorld, afterMatch, careerIntro, fixturesOn, nextUserFixture, setWatched, simulateDay, userFixtureOn, watchedOn, watchedToday, worldRng, type StopReason } from '../engine/world/advance'
 import { createSim, simulateFixture } from '../engine/world/matchRunner'
 import { createOthers, type OtherLive } from '../engine/world/liveDay'
 import { fmtDate } from '../domain/dates'
@@ -35,11 +35,15 @@ function migrateWorld(w: World, backedUp: boolean, listed?: string) {
 const saveMetaOf = (w: World, id: string, auto: boolean): Omit<SaveMeta, 'size' | 'updated'> => {
   const club = w.clubs[w.userClubId]
   const comp = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))
+  const f = club ? nextUserFixture(w) : undefined
+  const oppId = f ? (f.home === w.userClubId ? f.away : f.home) : 0
   return {
     id, name: w.meta.saveName || `${club?.name} Career`, managerName: `${w.user.firstName} ${w.user.lastName}`,
     clubId: club?.id || 0, clubName: club?.name || 'Unemployed', date: w.date, season: w.season, playTimeMin: w.meta.playTimeMin,
     leagueName: w.leagues[club?.leagueId]?.short || club?.country || '', position: comp && club ? positionOf(w, comp, club.id) : undefined, auto, editMode: !!w.meta.editMode,
     schema: w.meta.version, appVersion: APP_VERSION,
+    kit: club?.kit, theme: club?.theme,
+    next: f && w.clubs[oppId] ? { oppId, opp: w.clubs[oppId].short, home: f.home === w.userClubId, date: f.date, comp: w.competitions[f.compId]?.short || '' } : undefined,
   }
 }
 

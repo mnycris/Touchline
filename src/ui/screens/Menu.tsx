@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
@@ -12,17 +12,94 @@ import { CheckpointList } from '../components/Checkpoints'
 import { SAVE_SCHEMA } from '../../engine/world/migrate'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
+import { clubAccent } from '../theme'
 
 type View = 'home' | 'new' | 'load' | 'settings' | 'about'
 
 export function MainMenu() {
   const [view, setView] = useState<View>('home')
-  if (view === 'new') return <NewCareer onExit={() => setView('home')} />
-  if (view === 'load') return <LoadCareer onBack={() => setView('home')} />
-  if (view === 'settings') return <AppSettings onBack={() => setView('home')} />
-  if (view === 'about') return <About onBack={() => setView('home')} />
+  // the system's back (Android's button, the browser's) from Load, Settings or Data & Credits goes home (New Career
+  // takes it a step at a time itself)
+  useEffect(() => {
+    if (view === 'home' || view === 'new') return
+    const onPop = () => setView('home')
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [view])
+  const home = () => setView('home')
+  if (view === 'new') return <NewCareer onExit={home} />
+  if (view === 'load') return <SubView><LoadCareer onBack={home} /></SubView>
+  if (view === 'settings') return <SubView><AppSettings onBack={home} /></SubView>
+  if (view === 'about') return <SubView><About onBack={home} /></SubView>
   return <Home onView={setView} />
 }
+
+/** The menu's own air, the colour drifting at the top of the screen (Home has it at full strength, the views
+ *  opened from it more quietly). */
+function MenuFluid() {
+  return <div className="menu-fluid"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
+}
+
+/** Load, Settings and Data & Credits: still the menu (its air carries on behind, quieter), coming in from the side. */
+function SubView({ children }: { children: ReactNode }) {
+  return (
+    <div className="menu-sub">
+      <div className="menu-sub-air" aria-hidden><MenuFluid /></div>
+      {children}
+    </div>
+  )
+}
+
+/** A save's club colour: kept with the save since 4.2, else read from the database once it is in. */
+function useSaveAccent(s: SaveMeta): string | undefined {
+  const raw = useGame((g) => g.raw)
+  const src = s.kit ? { kit: s.kit, theme: s.theme || s.kit[0] } : raw?.clubs.find((c) => c.id === s.clubId)
+  return src ? clubAccent(src) : undefined
+}
+
+/** When a save was written, the way a person says it: just now, 12 min ago, today 21:33, yesterday 21:33, 3 Oct. */
+function savedAgo(ts: number, now = Date.now()): string {
+  const min = Math.floor((now - ts) / 60000)
+  if (min < 1) return 'just now'
+  if (min < 60) return `${min} min ago`
+  const d = new Date(ts), today = new Date(now)
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 86400000)
+  if (days === 0) return `today ${time}`
+  if (days === 1) return `yesterday ${time}`
+  return d.toLocaleDateString([], { day: 'numeric', month: 'short', ...(d.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}) })
+}
+
+/** Hours and minutes of play. */
+const played = (min: number) => (min < 60 ? `${Math.max(1, Math.round(min))} min` : `${Math.floor(min / 60)} h${min % 60 >= 1 ? ` ${Math.round(min % 60)} min` : ''}`)
+
+/** The career to go back to, in its club's colours: where it stands, and what comes next. */
+function ContinueCard({ save, busy, onPlay }: { save: SaveMeta; busy: boolean; onPlay: () => void }) {
+  const acc = useSaveAccent(save)
+  const n = save.next
+  const today = n && n.date === save.date
+  return (
+    <button className="menu-continue" disabled={busy} onClick={onPlay} style={acc ? ({ ['--cc' as string]: acc } as CSSProperties) : undefined}>
+      <span className="menu-continue-crest"><Badge club={saveClub(save)} size={60} /></span>
+      <span className="menu-continue-main">
+        <span className="menu-continue-k">Continue</span>
+        <b className="menu-continue-club">{save.clubName}</b>
+        <span className="menu-continue-line">{save.position ? `${ordinal(save.position)} in ${save.leagueName} · ` : ''}{fmtDate(save.date, 'full')}</span>
+        {n && (
+          <span className={`menu-continue-next ${today ? 'today' : ''}`}>
+            <span className="menu-continue-when">{today ? 'Today' : `Next · ${fmtDate(n.date, 'dm')}`}</span>
+            <Badge club={{ id: n.oppId, badge: true, sofifaTeamId: 0, name: n.opp, abbr: n.opp.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as never} size={16} />
+            <span className="ellipsis">{n.opp} {n.home ? '(H)' : '(A)'}{n.comp ? ` · ${n.comp}` : ''}</span>
+          </span>
+        )}
+      </span>
+      <span className="menu-continue-go">{busy ? <span className="spinner" /> : <Icon name="play" size={22} />}</span>
+    </button>
+  )
+}
+
+/** A save's club as the crest component takes it (its crest is found by its id). */
+const saveClub = (s: SaveMeta) => ({ id: s.clubId, badge: true, sofifaTeamId: 0, name: s.clubName, abbr: s.clubName.slice(0, 3).toUpperCase(), kit: s.kit || ['#333', '#fff'], theme: s.theme || '#333' }) as never
 
 function CrestMarquee() {
   const raw = useGame((s) => s.raw)
@@ -50,7 +127,7 @@ function Home({ onView }: { onView: (v: View) => void }) {
     <div className="screen no-nav no-top menu-screen">
       <div className="menu-bg" aria-hidden>
         {/* slow, heavy colour drifting through the top of the screen: ambient, never busy */}
-        <div className="menu-fluid"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
+        <MenuFluid />
         <Fx kind="floodlights" />
         
         <svg className="menu-pitch" viewBox="0 0 400 600" preserveAspectRatio="xMidYMid slice">
@@ -72,28 +149,16 @@ function Home({ onView }: { onView: (v: View) => void }) {
 
         <div style={{ marginTop: 'auto' }}><CrestMarquee /></div>
         <div className="stack stagger" style={{ marginTop: 22, paddingBottom: 'calc(var(--sab) + 24px)' }}>
-          {last && (
-            <button className="card tap continue-card" disabled={busy} onClick={async () => { haptic('medium'); setBusy(true); const ok = await loadCareer(last.id); if (!ok) setBusy(false) }}>
-              <div className="row" style={{ padding: 14, gap: 14 }}>
-                <Badge club={{ id: last.clubId, badge: true, sofifaTeamId: 0, name: last.clubName, abbr: last.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={50} />
-                <div className="grow" style={{ textAlign: 'left' }}>
-                  <div className="kicker">Continue</div>
-                  <div className="h3" style={{ marginTop: 3 }}>{last.clubName}</div>
-                  <div className="tiny muted" style={{ marginTop: 3 }}>{last.managerName} · {fmtDate(last.date, 'long')}{last.position ? ` · ${ordinal(last.position)} in ${last.leagueName}` : ''}</div>
-                </div>
-                {busy ? <div className="spinner" /> : <Icon name="play" size={26} color="var(--acc)" />}
-              </div>
-            </button>
-          )}
-          <button className="btn primary block" style={{ height: 56, fontSize: 19 }} onClick={() => { haptic('medium'); onView('new') }}>
+          {last && <ContinueCard save={last} busy={busy} onPlay={async () => { haptic('medium'); setBusy(true); const ok = await loadCareer(last.id); if (!ok) setBusy(false) }} />}
+          <button className="btn primary block menu-new" onClick={() => { haptic('medium'); onView('new') }}>
             <Icon name="plus" size={22} /> New Career
           </button>
           <div className="row">
-            <button className="btn grow" onClick={() => onView('load')}><Icon name="save" size={18} /> Load{saves.length ? ` (${saves.length})` : ''}</button>
-            <button className="btn grow" onClick={() => onView('settings')}><Icon name="settings" size={18} /> Settings</button>
+            <button className="btn grow" onClick={() => { haptic(); onView('load') }}><Icon name="save" size={18} /> Load{saves.length > 0 && <span className="menu-count">{saves.length}</span>}</button>
+            <button className="btn grow" onClick={() => { haptic(); onView('settings') }}><Icon name="settings" size={18} /> Settings</button>
           </div>
-          <button className="tiny dim" style={{ marginTop: 4 }} onClick={() => onView('about')}>
-            {loadingDb ? 'Loading football database…' : 'Data sources & credits'}
+          <button className="menu-credits" onClick={() => { haptic(); onView('about') }}>
+            {loadingDb ? <><span className="spinner xs" /> Loading the football database</> : <>Data sources &amp; credits</>}
           </button>
         </div>
       </div>
@@ -104,6 +169,12 @@ function Home({ onView }: { onView: (v: View) => void }) {
 export function ordinal(n: number) {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100
   return n + (s[(v - 20) % 10] || s[v] || s[0])
+}
+
+/** A saved career's card, washed with its club's colour at the top. */
+function SaveCard({ save, children }: { save: SaveMeta; children: ReactNode }) {
+  const acc = useSaveAccent(save)
+  return <div className="card save-card" style={acc ? ({ ['--cc' as string]: acc } as CSSProperties) : undefined}>{children}</div>
 }
 
 function LoadCareer({ onBack }: { onBack: () => void }) {
@@ -126,14 +197,14 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
         {saves.map((s) => {
           const older = (s.schema || 1) < SAVE_SCHEMA, newer = (s.schema || 1) > SAVE_SCHEMA
           return (
-            <div key={s.id} className="card">
-              <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy || newer} onClick={async () => { setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) setBusy(undefined) }}>
-                <Badge club={{ id: s.clubId, badge: true, sofifaTeamId: 0, name: s.clubName, abbr: s.clubName.slice(0, 3).toUpperCase(), kit: ['#333', '#fff'], theme: '#333' } as any} size={46} />
+            <SaveCard key={s.id} save={s}>
+              <button className="row tap" style={{ padding: 14, width: '100%', textAlign: 'left', gap: 14 }} disabled={!!busy || newer} onClick={async () => { haptic('medium'); setBusy(s.id); const ok = await loadCareer(s.id); if (!ok) setBusy(undefined) }}>
+                <span className="save-crest"><Badge club={saveClub(s)} size={48} /></span>
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="t b row tight" style={{ minWidth: 0 }}><span className="ellipsis">{s.name}</span>{s.editMode && <span className="edit-flag sm" title="Edit Mode career"><Icon name="edit" size={11} strokeWidth={2.2} /></span>}</div>
-                  <div className="tiny muted" style={{ marginTop: 2 }}>{s.managerName} · {s.clubName}</div>
-                  <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'long')} · {seasonLabel(s.season)}{s.position ? ` · ${ordinal(s.position)}` : ''}</div>
-                  <div className="tiny dim" style={{ marginTop: 2 }}>Saved {new Date(s.updated).toLocaleString()} · {(s.size / 1e6).toFixed(1)} MB{s.auto ? ' · autosave' : ''}</div>
+                  <div className="tiny muted" style={{ marginTop: 3 }}>{s.managerName} · {s.clubName}{s.position ? ` · ${ordinal(s.position)} in ${s.leagueName}` : ''}</div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>{fmtDate(s.date, 'full')} · {seasonLabel(s.season)}</div>
+                  <div className="tiny dim" style={{ marginTop: 2 }}>Saved {savedAgo(s.updated)}{s.auto ? ' (auto)' : ''}{s.playTimeMin ? ` · ${played(s.playTimeMin)} played` : ''} · {(s.size / 1e6).toFixed(1)} MB</div>
                   {(older || newer) && <span className={`save-ver ${newer ? 'newer' : ''}`}><Icon name={newer ? 'lock' : 'refresh'} size={11} />{newer ? 'Made with a newer version' : `${s.appVersion ? `v${s.appVersion}` : 'Earlier version'} · updates to v${APP_VERSION} on load`}</span>}
                 </div>
                 {busy === s.id ? <div className="spinner" /> : <Icon name="forward" size={20} color="var(--t3)" />}
@@ -145,7 +216,7 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
                 <button className="btn xs danger" onClick={() => setDel(s)}><Icon name="trash" size={14} /></button>
               </div>
               <div className={`save-cps ${open === s.id ? 'open' : ''}`}><div>{seen.includes(s.id) && <CheckpointList careerId={s.id} />}</div></div>
-            </div>
+            </SaveCard>
           )
         })}
       </div>
