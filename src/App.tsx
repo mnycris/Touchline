@@ -11,6 +11,7 @@ import { ROUTES, TAB_ROOT } from './ui/routes'
 import { initNavFx, useEnterClass } from './ui/navFx'
 import { initMotionClass } from './ui/motion'
 import { initSwipeBack } from './ui/swipeBack'
+import { initSystemBack, isNativeApp } from './ui/systemBack'
 import { Presence } from './ui/components/Presence'
 import { Spotlight } from './ui/components/Spotlight'
 import { atmosphereFor } from './ui/atmosphere'
@@ -19,7 +20,10 @@ import { warmUp } from './ui/warmUp'
 
 initNavFx()
 initMotionClass()
-initSwipeBack()
+initSystemBack()
+// the app's own swipe back only where nothing gives one: the Home Screen web app on an iPhone (the installed app has
+// WebKit's own, Safari has its own, Android has the system's back)
+if (!isNativeApp() && (navigator as Navigator & { standalone?: boolean }).standalone === true) initSwipeBack()
 
 export default function App() {
   const world = useGame((s) => s.world)
@@ -58,19 +62,6 @@ export default function App() {
 
   // the first visits to the busiest screens, prepared while nothing else is happening
   useEffect(() => { const w = useGame.getState().world; return w ? warmUp(w) : undefined }, [world?.meta.id, userClubId])
-
-  // Android back button / browser back → in-app back
-  useEffect(() => {
-    const onPop = () => {
-      const s = useGame.getState()
-      if (s.searchOpen) s.closeSearch()
-      else if (s.world && (s.overlay.length || s.stacks[s.tab].length)) s.back()
-      history.pushState(null, '', location.href)
-    }
-    history.pushState(null, '', location.href)
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
 
   return (
     <div className="app">

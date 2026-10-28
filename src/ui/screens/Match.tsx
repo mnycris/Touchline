@@ -273,7 +273,7 @@ export function LiveMatch() {
   }, [reveal, shootout.length])
 
   if (!sim || !f || !live) {
-    return <Screen title="Match" back onBack={() => closeAll()} noNav><div className="pad muted">No live match.</div></Screen>
+    return <Screen title="Match" back onBack={() => closeAll()} swipe={false} noNav><div className="pad muted">No live match.</div></Screen>
   }
 
   const home = w.clubs[f.home], away = w.clubs[f.away]
@@ -851,10 +851,10 @@ export function PostMatch({ params }: { params: { id: string } }) {
   const open = useGame((s) => s.open)
   const f = w.fixtures[params.id]
   const others = useMemo(() => f ? Object.values(w.fixtures).filter((x) => x.date === f.date && x.compId === f.compId && x.id !== f.id && x.played) : [], [params.id, w.date])
-  if (!f?.result) return <Screen title="Result" back onBack={closeAll} noNav><div className="pad muted">Result not available.</div></Screen>
+  if (!f?.result) return <Screen title="Result" back onBack={closeAll} swipe={false} noNav><div className="pad muted">Result not available.</div></Screen>
   const press = !w.flags.pressDone?.[`post:${f.id}`]
   return (
-    <Screen title="Full-time" back onBack={closeAll} noNav
+    <Screen title="Full-time" back onBack={closeAll} swipe={false} noNav
       footer={<div className="md-footer">{press
         // the press conference waits: it is the main action, so it isn't skipped by habit; Continue stays to hand
         ? <><button className="btn" onClick={() => closeAll()}>Continue</button><button className="btn primary grow" onClick={() => open({ name: 'press', params: { kind: 'post', fixtureId: f.id } })}><Icon name="chat" size={18} /> Press conference</button></>

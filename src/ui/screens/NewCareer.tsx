@@ -18,6 +18,7 @@ import { clubAir, NEUTRAL } from '../atmosphere'
 import { clubRatings, leagueClubs, rawBudget, rawExpectation, rawSquads, starRating } from '../rawHelpers'
 import { fmtMoney } from '../../domain/finance'
 import { clubAccent } from '../theme'
+import { useBackLevel } from '../systemBack'
 
 type Step = 'you' | 'league' | 'club' | 'rules' | 'sign'
 type Stage = BuildStage | 'saved'
@@ -97,14 +98,8 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
     if (idx === 0) onExit()
     else go(STEPS[idx - 1].id)
   }
-  // the system's back (Android's button, the browser's) closes the club that is open, else goes back a step
-  const systemBack = useRef(back)
-  useEffect(() => { systemBack.current = () => { if (building) return; if (peek != null) setPeek(undefined); else back() } })
-  useEffect(() => {
-    const onPop = () => systemBack.current()
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [])
+  // the system's back (the iPhone's swipe, Android's button) closes the club that is open, else goes back a step
+  useBackLevel(building ? 0 : 1 + idx + (peek != null ? 1 : 0), () => { if (building) return; if (peek != null) setPeek(undefined); else back() })
 
   if (!raw) {
     return (

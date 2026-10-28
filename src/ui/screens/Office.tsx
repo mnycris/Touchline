@@ -345,7 +345,7 @@ export function Jobs({ params }: { params?: { sacked?: boolean } }) {
   const jobs = vacancies(w).filter((c) => !offers.some((o) => o.clubId === c.id)).sort((a, b) => b.reputation - a.reputation).slice(0, 30)
   const applied: Record<number, string> = w.flags.applied || {}
   return (
-    <Screen title="Job Market" sub={w.flags.unemployed ? 'You are unemployed' : `Reputation ${Math.round(w.user.reputation)}`} back onBack={() => (params?.sacked ? closeAll() : back())}>
+    <Screen title="Job Market" sub={w.flags.unemployed ? 'You are unemployed' : `Reputation ${Math.round(w.user.reputation)}`} back onBack={() => (params?.sacked ? closeAll() : back())} swipe={!params?.sacked}>
       <div className="pad stack">
         {params?.sacked && <div className="card pad-card small" style={{ borderColor: 'rgba(255,77,94,.5)' }}><b className="neg">You have been dismissed.</b> <span className="muted">Apply for vacant positions or wait for clubs to approach you. The world keeps moving when you continue.</span></div>}
         {offers.length > 0 && <>

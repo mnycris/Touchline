@@ -7,10 +7,13 @@ import { unreadCount } from '../../engine/world/messages'
 import { openSpotlight } from '../spot'
 
 /** Scrollable screen body with an optional sticky top bar. */
-export function Screen({ title, sub, children, back, right, noNav, noTop, className, onBack, scrollKey, footer, style, search }: {
+export function Screen({ title, sub, children, back, right, noNav, noTop, className, onBack, scrollKey, footer, style, search, swipe }: {
   title?: ReactNode; sub?: ReactNode; children: ReactNode; back?: boolean; right?: ReactNode; noNav?: boolean; noTop?: boolean; className?: string; onBack?: () => void; scrollKey?: string; footer?: ReactNode; style?: React.CSSProperties
   /** the search button at the top right (on by default for screens you go back from) */
   search?: boolean
+  /** false where Back goes back more than one screen (to the screen under all the overlays): no swiping back, which
+   *  would show the screen just beneath */
+  swipe?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const vk = useContext(ViewKey)
@@ -40,14 +43,14 @@ export function Screen({ title, sub, children, back, right, noNav, noTop, classN
   }, [topTap, vk])
   return (
     <>
-      {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} search={search} />}
+      {!noTop && <TopBar title={title} sub={sub} back={back} right={right} onBack={onBack} search={search} swipe={swipe} />}
       <div ref={ref} style={style} className={`screen ${noNav ? 'no-nav' : ''} ${noTop ? 'no-top' : ''} ${footer ? 'has-footer' : ''} ${className || ''}`}>{children}</div>
       {footer}
     </>
   )
 }
 
-export function TopBar({ title, sub, back, right, onBack, search }: { title?: ReactNode; sub?: ReactNode; back?: boolean; right?: ReactNode; onBack?: () => void; search?: boolean }) {
+export function TopBar({ title, sub, back, right, onBack, search, swipe }: { title?: ReactNode; sub?: ReactNode; back?: boolean; right?: ReactNode; onBack?: () => void; search?: boolean; swipe?: boolean }) {
   const goBack = useGame((s) => s.back)
   // not over match day, negotiations and the other full-screen moments, which have their own way out
   const canSearch = useGame((s) => !!s.world && !s.overlay.length)
@@ -55,7 +58,7 @@ export function TopBar({ title, sub, back, right, onBack, search }: { title?: Re
   return (
     <div className="topbar">
       {back && (
-        <button className="iconbtn" aria-label="Back" onClick={() => { haptic(); (onBack || goBack)() }}>
+        <button className="iconbtn" aria-label="Back" data-no-swipe={swipe === false ? '' : undefined} onClick={() => { haptic(); (onBack || goBack)() }}>
           <Icon name="back" size={22} />
         </button>
       )}

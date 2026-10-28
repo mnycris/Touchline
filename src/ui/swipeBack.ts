@@ -61,7 +61,8 @@ function start(e: TouchEvent) {
   const sf = surface()
   if (!sf) return
   const btn = sf.el.querySelector<HTMLElement>('.topbar .iconbtn[aria-label="Back"]')
-  if (!btn) return
+  // (a Back that goes back past the screen beneath isn't swiped)
+  if (!btn || btn.hasAttribute('data-no-swipe')) return
   d = { id: t.identifier, x0: t.clientX, y0: t.clientY, el: sf.el, btn, under: sf.under, ownUnder: sf.ownUnder, host: sf.host, live: false, x: 0, v: 0, lastX: t.clientX, lastT: e.timeStamp }
 }
 

@@ -1,11 +1,13 @@
-// The iPhone swipe back, driven with real touch sequences (CDP): mid-pull, a completed swipe, a short pull that
-// settles back, a vertical scroll from the edge (left to the page), and an overlay pulled off the screen beneath.
+// The app's own swipe back (the Home Screen web app's, which has no other), driven with real touch sequences (CDP):
+// mid-pull, a completed swipe, a short pull that settles back, a vertical scroll from the edge (left to the page), and
+// an overlay pulled off the screen beneath. (The installed app has WebKit's own: system-back.mjs.)
 //   node scripts/qa/swipe-back.mjs <save> <out-dir>
 import fs from 'node:fs'
 import { openSave } from './load-save.mjs'
 const [save, OUT] = process.argv.slice(2)
 fs.mkdirSync(OUT, { recursive: true })
-const { page, browser, errors } = await openSave(save)
+// as the Home Screen web app, where the app's own swipe is on
+const { page, browser, errors } = await openSave(save, { init: () => Object.defineProperty(navigator, 'standalone', { get: () => true }) })
 const cdp = await page.context().newCDPSession(page)
 const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] })
 let n = 0

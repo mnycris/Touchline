@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { Fx } from '../components/Fx'
 import { useGame, haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
@@ -12,20 +12,16 @@ import { CheckpointList } from '../components/Checkpoints'
 import { SAVE_SCHEMA } from '../../engine/world/migrate'
 import { ImageCheck } from '../components/ImageCheck'
 import { SpeedEditor } from '../components/SpeedEditor'
+import { useBackLevel } from '../systemBack'
 
 type View = 'home' | 'new' | 'load' | 'settings' | 'about'
 
 export function MainMenu() {
   const [view, setView] = useState<View>('home')
-  // the system's back (Android's button, the browser's) from Load, Settings or Data & Credits goes home (New Career
-  // takes it a step at a time itself)
-  useEffect(() => {
-    if (view === 'home' || view === 'new') return
-    const onPop = () => setView('home')
-    window.addEventListener('popstate', onPop)
-    return () => window.removeEventListener('popstate', onPop)
-  }, [view])
   const home = () => setView('home')
+  // the system's back (the iPhone's swipe, Android's button) from Load, Settings or Data & Credits goes home (New Career
+  // takes it a step at a time itself)
+  useBackLevel(view === 'home' || view === 'new' ? 0 : 1, home)
   if (view === 'new') return <NewCareer onExit={home} />
   if (view === 'load') return <SubView><LoadCareer onBack={home} /></SubView>
   if (view === 'settings') return <SubView><AppSettings onBack={home} /></SubView>
