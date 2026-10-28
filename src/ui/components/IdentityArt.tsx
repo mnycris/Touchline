@@ -7,11 +7,10 @@ export function IdentityArt({ ci }: { ci: CompIdentity }) {
   return (
     <span className="ci-art" aria-hidden>
       <i className="ci-glow" />
-      {(ci.mark || ci.art) && (
+      {ci.mark && (
         <span className="ci-marks">
-          {ci.art && <i className="ci-mark ci-art-img" />}
-          {ci.mark && <i className="ci-mark" />}
-          {ci.mark && ci.motion === 'prism' && <i className="ci-mark ci-mark-glass" />}
+          <i className="ci-mark" />
+          {ci.motion === 'prism' && <i className="ci-mark ci-mark-glass" />}
           {ci.mark2 && <i className="ci-mark ci-mark2" />}
         </span>
       )}

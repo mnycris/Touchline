@@ -2637,8 +2637,6 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   transform: translateY(calc(-50% + var(--ci-my, 0%))) rotate(var(--ci-mr, 0deg));
   background: var(--ci-mark-fill, #fff); opacity: var(--ci-mark-op, .14);
   -webkit-mask: var(--ci-mark) center / contain no-repeat; mask: var(--ci-mark) center / contain no-repeat; }
-/* the logo's own emblem in its own colours, in the mark's frame (not a mask to fill) */
-.ci-mark.ci-art-img { -webkit-mask: none; mask: none; opacity: 1; background: var(--ci-art-img) center / contain no-repeat; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, .35)); }
 /* a second part of the mark in the same frame, in its own colour */
 .ci-mark.ci-mark2 { background: var(--ci-mark2-fill, #fff); opacity: var(--ci-mark2-op, 1); -webkit-mask: var(--ci-mark2) center / contain no-repeat; mask: var(--ci-mark2) center / contain no-repeat; }
 /* fine grain over the field: no banding in the gradients, the finish of printed and broadcast graphics */
@@ -2780,13 +2778,13 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
   --ci-mw: .27; --ci-mx: 4%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #c8102e 75%, transparent); }
-/* Carabao Cup: its logo's green (#008c5a), and the logo's own emblem in its own colours (the red sun in its yellow
-   ring, the carabao's head and horns, the glint), cut from the vector logo, large and cropped at the card's edge */
+/* Carabao Cup: its logo's green (#008c5a) and white; its emblem (the sun, the carabao's head and horns, the glint) in one
+   tone, as a one-colour print of the logo has it, the way the FA Cup's trophy sits on its card */
 .ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .26), transparent 62%), linear-gradient(125deg, #00170e 0%, #003d28 45%, #007a4f 100%);
-  --ci-glow: radial-gradient(40% 70% at 84% 48%, rgba(255, 70, 40, .16), transparent 70%);
-  --ci-mw: .5; --ci-mx: -9%; --ci-my: 3%;
+  --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .12), transparent 65%);
+  --ci-mw: .4; --ci-mx: 3%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-sheen: 255, 238, 196;
-  --ci-edge: linear-gradient(90deg, transparent, #fceb20 45%, #e2231a 70%, transparent); }
+  --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #f5c400 75%, transparent); }
 /* Copa del Rey: crimson and gold; DFB-Pokal: black and gold after the trophy; both with their nation's colours */
 .ci-CDR { --ci-field: linear-gradient(125deg, #3a0510 0%, #6d0a1c 45%, #9c1229 100%);
   --ci-glow: radial-gradient(60% 100% at 100% 0%, rgba(246, 196, 69, .32), transparent 62%), linear-gradient(115deg, transparent 62%, rgba(246, 196, 69, .1) 62.4%, transparent 72%);
@@ -2847,9 +2845,8 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
 .md-head.ci-band .ci-mark { right: 50%; width: auto; height: 118%; transform: translate(50%, -54%) rotate(var(--ci-mr, 0deg)); opacity: var(--ci-md-op, calc(var(--ci-mark-op, .14) * .45)); }
 .md-head.ci-band .display, .md-head.ci-band .tiny { text-shadow: 0 1px 10px rgba(0, 0, 0, .45); }
 .md-head.ci-FACUP { --ci-md-op: .2; }
-/* the Carabao Cup's match day: its emblem only faintly behind the kick-off */
-.md-head.ci-EFLCUP { --ci-md-op: .12; }
-.md-head.ci-EFLCUP .ci-art-img { filter: none; }
+/* the Carabao Cup's match day: its emblem faintly behind the kick-off, as the FA Cup's trophy is */
+.md-head.ci-EFLCUP { --ci-md-op: .2; }
 /* the Bundesliga's player is a figure, not a pattern: behind the badges and the kick-off time he is only clutter, so
    the band keeps the field, its red light and the logo above the badges */
 .md-head.ci-L19 .ci-mark, .md-head.ci-L20 .ci-mark { display: none; }
