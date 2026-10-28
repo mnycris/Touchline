@@ -11,8 +11,9 @@
 //   Serie A            navy and azure, the faceted "A", the tricolore
 //   Ligue 1            electric blue and pink on charcoal;  Ligue 2  aquamarine and purple
 //   FA Cup             navy and red, the trophy
-//   Carabao Cup        the logo's green, its emblem (the sun, the carabao's head and horns, the glint) in one tone, from its
-//                      vector logo the way a one-colour print of it has it: the colours as ink, the white parts cut out
+//   Carabao Cup        the logo's green and its emblem from its vector logo: on its card the white line work alone (the
+//                      skull, the horns' highlights, the glint), large and cropped; on its match day the emblem in one
+//                      tone, as a one-colour print of the logo has it
 //   EFL                its navy and its ball of 72 dots, one per club, with the division's own 24 lit in its colour
 //                      as its logo does: Championship gold, League One silver, League Two red
 //   Pro League         the bull in its shield, large, in the logo's red on black, Belgium's colours along the top
@@ -31,6 +32,9 @@ export interface CompIdentity {
   /** a second part of the mark in the same frame, in its own colour (the EFL division's own third of the ball, the
    *  Eredivisie's "e" inside its ring) */
   mark2?: string
+  /** another part of the logo in the same frame, for the competition's own title card only (the Carabao Cup's line work,
+   *  large on its card; its match day keeps the mark) */
+  heroMark?: string
   /** the mark whole, in the same frame, where it is shown on its own (the trophy celebration), when the card splits it */
   whole?: string
   ar?: number
@@ -67,7 +71,7 @@ const ID: Record<string, CompIdentity> = {
   L308: { id: 'L308', mark: 'L308', ar: 2236 / 3676, accent: '#6fb4ff', rgb: '40, 110, 235', deep: '#000a20', fog: ['0, 46, 128', '96, 170, 255', '0, 12, 44'] },
   L10: { id: 'L10', mark: 'L10r', mark2: 'L10e', whole: 'L10', ar: 191.908 / 192.865, accent: '#ff9a3d', rgb: '255, 122, 0', deep: '#170902', fog: ['210, 80, 0', '255, 160, 70', '80, 26, 0'] },
   FACUP: { id: 'FACUP', mark: 'FACUP', ar: 80 / 124, accent: '#ff5a66', rgb: '40, 70, 170', deep: '#060c22', fog: ['26, 48, 128', '230, 40, 60', '8, 16, 52'] },
-  EFLCUP: { id: 'EFLCUP', mark: 'EFLCUP', ar: 212.5 / 147.5, motion: 'sheen', accent: '#ffd23f', rgb: '0, 150, 75', deep: '#03140b', fog: ['0, 128, 64', '255, 210, 63', '0, 46, 22'] },
+  EFLCUP: { id: 'EFLCUP', mark: 'EFLCUP', heroMark: 'EFLCUP-whites', ar: 212.5 / 147.5, motion: 'sheen', accent: '#ffd23f', rgb: '0, 150, 75', deep: '#03140b', fog: ['0, 128, 64', '255, 210, 63', '0, 46, 22'] },
   CDR: { id: 'CDR', accent: '#f6c445', motion: 'sheen', rgb: '190, 30, 45', deep: '#16050a', fog: ['170, 22, 40', '246, 196, 69', '64, 6, 16'] },
   DFB: { id: 'DFB', accent: '#ffce3a', motion: 'sheen', rgb: '200, 160, 60', deep: '#110e05', fog: ['120, 96, 34', '255, 206, 58', '36, 28, 8'] },
   CI: { id: 'CI', accent: '#6cbcff', rgb: '40, 110, 220', deep: '#03102a', fog: ['20, 76, 170', '108, 188, 255', '2, 28, 72'] },
@@ -83,6 +87,7 @@ export const identityVars = (ci: CompIdentity): CSSProperties => ({
   ['--ci-acc' as string]: ci.accent,
   ...(ci.mark ? { ['--ci-mark' as string]: `url(${assetHref(`assets/marks/${ci.mark}.svg`)})`, ['--ci-ar' as string]: ci.ar } : {}),
   ...(ci.mark2 ? { ['--ci-mark2' as string]: `url(${assetHref(`assets/marks/${ci.mark2}.svg`)})` } : {}),
+  ...(ci.heroMark ? { ['--ci-hero-mark' as string]: `url(${assetHref(`assets/marks/${ci.heroMark}.svg`)})` } : {}),
 })
 
 /** A competition's own page in its identity (see .cis in screens.css): its tabs, selections, cards and small type. */

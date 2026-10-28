@@ -105,10 +105,10 @@ Match Day band (`src/ui/compIdentity.ts`, styles under `.ci-<id>` in `src/styles
   the starball, the Europa League trophy, the LALIGA "LL" (and Hypermotion), the Bundesliga and 2. Bundesliga players,
   Serie A's "A", the Ligue 1 and Ligue 2 symbols, the FA Cup trophy. The Premier League lion is the Simple Icons vector
   (from premierleague.com), not a trace.
-- **From a vector logo**: the Carabao Cup's emblem (the sun in its ring, the carabao's head and horns, the glint) comes
-  from its genuine vector logo (football-logos.cc's SVG) by `scripts/assets/carabao_emblem.py`, in one tone as a
-  one-colour print of the logo has it (the coloured parts as ink, the white parts cut out), filled on its card in silver
-  as the FA Cup's trophy is (`EFLCUP.svg`).
+- **From a vector logo**: the Carabao Cup's marks come from its genuine vector logo (football-logos.cc's SVG) by
+  `scripts/assets/carabao_emblem.py`: the emblem in one tone as a one-colour print of the logo has it (the coloured parts
+  as ink, the white parts cut out; `EFLCUP.svg`, faintly behind the kick-off on its match day), and the logo's white line
+  work alone (the skull, the horns' highlights, the glint; `EFLCUP-whites.svg`, large and cropped on its own card).
 - **Colours**: sampled from those logos where the app has them (UCL navy #00004b, Europa orange #ff6900, LALIGA coral
   #ff4b44, Bundesliga red #d20515, Serie A navy #1a1659 and azure #0070f8, Carabao green #008c5a), the Premier League's
   purple #37003c and accents, and otherwise taken from published descriptions of the identities with no official values

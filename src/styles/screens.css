@@ -2778,13 +2778,19 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .14), transparent 65%);
   --ci-mw: .27; --ci-mx: 4%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #c8102e 75%, transparent); }
-/* Carabao Cup: its logo's green (#008c5a) and white; its emblem (the sun, the carabao's head and horns, the glint) in one
-   tone, as a one-colour print of the logo has it, the way the FA Cup's trophy sits on its card */
+/* Carabao Cup: its logo's green (#008c5a) and white; its emblem from the vector logo. On its match day the emblem in one
+   tone (as a one-colour print of the logo has it), faintly behind the kick-off as the FA Cup's trophy is; on its own card
+   the logo's white line work alone (the skull, the horns' highlights, the glint), large and cropped as the Premier
+   League's lion is */
 .ci-EFLCUP { --ci-field: radial-gradient(70% 110% at 100% 0%, rgba(90, 230, 160, .26), transparent 62%), linear-gradient(125deg, #00170e 0%, #003d28 45%, #007a4f 100%);
   --ci-glow: radial-gradient(50% 80% at 100% 0%, rgba(255, 255, 255, .12), transparent 65%);
   --ci-mw: .4; --ci-mx: 3%; --ci-my: 2%; --ci-mark-op: .9; --ci-mark-fill: linear-gradient(180deg, #ffffff 0%, #e3e8ef 45%, #9fa9b9 100%);
   --ci-sheen: 255, 238, 196;
   --ci-edge: linear-gradient(90deg, transparent, #ffffff 45%, #f5c400 75%, transparent); }
+.comp-hero.ci-EFLCUP { --ci-mw: .8; --ci-mx: -17%; --ci-my: 12%; }
+.comp-hero.ci-EFLCUP .ci-mark { -webkit-mask-image: var(--ci-hero-mark); mask-image: var(--ci-hero-mark); }
+/* (the horns' lines fade into the field before they reach the title) */
+.comp-hero.ci-EFLCUP .ci-marks { -webkit-mask-image: linear-gradient(90deg, transparent 44%, #000 66%); mask-image: linear-gradient(90deg, transparent 44%, #000 66%); }
 /* Copa del Rey: crimson and gold; DFB-Pokal: black and gold after the trophy; both with their nation's colours */
 .ci-CDR { --ci-field: linear-gradient(125deg, #3a0510 0%, #6d0a1c 45%, #9c1229 100%);
   --ci-glow: radial-gradient(60% 100% at 100% 0%, rgba(246, 196, 69, .32), transparent 62%), linear-gradient(115deg, transparent 62%, rgba(246, 196, 69, .1) 62.4%, transparent 72%);
