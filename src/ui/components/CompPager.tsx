@@ -13,7 +13,7 @@ import { compLogoKey, fixturesOf, nextFixture, seasonComps, tableAround } from '
 import { previousPositions, ZONE_COLOR, zoneFor } from '../../engine/competitions/tables'
 import { MoveArrow } from '../screens/FifaRanking'
 import { cupPath } from '../cupPath'
-import { entryRoundName } from '../../engine/competitions/cups'
+import { aggregateBefore, entryRoundName } from '../../engine/competitions/cups'
 import { fmtDate } from '../../domain/dates'
 
 /** The competition's colour for the light across its page (its identity's, else a quiet white). */
@@ -153,10 +153,16 @@ function RoadPart({ w, c, path }: { w: World; c: Competition; path: ReturnType<t
   const joins = waiting && !entry ? entryRoundName(w, c, me) : undefined
   const coming = waiting ? c.rounds.find((r) => (joins ? r.name === joins : !r.drawn && r.date >= w.date)) : undefined
   const place = (f: Fixture) => (f.neutral ? f.venue || 'Neutral venue' : f.home === me ? 'Home' : 'Away')
+  // a two-legged tie says which leg, and the second where it stands on aggregate (home side first, as the tie shows)
+  const legNote = (f: Fixture) => {
+    if (f.leg === 2) { const ag = aggregateBefore(w, f); return ag ? `Second leg · ${ag[0]}–${ag[1]} on aggregate` : 'Second leg' }
+    if (f.leg === 1) return `First leg · ${f.home === me ? 'at home' : 'away'}`
+    return place(f)
+  }
   const note = won ? `Won the ${c.rounds.length > 1 ? 'final' : 'match'} on ${fmtDate(last?.date || w.date, 'dm')}`
     : final ? `Lost the final on ${fmtDate(last?.date || w.date, 'dm')}`
       : lost ? (last ? `Knocked out on ${fmtDate(last.date, 'dm')}` : 'Knocked out')
-        : next ? place(next)
+        : next ? legNote(next)
           : last ? 'Through · the next draw is still to come' : entry ? `Enters in the ${entry.name.toLowerCase()} · ${fmtDate(entry.date, 'dm')}` : coming ? `${joins ? `Enters in the ${coming.name.toLowerCase()}` : coming.name} · ${fmtDate(coming.date, 'dm')}` : ''
   return (
     <div className="cpg-road">

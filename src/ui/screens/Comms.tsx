@@ -27,11 +27,12 @@ const CAT_ICON: Record<string, string> = {
 function MsgAvatar({ w, m, size = 42 }: { w: World; m: InboxMessage; size?: number }) {
   const img = m.image
   if (img?.kind === 'player' && w.players[img.id as number]) { const p = w.players[img.id as number]; return <Face p={p} size={size} radius={12} club={w.clubs[p.clubId]} /> }
-  if (img?.kind === 'club' && w.clubs[img.id as number]) return <div className="msg-av"><Badge club={w.clubs[img.id as number]} size={size - 10} /></div>
-  if (img?.kind === 'comp') return <div className="msg-av"><CompLogo k={String(img.id)} size={size - 14} /></div>
+  // a crest or a competition's logo stands on its own; only a plain icon gets a backing
+  if (img?.kind === 'club' && w.clubs[img.id as number]) return <div className="msg-av" style={{ width: size, height: size }}><Badge club={w.clubs[img.id as number]} size={size - 8} /></div>
+  if (img?.kind === 'comp') return <div className="msg-av" style={{ width: size, height: size }}><CompLogo k={String(img.id)} size={size - 12} /></div>
   const staff = /Chairman|Director|Assistant|Medical|Youth|Scout/.test(m.fromRole)
   if (staff) return <Avatar name={m.from.replace(/^Dr\. /, '')} size={size} radius={12} />
-  return <div className="msg-av"><Icon name={CAT_ICON[m.category] || 'inbox'} size={20} /></div>
+  return <div className="msg-av ic" style={{ width: size, height: size }}><Icon name={CAT_ICON[m.category] || 'inbox'} size={20} /></div>
 }
 
 /** Decisions still open in a message: a bid to answer, a conversation, a counter-offer, a contract or job. */
@@ -90,7 +91,7 @@ export function Inbox() {
   return (
     <Screen title="Inbox" sub={`${unread} unread`} back right={unread ? <button className="btn xs" onClick={() => mutate((x) => x.inbox.forEach((m) => (m.read = true)))}>Mark all read</button> : undefined}>
       <Chips items={cats.map((c) => { const n = c === 'Unread' ? unread : count(c); return { id: c, label: <>{c}{n > 0 && c !== 'All' && <span className="chip-n">{n}</span>}</> } })} value={cat} onChange={setCat} />
-      {!list.length && <Empty icon="inbox" title="Nothing here" text="Messages from your staff, players, the board and other clubs appear here." />}
+      {!list.length && <Empty icon="inbox" title="Nothing here" />}
       {pending.length > 0 && (
         <div className="pad" style={{ marginTop: 10 }}>
           <div className="row between" style={{ margin: '0 4px 8px' }}><span className="label" style={{ color: 'var(--warn)' }}>Needs you</span><span className="tiny dim">{pending.length}</span></div>

@@ -250,7 +250,7 @@ export function PreMatch({ params }: { params?: { id?: string } }) {
             <Seg small items={MENTALITIES.map((m) => ({ id: m, label: m.replace('Ultra ', 'Ultra ').replace('Defensive', 'Def').replace('Attacking', 'Att').replace('Balanced', 'Bal') }))} value={valid.tactics.mentality} onChange={(m) => { haptic(); edit((s) => { s.tactics.mentality = m }) }} />
           </div>
           <MatchLineup w={w} home={homeSide} away={awaySide} mode="sheet" onTap={onTap} sel={pick?.id} benchTitle="Bench" />
-          <div className="tiny dim" style={{ textAlign: 'center' }}>Tap one of your players to swap, change captain or set-piece duties. Tap an opponent to scout him.</div>
+          <div className="tiny dim" style={{ textAlign: 'center' }}>Tap a player of yours to swap him or set his duties, an opponent to scout him.</div>
         </div>
       )}
 

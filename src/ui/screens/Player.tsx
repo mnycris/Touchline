@@ -8,8 +8,8 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, SquadRole, World } from '../../domain/types'
 import { A } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { Badge, CompLogo, Face, Flag, ImgChain, Ovr, PosChip, Radar, Ring, Sparkline, StatRow, Stars } from '../components/atoms'
-import { Confirm, Screen, Sheet, Tabs } from '../components/layout'
+import { Badge, CompLogo, Face, Flag, ImgChain, Ovr, PosChip, Radar, Sparkline, StatRow, Stars } from '../components/atoms'
+import { Confirm, Facts, Screen, Sheet, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ATTR_GROUPS, ATTR_LABEL, DEV_PLANS, GK_GROUPS, PLAYSTYLE_INFO, POS_GROUP, POS_NAME, POSITIONS, ROLE_GROUP, ROLES, SQUAD_ROLES, TRAINING_PLANS } from '../../domain/constants'
 import { faceStats, formLabel, formValue, moraleLevel, posRating, roleFit, moraleColor, moraleIcon } from '../../domain/ratings'
@@ -69,23 +69,18 @@ export function PlayerProfile({ params }: { params: { id: number } }) {
       {editing && <div className="pad" style={{ marginTop: 10 }}><PlayerEditor key={p.id} w={w} p={p} onClose={() => setEditing(false)} /></div>}
 
       <div className="pad" style={{ marginTop: 10 }}>
-        <div className="grid3">
-          <Info k="Age" v={`${age}`} sub={fmtDate(p.dob, 'short')} />
-          <Info k="Potential" v={pLo === pHi ? `${pLo}` : `${pLo}–${pHi}`} sub={mine ? 'Scouted' : `${knowledge(w, p)}% known`} />
-          <Info k="Value" v={fmtMoney(p.value, { short: true })} sub={`${fmtMoney(p.contract.wage, { short: true })}/wk`} />
-          <Info k="Height" v={`${p.height} cm`} sub={`${p.weight} kg`} />
-          <Info k="Foot" v={p.foot === 'L' ? 'Left' : 'Right'} sub={<span className="row tight">WF <Stars n={p.weakFoot} size={10} /></span>} />
-          <Info k="Skills" v={<Stars n={p.skillMoves} size={12} />} sub={`WR ${p.workRate[0][0]}/${p.workRate[1][0]}`} />
-        </div>
+        <Facts items={[
+          { k: 'Age', v: `${age}`, sub: fmtDate(p.dob, 'short') },
+          { k: 'Potential', v: pLo === pHi ? `${pLo}` : `${pLo}–${pHi}`, sub: mine ? 'Scouted' : `${knowledge(w, p)}% known` },
+          { k: 'Value', v: fmtMoney(p.value, { short: true }), sub: `${fmtMoney(p.contract.wage, { short: true })}/wk` },
+          { k: 'Height', v: `${p.height} cm`, sub: `${p.weight} kg` },
+          { k: 'Foot', v: p.foot === 'L' ? 'Left' : 'Right', sub: <span className="row tight">WF <Stars n={p.weakFoot} size={10} /></span> },
+          { k: 'Skills', v: <Stars n={p.skillMoves} size={12} />, sub: `WR ${p.workRate[0][0]}/${p.workRate[1][0]}` },
+        ]} />
       </div>
 
       <div className="pad" style={{ marginTop: 10 }}>
-        <div className="card pad-card row between" style={{ gap: 8 }}>
-          <div className="col center" style={{ gap: 4 }}><Ring v={p.fitness} size={50} /><span className="tiny dim">Energy</span></div>
-          <div className="col center" style={{ gap: 4 }}><Ring v={p.sharpness} size={50} color="var(--info)" /><span className="tiny dim">Sharpness</span></div>
-          <div className="col center" style={{ gap: 4 }}><Ring v={p.morale} size={50} color={moraleColor(p.morale)} label={<Icon name={moraleIcon(p.morale)} size={18} />} /><span className="tiny dim">{moraleLevel(p.morale)}</span></div>
-          <div className="col center" style={{ gap: 4 }}><Sparkline values={p.formRatings.length ? p.formRatings : [6.5, 6.5]} w={70} h={36} /><span className="tiny dim">Form: {formLabel(p)}</span></div>
-        </div>
+        <Condition p={p} />
         {st.key !== 'ok' && <div className="card pad-card row tight small" style={{ marginTop: 8, borderColor: st.color }}><Icon name={st.icon} size={16} color={st.color} /><span style={{ color: st.color }} className="b">{st.label}</span></div>}
         <StoryBanner w={w} p={p} />
       </div>
@@ -122,12 +117,23 @@ function StoryBanner({ w, p }: { w: World; p: Player }) {
   )
 }
 
-function Info({ k, v, sub }: { k: string; v: React.ReactNode; sub?: React.ReactNode }) {
+/** How he is: energy and sharpness as the numbers they are, his mood in a word, and his form as his last five match
+ *  ratings (the most recent last). */
+function Condition({ p }: { p: Player }) {
+  const meter = (v: number, c: string) => <span className="cond-bar"><i style={{ width: `${Math.max(3, Math.min(100, v))}%`, background: c }} /></span>
+  const tone = (v: number) => (v >= 75 ? 'var(--pos)' : v >= 50 ? 'var(--warn)' : 'var(--neg)')
   return (
-    <div className="card pad-card" style={{ padding: '10px 12px' }}>
-      <div className="tiny dim">{k}</div>
-      <div className="b" style={{ fontSize: 16, marginTop: 3 }}>{v}</div>
-      {sub && <div className="tiny dim" style={{ marginTop: 2 }}>{sub}</div>}
+    <div className="card cond">
+      <div className="jgrid facts c3">
+        <div><span className="fct-k">Energy</span><span className="fct-v num">{Math.round(p.fitness)}</span>{meter(p.fitness, tone(p.fitness))}</div>
+        <div><span className="fct-k">Sharpness</span><span className="fct-v num">{Math.round(p.sharpness)}</span>{meter(p.sharpness, 'var(--info)')}</div>
+        <div><span className="fct-k">Morale</span><span className="fct-v cond-mood" style={{ color: moraleColor(p.morale) }}><Icon name={moraleIcon(p.morale)} size={16} />{moraleLevel(p.morale)}</span>{meter(p.morale, moraleColor(p.morale))}</div>
+      </div>
+      <div className="cond-form">
+        <span className="fct-k">Form</span><b className="small">{formLabel(p)}</b>
+        <span className="grow" />
+        {p.formRatings.length ? p.formRatings.map((r, i) => <RatingBadge key={i} v={r} />) : <span className="tiny dim">No matches yet</span>}
+      </div>
     </div>
   )
 }
@@ -176,7 +182,7 @@ function PlayerActions({ w, p, mine }: { w: World; p: Player; mine: boolean }) {
       <div className="pad" style={{ marginTop: 10 }}>
         <div className="card list">
           <div className="li"><Icon name="contract" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Contract until 30 June {p.contract.until}</div><div className="s">{fmtMoney(p.contract.wage)}/wk{p.contract.releaseClause ? ` · Release clause ${fmtMoney(p.contract.releaseClause)}` : ''}</div></div>{!loanedOut && !p.loan && <button className="btn xs club" onClick={() => open({ name: 'renewal', params: { id: p.id } })}>Renew</button>}</div>
-          {!loanedOut && <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setRoleOpen(true)}><Icon name="squad" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Squad role</div><div className="s">{p.contract.role}</div></div><Icon name="forward" size={16} color="var(--t3)" /></button>}
+          {!loanedOut && <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setRoleOpen(true)}><Icon name="person" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Squad role</div><div className="s">{p.contract.role}</div></div><Icon name="forward" size={16} color="var(--t3)" /></button>}
           {!loanedOut && <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setNumOpen(true)}><Icon name="squad" size={18} color="var(--t2)" /><div className="meta"><div className="t small">Shirt number</div><div className="s">#{p.jersey}</div></div><Icon name="forward" size={16} color="var(--t3)" /></button>}
           {p.loan && !loanedOut && <div className="li"><Icon name="loan" size={18} color="var(--info)" /><div className="meta"><div className="t small">On loan from {w.clubs[p.loan.fromClubId]?.name}</div><div className="s">Until {fmtDate(p.loan.until, 'long')} · you pay {p.loan.wageSplit ?? 50}% of his wages{p.loan.optionFee ? ` · ${p.loan.obligation ? 'obligation to buy' : p.loan.exercised ? 'option taken up' : 'option to buy'} ${fmtMoney(p.loan.optionFee)}` : ''}</div></div>
             {p.loan.optionFee && !p.loan.obligation && !p.loan.exercised && <button className="btn xs club" onClick={() => { haptic('medium'); let r = { ok: false, text: '' }; mutate((w) => { r = exerciseLoanOption(w, w.players[p.id]) }, { roster: true }); notify(r.text, r.ok ? 'ok' : 'err') }}>Buy</button>}

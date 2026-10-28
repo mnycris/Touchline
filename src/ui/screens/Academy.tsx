@@ -63,8 +63,8 @@ export function Academy() {
     <Screen title="Youth Academy" sub={`${club.short} Academy`} right={<HubActions />}>
       <AcademyHero w={w} squad={squad} prospects={prospects} onTab={setTab} />
       <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'squad', label: `Academy (${squad.length})` }, { id: 'prospects', label: `Prospects (${prospects.length})`, badge: prospects.filter((p) => diffDays(w.date, p.found) <= 7).length }, { id: 'scouts', label: 'Youth Scouts' }]} value={tab} onChange={setTab} /></div>
-      {tab === 'squad' && <AcademySquad w={w} />}
-      {tab === 'prospects' && <Prospects w={w} list={prospects} />}
+      {tab === 'squad' && <AcademySquad w={w} onScouts={() => setTab('scouts')} />}
+      {tab === 'prospects' && <Prospects w={w} list={prospects} onScouts={() => setTab('scouts')} />}
       {tab === 'scouts' && <YouthScouts w={w} />}
     </Screen>
   )
@@ -100,10 +100,10 @@ function AcademyHero({ w, squad, prospects, onTab }: { w: World; squad: Player[]
               <Face p={best} size={30} radius={15} club={club} />
               <span className="grow" style={{ minWidth: 0, textAlign: 'left' }}><span className="tiny dim">Brightest talent</span><span className="small b ellipsis" style={{ display: 'block' }}>{best.name} · POT {best.pot}</span></span>
             </button>
-          ) : <span className="small dim">No academy players yet</span>}
-          <button className="ac-scouts" onClick={() => onTab(prospects.length ? 'prospects' : 'scouts')}>
-            <span className="tiny dim">{w.youthScouts.length}/3 scouts</span>
-            <span className="small b">{prospects.length ? `${prospects.length} prospects` : next ? `Report ${fmtDate(next, 'dm')}` : 'None out'}</span>
+          ) : null}
+          <button className={`ac-scouts ${best ? '' : 'wide'}`} onClick={() => onTab(prospects.length ? 'prospects' : 'scouts')}>
+            <span className="tiny dim">{w.youthScouts.length} of 3 youth scouts</span>
+            <span className="small b">{prospects.length ? `${prospects.length} prospects waiting` : next ? `Next report ${fmtDate(next, 'dm')}` : 'None out on a mission'}</span>
           </button>
         </div>
         {risers.length > 0 && (
@@ -119,7 +119,7 @@ function AcademyHero({ w, squad, prospects, onTab }: { w: World; squad: Player[]
 
 type Sort = 'ready' | 'pot' | 'age' | 'line'
 
-function AcademySquad({ w }: { w: World }) {
+function AcademySquad({ w, onScouts }: { w: World; onScouts: () => void }) {
   const mutate = useGame((s) => s.mutate)
   const go = useGame((s) => s.go)
   const notify = useGame((s) => s.notify)
@@ -139,7 +139,7 @@ function AcademySquad({ w }: { w: World }) {
   // players 19 or older on 1 July move up to the senior squad at the end of the season
   const cutoff = `${w.date.slice(5) >= '07-01' ? w.season + 1 : w.season}-07-01`
   const agesOut = (dob: string) => ageOn(dob, cutoff) >= 19
-  if (!squad.length && !grads.length) return <div className="pad" style={{ marginTop: 12 }}><div className="card"><Empty icon="youth" title="The academy is empty" text="Send youth scouts out on missions: they report on the 1st of each month, and the best of what they find can be signed here for nothing." /></div></div>
+  if (!squad.length && !grads.length) return <div className="pad" style={{ marginTop: 12 }}><div className="card"><Empty icon="youth" title="The academy is empty" text="Youth scouts find the players. Signing them costs nothing." action={<button className="btn sm" onClick={() => { haptic(); onScouts() }}>Youth scouts</button>} /></div></div>
   // within each line, best first: a quick read of who leads in each position
   const best = new Map<string, number>()
   for (const p of all) { const g = lineOf(p); if ((best.get(g) ?? -1) < p.pot) best.set(g, p.pot) }
@@ -188,7 +188,7 @@ function AcademySquad({ w }: { w: World }) {
             )
           })}
         </div>
-        <div className="tiny dim" style={{ margin: '8px 2px 0' }}>Academy players grow every day. Anyone who is 19 on 1 July moves up to the senior squad at the end of the season, so decide on them before then.</div>
+        <div className="tiny dim" style={{ margin: '8px 2px 0' }}>Anyone who is 19 on 1 July moves up to the senior squad at the end of the season: decide on them before then.</div>
       </>}
       {grads.length > 0 && (
         <>
@@ -229,14 +229,14 @@ function scoutReport(w: World, p: Prospect) {
   return { top, low, fit }
 }
 
-function Prospects({ w, list }: { w: World; list: Prospect[] }) {
+function Prospects({ w, list, onScouts }: { w: World; list: Prospect[]; onScouts: () => void }) {
   const mutate = useGame((s) => s.mutate)
   const notify = useGame((s) => s.notify)
   const [sel, setSel] = useState<Prospect>()
   const full = academyOf(w, w.userClubId).length >= 15
   const bar = useMemo(() => firstTeamBar(w), [w.date, w.userClubId])
   const club = userClub(w)
-  if (!list.length) return <div className="pad" style={{ marginTop: 12 }}><div className="card"><Empty icon="scout" title="No prospects waiting" text={w.youthScouts.some((s) => s.mission) ? 'Your youth scouts report on the 1st of each month with the players they have found.' : 'Send a youth scout on a mission to start finding players.'} /></div></div>
+  if (!list.length) return <div className="pad" style={{ marginTop: 12 }}><div className="card"><Empty icon="scout" title="No prospects waiting" text={w.youthScouts.some((s) => s.mission) ? 'Your youth scouts report on the 1st of each month.' : 'Nobody is out looking yet.'} action={w.youthScouts.some((s) => s.mission) ? undefined : <button className="btn sm" onClick={() => { haptic(); onScouts() }}>Send a scout</button>} /></div></div>
   const scoutOf = (p: Prospect) => w.youthScouts.find((s) => s.id === p.scoutId)
   const rep = sel ? scoutReport(w, sel) : undefined
   return (

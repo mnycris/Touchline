@@ -3,8 +3,9 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import { useRemember } from '../memory'
 import type { TrainingPlan } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { Face, Ovr, PosChip, Sparkline } from '../components/atoms'
+import { Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet } from '../components/layout'
+import { InfoTip } from '../components/InfoTip'
 import { DEV_PLANS, POS_GROUP, POS_ORDER, TRAINING_PLANS } from '../../domain/constants'
 import { rosterOf } from '../../engine/world/roster'
 import { ageOf, userClub } from '../selectors'
@@ -28,13 +29,14 @@ export function TrainingScreen() {
     }))
     useGame.getState().notify('Assistant set individual plans', 'ok')
   }
+  // the whole squad on one plan shows as that choice; a mix shows none
+  const same = squad.length && squad.every((p) => p.trainingPlan === squad[0].trainingPlan) ? squad[0].trainingPlan : undefined
   return (
     <Screen title="Training" sub="Energy, sharpness and development" back>
       <div className="pad stack">
-        <div className="card pad-card small muted">Each player follows a weekly training plan. Energy-focused plans aid recovery between matches; performance plans build match sharpness and accelerate development, at a fatigue and injury cost.</div>
-        <div className="row wrap" style={{ gap: 7 }}>
-          <button className="chip on" onClick={auto}><Icon name="manager" size={14} /> Assistant auto-plan</button>
-          {TRAINING_PLANS.map((t) => <button key={t.id} className="chip" onClick={() => setAll(t.id)}>All: {PLAN_SHORT[t.id]}</button>)}
+        <div className="card tr-all">
+          <div className="row between"><span className="row tight"><span className="label">Everyone</span><TrainingInfo /></span><button className="btn xs" onClick={auto}><Icon name="manager" size={13} /> Assistant plans</button></div>
+          <Seg small items={TRAINING_PLANS.map((t) => ({ id: t.id, label: PLAN_SHORT[t.id] }))} value={(same || '') as TrainingPlan} onChange={setAll} />
         </div>
         <div className="card list">
           {squad.map((p) => (
@@ -47,7 +49,7 @@ export function TrainingScreen() {
                   <MiniBar label="SH" v={p.sharpness} color="var(--info)" />
                 </div>
               </div>
-              <span className="pill" style={{ background: `${PLAN_COLOR[p.trainingPlan]}33`, color: PLAN_COLOR[p.trainingPlan] }}>{PLAN_SHORT[p.trainingPlan]}</span>
+              <span className={`tr-plan ${p.trainingPlan === 'Balanced' ? '' : 'set'}`} style={{ ['--pc' as string]: PLAN_COLOR[p.trainingPlan] }}>{PLAN_SHORT[p.trainingPlan]}</span>
             </button>
           ))}
         </div>
@@ -67,6 +69,16 @@ export function TrainingScreen() {
   )
 }
 
+/** What the plans do, a tap away rather than a paragraph over the list. */
+function TrainingInfo() {
+  return (
+    <InfoTip title="Training plans">
+      <p>Each player follows a weekly plan. Energy plans help him recover between matches; performance plans build sharpness and speed up his development, at a cost in fatigue and injury risk.</p>
+      {TRAINING_PLANS.map((t) => <p key={t.id}><b style={{ color: PLAN_COLOR[t.id] }}>{t.id}</b> · {t.desc}</p>)}
+    </InfoTip>
+  )
+}
+
 function MiniBar({ label, v, color }: { label: string; v: number; color?: string }) {
   const c = color || (v >= 75 ? 'var(--pos)' : v >= 50 ? 'var(--warn)' : 'var(--neg)')
   return <span className="row tight tiny" style={{ gap: 4 }}><span className="dim">{label}</span><span style={{ width: 46 }}><span className="bar" style={{ height: 4, display: 'block' }}><i style={{ width: `${v}%`, background: c }} /></span></span><b className="num">{Math.round(v)}</b></span>
@@ -78,10 +90,15 @@ export function DevelopmentScreen() {
   const club = userClub(w)
   const [grp, setGrp] = useRemember<'young' | 'all'>('devGroup', 'young', 'screen')
   const squad = [...rosterOf(w, club.id)].filter((p) => grp === 'all' || ageOf(w, p) <= 23).sort((a, b) => (b.pot - b.ovr) - (a.pot - a.ovr))
+  // growth lands on the 1st and the 15th
+  const lastGrowth = `${w.date.slice(0, 8)}${Number(w.date.slice(8, 10)) >= 15 ? '15' : '01'}`
   return (
     <Screen title="Player Development" back>
       <div className="pad stack">
-        <Seg small items={[{ id: 'young', label: 'Under 24' }, { id: 'all', label: 'Whole squad' }]} value={grp} onChange={setGrp} />
+        <div className="row" style={{ gap: 10 }}>
+          <div className="grow"><Seg small items={[{ id: 'young', label: 'Under 24' }, { id: 'all', label: 'Whole squad' }]} value={grp} onChange={setGrp} /></div>
+          <InfoTip title="Development"><p>Growth is applied on the 1st and the 15th of every month, driven by age, potential, minutes, match ratings and training intensity.</p><p>Last applied {fmtDate(lastGrowth, 'long')}.</p></InfoTip>
+        </div>
         <div className="card list">
           {squad.map((p) => {
             const plan = DEV_PLANS.find((d) => d.id === p.devPlan)
@@ -94,13 +111,12 @@ export function DevelopmentScreen() {
                   <div className="t small ellipsis">{p.name} <span className="dim">· {ageOf(w, p)}</span></div>
                   <div className="s">{plan?.name || 'Balanced'}{p.devTargetPos ? ` · → ${p.devTargetPos}` : ''} · {POS_GROUP[p.positions[0]]}</div>
                 </div>
-                <Sparkline values={hist.length > 1 ? hist : [p.ovr, p.ovr]} w={50} h={24} color={gained > 0 ? 'var(--pos)' : gained < 0 ? 'var(--neg)' : 'var(--t3)'} />
+                <span className={`dv-gain num ${gained > 0 ? 'up' : gained < 0 ? 'down' : ''}`} title="Since his first recorded growth">{gained > 0 ? `+${gained}` : gained < 0 ? `${gained}` : '–'}</span>
                 <div className="col" style={{ alignItems: 'center' }}><Ovr v={p.ovr} size="sm" /><span className="tiny dim">{p.pot}</span></div>
               </button>
             )
           })}
         </div>
-        <div className="tiny dim">Growth is applied on the 1st and 15th of every month, driven by age, potential, minutes, match ratings and training intensity. Last update: {fmtDate(w.date, 'long')}.</div>
       </div>
     </Screen>
   )

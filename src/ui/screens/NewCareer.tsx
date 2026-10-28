@@ -12,6 +12,7 @@ import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CompLogo, Face, Flag, ManagerAvatar, Ovr, PosChip, Stars } from '../components/atoms'
 import { Seg, Sheet, Toggle, TopBar } from '../components/layout'
 import { ClubFog } from '../components/ClubFog'
+import { InfoTip } from '../components/InfoTip'
 import { IdentityArt } from '../components/IdentityArt'
 import { compIdentity, identityClass, identityVars } from '../compIdentity'
 import { clubAir, NEUTRAL } from '../atmosphere'
@@ -30,7 +31,11 @@ const STEPS: { id: Step; title: string }[] = [
   { id: 'sign', title: 'Your Appointment' },
 ]
 
-const AVATAR_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#f59e0b', '#06b6d4', '#ec4899', '#64748b']
+/** The manager's badge colour: the colours football is played in (kit colours, deep enough for white initials). */
+const AVATAR_COLORS: { c: string; name: string }[] = [
+  { c: '#c8102e', name: 'Red' }, { c: '#7a263a', name: 'Claret' }, { c: '#1b2f6b', name: 'Navy' }, { c: '#0a4fa6', name: 'Royal blue' },
+  { c: '#3f8fd0', name: 'Sky blue' }, { c: '#00804a', name: 'Green' }, { c: '#c48a00', name: 'Gold' }, { c: '#26292f', name: 'Black' },
+]
 const DEFAULT_AVATAR: AvatarConfig = { skin: 1, hair: 2, hairColor: 2, beard: 1, eyes: 0, brows: 0, glasses: 0, outfit: 'Suit', outfitColor: '#1A2233', tie: true }
 /** The coaching styles a manager arrives with (they set his first tactics), each in a line. */
 const STYLES: { id: string; line: string }[] = [
@@ -76,7 +81,7 @@ export function NewCareer({ onExit }: { onExit: () => void }) {
   const [last, setLast] = useState('')
   const [nation, setNation] = useState('England')
   const [age, setAge] = useState(42)
-  const [identity, setIdentity] = useState<ManagerIdentity>({ color: AVATAR_COLORS[0], style: 'Balanced' })
+  const [identity, setIdentity] = useState<ManagerIdentity>({ color: AVATAR_COLORS[0].c, style: 'Balanced' })
   const [leagueId, setLeagueId] = useState<number>()
   const [clubId, setClubId] = useState<number>()
   const [saveName, setSaveName] = useState('')
@@ -318,7 +323,7 @@ function YouStep(props: { raw: RawDb; first: string; last: string; setFirst: (s:
           </div>
           <div className="nc-field nc-colours">
             <span>Badge colour</span>
-            <div className="nc-swatches">{AVATAR_COLORS.map((c) => <button key={c} aria-label={c} className={`swatch ${identity.color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => { haptic(); setIdentity({ ...identity, color: c }) }} />)}</div>
+            <div className="nc-swatches">{AVATAR_COLORS.map(({ c, name }) => <button key={c} aria-label={name} className={`swatch ${identity.color === c ? 'on' : ''}`} style={{ background: c }} onClick={() => { haptic(); setIdentity({ ...identity, color: c }) }} />)}</div>
           </div>
         </div>
       ) : (
@@ -471,7 +476,7 @@ function ClubPreview({ raw, club, onClose, onTake }: { raw: RawDb; club: RawClub
             <div className="li"><span className="muted">Transfer budget</span><b>{fmtMoney(rawBudget(raw, club))}</b></div>
             {club.manager && <div className="li"><span className="muted">You replace</span><b>{club.manager.name}</b></div>}
           </div>
-          <div className="nc-facts">
+          <div className="card jgrid c2 nc-facts">
             <div><Icon name="stadium" size={15} /><span>{club.stadium || 'Stadium'}</span><b>{club.capacity ? club.capacity.toLocaleString() : '—'}</b></div>
             <div><Icon name="history" size={15} /><span>2025/26</span><b>{lastPos ? ord(lastPos) : lg?.level === 1 ? 'Promoted' : '—'}</b></div>
             <div><Icon name="globe" size={15} /><span>City</span><b>{club.city || club.country}</b></div>
@@ -582,7 +587,7 @@ function RulesStep({ settings, setSettings, leagues, own, editMode, setEditMode 
         <Toggle label="Other clubs do business" sub="They buy, sell and loan players through the windows" on={settings.aiTransfers} onChange={(v) => set({ aiTransfers: v })} />
       </div>
       <div className="card pad-card">
-        <div className="label" style={{ marginBottom: 8 }}>Leagues to follow closely</div>
+        <div className="row between" style={{ marginBottom: 8 }}><span className="label">Leagues to follow closely</span><InfoTip title="Followed leagues"><p>Followed leagues are simulated in full: every match has line-ups, ratings, events and stats, and you can watch them live.</p><p>Other leagues use a faster results model. More leagues means slightly longer days.</p></InfoTip></div>
         <DeepLeaguePicker leagues={leagues} own={own} value={settings.deepLeagues} onChange={(v) => set({ deepLeagues: v })} />
       </div>
       <div className={`card edit-opt ${editMode ? 'on' : ''}`}>

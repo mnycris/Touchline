@@ -4,7 +4,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, Suspension, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, Face, Ovr, PosChip, Empty } from '../components/atoms'
-import { Chips, HubActions, Screen, Seg } from '../components/layout'
+import { Chips, HubActions, Screen, Seg, Shortcuts } from '../components/layout'
 import { POS_GROUP, POS_ORDER, formationOf } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
@@ -95,15 +95,17 @@ export function SquadHub() {
           <div><div className="label">Avg Age</div><div className="display">{avgAge}</div></div>
           <div><div className="label">Wages/wk</div><div className="display" style={{ color: wageColor(w, bill) }}>{fmtMoney(bill, { short: true })}</div></div>
         </div>
-        <div className="grid4" style={{ marginTop: 10 }}>
-          <QuickBtn icon="tactics" label="Team Sheet" onClick={() => go({ name: 'tactics' })} />
-          <QuickBtn icon="training" label="Training" onClick={() => go({ name: 'training' })} />
-          <QuickBtn icon="development" label="Develop" onClick={() => go({ name: 'development' })} />
-          <QuickBtn icon="contract" label="Contracts" onClick={() => go({ name: 'contracts' })} />
+        <div style={{ marginTop: 10 }}>
+          <Shortcuts items={[
+            { icon: 'tactics', label: 'Team Sheet', onClick: () => go({ name: 'tactics' }) },
+            { icon: 'training', label: 'Training', onClick: () => go({ name: 'training' }) },
+            { icon: 'development', label: 'Develop', onClick: () => go({ name: 'development' }) },
+            { icon: 'contract', label: 'Contracts', onClick: () => go({ name: 'contracts' }) },
+          ]} />
         </div>
         <button className="card tap pr-entry" onClick={() => { haptic(); useGame.getState().open({ name: 'practice' }) }}>
-          <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
-          <span className="meta"><b>Tactical practice</b><span className="tiny dim">Test your tactics in a training match. Nothing counts.</span></span>
+          <Icon name="cone" size={18} />
+          <span className="meta"><b>Tactics Lab</b><span className="tiny dim ellipsis">Practice match · nothing counts</span></span>
           <Icon name="forward" size={16} color="var(--t3)" />
         </button>
         {(injured || banned || unhappy || expiring) ? (
@@ -184,7 +186,7 @@ function DepthChart({ w, squad, grp }: { w: World; squad: Player[]; grp: string 
   }
   return (
     <div className="stack">
-      <div className="tiny dim" style={{ padding: '0 4px' }}>Your {f.name} from the team sheet. Each position's starters, then the best of the rest by their rating there.</div>
+      <div className="tiny dim" style={{ padding: '0 4px' }}>Your {f.name}: each position's starters, then the best of the rest by their rating there.</div>
       {shown.map((r) => {
         const rated = squad.map((p) => ({ p, r: posRating(p, r.pos) })).sort((a, b) => b.r - a.r)
         const starters = r.starters.map((id) => rated.find((x) => x.p.id === id)).filter(Boolean) as typeof rated
@@ -215,11 +217,7 @@ function DepthChart({ w, squad, grp }: { w: World; squad: Player[]; grp: string 
   )
 }
 
-function QuickBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return <button className="card tap mini-btn" onClick={() => { haptic(); onClick() }}><Icon name={icon} size={20} color="var(--club2)" /><span>{label}</span></button>
-}
-
-export function SquadRow({ w, p, view = 'overview', onClick, right, cols }: { w: World; p: Player; view?: View; onClick?: () => void; right?: React.ReactNode; cols?: Col[] }) {
+export function SquadRow({ w, p, view = 'overview', onClick, right, cols, meta }: { w: World; p: Player; view?: View; onClick?: () => void; right?: React.ReactNode; cols?: Col[]; /** the line under his name, in place of the usual */ meta?: React.ReactNode }) {
   const go = useGame((s) => s.go)
   const st = playerStatus(w, p)
   const club = w.clubs[p.clubId]
@@ -232,8 +230,9 @@ export function SquadRow({ w, p, view = 'overview', onClick, right, cols }: { w:
       </div>
       <div className="meta">
         <div className="t ellipsis">{cols ? callName(p.name) : p.name}{captain && <span className="cap">C</span>}</div>
-        {cols ? <div className="s ellipsis">{p.positions[0]} · {ageOf(w, p)}{st.key !== 'ok' ? <span style={{ color: st.color }}> · {st.label}</span> : view === 'contract' ? ` · ${p.contract.role}` : ''}</div>
-          : view === 'overview' ? <div className="s ellipsis">{ageOf(w, p)} yrs · {p.contract.role} · {fmtMoney(p.value, { short: true })}{st.key !== 'ok' ? <span style={{ color: st.color }}> · {st.label}</span> : null}</div> : null}
+        {meta != null ? <div className="s ellipsis">{meta}</div>
+          : cols ? <div className="s ellipsis">{st.key !== 'ok' ? <span style={{ color: st.color }}>{st.label} · </span> : null}{p.positions[0]} · {ageOf(w, p)}{st.key === 'ok' && view === 'contract' ? ` · ${p.contract.role}` : ''}</div>
+          : view === 'overview' ? <div className="s ellipsis">{st.key !== 'ok' ? <span style={{ color: st.color }}>{st.label} · </span> : null}{ageOf(w, p)} yrs · {p.contract.role} · {fmtMoney(p.value, { short: true })}</div> : null}
       </div>
       {cols ? <>
         {cols.map((c) => <span key={c.k} className="sq-cell" style={{ width: c.w }}>{c.cell(w, p)}</span>)}
@@ -293,16 +292,17 @@ export function SquadStatus() {
   const tired = squad.filter((p) => !p.injury && p.fitness < 65).sort((a, b) => a.fitness - b.fitness)
   const unhappy = squad.filter((p) => p.morale < 40).sort((a, b) => a.morale - b.morale)
   const intl = squad.filter((p) => p.intlDuty)
-  const Section = ({ title, list, sub }: { title: string; list: Player[]; sub: (p: Player) => string }) => list.length ? (
+  // each list says why the player is in it, under his name; an injury's return date stands at the right
+  const Section = ({ title, list, sub, when }: { title: string; list: Player[]; sub: (p: Player) => string; when?: (p: Player) => string }) => list.length ? (
     <>
       <div className="section-title"><div className="h3">{title} <span className="dim">({list.length})</span></div></div>
-      <div className="pad"><div className="card list">{list.map((p) => <SquadRow key={p.id} w={w} p={p} right={<span className="tiny muted" style={{ maxWidth: 130, textAlign: 'right' }}>{sub(p)}</span>} />)}</div></div>
+      <div className="pad"><div className="card list">{list.map((p) => <SquadRow key={p.id} w={w} p={p} meta={sub(p)} right={when ? <span className="sq-when">{when(p)}</span> : undefined} />)}</div></div>
     </>
   ) : null
   return (
     <Screen title="Squad Status" back>
       {!inj.length && !sus.length && !tired.length && !unhappy.length && !intl.length && <Empty icon="check" title="All clear" text="Everyone is fit, available and happy." />}
-      <Section title="Injured" list={inj} sub={(p) => `${p.injury!.type} · back ${fmtDate(p.injury!.until, 'dm')}`} />
+      <Section title="Injured" list={inj} sub={(p) => p.injury!.type} when={(p) => `Back ${fmtDate(p.injury!.until, 'dm')}`} />
       <Section title="Suspended" list={sus} sub={(p) => p.suspensions.map((s) => suspensionText(w, s)).join(', ')} />
       <Section title="International duty" list={intl} sub={(p) => { const nt = dutyTeam(w, p); const next = nt && fixturesOf(w, nt.id).find((f) => !f.played); return nt ? `${nt.short}${next ? ` · v ${w.clubs[next.home === nt.id ? next.away : next.home]?.short} ${fmtDate(next.date, 'dm')}` : ''}` : p.nation }} />
       <Section title="Low energy" list={tired} sub={(p) => `${Math.round(p.fitness)}% energy`} />
@@ -325,17 +325,24 @@ export function Contracts() {
           <WageSummary w={w} bill={bill} />
         </div>
       </div>
+      {/* by the summer each deal runs to, soonest first: Renew stands out only where it is due */}
       <div className="pad" style={{ marginTop: 10 }}>
-        <div className="card list">
-          {squad.map((p) => {
-            const yl = yearsLeft(w, p)
+        <div className="card list sq-list">
+          {[...new Set(squad.map((p) => p.contract.until))].map((y) => {
+            const ps = squad.filter((p) => p.contract.until === y)
+            const due = yearsLeft(w, ps[0]) <= 1
             return (
-              <div key={p.id} className="li">
-                <button className="row grow" style={{ gap: 12, textAlign: 'left', minWidth: 0 }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
-                  <Face p={p} size={40} radius={10} club={club} />
-                  <div className="meta"><div className="t ellipsis">{p.name}</div><div className="s" style={{ color: yl <= 1 ? 'var(--warn)' : undefined }}>{fmtMoney(p.contract.wage)}/wk · expires {p.contract.until} · {p.contract.role}</div></div>
-                </button>
-                {p.loan ? <span className="tiny dim">Loan</span> : <button className={`btn xs ${yl <= 1 ? 'club' : ''}`} onClick={() => open({ name: 'renewal', params: { id: p.id } })}>Renew</button>}
+              <div key={y}>
+                <div className="sq-sec"><span className={due ? 'warn' : ''}>Until June {y}</span><span className="dim">{ps.length}</span></div>
+                {ps.map((p) => (
+                  <div key={p.id} className="li">
+                    <button className="row grow" style={{ gap: 12, textAlign: 'left', minWidth: 0 }} onClick={() => go({ name: 'player', params: { id: p.id } })}>
+                      <Face p={p} size={40} radius={10} club={club} />
+                      <div className="meta"><div className="t ellipsis">{p.name}</div><div className="s">{fmtMoney(p.contract.wage)}/wk · {p.contract.role}</div></div>
+                    </button>
+                    {p.loan ? <span className="tiny dim">Loan</span> : <button className={`btn xs ${due ? 'club' : 'ct-quiet'}`} onClick={() => open({ name: 'renewal', params: { id: p.id } })}>Renew</button>}
+                  </div>
+                ))}
               </div>
             )
           })}

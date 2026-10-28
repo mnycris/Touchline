@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useGame, useWorld, haptic } from '../../store/game'
 import { Chips, Screen } from '../components/layout'
+import { InfoTip } from '../components/InfoTip'
 import { Badge, Empty } from '../components/atoms'
 import { fmtDate } from '../../domain/dates'
 import { rankingTable } from '../../engine/world/fifaRanking'
@@ -33,7 +34,13 @@ export function FifaRanking({ params }: { params?: { id?: number } }) {
   const list = rows.filter((r) => cf === 'All' || w.clubs[r.id]?.confed === cf)
   const has = new Set(rows.map((r) => w.clubs[r.id]?.confed))
   return (
-    <Screen title="World ranking" sub={F.published ? `Published ${fmtDate(F.date, 'long')}` : 'Initial ranking · updated after each window'} back>
+    <Screen title="World ranking" sub={F.published ? `Published ${fmtDate(F.date, 'long')}` : 'Initial ranking · updated after each window'} back right={
+      <InfoTip bar title="How the ranking works">
+        <p>Points follow FIFA's formula: each match adds importance × (result − expected result), the expectation coming from the gap in points.</p>
+        <p>Friendlies weigh 10, Nations League 15–25, qualifiers 25, continental finals 35–40, the World Cup 50–60.</p>
+        <p>A knockout defeat at a finals tournament costs nothing; a shoot-out counts as 0.75 for the winner and 0.5 for the loser.</p>
+      </InfoTip>
+    }>
       <Chips items={CONFEDS.filter((c) => c === 'All' || has.has(c)).map((c) => ({ id: c, label: c }))} value={cf} onChange={(v) => setCf(v as (typeof CONFEDS)[number])} />
       <div className="pad" style={{ marginTop: 10 }}>
         <div className="card list fr-table" key={cf}>
@@ -51,9 +58,6 @@ export function FifaRanking({ params }: { params?: { id?: number } }) {
               </button>
             )
           })}
-        </div>
-        <div className="tiny dim" style={{ margin: '10px 4px 20px', lineHeight: 1.5 }}>
-          Points follow FIFA's formula: each match adds importance × (result − expected result), the expectation coming from the gap in points. Friendlies weigh 10, Nations League 15–25, qualifiers 25, continental finals 35–40, the World Cup 50–60. A knockout defeat at a finals tournament costs nothing; a shoot-out counts as 0.75 for the winner and 0.5 for the loser.
         </div>
       </div>
     </Screen>

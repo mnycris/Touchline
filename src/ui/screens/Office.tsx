@@ -1,8 +1,8 @@
 import { useRemember } from '../memory'
 import { CheckpointsCard } from '../components/Checkpoints'
+import { InfoTip } from '../components/InfoTip'
 import { DeepLeaguePicker } from '../components/DeepLeaguePicker'
 import { useMemo, useState } from 'react'
-import { Fx } from '../components/Fx'
 import { useGame, useWorld, haptic } from '../../store/game'
 import type { ObjectiveCategory, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
@@ -42,30 +42,25 @@ function Board({ w }: { w: World }) {
   const cats = Object.keys(CATEGORY_W) as ObjectiveCategory[]
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
-      <div className="art-banner row" style={{ gap: 16, padding: 16, display: 'flex' }}>
-        <Fx kind="grid" />
-        <div style={{ position: 'relative', zIndex: 1 }}><Ring v={w.board.overall} size={78} stroke={7} /></div>
-        <div className="grow" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="card ob-head">
+        <Ring v={w.board.overall} size={74} stroke={7} />
+        <div className="grow">
           <div className="label">Board confidence</div>
           <div className="h2" style={{ marginTop: 4 }}>{boardMood(w.board.overall)}</div>
           <div className="tiny dim" style={{ marginTop: 4 }}>{w.board.warnings ? `${w.board.warnings} warning${w.board.warnings > 1 ? 's' : ''} issued` : 'No warnings'} · reviewed weekly</div>
         </div>
       </div>
-      <div className="grid5">
-        {cats.map((c) => (
-          <div key={c} className="col center" style={{ gap: 4 }}>
-            <Ring v={w.board.confidence[c]} size={52} label={<Icon name={CAT_ICON[c]} size={17} />} />
-            <span className="tiny dim" style={{ textAlign: 'center', lineHeight: 1.1 }}>{c.replace(' Success', '').replace(' Development', '')}</span>
-            <b className="tiny num">{Math.round(w.board.confidence[c])}</b>
-          </div>
-        ))}
-      </div>
+      {/* each area's confidence heads its own objectives, with its share of the verdict */}
       {cats.map((c) => {
         const list = objs.filter((o) => o.category === c)
-        if (!list.length) return null
+        const v = Math.round(w.board.confidence[c])
         return (
           <div key={c} className="card">
-            <div className="card-h"><div className="row tight"><Icon name={CAT_ICON[c]} size={16} color="var(--club2)" /><span className="label">{c}</span></div><span className="tiny dim">{Math.round(CATEGORY_W[c] * 100)}% weight</span></div>
+            <div className="card-h">
+              <div className="row tight"><Icon name={CAT_ICON[c]} size={16} color="var(--club2)" /><span className="label">{c}</span></div>
+              <span className="ob-conf"><span className="tiny dim">{Math.round(CATEGORY_W[c] * 100)}%<span className="ob-of"> of the verdict</span></span><b className="num" style={{ color: v >= 70 ? 'var(--pos)' : v >= 45 ? 'var(--warn)' : 'var(--neg)' }}>{v}</b></span>
+            </div>
+            {!list.length && <div className="card-b tiny dim">No objectives this season</div>}
             <div className="list">
               {list.map((o) => (
                 <div key={o.id} className="li" style={{ minHeight: 54 }}>
@@ -95,11 +90,11 @@ function Finances({ w }: { w: World }) {
   const ledger = [...f.ledger].reverse().filter((l) => filter === 'all' ? true : filter === 'transfer' ? l.kind === 'transfer' || l.kind === 'bonus' : filter === 'wages' ? l.kind === 'wages' : l.amount > 0).slice(0, 80)
   return (
     <div className="pad stack" style={{ marginTop: 12 }}>
-      <div className="grid2">
-        <div className="card pad-card"><div className="label">Club balance</div><div className="display" style={{ fontSize: 26, marginTop: 4, color: f.balance < 0 ? 'var(--neg)' : undefined }}>{fmtMoney(f.balance)}</div></div>
-        <div className="card pad-card"><div className="label">Transfer budget</div><div className="display" style={{ fontSize: 26, marginTop: 4 }}>{fmtMoney(f.transferBudget)}</div></div>
-        <div className="card pad-card"><div className="label">Season revenue</div><div className="display pos" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.revenueSeason)}</div></div>
-        <div className="card pad-card"><div className="label">Season expenses</div><div className="display neg" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.expensesSeason)}</div></div>
+      <div className="card jgrid c2 fin-facts">
+        <div><div className="label">Club balance</div><div className="display" style={{ fontSize: 26, marginTop: 4, color: f.balance < 0 ? 'var(--neg)' : undefined }}>{fmtMoney(f.balance)}</div></div>
+        <div><div className="label">Transfer budget</div><div className="display" style={{ fontSize: 26, marginTop: 4 }}>{fmtMoney(f.transferBudget)}</div></div>
+        <div><div className="label">Season revenue</div><div className="display pos" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.revenueSeason)}</div></div>
+        <div><div className="label">Season expenses</div><div className="display neg" style={{ fontSize: 22, marginTop: 4 }}>{fmtMoney(f.expensesSeason)}</div></div>
       </div>
       <div className="card pad-card"><WageSummary w={w} bill={bill} /></div>
       <Seg small items={[{ id: 'all', label: 'All' }, { id: 'revenue', label: 'Income' }, { id: 'wages', label: 'Wages' }, { id: 'transfer', label: 'Transfers' }]} value={filter} onChange={setFilter} />
@@ -195,8 +190,8 @@ export function ManagerCareer() {
         <div className="mc-kpis">
           <div><b className="display"><CountUp value={c.p} from={0} /></b><span className="tiny dim">Matches</span></div>
           <div><b className="display"><CountUp value={c.winPct} from={0} format={(v) => `${Math.round(v)}%`} /></b><span className="tiny dim">Win rate</span></div>
-          <div><b className="display gold"><CountUp value={u.trophies.length} from={0} /></b><span className="tiny dim">Trophies</span></div>
-          <div><b className="display"><CountUp value={seasons} from={0} /></b><span className="tiny dim">Seasons</span></div>
+          <div><b className={`display ${u.trophies.length ? 'gold' : ''}`}><CountUp value={u.trophies.length} from={0} /></b><span className="tiny dim">{u.trophies.length === 1 ? 'Trophy' : 'Trophies'}</span></div>
+          <div><b className="display"><CountUp value={seasons} from={0} /></b><span className="tiny dim">{seasons === 1 ? 'Season' : 'Seasons'}</span></div>
         </div>
 
         {c.p > 0 && (
@@ -215,7 +210,7 @@ export function ManagerCareer() {
 
         <div className="card">
           <div className="card-h"><span className="label">Trophy cabinet</span><span className="tiny dim">{u.trophies.length}</span></div>
-          {cabinet.length === 0 ? <div className="card-b small muted">The cabinet is waiting for its first piece of silverware.</div> : (
+          {cabinet.length === 0 ? <div className="card-b small muted">No trophies yet.</div> : (
             <div className="mc-cab">
               {cabinet.map((t) => (
                 <div key={t.key} className="mc-trophy">
@@ -239,7 +234,7 @@ export function ManagerCareer() {
                   <Badge club={w.clubs[s.club]} size={26} />
                   <div className="meta">
                     <div className="t small ellipsis">{s.finish ? `${ordinal(s.finish)} in the ${s.league}` : w.clubs[s.club]?.short}</div>
-                    <div className="s">W{s.w} D{s.d} L{s.l} · {s.gf}–{s.ga}{s.p ? ` · ${Math.round((s.w / s.p) * 100)}% wins` : ''}{s.live ? ' · so far' : ''}</div>
+                    <div className="s">{s.live ? 'So far: ' : ''}W{s.w} D{s.d} L{s.l} · {s.gf}–{s.ga}{s.p ? ` · ${Math.round((s.w / s.p) * 100)}% wins` : ''}</div>
                   </div>
                   <div className="row tight">{s.trophies.map((k, i) => <CompLogo key={i} k={k} size={20} />)}</div>
                   {done && <Icon name="forward" size={14} color="var(--t3)" />}
@@ -252,7 +247,7 @@ export function ManagerCareer() {
         {(c.biggestWin || c.winRun.n > 1) && (
           <>
             <div className="label" style={{ margin: '4px 2px 0' }}>Records</div>
-            <div className="mc-recs">
+            <div className="card jgrid c2 mc-recs">
               <RecordTile label="Biggest win" m={c.biggestWin} tone="var(--pos)" />
               <RecordTile label="Heaviest defeat" m={c.worstDefeat} tone="var(--neg)" />
               <RunTile label="Longest winning run" r={c.winRun} />
@@ -364,7 +359,7 @@ export function Jobs({ params }: { params?: { sacked?: boolean } }) {
           </div>
         </>}
         <div className="label">Vacancies</div>
-        {!jobs.length && <div className="muted small">No vacancies right now. Managers are sacked through the season — check back later.</div>}
+        {!jobs.length && <div className="card"><Empty icon="manager" title="No vacancies" text="Jobs open as managers lose theirs through the season." /></div>}
         <div className="card list">
           {jobs.map((c) => {
             const pos = leaguePos(w, c.id)
@@ -455,7 +450,7 @@ export function CareerSettingsScreen() {
         <div className="card">
           <div className="card-h"><span className="label">Save</span></div>
           <div className="li"><div className="meta"><input className="input" style={{ width: '100%' }} value={name} maxLength={32} onChange={(e) => setName(e.target.value)} onBlur={() => mutate((w) => { w.meta.saveName = name.trim() || w.meta.saveName })} /></div></div>
-          <div className="li"><div className="meta"><div className="t small">Autosave</div><div className="s">After every match, when advancing stops and a few seconds after changes</div></div><Icon name="check" size={18} color="var(--acc)" /></div>
+          <div className="li"><div className="meta"><div className="t small">Autosave</div><div className="s">After every match and every change</div></div><Icon name="check" size={18} color="var(--acc)" /></div>
           <div className="row" style={{ padding: '0 14px 14px', gap: 8 }}>
             <button className="btn club grow" onClick={() => save(false)}><Icon name="save" size={16} /> Save now</button>
             <button className="btn grow" onClick={() => useGame.getState().saveAs(`${name.trim() || w.meta.saveName} (${w.date.slice(0, 4)}/${String(Number(w.date.slice(2, 4)) + 1).padStart(2, '0')})`)}><Icon name="plus" size={16} /> New slot</button>
@@ -467,23 +462,27 @@ export function CareerSettingsScreen() {
         </div>
         <CheckpointsCard w={w} careerId={useGame.getState().saveId || w.meta.id} />
         <div className="card">
-          <div className="card-h"><span className="label">Advance stops on</span></div>
-          <div className="tiny dim" style={{ padding: '0 14px 8px' }}>Hold Continue to jump a set number of days instead: 1, 5, 7 and 10 unless you change them there.</div>
+          <div className="card-h">
+            <span className="label">Advance stops on</span>
+            <InfoTip title="Advancing"><p>Continue runs day by day and stops for what you tick here. <b>Your matches, transfer window days and urgent board messages always stop it.</b></p><p>Hold Continue to jump a set number of days instead: 1, 5, 7 and 10 unless you change them there.</p></InfoTip>
+          </div>
           <Toggle label="Transfer messages" sub="Bids, counter-offers and completed deals" on={so.offers} onChange={(v) => setPrefs({ stopOn: { ...so, offers: v } })} />
           <Toggle label="Injuries & medical" on={so.injuries} onChange={(v) => setPrefs({ stopOn: { ...so, injuries: v } })} />
           <Toggle label="Player conversations" on={so.conversations} onChange={(v) => setPrefs({ stopOn: { ...so, conversations: v } })} />
           <Toggle label="Scouting reports" sub="Senior and youth scouts" on={so.scouting} onChange={(v) => setPrefs({ stopOn: { ...so, scouting: v } })} />
-          <div className="li tiny dim">Your matches, transfer window open/deadline days and urgent board messages always stop the calendar.</div>
         </div>
         <div className="card">
           <div className="card-h"><span className="label">Match speed buttons</span></div>
           <SpeedEditor />
-          <Toggle label="Assistant manages substitutions" sub="Until you make a substitution yourself: then the rest of that match is yours" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
+          <Toggle label="Assistant manages substitutions" sub="Until you make one yourself in that match" on={prefs.assistantSubs} onChange={(v) => setPrefs({ assistantSubs: v })} />
         </div>
         <div className="card">
-          <div className="card-h"><span className="label">Device</span></div>
-          <Toggle label="Haptics" sub="Taps, decisions and big moments like goals and signings. Vibration on Android; a light tick on iPhone with iOS 18 or later. Older iPhones and most desktops have none." on={prefs.haptics} onChange={(v) => { setPrefs({ haptics: v }); if (v) haptic('medium') }} />
-          <Toggle label="Reduce motion" sub="Calmer screens: no ambient movement, transitions and celebrations go straight to the end, the calendar skips its animation. The match itself still plays out. Also on whenever your device asks for less motion." on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
+          <div className="card-h">
+            <span className="label">Device</span>
+            <InfoTip title="Haptics and motion"><p><b>Haptics</b> is a light tick on iPhone with iOS 18 or later, and vibration on Android. Older iPhones and most desktops have none.</p><p><b>Reduce motion</b> stops the ambient movement, takes transitions and celebrations straight to their end and skips the calendar's animation. The match itself still plays out. It is also on whenever your device asks for less motion.</p></InfoTip>
+          </div>
+          <Toggle label="Haptics" sub="On taps and big moments" on={prefs.haptics} onChange={(v) => { setPrefs({ haptics: v }); if (v) haptic('medium') }} />
+          <Toggle label="Reduce motion" sub="Calmer screens; the match still plays out" on={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
         </div>
         {w.meta.editMode && (
           <div className="card">
@@ -494,7 +493,7 @@ export function CareerSettingsScreen() {
         <ImageCheck />
         <CareerOptions />
         <div className="card pad-card">
-          <div className="label" style={{ marginBottom: 8 }}>Followed leagues</div>
+          <div className="row between" style={{ marginBottom: 8 }}><span className="label">Followed leagues</span><InfoTip title="Followed leagues"><p>Followed leagues are simulated in full: every match has line-ups, ratings, events and stats, and you can watch them live.</p><p>Other leagues use a faster results model. More leagues means slightly longer days.</p></InfoTip></div>
           <DeepLeaguePicker leagues={Object.values(w.leagues)} own={w.clubs[w.userClubId]?.leagueId} value={w.settings.deepLeagues} onChange={(v) => mutate((x) => { x.settings.deepLeagues = v })} />
         </div>
         <div className="card pad-card small"><div className="row between"><span className="muted">Play time</span><b>{fmtPlayTime(w.meta.playTimeMin)}</b></div></div>
@@ -521,7 +520,7 @@ function CareerOptions() {
   const diffs: (typeof st.difficulty)[] = ['Beginner', 'Amateur', 'Semi-Pro', 'Professional', 'World Class', 'Legendary', 'Ultimate']
   return (
     <div className="card pad-card stack" style={{ gap: 12 }}>
-      <div className="label">Career options</div>
+      <div className="row between"><span className="label">Career options</span><InfoTip title="Career options"><p>Changes apply from the next day or match.</p><p>The starting transfer budget was set when the career began.</p></InfoTip></div>
       <div>
         <div className="small b" style={{ marginBottom: 6 }}>Match difficulty</div>
         <div className="row wrap" style={{ gap: 6 }}>{diffs.map((d) => <button key={d} className={`chip sm ${st.difficulty === d ? 'on' : ''}`} onClick={() => set({ difficulty: d })}>{d}</button>)}</div>
@@ -533,7 +532,6 @@ function CareerOptions() {
         <Toggle label="Manager sacking" sub="The board can dismiss you if confidence collapses" on={st.sacking} onChange={(v) => set({ sacking: v })} />
         <Toggle label="AI transfers" sub="Other clubs buy, sell and loan players" on={st.aiTransfers} onChange={(v) => set({ aiTransfers: v })} />
       </div>
-      <div className="tiny dim">Changes apply from the next day or match. The starting budget was set when the career began.</div>
     </div>
   )
 }
@@ -545,7 +543,7 @@ function AwardsBoard() {
   const [scope, setScope] = useRemember<'mine' | 'all'>('scope', 'mine', 'screen')
   const own = Object.values(w.competitions).find((c) => c.season === w.season && c.format === 'league' && c.clubs.includes(w.userClubId))?.key
   const list = w.awards.filter((a) => scope === 'all' || !a.compKey || a.compKey === own || a.clubId === w.userClubId || (a.playerId && w.players[a.playerId]?.clubId === w.userClubId))
-  if (!w.awards.length) return <div className="pad" style={{ marginTop: 12 }}><Empty icon="medal" title="No awards yet" text="Player and Manager of the Month awards are handed out at the start of every month; season awards at the end of the campaign." /></div>
+  if (!w.awards.length) return <div className="pad" style={{ marginTop: 12 }}><Empty icon="medal" title="No awards yet" text="Monthly awards come on the 1st, the season’s at the end of the campaign." /></div>
   const seasonAw = list.filter((a) => !a.month).reverse()
   const months = [...new Set(list.filter((a) => a.month).map((a) => a.month!))].sort().reverse()
   const person = (a: (typeof list)[number]) => {
@@ -554,7 +552,7 @@ function AwardsBoard() {
     return (
       <button className="aw-p" onClick={() => p ? go({ name: 'player', params: { id: p.id } }) : c && go({ name: 'club', params: { id: c.id } })}>
         {p ? <Face p={p} size={40} radius={12} club={w.clubs[p.clubId]} /> : c ? <Badge club={c} size={34} /> : <Icon name="medal" size={24} color="var(--gold)" />}
-        <span className="aw-pn"><span className="tiny dim">{/Manager/.test(a.name) ? 'Manager of the Month' : /Month/.test(a.name) ? 'Player of the Month' : a.name}</span><span className="small b ellipsis">{p?.name || a.managerName || c?.name}</span>{a.value ? <span className="tiny dim">{a.value}</span> : null}</span>
+        <span className="aw-pn"><span className="small b ellipsis2">{p?.name || a.managerName || c?.name}</span>{a.value ? <span className="tiny dim">{a.value}</span> : null}</span>
       </button>
     )
   }
@@ -579,28 +577,30 @@ function AwardsBoard() {
           </div>
         </div>
       )}
-      {months.map((m) => {
+      {/* the months as one table: what each column is, said once at the top */}
+      {months.length > 0 && <div className="card aw-table">
+        <div className="aw-row aw-head"><span /><span className="label">Player<span className="aw-om"> of the month</span></span><span className="label">Manager<span className="aw-om"> of the month</span></span></div>
+        {months.map((m) => {
         const inMonth = list.filter((a) => a.month === m)
         const comps = [...new Set(inMonth.map((a) => a.compKey || ''))].sort((a, b) => (a === own ? -1 : b === own ? 1 : 0))
         return (
-          <div key={m} className="card">
-            <div className="card-h"><span className="label">{fmtDate(`${m}-01`, 'month')}</span></div>
-            <div className="list">
+          <div key={m}>
+            <div className="aw-month">{fmtDate(`${m}-01`, 'month')}</div>
               {comps.map((k) => {
                 const rows = inMonth.filter((a) => (a.compKey || '') === k)
                 const player = rows.find((a) => a.playerId), manager = rows.find((a) => !a.playerId)
                 return (
                   <div key={k} className="aw-row">
                     <div className="aw-comp">{k && <CompLogo k={k} size={22} />}</div>
-                    {player && person(player)}
+                    {player ? person(player) : <span />}
                     {manager && person(manager)}
                   </div>
                 )
               })}
-            </div>
           </div>
         )
-      })}
+        })}
+      </div>}
     </div>
   )
 }

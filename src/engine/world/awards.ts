@@ -17,7 +17,7 @@ export function monthlyAwards(w: World) {
   const month = end.slice(0, 7)
   const mName = monthName(toDate(end).getUTCMonth())
   // one roundup story per month instead of a headline per award
-  const winners: { comp: string; compId: string; own: boolean; playerId?: number; text: string; manager?: string }[] = []
+  const winners: { comp: string; compId: string; own: boolean; playerId?: number; g: number; a: number; manager?: { name: string; club: string; pts: number } }[] = []
   for (const comp of leagueComps(w)) {
     const fx = comp.fixtures.map((id) => w.fixtures[id]).filter((f) => f.played && f.date.startsWith(month))
     if (fx.length < comp.clubs.length) continue
@@ -56,7 +56,7 @@ export function monthlyAwards(w: World) {
       const e = score.get(best)!
       const award: Award = { id: `a${w.nextIds.misc++}`, name: `${comp.short} Player of the Month`, season: w.season, month, compKey: comp.key, playerId: p.id, clubId: p.clubId }
       w.awards.push(award)
-      winners.push({ comp: comp.short, compId: comp.id, own: comp.clubs.includes(w.userClubId), playerId: p.id, text: `${p.name} (${w.clubs[p.clubId].short}) · ${e.g} G ${e.a} A` })
+      winners.push({ comp: comp.short, compId: comp.id, own: comp.clubs.includes(w.userClubId), playerId: p.id, g: e.g, a: e.a })
       if (p.clubId === w.userClubId) p.morale = Math.min(100, p.morale + 6)
     }
     // Manager of the Month
@@ -67,7 +67,7 @@ export function monthlyAwards(w: World) {
       const name = isUser ? `${w.user.firstName} ${w.user.lastName}` : w.managers[w.clubs[bc].managerId]?.name || ''
       w.awards.push({ id: `a${w.nextIds.misc++}`, name: `${comp.short} Manager of the Month`, season: w.season, month, compKey: comp.key, clubId: bc, managerName: name })
       const pw = winners.find((x) => x.compId === comp.id)
-      if (pw) pw.manager = `${name} (${w.clubs[bc].short}, ${bp} pts)`
+      if (pw) pw.manager = { name, club: w.clubs[bc].short, pts: bp }
       if (isUser) {
         w.user.awards.push({ name: `${comp.short} Manager of the Month`, season: w.season, month, compKey: comp.key, clubId: bc })
         w.user.reputation = Math.min(100, w.user.reputation + 2)
@@ -82,10 +82,22 @@ export function monthlyAwards(w: World) {
   const mine = winners.find((x) => x.playerId && w.players[x.playerId]?.clubId === w.userClubId)
   postNews(w, {
     headline: mine ? `${w.players[mine.playerId!].name} is ${mine.comp} Player of the Month` : leadP ? `${mName} awards: ${leadP.name} named ${lead.comp} Player of the Month` : `${mName} awards`,
-    body: winners.map((x) => `${x.comp}: ${x.text}${x.manager ? `; Manager of the Month ${x.manager}` : ''}.`).join(' '),
+    body: awardsBody(w, winners, mName),
     kind: 'award', playerIds: winners.filter((x) => x.playerId).map((x) => x.playerId!), clubIds: [], compId: lead.compId, month,
     importance: mine ? 4 : lead.own ? 3 : 2, userRelated: !!mine,
   })
+}
+
+/** The monthly roundup in sentences: the lead winner and what he did, his league's manager, then the others briefly. */
+function awardsBody(w: World, winners: { comp: string; playerId?: number; g: number; a: number; manager?: { name: string; club: string; pts: number } }[], mName: string) {
+  const did = (g: number, a: number) => (g && a ? `${g} goal${g > 1 ? 's' : ''} and ${a} assist${a > 1 ? 's' : ''}` : g ? `${g} goal${g > 1 ? 's' : ''}` : a ? `${a} assist${a > 1 ? 's' : ''}` : 'a run of top-class performances')
+  const who = (id: number) => `${w.players[id].name} (${w.clubs[w.players[id].clubId]?.short})`
+  const [lead, ...rest] = winners.filter((x) => x.playerId && w.players[x.playerId])
+  if (!lead) return `The ${mName} awards have been handed out.`
+  const out = [`${who(lead.playerId!)} takes the ${lead.comp} award for ${mName} with ${did(lead.g, lead.a)}.`]
+  if (lead.manager) out.push(`${lead.manager.name} is Manager of the Month after ${lead.manager.pts} points with ${lead.manager.club}.`)
+  if (rest.length) out.push(`Elsewhere: ${rest.map((x) => `${who(x.playerId!)} in the ${x.comp}`).join(', ')}.`)
+  return out.join(' ')
 }
 
 /**

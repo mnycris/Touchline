@@ -12,7 +12,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CountUp, Empty, Face, Flag, Ovr, PosChip, Stars } from '../components/atoms'
-import { Chips, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
+import { Chips, HubActions, Screen, Seg, Sheet, Shortcuts, Stepper, Tabs } from '../components/layout'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { addDays, diffDays, fmtDate } from '../../domain/dates'
 import { POS_GROUP, SQUAD_ROLES } from '../../domain/constants'
@@ -56,10 +56,12 @@ export function TransferHub() {
             <div className="row tight tiny" style={{ marginTop: 10, opacity: 0.85 }}><Icon name={win ? 'transfers' : 'lock'} size={14} />{win ? `${win.name} window · ${diffDays(win.close, w.date)} days left` : 'Window closed — deals agreed now complete when it reopens'}</div>
           </div>
         </div>
-        <div className="grid3" style={{ marginTop: 10 }}>
-          <button className="card tap mini-btn" onClick={() => go({ name: 'search' })}><Icon name="search" size={22} color="var(--club2)" /><span>Search</span></button>
-          <button className="card tap mini-btn" onClick={() => go({ name: 'scouting' })}><Icon name="scout" size={22} color="var(--club2)" /><span>Scouting</span></button>
-          <button className="card tap mini-btn" onClick={() => go({ name: 'transferHistory' })}><Icon name="history" size={22} color="var(--club2)" /><span>History</span></button>
+        <div style={{ marginTop: 10 }}>
+          <Shortcuts items={[
+            { icon: 'search', label: 'Search', onClick: () => go({ name: 'search' }) },
+            { icon: 'scout', label: 'Scouting', onClick: () => go({ name: 'scouting' }) },
+            { icon: 'history', label: 'History', onClick: () => go({ name: 'transferHistory' }) },
+          ]} />
         </div>
       </div>
       <div className="tx-tabs" style={{ marginTop: 12 }}>
@@ -77,7 +79,7 @@ export function TransferHub() {
           </>}
           <div className="label">Your targets</div>
           {!outgoing.length && !Object.values(w.transfers.targets).some((t) => t.status === 'Scouting' || t.status === 'Club Approached') ? (
-            <div className="card"><Empty icon="handshake" title="No active negotiations" text="Search the market or use your scouting network to find targets." action={<button className="btn club sm" onClick={() => go({ name: 'search' })}>Search players</button>} /></div>
+            <div className="card"><Empty icon="handshake" title="No active negotiations" text="Find a target in Search or through your scouts." action={<button className="btn club sm" onClick={() => go({ name: 'search' })}>Search players</button>} /></div>
           ) : (
             <div className="card list">
               {outgoing.map((o) => <OfferRow key={o.id} w={w} o={o} onClick={() => open({ name: 'negotiation', params: { playerId: o.playerId, offerId: o.id, stage: o.status === 'Offer Accepted' ? 'contract' : undefined } })} />)}
@@ -93,7 +95,7 @@ export function TransferHub() {
       )}
       {tab === 'shortlist' && (
         <div className="pad" style={{ marginTop: 12 }}>
-          {!w.transfers.shortlist.length ? <Empty icon="shortlist" title="Shortlist is empty" text="Tap the star on any player profile to track him here." /> : (
+          {!w.transfers.shortlist.length ? <Empty icon="shortlist" title="Shortlist is empty" text="Add players with the bookmark on their profile." /> : (
             <div className="card list">{w.transfers.shortlist.map((id) => {
               const p = w.players[id]
               if (!p) return null
@@ -497,10 +499,10 @@ export function Negotiation({ params }: { params: { playerId: number; offerId?: 
           </div>
           <div className="col center" style={{ gap: 6 }}>{seller ? <Badge club={seller} size={40} /> : <Icon name="contract" size={32} />}<span className="tiny b">{seller?.short || 'Free'}</span></div>
         </div>
-        <div className="grid3">
-          <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Value</div><div className="b small">{fmtMoney(p.value, { short: true })}</div></div>
-          <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">{p.clubId ? 'Wage now' : 'Contract'}</div><div className="b small">{p.clubId ? `${fmtMoney(p.wage, { short: true })}/wk` : 'None'}</div></div>
-          <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Interest</div><div className="b small" style={{ color: interest >= 60 ? 'var(--pos)' : interest >= 35 ? 'var(--warn)' : 'var(--neg)' }}>{interest >= 70 ? 'Keen' : interest >= 50 ? 'Open' : interest >= 30 ? 'Unsure' : 'Reluctant'}</div></div>
+        <div className="card jgrid c3 club-facts">
+          <div><div className="tiny dim">Value</div><div className="b small">{fmtMoney(p.value, { short: true })}</div></div>
+          <div><div className="tiny dim">{p.clubId ? 'Wage now' : 'Contract'}</div><div className="b small">{p.clubId ? `${fmtMoney(p.wage, { short: true })}/wk` : 'None'}</div></div>
+          <div><div className="tiny dim">Interest</div><div className="b small" style={{ color: interest >= 60 ? 'var(--pos)' : interest >= 35 ? 'var(--warn)' : 'var(--neg)' }}>{interest >= 70 ? 'Keen' : interest >= 50 ? 'Open' : interest >= 30 ? 'Unsure' : 'Reluctant'}</div></div>
         </div>
         <div className="card pad-card" style={{ padding: 12 }}>
           <MoodMeter v={mood} label={stage === 'contract' ? `Agent${talks ? ` · ${agentStyleLabel(talks.style)}` : ''}` : `${seller?.short || 'Club'} patience`} />

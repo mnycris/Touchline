@@ -49,11 +49,11 @@ export function CoachProfile({ params }: { params?: { id: number } }) {
           </div>
         </div>
       </div>
-      <div className="pad grid3" style={{ marginTop: 10 }}>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Reputation</div><div style={{ marginTop: 5 }}><Stars n={Math.max(1, Math.round(m.reputation / 20))} size={12} /></div></div>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Formation</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{m.formation.split(' ')[0]}</div><div className="tiny dim ellipsis">{m.formation.split(' ').slice(1).join(' ') || '—'}</div></div>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Style</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{m.vision}</div></div>
-      </div>
+      <div className="pad" style={{ marginTop: 10 }}><div className="card jgrid c3 club-facts">
+        <div><div className="tiny dim">Reputation</div><div style={{ marginTop: 5 }}><Stars n={Math.max(1, Math.round(m.reputation / 20))} size={12} /></div></div>
+        <div><div className="tiny dim">Formation</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{m.formation.split(' ')[0]}</div><div className="tiny dim ellipsis">{m.formation.split(' ').slice(1).join(' ') || '—'}</div></div>
+        <div><div className="tiny dim">Style</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{m.vision}</div></div>
+      </div></div>
       <div className="pad stack" style={{ marginTop: 10 }}>
         <div className="card pad-card">
           <div className="row between"><span className="label">Record in this career</span><span className="tiny dim">{r.p} games</span></div>

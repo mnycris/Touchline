@@ -148,7 +148,7 @@ export function FollowingView({ w }: { w: World }) {
         ))}
       </div>
       <Sheet open={manage} onClose={() => setManage(false)} title="Following">
-        <div className="tiny dim" style={{ marginBottom: 10 }}>Tap the star to stop following. Nothing here sends you messages: developments appear in this feed, and only the big ones in the news drop-in.</div>
+        <div className="tiny dim" style={{ marginBottom: 10 }}>Tap a star to stop following. What they do appears here, never in your inbox.</div>
         <div className="card list">
           {list.map((f) => {
             const view = refView(w, f)

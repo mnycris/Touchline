@@ -1,6 +1,7 @@
 // The news feed's story cards: one design system (same frame, rhythm and type scale), with every kind of story
 // wearing its own identity: a scoreline for results, the move itself for transfers, a quote for managers, the number
-// for records, gold for trophies and awards, the medical cross for injuries, a dashed "unconfirmed" look for rumours.
+// for records, gold for trophies and awards, the medical cross for injuries, an italic "unconfirmed" headline for
+// rumours. The kind of story is told once, by the coloured label at the top; crests and logos stand on the card itself.
 import type { NewsItem, World } from '../../domain/types'
 import { Badge, CompLogo, Face, FormPips } from './atoms'
 import { fixturesOf, outcomeFor } from '../selectors'
@@ -131,7 +132,7 @@ export function StoryCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolea
     )
   } else if (t === 'award') {
     const faces = [...new Set(n.playerIds)].map((id) => w.players[id]).filter(Boolean).slice(0, 4)
-    visual = faces.length ? <span className="ns-faces">{faces.map((x) => <Face key={x.id} p={x} size={faces.length > 1 ? 40 : 52} radius={12} club={w.clubs[x.clubId]} />)}</span> : <span className="ns-icon"><Icon name="medal" size={26} color={S.tone} /></span>
+    visual = faces.length ? <span className="ns-faces">{faces.map((x) => <Face key={x.id} p={x} size={faces.length > 1 ? 40 : 52} radius={12} club={w.clubs[x.clubId]} />)}</span> : null
     if (faces.length > 1) layout = 'stack'
   } else if (t === 'champions' || t === 'promotion' || t === 'relegation') {
     visual = club ? <span className="ns-crest"><Badge club={club} size={lead ? 58 : 44} />{t === 'champions' && <i><Icon name="trophy" size={12} color="#1d1604" /></i>}</span> : comp ? <CompLogo k={comp.logoKey || comp.key} size={40} name={comp.name} /> : null
@@ -147,7 +148,7 @@ export function StoryCard({ w, n, lead }: { w: World; n: NewsItem; lead?: boolea
     const k = num(n.headline)
     visual = p ? <span className="ns-big">{p && <Face p={p} size={lead ? 64 : 50} radius={14} club={w.clubs[p.clubId]} />}{k && <b>{k}</b>}</span> : null
   } else {
-    visual = p ? <Face p={p} size={lead ? 64 : 50} radius={14} club={w.clubs[p.clubId]} /> : club ? <span className="ns-icon"><Badge club={club} size={36} /></span> : comp ? <span className="ns-icon"><CompLogo k={comp.logoKey || comp.key} size={30} name={comp.name} /></span> : <span className="ns-icon"><Icon name={S.icon} size={22} color={S.tone} /></span>
+    visual = p ? <Face p={p} size={lead ? 64 : 50} radius={14} club={w.clubs[p.clubId]} /> : club ? <Badge club={club} size={lead ? 54 : 42} /> : comp ? <CompLogo k={comp.logoKey || comp.key} size={36} name={comp.name} /> : null
     if (t === 'contract' && until(n.body)) extra = <div className="ns-tags"><span className="ns-tag good"><Icon name="contract" size={11} />Until {until(n.body)}</span></div>
   }
 

@@ -146,8 +146,8 @@
 .nc-cp-body { gap: 14px; }
 .nc-job .li { justify-content: space-between; min-height: 46px; font-size: 13.5px; }
 .nc-job .li b { font-size: 14px; text-align: right; }
-.nc-facts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
-.nc-facts > div { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 9px; padding: 10px 12px; border-radius: 12px; background: linear-gradient(180deg, var(--s2), var(--s1)); border: 1px solid var(--line); }
+/* the club's four facts in one card (a .jgrid: hairlines between them) */
+.nc-facts > div { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 9px; padding: 11px 13px; }
 .nc-facts svg { grid-row: span 2; align-self: center; color: var(--t3); }
 .nc-facts span { font-size: 11px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nc-facts b { font-size: 14px; font-weight: 650; }

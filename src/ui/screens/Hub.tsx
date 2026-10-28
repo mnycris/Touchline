@@ -3,7 +3,7 @@ import { movedText } from '../moved'
 import { useGame, useWorld, haptic, DEFAULT_ADVANCE_DAYS } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components/atoms'
-import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
+import { HubActions, Screen, SectionTitle, Sheet, Shortcuts } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { calendarOthers, compLogoKey, fixturesOf, nextFixture, opponent, outcomeFor, scoreLine, userClub, lastResult, playerStatus } from '../selectors'
@@ -103,7 +103,7 @@ export function Hub() {
           </Tile>
           <Tile icon="transfers" label={win ? `${win.name} Window` : 'Transfers'} onClick={() => useGame.getState().setTab('transfers')}>
             <div className="display" style={{ fontSize: 22 }}>{fmtMoney(club.finance.transferBudget, { short: true })}</div>
-            <div className="tiny dim" style={{ marginTop: 3 }}>{win ? (diffDays(win.close, w.date) === 0 ? <span className="neg b">DEADLINE DAY</span> : `Closes in ${diffDays(win.close, w.date)} days`) : `Opens ${fmtDate(nextWindowOpen(w) || w.date, 'dm')}`}</div>
+            <div className="tiny dim" style={{ marginTop: 3 }}>{win ? (diffDays(win.close, w.date) === 0 ? <span className="neg b">DEADLINE DAY</span> : `Closes in ${diffDays(win.close, w.date)} days`) : nextWindowOpen(w) ? `Window opens ${fmtDate(nextWindowOpen(w)!, 'dm')}` : 'Window closed'}</div>
           </Tile>
         </div>
 
@@ -130,14 +130,14 @@ export function Hub() {
           </button>
         )}
 
-        <div className="grid3">
-          <MiniBtn icon="calendar" label="Calendar" onClick={() => go({ name: 'calendar' })} />
-          <MiniBtn icon="tactics" label="Tactics" onClick={() => go({ name: 'tactics' })} />
-          <MiniBtn icon="office" label="Office" onClick={() => go({ name: 'office' })} />
-          <MiniBtn icon="manager" label="Career" onClick={() => go({ name: 'manager' })} />
-          <MiniBtn icon="medal" label="Awards" onClick={() => go({ name: 'awards' })} />
-          <MiniBtn icon="save" label="Save" onClick={() => useGame.getState().save(false)} />
-        </div>
+        <Shortcuts cols={3} items={[
+          { icon: 'calendar', label: 'Calendar', onClick: () => go({ name: 'calendar' }) },
+          { icon: 'tactics', label: 'Tactics', onClick: () => go({ name: 'tactics' }) },
+          { icon: 'office', label: 'Office', onClick: () => go({ name: 'office' }) },
+          { icon: 'manager', label: 'Career', onClick: () => go({ name: 'manager' }) },
+          { icon: 'medal', label: 'Awards', onClick: () => go({ name: 'awards' }) },
+          { icon: 'save', label: 'Save', onClick: () => useGame.getState().save(false) },
+        ]} />
       </div>
     </Screen>
   )
@@ -147,28 +147,19 @@ function nextWindowOpen(w: World) {
   return w.windows.map((x) => x.open).filter((d) => d > w.date).sort()[0]
 }
 
+/** One line of the squad's state; a count of nobody stays quiet. */
 function StatusLine({ icon, color, n, label }: { icon: string; color: string; n: number; label: string }) {
-  return <div className="row tight small"><Icon name={icon} size={15} color={n ? color : 'var(--t3)'} /><span className="b num" style={{ width: 16 }}>{n}</span><span className="muted">{label}</span></div>
+  return <div className={`row tight small ${n ? '' : 'st-none'}`}><Icon name={icon} size={15} color={n ? color : 'var(--t3)'} /><span className="b num" style={{ width: 16 }}>{n}</span><span className="muted">{label}</span></div>
 }
 
 function Tile({ icon, label, children, onClick, badge }: { icon: string; label: string; children: React.ReactNode; onClick: () => void; badge?: number }) {
   return (
     <button className="card tap tile" onClick={() => { haptic(); onClick() }}>
-      <span className="wm"><Icon name={icon} size={96} strokeWidth={1.4} /></span>
       <div className="row between" style={{ marginBottom: 10 }}>
         <div className="row tight"><Icon name={icon} size={16} color="var(--club2)" /><span className="label">{label}</span></div>
         {!!badge && <span className="pill" style={{ background: 'var(--neg)', color: '#fff' }}>{badge}</span>}
       </div>
       <div style={{ textAlign: 'left' }}>{children}</div>
-    </button>
-  )
-}
-
-function MiniBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return (
-    <button className="card tap mini-btn" onClick={() => { haptic(); onClick() }}>
-      <Icon name={icon} size={22} color="var(--club2)" />
-      <span>{label}</span>
     </button>
   )
 }
@@ -319,7 +310,7 @@ function CalendarStrip({ w }: { w: World }) {
             <div className="tiny dim b">{WD[weekday(d)]}</div>
             <div className="display" style={{ fontSize: 18 }}>{Number(d.slice(8, 10))}</div>
             <div className="cal-mark">
-              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--tw)" /> : tags || <span className="cal-dot" />}
+              {f ? <Badge club={w.clubs[opponent(f, w.userClubId)]} size={20} /> : isDeadline ? <Icon name="deadline" size={16} color="var(--neg)" /> : isOpen ? <Icon name="transfers" size={16} color="var(--tw)" /> : tags}
             </div>
             {busy && tags}
           </div>

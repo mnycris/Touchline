@@ -29,7 +29,7 @@ export function SeasonReview({ params }: { params: { season: number } }) {
   const r = useMemo(() => (a ? seasonReview(w, a) : undefined), [w, a])
   useReveal()
   const leave = inOverlay ? closeAll : back
-  if (!a || !r) return <Screen title="Season Review" back onBack={leave} swipe={!inOverlay} noNav><Empty icon="season" title="No review available" /></Screen>
+  if (!a || !r) return <Screen title="Season Review" back onBack={leave} swipe={!inOverlay} noNav><Empty icon="season" title="No review yet" text="Each season’s review comes after its last match." /></Screen>
   const acc = clubAccent(r.club)
   const vars = { ['--sr' as string]: acc, ['--sr-rgb' as string]: hexToRgb(acc).join(', '), ...(MOOD_ACC[r.story.mood] ? { ['--sr-acc' as string]: MOOD_ACC[r.story.mood] } : {}) } as CSSProperties
   const justEnded = inOverlay && a.season === w.season - 1

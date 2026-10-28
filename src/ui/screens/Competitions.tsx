@@ -7,7 +7,7 @@ import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
 import { compIdentity, identityClass, identityVars, pageIdentity } from '../compIdentity'
 import { IdentityArt } from '../components/IdentityArt'
-import { HubActions, Screen, Seg, Tabs } from '../components/layout'
+import { HubActions, Screen, Seg, Shortcuts, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
@@ -46,10 +46,10 @@ export function SeasonHub() {
           {!w.flags.unemployed && <SeasonOverview w={w} />}
           {comps.map((c) => <CompCard key={c.id} w={w} c={c} />)}
           {!w.flags.unemployed && <SeasonLeaders w={w} />}
-          <div className="grid2">
-            <button className="card tap mini-btn" onClick={() => go({ name: 'calendar' })}><Icon name="calendar" size={22} color="var(--club2)" /><span>Calendar</span></button>
-            <button className="card tap mini-btn" onClick={() => go({ name: 'awards' })}><Icon name="medal" size={22} color="var(--club2)" /><span>Awards & History</span></button>
-          </div>
+          <Shortcuts cols={2} items={[
+            { icon: 'calendar', label: 'Calendar', onClick: () => go({ name: 'calendar' }) },
+            { icon: 'medal', label: 'Awards & History', onClick: () => go({ name: 'awards' }) },
+          ]} />
         </div>
       )}
       {tab === 'fixtures' && <ClubFixtures w={w} clubId={w.userClubId} />}
@@ -160,8 +160,11 @@ function CompCard({ w, c }: { w: World; c: Competition }) {
     const active = [...c.rounds].reverse().find((r) => r.drawn && r.fixtures.some(mine))
     const roundDone = (r: typeof c.rounds[number]) => r.fixtures.filter(mine).every((id) => w.fixtures[id].played)
     const out = c.rounds.some((r) => r.drawn && r.fixtures.some(mine) && roundDone(r) && r.winners && r.winners.length > 0 && !r.winners.includes(me))
-    if (c.winner === me) status = 'Winners!'
-    else if (out) status = `Eliminated${active ? ` · ${active.name}` : ''}`
+    // losing the last round (a final, or a one-off super cup) is finishing second, not going out
+    const lastRound = c.rounds[c.rounds.length - 1]
+    if (c.winner === me) status = 'Winners'
+    else if (out && active && active.id === lastRound?.id) status = 'Runners-up'
+    else if (out) status = active ? `Out in the ${active.name.toLowerCase()}` : 'Out'
     else if (active && !(c.format === 'uefa' && !myRow?.p && active === c.rounds[0])) status = active.fixtures.filter(mine).every((id) => w.fixtures[id].played) ? `${active.name} · through` : active.name
     else if (!status) status = c.rounds[0] ? `${c.rounds[0].name} · ${fmtDate(c.rounds[0].date, 'dm')}` : 'Upcoming'
   }
@@ -589,13 +592,15 @@ export function ClubProfile({ params }: { params: { id: number } }) {
           </div>
         </div>
       </div>
-      <div className="pad grid3" style={{ marginTop: 10 }}>
-        <button className="card pad-card tap club-mgr" style={{ padding: 10, textAlign: 'left' }} disabled={c.id !== w.userClubId && !mgr} onClick={() => go(c.id === w.userClubId ? { name: 'manager' } : { name: 'coach', params: { id: mgr!.id } })}>
-          <span className="club-mgr-av">{c.id === w.userClubId ? <UserAvatar w={w} size={30} radius={15} /> : mgr ? <ManagerAvatar name={mgr.name} real={mgr.real} size={30} radius={15} nation={mgr.nationality} clubs={[c.name]} /> : null}</span>
-          <div style={{ minWidth: 0 }}><div className="tiny dim">Manager</div><div className="b small ellipsis2" style={{ marginTop: 2, lineHeight: 1.15 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></div>
-        </button>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Stadium</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium || '—'}</div></div>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Budget</div><div className="b small" style={{ marginTop: 3 }}>{fmtMoney(c.finance.transferBudget, { short: true })}</div></div>
+      <div className="pad" style={{ marginTop: 10 }}>
+        <div className="card jgrid c3 club-facts">
+          <button className="tap club-mgr" disabled={c.id !== w.userClubId && !mgr} onClick={() => go(c.id === w.userClubId ? { name: 'manager' } : { name: 'coach', params: { id: mgr!.id } })}>
+            <span className="club-mgr-av">{c.id === w.userClubId ? <UserAvatar w={w} size={30} radius={15} /> : mgr ? <ManagerAvatar name={mgr.name} real={mgr.real} size={30} radius={15} nation={mgr.nationality} clubs={[c.name]} /> : null}</span>
+            <div style={{ minWidth: 0 }}><div className="tiny dim">Manager</div><div className="b small ellipsis2" style={{ marginTop: 2, lineHeight: 1.15 }}>{c.id === w.userClubId ? `${w.user.firstName} ${w.user.lastName}` : mgr?.name || 'Vacant'}</div></div>
+          </button>
+          <div><div className="tiny dim">Stadium</div><div className="b small ellipsis2" style={{ marginTop: 2, lineHeight: 1.15 }}>{c.stadium || '—'}</div></div>
+          <div><div className="tiny dim">Budget</div><div className="b small" style={{ marginTop: 2 }}>{fmtMoney(c.finance.transferBudget, { short: true })}</div></div>
+        </div>
       </div>
       <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'overview', label: 'Overview' }, { id: 'squad', label: 'Squad' }, { id: 'fixtures', label: 'Fixtures' }, { id: 'transfers', label: 'Transfers' }, { id: 'news', label: 'News' }, { id: 'info', label: 'Club' }]} value={tab} onChange={setTab} /></div>
       {tab === 'overview' && <ClubOverview w={w} clubId={c.id} />}
@@ -669,10 +674,12 @@ function NationProfile({ w, c }: { w: World; c: Club }) {
           </button>
         </div>
       )}
-      <div className="pad grid3" style={{ marginTop: 10 }}>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Strength</div><div className="b small" style={{ marginTop: 3 }}>{c.squadAvg.toFixed(1)} <span className="tiny dim">best 23</span></div></div>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Home ground</div><div className="b small ellipsis" style={{ marginTop: 3 }}>{c.stadium}</div></div>
-        <div className="card pad-card" style={{ padding: 10 }}><div className="tiny dim">Your players</div><div className="b small" style={{ marginTop: 3 }}>{mine.length || '—'}</div></div>
+      <div className="pad" style={{ marginTop: 10 }}>
+        <div className="card jgrid c3 club-facts">
+          <div><div className="tiny dim">Strength</div><div className="b small" style={{ marginTop: 3 }}>{c.squadAvg.toFixed(1)} <span className="tiny dim">best 23</span></div></div>
+          <div><div className="tiny dim">Home ground</div><div className="b small ellipsis2" style={{ marginTop: 3, lineHeight: 1.15 }}>{c.stadium}</div></div>
+          <div><div className="tiny dim">Your players</div><div className="b small" style={{ marginTop: 3 }}>{mine.length || '—'}</div></div>
+        </div>
       </div>
       <div style={{ marginTop: 12 }}><Tabs items={[{ id: 'overview', label: 'Overview' }, { id: 'squad', label: called ? 'Squad' : 'Likely squad' }, { id: 'fixtures', label: 'Fixtures' }]} value={tab} onChange={setTab} /></div>
       {tab === 'overview' && (
@@ -689,7 +696,7 @@ function NationProfile({ w, c }: { w: World; c: Club }) {
                 return (
                   <button key={x.id} className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => go({ name: 'comp', params: { id: x.id } })}>
                     <div className="logo-tile"><CompLogo k={compLogoKey(x)} size={28} name={x.name} /></div>
-                    <div className="meta"><div className="t small">{x.name}</div><div className="s">{x.winner === c.id ? 'Winners!' : out ? 'Knocked out' : row?.group ? `${row.group} · ${ordinal(pos)} · ${row.pts} pts` : intlStage(w, x)}</div></div>
+                    <div className="meta"><div className="t small">{x.name}</div><div className="s">{x.winner === c.id ? 'Winners' : out ? 'Knocked out' : row?.group ? `${row.group} · ${ordinal(pos)} · ${row.pts} pts` : intlStage(w, x)}</div></div>
                     <Icon name="forward" size={16} color="var(--t3)" />
                   </button>
                 )

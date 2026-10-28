@@ -138,8 +138,8 @@ export function Tactics({ params }: { params?: { fixtureId?: string } }) {
         <>
           <div className="pad" style={{ marginTop: 12 }}>
             <button className="card tap pr-entry" style={{ marginTop: 0 }} onClick={() => { haptic(); useGame.getState().open({ name: 'practice', params: forMatch ? { fixtureId: forMatch.id } : undefined }) }}>
-              <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
-              <span className="meta"><b>Tactics Lab</b><span className="tiny dim">See your shape, test a change and compare two setups</span></span>
+              <Icon name="cone" size={18} />
+              <span className="meta"><b>Tactics Lab</b><span className="tiny dim ellipsis">Practice match · nothing counts</span></span>
               <Icon name="forward" size={16} color="var(--t3)" />
             </button>
           </div>

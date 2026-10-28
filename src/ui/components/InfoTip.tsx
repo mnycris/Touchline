@@ -5,12 +5,13 @@ import { haptic } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Sheet } from './layout'
 
-export function InfoTip({ title, label, children }: { title: string; label?: string; children: ReactNode }) {
+/** `bar`: as a top bar button, beside the others there. */
+export function InfoTip({ title, label, children, bar }: { title: string; label?: string; children: ReactNode; bar?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="tb-info" aria-label={label || `About ${title.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); haptic(); setOpen(true) }}>
-        <Icon name="info" size={15} />
+      <button type="button" className={bar ? 'iconbtn' : 'tb-info'} aria-label={label || `About ${title.toLowerCase()}`} onClick={(e) => { e.stopPropagation(); haptic(); setOpen(true) }}>
+        <Icon name="info" size={bar ? 19 : 15} />
       </button>
       <Sheet open={open} onClose={() => setOpen(false)} title={title}>
         <div className="info-body">{children}</div>

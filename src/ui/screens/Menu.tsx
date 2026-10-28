@@ -170,7 +170,7 @@ function LoadCareer({ onBack }: { onBack: () => void }) {
   return (
     <Screen title="Load Career" back onBack={onBack} noNav right={<button className="btn xs" onClick={() => { haptic(); file.current?.click() }}><Icon name="download" size={14} /> Import</button>}>
       <input ref={file} type="file" accept=".touchline,application/octet-stream,application/json" style={{ display: 'none' }} onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) { setBusy('import'); await importSave(f); setBusy(undefined) } }} />
-      {!saves.length && <Empty icon="save" title="No saved careers" text="Start a new career — progress is saved automatically after every match and when you advance. A career exported from another device can be brought in with Import." />}
+      {!saves.length && <Empty icon="save" title="No saved careers" text="Careers save themselves as you play. One from another device comes in with Import." />}
       <div className="pad stack stagger">
         {saves.map((s) => {
           const older = (s.schema || 1) < SAVE_SCHEMA, newer = (s.schema || 1) > SAVE_SCHEMA

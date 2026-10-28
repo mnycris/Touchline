@@ -34,7 +34,7 @@ export function ClubTransfers({ w, club }: { w: World; club: Club }) {
     const fee = r.type === 'transfer' || r.type === 'loan-buy' ? (r.fee ? fmtMoney(r.fee, { short: true }) : 'Undisclosed') : r.type === 'loan' ? (r.fee ? `Loan · ${fmtMoney(r.fee, { short: true })}` : 'Loan') : KIND[r.type]
     return (
       <button className="li tap ct-row" disabled={!p} onClick={() => { if (p) { haptic(); go({ name: 'player', params: { id: p.id } }) } }}>
-        {p ? <Face p={p} size={38} radius={19} club={w.clubs[p.clubId]} /> : <Avatar name={r.playerName} size={38} />}
+        {p ? <Face p={p} size={38} radius={19} club={w.clubs[p.clubId]} /> : <Avatar name={r.playerName} size={38} color="#3a4252" />}
         <div className="meta">
           <div className="t small ellipsis">{r.playerName}</div>
           <div className="s tiny row tight">

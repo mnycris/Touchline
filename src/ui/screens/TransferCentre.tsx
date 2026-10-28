@@ -124,8 +124,9 @@ export function TransferCentre({ w }: { w: World }) {
         <div className={`tc-pulse ${win ? 'live' : ''} ${deadline ? 'deadline' : ''}`}>
           <span className="live-dot" />
           <div className="grow" style={{ minWidth: 0 }}>
-            <div className="small b">{deadline ? 'Deadline day' : win ? `${win.name} window · live` : 'Window closed'}</div>
-            <div className="tiny dim">{win ? `${diffDays(win.close, w.date)} days left · ` : ''}{(w.market?.stories || []).filter((x) => isOpen(x) && x.stage !== 'rumour').length} in talks · {(w.market?.stories || []).filter((x) => x.stage === 'rumour').length} rumours</div>
+            {/* (closed, the budget card above already says so: this is the market's own pulse) */}
+            {win && <div className="small b">{deadline ? 'Deadline day' : `${win.name} window · live`}</div>}
+            <div className={win ? 'tiny dim' : 'small b'}>{win ? `${diffDays(win.close, w.date)} days left · ` : ''}{(w.market?.stories || []).filter((x) => isOpen(x) && x.stage !== 'rumour').length} in talks · {(w.market?.stories || []).filter((x) => x.stage === 'rumour').length} rumours</div>
           </div>
           {w.meta.editMode && <button className="btn xs ed-open" onClick={() => { haptic('medium'); setCreating(true) }}><Icon name="edit" size={13} /> New story</button>}
         </div>
@@ -141,14 +142,14 @@ export function TransferCentre({ w }: { w: World }) {
           <Chips items={([['all', 'All'], ['rumour', 'Rumours'], ['active', 'Talks'], ['done', 'Done'], ['failed', 'Failed']] as const).map(([id, l]) => ({ id, label: <>{l}<span className="chip-n">{counts[id]}</span></> }))} value={stage} onChange={(v) => { haptic(); setStage(v as StageFilter); setMore(1) }} />
         </div>
         <div className="row between tc-sort">
-          <span className="tiny dim">{scope === 'watch' ? 'What you follow, your shortlist and your own business' : scope === 'club' ? `${w.clubs[me]?.short}'s business` : scope === 'league' ? `In the ${w.leagues[lg]?.short || 'league'}` : 'The notable moves everywhere'}</span>
+          <span className="tiny dim">{scope === 'watch' ? 'Who you follow, your shortlist, your deals' : scope === 'league' ? `In the ${w.leagues[lg]?.short || 'league'}` : ''}</span>
           <span className="tc-sort-t" role="group" aria-label="Sort">
             {(['latest', 'biggest'] as const).map((k) => <button key={k} className={sort === k ? 'on' : ''} onClick={() => { haptic(); setSort(k); setMore(1) }}>{k === 'latest' ? 'Latest' : 'Biggest'}</button>)}
           </span>
         </div>
       </div>
       <div className="pad stack" style={{ marginTop: 10 }}>
-        {!byDay.length && <div className="card"><Empty icon="transfers" title="Nothing here yet" text={win ? 'Stories appear as clubs start talking.' : 'The window is shut: rumours still fly, deals wait for the next window.'} /></div>}
+        {!byDay.length && <div className="card"><Empty icon="transfers" title="Nothing here yet" text={win ? 'Stories appear as clubs start talking.' : 'Rumours still fly while the window is shut.'} /></div>}
         {byDay.map(([d, list]) => (
           <div key={d}>
             {d && <div className="label" style={{ margin: '6px 4px 8px' }}>{dayLabel(d)}</div>}

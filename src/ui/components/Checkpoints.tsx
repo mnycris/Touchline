@@ -6,6 +6,7 @@ import { listCheckpoints, MAX_CHECKPOINTS, storageInfo, type CheckpointMeta } fr
 import { fmtDate, seasonLabel } from '../../domain/dates'
 import { Icon } from '../icons/Icon'
 import { Confirm, Sheet } from './layout'
+import { InfoTip } from './InfoTip'
 import { currentWindow } from '../../engine/competitions/calendar'
 import { nextFixture } from '../selectors'
 import { ordinal } from '../screens/Menu'
@@ -73,10 +74,9 @@ export function CheckpointsCard({ w, careerId }: { w: World; careerId: string })
   return (
     <div className="card cp-card">
       <div className="card-h">
-        <div className="row tight"><Icon name="flag" size={15} color="var(--club2)" /><span className="label">Checkpoints</span></div>
+        <div className="row tight"><Icon name="flag" size={15} color="var(--club2)" /><span className="label">Checkpoints</span><InfoTip title="Checkpoints"><p>A checkpoint is a snapshot of the career to come back to, kept apart from the autosave.</p><p>Restoring one keeps the state you leave as an automatic checkpoint, so nothing is lost.</p></InfoTip></div>
         <span className="tiny dim">{list?.length ?? '–'} / {MAX_CHECKPOINTS}</span>
       </div>
-      <div className="tiny dim" style={{ padding: '0 14px 10px' }}>A snapshot you can come back to, kept apart from the autosave. Restoring keeps the state you leave as an automatic checkpoint, so nothing is lost.</div>
       {list && list.length > 0 && <div className="cp-list">{list.map((cp) => <CpRow key={cp.id} cp={cp} onRestore={() => setAsk({ cp, kind: 'restore' })} onDelete={() => setAsk({ cp, kind: 'delete' })} />)}</div>}
       {list && !list.length && <div className="cp-empty tiny dim"><Icon name="flag" size={18} color="var(--t3)" />No checkpoints yet</div>}
       <div style={{ padding: 14 }}>

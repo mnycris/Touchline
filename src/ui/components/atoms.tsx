@@ -84,19 +84,20 @@ function Sharpen({ url, current, onLoad, className, style }: { url?: string; cur
   )
 }
 
-const MONO_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16']
 export function initials(name: string) {
   const parts = name.replace(/^(Dr\.|Sir)\s+/, '').split(/\s+/).filter(Boolean)
   return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase()
 }
 
-/** Person avatar: real photo when available, otherwise a clean monogram (staff, custom managers, agents). */
+/**
+ * Person avatar: real photo when available, otherwise a clean monogram. Without a colour of its own (staff, scouts: the
+ * people of your club) the monogram wears the club's colour.
+ */
 export function Avatar({ name, photo, size = 40, radius, color }: { name: string; photo?: string | null; size?: number; radius?: number; color?: string }) {
   const [ok, setOk] = useState(true)
-  const c = color || MONO_COLORS[hashString(name) % MONO_COLORS.length]
   const r = radius ?? size / 2
   return (
-    <div className="avatar" style={{ width: size, height: size, borderRadius: r, ['--av' as any]: c, fontSize: size * 0.38 }}>
+    <div className={`avatar ${color ? '' : 'club'}`} style={{ width: size, height: size, borderRadius: r, ...(color ? { ['--av' as any]: color } : {}), fontSize: size * 0.38 }}>
       {photo && ok ? <img src={photo} alt={name} referrerPolicy="no-referrer" loading="lazy" onError={() => setOk(false)} /> : <span>{initials(name)}</span>}
     </div>
   )
@@ -269,15 +270,14 @@ export function StatRow({ label, v, max = 99, hidden, gain }: { label: string; v
   )
 }
 
+/** Nothing to show: the screen's own glyph, plain, what is missing, and (where there is one) the way to change that. */
 export function Empty({ icon, title, text, action }: { icon: string; title: string; text?: string; action?: ReactNode }) {
   return (
-    <div className="col center" style={{ padding: '36px 24px', textAlign: 'center', gap: 10 }}>
-      <div style={{ width: 64, height: 64, borderRadius: 20, display: 'grid', placeItems: 'center', background: 'radial-gradient(circle at 30% 20%, rgba(var(--club-rgb),.5), rgba(255,255,255,.04))', border: '1px solid var(--line2)' }}>
-        <Icon name={icon} size={30} />
-      </div>
-      <div className="h3">{title}</div>
-      {text && <div className="muted small" style={{ maxWidth: 280 }}>{text}</div>}
-      {action}
+    <div className="empty">
+      <Icon name={icon} size={30} strokeWidth={1.6} />
+      <div className="empty-t">{title}</div>
+      {text && <div className="empty-x">{text}</div>}
+      {action && <div className="empty-a">{action}</div>}
     </div>
   )
 }

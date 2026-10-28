@@ -6,7 +6,7 @@ import { CompLogo, Flag } from './atoms'
 import { Icon } from '../icons/Icon'
 import { defaultDeepLeagues } from '../../engine/world/matchRunner'
 
-export interface PickLeague { id: number; name: string; country: string; flag: string; prestige: number; level: number }
+export interface PickLeague { id: number; name: string; short?: string; country: string; flag: string; prestige: number; level: number }
 
 export function DeepLeaguePicker({ leagues, own, value, onChange }: { leagues: PickLeague[]; own?: number; value?: number[]; onChange: (v: number[]) => void }) {
   const chosen = (value ?? defaultDeepLeagues(own)).filter((id) => id !== own).slice(0, 5)
@@ -36,7 +36,7 @@ export function DeepLeaguePicker({ leagues, own, value, onChange }: { leagues: P
             <button key={l.id} className={`dlp-t ${on ? 'on' : ''} ${mine ? 'mine' : ''} ${capped ? 'full' : ''}`} onClick={() => !mine && toggle(l.id)} disabled={mine}>
               <CompLogo k={`L${l.id}`} size={26} name={l.name} />
               <span className="dlp-n">
-                <span className="ellipsis b">{l.name}</span>
+                <span className="ellipsis b">{l.short || l.name}</span>
                 <span className="tiny dim row tight" style={{ gap: 4 }}><Flag code={l.flag} size={10} />{mine ? 'Your league' : l.country}</span>
               </span>
               {on && <span className="dlp-ck"><Icon name="check" size={12} strokeWidth={3} /></span>}
@@ -45,7 +45,6 @@ export function DeepLeaguePicker({ leagues, own, value, onChange }: { leagues: P
         })}
       </div>
       {full.length > list.length || all ? <button className="tiny b" style={{ marginTop: 8, color: 'var(--club2)' }} onClick={() => setAll(!all)}>{all ? 'Show fewer' : `Show all ${full.length} leagues`}</button> : null}
-      <div className="tiny dim" style={{ marginTop: 8 }}>Followed leagues are simulated in full: every match has line-ups, ratings, events and stats, and you can watch them live. Other leagues use a faster results model. More leagues means slightly longer days.</div>
     </div>
   )
 }

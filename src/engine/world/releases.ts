@@ -94,9 +94,9 @@ const NOTES: { key: string; applies: (w: World) => boolean; send: (w: World) => 
     key: 'note:israelFriendliesOnly',
     applies: (w) => EXCLUDED_NATIONS.has('Israel') && !!w.intl?.nt.Israel,
     send: (w) => sendInbox(w, {
-      from: 'Committee for International Things', fromRole: 'Game world', category: 'Competitions',
-      subject: 'A ruling, reached after one meeting and some biscuits',
-      body: 'After lengthy deliberation (one meeting, biscuits provided), the committee has ruled that in this game world Israel sit out competitive international football: no qualifiers, no Nations League, no tournaments. Competitions they hadn’t started carry on without them and anything already under way finishes as drawn, so nobody has to reprint a wallchart.\n\nFriendlies are unaffected. The fixture computer has handed those out generously, and Israeli players at your club will still be called up for them. No action needed. The biscuits have been eaten.',
+      from: 'Touchline', fromRole: 'Game world', category: 'Competitions',
+      subject: 'Israel play friendlies only',
+      body: 'In this game world Israel take no part in competitive international football: no qualifiers, no Nations League, no tournaments. Competitions they had not started go on without them, and anything already under way finishes as drawn.\n\nFriendlies go ahead as usual, and Israeli players at your club are still called up for them. Nothing for you to do.',
       actions: [],
     }),
   },

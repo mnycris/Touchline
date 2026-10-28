@@ -20,15 +20,16 @@ const PROBES: { label: string; url?: string; wiki?: boolean }[] = [
   { label: 'Manager photos (Wikipedia)', wiki: true },
 ]
 
-function Probe({ p }: { p: (typeof PROBES)[number] }) {
+function Probe({ p, onResult }: { p: (typeof PROBES)[number]; onResult: (r: 'ok' | 'fail') => void }) {
   const [state, setState] = useState<'wait' | 'ok' | 'fail'>('wait')
   useEffect(() => {
     let alive = true
-    if (p.wiki) { wikiPhoto(managerWikiQuery('Pep Guardiola')).then((u) => alive && setState(u ? 'ok' : 'fail')); return () => { alive = false } }
+    const done = (r: 'ok' | 'fail') => { if (!alive) return; setState(r); onResult(r) }
+    if (p.wiki) { wikiPhoto(managerWikiQuery('Pep Guardiola')).then((u) => done(u ? 'ok' : 'fail')); return () => { alive = false } }
     const img = new Image()
     img.referrerPolicy = 'no-referrer'
-    img.onload = () => alive && setState('ok')
-    img.onerror = () => alive && setState('fail')
+    img.onload = () => done('ok')
+    img.onerror = () => done('fail')
     img.src = `${p.url}${p.url!.includes('?') ? '&' : '?'}probe=${Date.now()}`
     return () => { alive = false }
   }, [])
@@ -40,13 +41,21 @@ function Probe({ p }: { p: (typeof PROBES)[number] }) {
   )
 }
 
-/** Live check of each remote image source on this device/network. */
+/** Live check of each remote image source on this device/network: a one-line summary, the sources one by one on a tap. */
 export function ImageCheck() {
   const [run, setRun] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [res, setRes] = useState<Record<string, 'ok' | 'fail'>>({})
+  const done = Object.keys(res).length, ok = Object.values(res).filter((r) => r === 'ok').length
   return (
     <div className="card">
-      <div className="card-h"><span className="label">Image sources</span><button className="link" onClick={() => setRun(run + 1)}>Re-test</button></div>
-      <div className="list" key={run}>{PROBES.map((p) => <Probe key={p.label} p={p} />)}</div>
+      <button className="li tap" style={{ width: '100%', textAlign: 'left' }} onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Icon name="eye" size={18} color="var(--t2)" />
+        <div className="meta"><div className="t small">Image sources</div><div className="s">{done < PROBES.length ? 'Checking…' : `${ok} of ${PROBES.length} reachable on this device`}</div></div>
+        <Icon name={open ? 'up' : 'down'} size={16} color="var(--t3)" />
+      </button>
+      <div className="list" key={run} style={open ? undefined : { display: 'none' }}>{PROBES.map((p) => <Probe key={p.label} p={p} onResult={(r) => setRes((x) => ({ ...x, [p.label]: r }))} />)}</div>
+      {open && <div className="li"><button className="link" onClick={() => { setRes({}); setRun(run + 1) }}>Test again</button></div>}
     </div>
   )
 }
