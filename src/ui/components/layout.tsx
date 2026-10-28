@@ -281,22 +281,6 @@ export function Confirm({ open, title, text, confirm = 'Confirm', danger, onConf
   )
 }
 
-/** Ways into other screens as one control: each an icon over its name, the cells divided by hairlines rather than each
- *  in a box of its own. Up to four to a row. */
-export function Shortcuts({ items, cols }: { items: { icon: string; label: string; onClick: () => void }[]; cols?: 2 | 3 | 4 }) {
-  const n = cols || (items.length % 3 === 0 ? 3 : Math.min(4, items.length))
-  return (
-    <div className={`card jgrid shortcuts c${n}`}>
-      {items.map((i) => (
-        <button key={i.label} onClick={() => { haptic(); i.onClick() }}>
-          <Icon name={i.icon} size={20} />
-          <span>{i.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
 /** A few facts as one card: each a label over its value (and a line under it), the cells divided by hairlines. */
 export function Facts({ items, cols = 3 }: { items: ({ k: ReactNode; v: ReactNode; sub?: ReactNode; onClick?: () => void } | false | null | undefined)[]; cols?: 2 | 3 | 4 }) {
   return (

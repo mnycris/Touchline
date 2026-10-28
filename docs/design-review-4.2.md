@@ -8,9 +8,8 @@ generated rather than designed. The standard it applied is in [DESIGN.md](DESIGN
 Touchline's identity held up: the competition cards, match day, the live match, the player card, New Career and the
 menu are designed for this game. What dragged the rest down was a handful of defaults repeated across screens:
 
-- **Boxes for everything.** Shortcuts as separate tiles (Central ×6, Squad ×4, Transfers ×3, Season ×2), facts as
-  separate tiles (player ×6, club, manager, negotiation, national team, finances, records), boxes inside cards
-  (message facts, opponent report).
+- **Boxes for everything.** Facts as separate tiles (player ×6, club, manager, negotiation, national team, finances,
+  records), boxes inside cards (message facts, opponent report).
 - **Decoration without a source.** Giant faded icons behind Central's tiles, a blueprint grid behind the board,
   random Tailwind-bright monogram colours, crests on dark plates in the inbox and lists.
 - **Side stripes on rounded cards.** News by kind, quotes, inbox "needs you", scout cards, transfer rows, tactical
@@ -26,11 +25,11 @@ menu are designed for this game. What dragged the rest down was a handful of def
 
 ## What changed
 
-- New shared pieces: `Shortcuts`, `Facts` and the `.jgrid` hairline grid (one card, divided cells); the `Empty`
-  state redrawn (plain glyph, title, one line, an action); `InfoTip` usable in the top bar.
+- New shared pieces: `Facts` and the `.jgrid` hairline grid (one card, divided cells); the `Empty` state redrawn
+  (plain glyph, title, one line, an action); `InfoTip` usable in the top bar.
 - Top-bar buttons are round and outline-free.
-- Central: the shortcuts are one control, the tiles lost their watermarks, zero counts are quiet, the week strip
-  lost its placeholder dots, the cup card says which leg and the aggregate.
+- Central: the tiles lost their watermarks, zero counts are quiet, the week strip lost its placeholder dots, the cup
+  card says which leg and the aggregate.
 - Player: facts in one card; condition as numbers with meters and the last five ratings.
 - Club, manager, coach, negotiation, national team, finances, records: facts joined into one card each.
 - Board: overall confidence once, each area's confidence beside its objectives; no rings row, no grid.
@@ -44,9 +43,16 @@ menu are designed for this game. What dragged the rest down was a handful of def
   collapsed to one row.
 - Writing: empty states, helper lines and the game-world note rewritten plainly; the monthly awards story written as
   sentences; competition statuses ("Runners-up", "Out in the third round") corrected.
-- Match day: the three ways in are one themed control. Shouts: the glyph beside the name, no tiles.
+- Shouts: the glyph beside the name, no tiles.
 - New Career: badge colours are kit colours; the club's facts are one card.
 - 320pt: the board, awards and transfer budget fit without wrapping.
+
+## Taken back
+
+The shortcut tiles (Central, Squad, Transfers, Season) and match day's three buttons were first joined into one
+control with hairlines. That took away part of the look rather than a generic default, so they are back exactly as
+they were, and DESIGN.md now names them as identity. The lesson, in the standard as "refine, never strip": a pass
+like this removes what reads as generated and keeps what makes Touchline look like Touchline.
 
 ## How to repeat it
 

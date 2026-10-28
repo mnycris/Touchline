@@ -12,7 +12,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { ContractOffer, Player, Position, SquadRole, TransferOffer, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Avatar, Badge, CountUp, Empty, Face, Flag, Ovr, PosChip, Stars } from '../components/atoms'
-import { Chips, HubActions, Screen, Seg, Sheet, Shortcuts, Stepper, Tabs } from '../components/layout'
+import { Chips, HubActions, Screen, Seg, Sheet, Stepper, Tabs } from '../components/layout'
 import { fmtMoney, roundValue } from '../../domain/finance'
 import { addDays, diffDays, fmtDate } from '../../domain/dates'
 import { POS_GROUP, SQUAD_ROLES } from '../../domain/constants'
@@ -56,12 +56,10 @@ export function TransferHub() {
             <div className="row tight tiny" style={{ marginTop: 10, opacity: 0.85 }}><Icon name={win ? 'transfers' : 'lock'} size={14} />{win ? `${win.name} window · ${diffDays(win.close, w.date)} days left` : 'Window closed — deals agreed now complete when it reopens'}</div>
           </div>
         </div>
-        <div style={{ marginTop: 10 }}>
-          <Shortcuts items={[
-            { icon: 'search', label: 'Search', onClick: () => go({ name: 'search' }) },
-            { icon: 'scout', label: 'Scouting', onClick: () => go({ name: 'scouting' }) },
-            { icon: 'history', label: 'History', onClick: () => go({ name: 'transferHistory' }) },
-          ]} />
+        <div className="grid3" style={{ marginTop: 10 }}>
+          <button className="card tap mini-btn" onClick={() => go({ name: 'search' })}><Icon name="search" size={22} color="var(--club2)" /><span>Search</span></button>
+          <button className="card tap mini-btn" onClick={() => go({ name: 'scouting' })}><Icon name="scout" size={22} color="var(--club2)" /><span>Scouting</span></button>
+          <button className="card tap mini-btn" onClick={() => go({ name: 'transferHistory' })}><Icon name="history" size={22} color="var(--club2)" /><span>History</span></button>
         </div>
       </div>
       <div className="tx-tabs" style={{ marginTop: 12 }}>

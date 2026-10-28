@@ -3,7 +3,7 @@ import { movedText } from '../moved'
 import { useGame, useWorld, haptic, DEFAULT_ADVANCE_DAYS } from '../../store/game'
 import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Face, FormPips, Ring, UserAvatar } from '../components/atoms'
-import { HubActions, Screen, SectionTitle, Sheet, Shortcuts } from '../components/layout'
+import { HubActions, Screen, SectionTitle, Sheet } from '../components/layout'
 import { addDays, diffDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
 import { fmtMoney } from '../../domain/finance'
 import { calendarOthers, compLogoKey, fixturesOf, nextFixture, opponent, outcomeFor, scoreLine, userClub, lastResult, playerStatus } from '../selectors'
@@ -130,14 +130,14 @@ export function Hub() {
           </button>
         )}
 
-        <Shortcuts cols={3} items={[
-          { icon: 'calendar', label: 'Calendar', onClick: () => go({ name: 'calendar' }) },
-          { icon: 'tactics', label: 'Tactics', onClick: () => go({ name: 'tactics' }) },
-          { icon: 'office', label: 'Office', onClick: () => go({ name: 'office' }) },
-          { icon: 'manager', label: 'Career', onClick: () => go({ name: 'manager' }) },
-          { icon: 'medal', label: 'Awards', onClick: () => go({ name: 'awards' }) },
-          { icon: 'save', label: 'Save', onClick: () => useGame.getState().save(false) },
-        ]} />
+        <div className="grid3">
+          <MiniBtn icon="calendar" label="Calendar" onClick={() => go({ name: 'calendar' })} />
+          <MiniBtn icon="tactics" label="Tactics" onClick={() => go({ name: 'tactics' })} />
+          <MiniBtn icon="office" label="Office" onClick={() => go({ name: 'office' })} />
+          <MiniBtn icon="manager" label="Career" onClick={() => go({ name: 'manager' })} />
+          <MiniBtn icon="medal" label="Awards" onClick={() => go({ name: 'awards' })} />
+          <MiniBtn icon="save" label="Save" onClick={() => useGame.getState().save(false)} />
+        </div>
       </div>
     </Screen>
   )
@@ -160,6 +160,15 @@ function Tile({ icon, label, children, onClick, badge }: { icon: string; label: 
         {!!badge && <span className="pill" style={{ background: 'var(--neg)', color: '#fff' }}>{badge}</span>}
       </div>
       <div style={{ textAlign: 'left' }}>{children}</div>
+    </button>
+  )
+}
+
+function MiniBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return (
+    <button className="card tap mini-btn" onClick={() => { haptic(); onClick() }}>
+      <Icon name={icon} size={22} color="var(--club2)" />
+      <span>{label}</span>
     </button>
   )
 }

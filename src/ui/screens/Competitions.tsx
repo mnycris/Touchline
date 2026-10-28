@@ -7,7 +7,7 @@ import { Icon } from '../icons/Icon'
 import { Badge, CompLogo, Empty, Face, Flag, FormPips, ManagerAvatar, Ovr, PosChip, Stars, UserAvatar } from '../components/atoms'
 import { compIdentity, identityClass, identityVars, pageIdentity } from '../compIdentity'
 import { IdentityArt } from '../components/IdentityArt'
-import { HubActions, Screen, Seg, Shortcuts, Tabs } from '../components/layout'
+import { HubActions, Screen, Seg, Tabs } from '../components/layout'
 import { FollowBtn } from '../components/Follow'
 import { ClubInfo, ClubNews, ClubTransfers } from '../components/ClubSections'
 import { addDays, fmtDate, seasonLabel, weekday } from '../../domain/dates'
@@ -46,10 +46,10 @@ export function SeasonHub() {
           {!w.flags.unemployed && <SeasonOverview w={w} />}
           {comps.map((c) => <CompCard key={c.id} w={w} c={c} />)}
           {!w.flags.unemployed && <SeasonLeaders w={w} />}
-          <Shortcuts cols={2} items={[
-            { icon: 'calendar', label: 'Calendar', onClick: () => go({ name: 'calendar' }) },
-            { icon: 'medal', label: 'Awards & History', onClick: () => go({ name: 'awards' }) },
-          ]} />
+          <div className="grid2">
+            <button className="card tap mini-btn" onClick={() => go({ name: 'calendar' })}><Icon name="calendar" size={22} color="var(--club2)" /><span>Calendar</span></button>
+            <button className="card tap mini-btn" onClick={() => go({ name: 'awards' })}><Icon name="medal" size={22} color="var(--club2)" /><span>Awards & History</span></button>
+          </div>
         </div>
       )}
       {tab === 'fixtures' && <ClubFixtures w={w} clubId={w.userClubId} />}

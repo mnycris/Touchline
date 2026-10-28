@@ -4,7 +4,7 @@ import { useGame, useWorld, haptic } from '../../store/game'
 import type { Player, Position, Suspension, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
 import { Badge, Face, Ovr, PosChip, Empty } from '../components/atoms'
-import { Chips, HubActions, Screen, Seg, Shortcuts } from '../components/layout'
+import { Chips, HubActions, Screen, Seg } from '../components/layout'
 import { POS_GROUP, POS_ORDER, formationOf } from '../../domain/constants'
 import { fmtMoney } from '../../domain/finance'
 import { rosterOf } from '../../engine/world/roster'
@@ -95,17 +95,15 @@ export function SquadHub() {
           <div><div className="label">Avg Age</div><div className="display">{avgAge}</div></div>
           <div><div className="label">Wages/wk</div><div className="display" style={{ color: wageColor(w, bill) }}>{fmtMoney(bill, { short: true })}</div></div>
         </div>
-        <div style={{ marginTop: 10 }}>
-          <Shortcuts items={[
-            { icon: 'tactics', label: 'Team Sheet', onClick: () => go({ name: 'tactics' }) },
-            { icon: 'training', label: 'Training', onClick: () => go({ name: 'training' }) },
-            { icon: 'development', label: 'Develop', onClick: () => go({ name: 'development' }) },
-            { icon: 'contract', label: 'Contracts', onClick: () => go({ name: 'contracts' }) },
-          ]} />
+        <div className="grid4" style={{ marginTop: 10 }}>
+          <QuickBtn icon="tactics" label="Team Sheet" onClick={() => go({ name: 'tactics' })} />
+          <QuickBtn icon="training" label="Training" onClick={() => go({ name: 'training' })} />
+          <QuickBtn icon="development" label="Develop" onClick={() => go({ name: 'development' })} />
+          <QuickBtn icon="contract" label="Contracts" onClick={() => go({ name: 'contracts' })} />
         </div>
         <button className="card tap pr-entry" onClick={() => { haptic(); useGame.getState().open({ name: 'practice' }) }}>
-          <Icon name="cone" size={18} />
-          <span className="meta"><b>Tactics Lab</b><span className="tiny dim ellipsis">Practice match · nothing counts</span></span>
+          <span className="pr-entry-ic"><Icon name="cone" size={20} /></span>
+          <span className="meta"><b>Tactics Lab</b><span className="tiny dim">Test your tactics in a practice match. Nothing counts.</span></span>
           <Icon name="forward" size={16} color="var(--t3)" />
         </button>
         {(injured || banned || unhappy || expiring) ? (
@@ -215,6 +213,10 @@ function DepthChart({ w, squad, grp }: { w: World; squad: Player[]; grp: string 
       })}
     </div>
   )
+}
+
+function QuickBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  return <button className="card tap mini-btn" onClick={() => { haptic(); onClick() }}><Icon name={icon} size={20} color="var(--club2)" /><span>{label}</span></button>
 }
 
 export function SquadRow({ w, p, view = 'overview', onClick, right, cols, meta }: { w: World; p: Player; view?: View; onClick?: () => void; right?: React.ReactNode; cols?: Col[]; /** the line under his name, in place of the usual */ meta?: React.ReactNode }) {

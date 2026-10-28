@@ -189,8 +189,10 @@ button.card.cal-strip { display: grid; }
 .empty-x { max-width: 290px; font-size: 13px; line-height: 1.45; color: var(--t2); }
 .empty-a { margin-top: 10px; }
 
-/* a joined grid (layout Shortcuts and Facts): one card, its cells divided by hairlines that meet where they cross and
-   stop short of the card's edges, instead of a scatter of separate boxes */
+.mini-btn { display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 12px 6px; min-height: 72px; }
+.mini-btn span { font-family: var(--display); font-weight: 700; font-size: 12.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--t2); text-align: center; }
+/* a joined grid (layout Facts): one card, its facts divided by hairlines that meet where they cross and stop short of
+   the card's edges, instead of a box each */
 .jgrid { display: grid; }
 .jgrid.c2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .jgrid.c3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -203,11 +205,6 @@ button.card.cal-strip { display: grid; }
 .jgrid.c2 > :nth-last-child(n+3)::before, .jgrid.c3 > :nth-last-child(n+4)::before, .jgrid.c4 > :nth-last-child(n+5)::before { bottom: 0; }
 .jgrid.c2 > :nth-child(2n+1)::after, .jgrid.c3 > :nth-child(3n+1)::after, .jgrid.c4 > :nth-child(4n+1)::after { left: 14px; }
 .jgrid.c2 > :nth-child(2n)::after, .jgrid.c3 > :nth-child(3n)::after, .jgrid.c4 > :nth-child(4n)::after { right: 14px; }
-/* ways into other screens: an icon over its name */
-.shortcuts > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 14px 4px 12px; transition: background .15s; }
-.shortcuts > button:active { background: rgba(255, 255, 255, .045); }
-.shortcuts > button svg { color: var(--club2); opacity: .92; }
-.shortcuts > button span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--display); font-weight: 700; font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--t2); }
 /* facts: a label over its value (and a line under it), left-aligned */
 .facts > * { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 11px 13px 12px; text-align: left; }
 .facts > button:active { background: rgba(255, 255, 255, .04); }
@@ -691,15 +688,13 @@ select.input option { background: #151b27; }
 .md-teams { display: flex; align-items: flex-start; justify-content: space-between; margin: 12px 0 10px; }
 .md-team { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 34%; }
 .md-team b { font-size: 14px; text-align: center; line-height: 1.15; }
-/* the match's three ways in, as one control (hairlines between them, as Shortcuts) */
-.md-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 12px 16px 0; border-radius: 14px; background: var(--s1); overflow: hidden; }
-.md-act { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 12px 4px 10px; color: var(--t1); font-size: 11.5px; font-weight: 700; transition: background .15s; }
-.md-act + .md-act::before { content: ''; position: absolute; left: 0; top: 12px; bottom: 12px; width: 1px; background: var(--line2); }
-.md-act:active { background: rgba(255, 255, 255, .05); }
+.md-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px 16px 0; }
+.md-act { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px 9px; border-radius: 14px; background: var(--s1); color: var(--t1); font-size: 11.5px; font-weight: 700; }
+.md-act:active { background: var(--s2); }
 .md-act:disabled { opacity: 0.45; }
 .md-act svg { color: var(--acc); }
 /* a team sheet set for this match only */
-.md-act.own span { color: var(--acc); }
+.md-act.own { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--acc) 60%, transparent); }
 .match-sheet-bar { border: 1px solid color-mix(in srgb, var(--club2, var(--acc)) 35%, transparent); }
 .md-footer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 35; display: flex; gap: 8px; padding: 14px 16px calc(var(--sab) + 12px); background: linear-gradient(180deg, rgba(11, 13, 17, 0), var(--bg) 34%); }
 .screen.no-nav.has-footer { padding-bottom: calc(var(--sab) + 100px); }
@@ -2023,11 +2018,10 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .role-tend b { color: var(--t1); margin-right: 4px; }
 
 /* ---------- tactical practice (4.1.2) ---------- */
-/* the way into the Tactics Lab: one line, its name and what it is */
-.pr-entry { display: flex !important; align-items: center; gap: 10px; width: 100%; margin-top: 10px; padding: 12px 14px; text-align: left; }
-.pr-entry > svg:first-child { flex: none; color: var(--club2); }
-.pr-entry .meta { display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0; }
-.pr-entry b { flex: none; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .05em; text-transform: uppercase; }
+.pr-entry { display: flex !important; align-items: center; gap: 12px; width: 100%; margin-top: 10px; padding: 12px 14px; text-align: left; }
+.pr-entry .meta { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.pr-entry b { font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .04em; text-transform: uppercase; }
+.pr-entry-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; color: var(--club2); background: rgba(var(--club-rgb), .28); }
 /* Training: one plan for everyone, then each player's own (a plan other than Balanced shows in its colour) */
 .tr-all { display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 12px 14px; }
 .tr-plan { flex: none; font-family: var(--display); font-weight: 700; font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--t3); }
@@ -2376,7 +2370,10 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 .layer-in-tab .tx-top > .budget-hero::before { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
   background: linear-gradient(100deg, transparent 32%, rgba(255, 255, 255, .13) 47%, rgba(255, 255, 255, .04) 55%, transparent 68%);
   animation: tx-sweep 1.15s .42s cubic-bezier(.45, 0, .25, 1) both; }
-.layer-in-tab .tx-top .shortcuts { animation: tx-in .5s .1s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tx-top > .grid3 > * { animation: tx-in .5s cubic-bezier(.16, 1, .3, 1) both; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(1) { animation-delay: .08s; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(2) { animation-delay: .13s; }
+.layer-in-tab .tx-top > .grid3 > :nth-child(3) { animation-delay: .18s; }
 .layer-in-tab .tx-tabs { animation: tx-in .5s .2s cubic-bezier(.16, 1, .3, 1) both; }
 .layer-in-tab .tc-wrap > .pad:first-child { animation: tx-in .5s .26s cubic-bezier(.16, 1, .3, 1) both; }
 .layer-in-tab .tc-rail > * { animation: tx-in .6s cubic-bezier(.16, 1, .3, 1) both; }
@@ -2924,11 +2921,10 @@ mark.spot-hl { background: none; color: inherit; font-weight: 800; }
    a grey slab, and the actions and the kick-off bar take the brand's tint and accent */
 .md-page.cis .md-head.ci-band { background: linear-gradient(180deg, rgba(0, 0, 0, .16) 0%, rgba(0, 0, 0, .3) 52%, var(--bg) 100%), var(--ci-field); }
 .md-page.cis .md-head.ci-white-logo { background: linear-gradient(180deg, rgba(0, 0, 0, .28) 0%, rgba(0, 0, 0, .42) 52%, var(--bg) 100%), var(--ci-field); }
-.md-page.cis .md-actions { background: linear-gradient(180deg, rgba(var(--cis-rgb), .16), rgba(var(--cis-rgb), .07)), var(--s1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .2); }
-.md-page.cis .md-act:active { background: rgba(var(--cis-rgb), .12); }
-.md-page.cis .md-act + .md-act::before { background: rgba(var(--cis-rgb), .3); }
+.md-page.cis .md-act { background: linear-gradient(180deg, rgba(var(--cis-rgb), .16), rgba(var(--cis-rgb), .07)), var(--s1); box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .2); }
+.md-page.cis .md-act:active { background: linear-gradient(180deg, rgba(var(--cis-rgb), .26), rgba(var(--cis-rgb), .12)), var(--s1); }
 .md-page.cis .md-act svg { color: var(--ci-acc); }
-.md-page.cis .md-act.own span { color: var(--ci-acc); }
+.md-page.cis .md-act.own { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ci-acc) 60%, transparent); }
 .md-page.cis .md-countdown { background: linear-gradient(180deg, rgba(var(--cis-rgb), .18), rgba(var(--cis-rgb), .08)), var(--s2); color: #fff; box-shadow: inset 0 0 0 1px rgba(var(--cis-rgb), .22); }
 .md-page.cis .md-countdown svg { color: var(--ci-acc); }
 /* (Play match keeps the app's own green: it is the same action on every match day) */

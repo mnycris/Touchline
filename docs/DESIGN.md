@@ -16,9 +16,16 @@ A dark, premium football app with a broadcast's confidence. Keep these; they are
   league-table zone markers. A football fact is shown the way football shows it.
 - **Motion with a reason:** screen transitions that show where you came from, the system's own swipe back,
   celebrations for real achievements, nothing that loops in a list.
+- **The shortcut tiles:** a ways-in row of separate tiles, each an icon in the club's second colour over an uppercase
+  label (`.mini-btn` on Central, Squad, Transfers and Season; `.md-act` on match day). They are part of the look.
+  Don't join them into one control or restyle them.
 
 The standard: **the spectacular moments are spectacular, the everyday screens are effortless and exact, and every small
 detail is intentional.**
+
+**Refine, never strip.** The aim of any design pass is to make Touchline look less like a generated app, not to make
+it plainer. Remove what reads as a default (the patterns below); keep the cards, colour, glow, motion and type that
+make up its look. When it isn't clear whether something is the identity or a default, keep it and ask.
 
 ## Why some screens read as generated
 
@@ -28,7 +35,7 @@ reason. Before adding any of these, say what it is for.
 
 | Default | What it costs | In Touchline instead |
 |---|---|---|
-| Every fact, link or action in its own rounded card | Nothing is grouped, everything weighs the same | One card per group; cells divided by hairlines (`Facts`, `Shortcuts`, `.jgrid`) |
+| Every fact in its own rounded card (age, height, value, each boxed) | Nothing is grouped, everything weighs the same | One card per group of facts, divided by hairlines (`Facts`, `.jgrid`). (Not the shortcut tiles: see above) |
 | Icon in a rounded tile above a title and a paragraph | The universal template; says nothing about football | The glyph on its own, beside its name; drop the paragraph |
 | Big faded icon in a card's background | Decoration repeating the icon already in the header | Nothing |
 | Coloured stripe down the side of a rounded card | The most recognisable generated tell | Say the state once: a coloured label, a tinted surface, a coloured icon. Stripes stay only where football uses them: zones on table rows |
@@ -45,7 +52,8 @@ reason. Before adding any of these, say what it is for.
 
 **Layout and hierarchy**
 - One primary thing per screen, at the top. Group by proximity before boxing; box only what is a unit.
-- A card holds a group. Facts are a grid inside one card, links a list inside one card, never a scatter of boxes.
+- A card holds a group. Facts are a grid inside one card, never a scatter of boxes; a list of links is a list inside
+  one card. (The shortcut tiles are the exception that is part of the look.)
 - Spacing: tight inside a group, generous between groups. Section labels sit with what they label.
 - Respect the phone: 390pt wide (check 320 too), 16px side gutter, nothing clipped, names never truncated where a
   second line or a shorter form (a league's `short`, a player's call name) would do.
@@ -87,8 +95,8 @@ reason. Before adding any of these, say what it is for.
 
 ## Shared pieces
 
-- `Shortcuts` (layout): ways into other screens as one control, icon over name, hairline dividers.
-- `Facts` (layout) and `.jgrid.c2/.c3/.c4`: facts or cells in one card, hairline grid.
+- `.mini-btn` tiles in a `.grid2/3/4` (and `.md-act` on match day): the ways into other screens.
+- `Facts` (layout) and `.jgrid.c2/.c3/.c4`: facts in one card, hairline grid.
 - `Empty` (atoms): the empty state.
 - `InfoTip` (components/InfoTip): the (i) with the longer explanation in a sheet.
 - `Avatar` (atoms): monogram in the club's colour unless given another.
