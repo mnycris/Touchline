@@ -737,17 +737,18 @@ select.input option { background: #151b27; }
 .fl-subm .neg { color: #ff7d88; }
 .fl-energy { width: 36px; height: 4px; margin-top: 2px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); overflow: hidden; }
 .fl-energy i { display: block; height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-/* out of position: his own position across the foot of his face, as a player card's position band, in its colour;
-   a quiet glass band where it is a position he can play (see OutOfPosition) */
-.fl-oop { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; z-index: 1; -webkit-mask-image: -webkit-radial-gradient(white, black); }
-.fl-oop b { position: absolute; left: 0; right: 0; bottom: 0; height: 31%; display: grid; place-items: center; padding-top: 1px;
-  font-family: var(--display); font-weight: 800; font-size: 9px; line-height: 1; letter-spacing: .08em; color: #05080c;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--grp) 90%, #fff), color-mix(in srgb, var(--grp) 84%, #000));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 -1px 0 rgba(0, 0, 0, .22);
-  animation: oop-in .5s .05s cubic-bezier(.2, .8, .2, 1) both; }
-.fl-oop.sm b { font-size: 8px; letter-spacing: .06em; }
-.fl-oop.l1 b { color: color-mix(in srgb, var(--grp) 80%, #fff); background: rgba(8, 10, 14, .76); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--grp) 60%, transparent); }
-@keyframes oop-in { from { transform: translateY(100%); } }
+/* out of position: a fine ring round his face in a warning's colour, his own position on a tag at its foot (see
+   OutOfPosition); the ring draws itself round from the tag, both ways, and the tag settles on it */
+.fl-oop { --oop: #ffb020; --oop-ink: #1e1400; position: absolute; left: 50%; top: 50%; width: var(--oop-box); height: var(--oop-box); transform: translate(-50%, -50%); pointer-events: none; z-index: 1; }
+.fl-oop.l3 { --oop: #ff4d5e; --oop-ink: #fff; }
+.fl-oop-ring { position: absolute; inset: 0; overflow: visible; }
+.fl-oop-ring circle { fill: none; stroke: var(--oop); stroke-width: 2; stroke-dasharray: 100 0; stroke-dashoffset: 50; animation: oop-ring .7s .05s cubic-bezier(.45, 0, .15, 1) both; }
+@keyframes oop-ring { from { stroke-dasharray: 0 100; stroke-dashoffset: 0; } }
+.fl-oop-tag { position: absolute; left: 50%; bottom: .5px; display: inline-flex; align-items: center; gap: 2px; height: 14px; padding: 0 4.5px 0 3.5px; border-radius: 7px; transform: translateX(-50%);
+  background: var(--oop); color: var(--oop-ink); font-family: var(--display); font-weight: 800; font-size: 10px; line-height: 1; letter-spacing: .03em; white-space: nowrap;
+  box-shadow: 0 0 0 1.5px var(--pitch), 0 2px 5px rgba(0, 0, 0, .4); animation: oop-tag .45s .15s cubic-bezier(.3, 1.45, .5, 1) both; }
+.fl-oop.sm .fl-oop-tag { height: 13px; padding: 0 4px 0 3px; font-size: 9px; }
+@keyframes oop-tag { from { opacity: 0; transform: translateX(-50%) translateY(3px) scale(.6); } }
 .fl-avg { display: inline-grid; place-items: center; min-width: 30px; height: 21px; padding: 0 6px; border-radius: 7px; background: var(--s3); color: var(--t1); font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 .fl-avg.rt { color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }
 .fl-empty { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; color: rgba(255, 255, 255, 0.6); font-size: 10px; font-weight: 700; }

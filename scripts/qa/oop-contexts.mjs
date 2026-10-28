@@ -1,6 +1,6 @@
 // Out of position where the manager meets it: a save's first team with one player in each degree of it (a position he
-// can play, out of position, unsuited), on the team sheet, in the match-day line-ups (both teams) and in Manage during
-// the live match, each cropped. node scripts/qa/oop-contexts.mjs <save on or before a match day> <out-dir>
+// can play, which has no mark; out of position; unsuited), on the team sheet, in the match-day line-ups (both teams)
+// and his sheet there, and in Manage during the live match, each cropped. node scripts/qa/oop-contexts.mjs <save on or before a match day> <out-dir>
 import fs from 'node:fs'
 import { openSave } from './load-save.mjs'
 const [SAVE, OUT = '/tmp/opus-oop-contexts'] = process.argv.slice(2)

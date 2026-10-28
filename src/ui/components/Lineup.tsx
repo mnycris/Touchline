@@ -3,8 +3,7 @@
 import type { ReactNode } from 'react'
 import type { Club, Competition, Fixture, TeamSheet, World } from '../../domain/types'
 import type { Formation } from '../../domain/constants'
-import { formationOf, GROUP_COLOR, POS_GROUP } from '../../domain/constants'
-import type { Position } from '../../domain/types'
+import { formationOf } from '../../domain/constants'
 import { Avatar, Badge, Face, ManagerAvatar } from './atoms'
 import { Icon } from '../icons/Icon'
 import { callName } from '../../engine/match/commentary'
@@ -204,7 +203,7 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
         {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
-        {(mode === 'sheet' || energy) && !!s.suit && !!s.natural && <OutOfPosition level={s.suit} natural={s.natural} size={size} note={s.suitNote} />}
+        {(mode === 'sheet' || energy) && (s.suit === 2 || s.suit === 3) && !!s.natural && <OutOfPosition level={s.suit} natural={s.natural} size={size} note={s.suitNote} />}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
         {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
@@ -216,15 +215,16 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
 }
 
 /**
- * Out of position: his own position across the foot of his face, as a player card's position band, in that position's
- * colour (a midfielder's green in the back line says what is wrong at a glance). Solid when he is out of position or
- * unsuited, a quiet glass band where it is a position he can play; the slot's rating beside his face says what it
- * costs. It rises into place when he is moved there. Nothing at all in his own position.
+ * Out of position: a fine ring round his face in the colour of a warning (amber out of position, red unsuited), and on
+ * it, where his game really is: his own position, with the arrows of a move. The ring draws itself round from the tag
+ * when he is put there, and the tag settles on it. Nothing in his own position, or in one he can play.
  */
-function OutOfPosition({ level, natural, size, note }: { level: 1 | 2 | 3; natural: string; size: number; note?: string }) {
+function OutOfPosition({ level, natural, size, note }: { level: 2 | 3; natural: string; size: number; note?: string }) {
+  const box = size + 7, c = box / 2
   return (
-    <span className={`fl-oop l${level}${size < 40 ? ' sm' : ''}`} role="img" aria-label={note} style={{ ['--grp' as string]: GROUP_COLOR[POS_GROUP[natural as Position] || 'MID'] }}>
-      <b>{natural}</b>
+    <span className={`fl-oop l${level}${size < 40 ? ' sm' : ''}`} role="img" aria-label={note} style={{ ['--oop-box' as string]: `${box}px` }}>
+      <svg className="fl-oop-ring" width={box} height={box} viewBox={`0 0 ${box} ${box}`} aria-hidden><circle cx={c} cy={c} r={size / 2 + 2.25} pathLength={100} transform={`rotate(90 ${c} ${c})`} /></svg>
+      <b className="fl-oop-tag" aria-hidden><Icon name="position" size={size < 40 ? 9 : 10} strokeWidth={2.6} />{natural}</b>
     </span>
   )
 }
