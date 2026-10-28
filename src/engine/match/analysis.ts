@@ -10,17 +10,17 @@ import { emptyLedger, ledgerDiff, viewOf, type Ledger, type LedgerView } from '.
 type Norm = readonly [number, number]
 /** per team over a half (45 minutes); shares and rates are per their own base */
 export const NORM_HALF: Record<string, Norm> = {
-  poss: [0.5, 0.108], passes: [228, 52], passAcc: [0.813, 0.056], spell: [5.72, 1.65], fwdShare: [0.285, 0.049], longShare: [0.054, 0.052],
-  reach: [0.651, 0.213], entries: [26.8, 9.6], boxEntries: [6.8, 4.2], tilt: [0.233, 0.087], lostOwn: [7.2, 4.1], lostMid: [13, 4.4],
-  lostFinal: [15.2, 5.8], lostPressed: [8.65, 3.1], wonHigh: [1.6, 1.52], quickWon: [3.7, 2.4], shots: [7.06, 4.0], sot: [2.14, 1.85],
-  xg: [0.715, 0.547], dribbles: [9.3, 4.6], crosses: [3.85, 2.6], counterShots: [0.34, 0.6], counterXg: [0.066, 0.13],
+  poss: [0.5, 0.116], passes: [219, 57], passAcc: [0.789, 0.064], spell: [4.68, 1.57], fwdShare: [0.276, 0.055], longShare: [0.082, 0.061],
+  reach: [0.51, 0.238], entries: [24.4, 11.5], boxEntries: [7.3, 4.6], tilt: [0.206, 0.08], lostOwn: [11.2, 6.5], lostMid: [15.6, 5.4],
+  lostFinal: [16.9, 7.6], lostPressed: [10.7, 3.6], wonHigh: [2.32, 2.05], quickWon: [7.38, 4.56], shots: [6.2, 3.43], sot: [1.81, 1.49],
+  xg: [0.652, 0.472], dribbles: [9.55, 4.32], crosses: [3.83, 3.13], counterShots: [0.6, 1.04], counterXg: [0.134, 0.257],
 }
 /** touches per 90 minutes by position group */
-export const TOUCHES_90: Record<string, Norm> = { GK: [10, 4], CB: [41.5, 18.7], FB: [52.6, 18.5], DM: [55.3, 20.9], CM: [81.7, 22.7], AM: [80.2, 22.1], W: [60.3, 20.8], ST: [29.3, 19.1] }
+export const TOUCHES_90: Record<string, Norm> = { GK: [14, 4.8], CB: [44.5, 23], FB: [52.3, 22.2], DM: [60.6, 25.5], CM: [73.6, 21.1], AM: [71.7, 22.6], W: [54.7, 20], ST: [33.5, 15.2] }
 /** and how much more or less of the ball a role sees than its group (a poacher lives off scraps, a false nine drops in for it) */
 const ROLE_TOUCH: Record<string, number> = {
-  'Classic 10': 1.09, 'Shadow Striker': 0.89, 'Ball-Playing Defender': 1.36, Playmaker: 1.07, 'Deep-Lying Playmaker': 1.1, Holding: 0.8,
-  'False 9': 2.5, Poacher: 0.7, 'Inside Forward': 0.84, 'Wide Midfielder': 1.07, 'Wide Playmaker': 1.16,
+  'Classic 10': 1.14, 'Shadow Striker': 0.81, 'Ball-Playing Defender': 1.33, Playmaker: 1.06, 'Deep-Lying Playmaker': 0.98, Holding: 0.71,
+  'False 9': 2.5, Poacher: 0.8, 'Inside Forward': 0.82, 'Wide Midfielder': 1.08, 'Wide Playmaker': 1.19,
 }
 
 const COUNTS = new Set(['passes', 'entries', 'boxEntries', 'lostOwn', 'lostMid', 'lostFinal', 'lostPressed', 'wonHigh', 'quickWon', 'shots', 'sot', 'xg', 'dribbles', 'crosses', 'counterShots', 'counterXg'])

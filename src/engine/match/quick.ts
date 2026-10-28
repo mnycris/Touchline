@@ -19,7 +19,7 @@ const ASSIST_W: Record<RG, number> = { GK: 0.02, CB: 0.1, FB: 0.45, DM: 0.3, CM:
 // bookings per 90 by position as the action engine gives them (aggression sharpens it, but only a little)
 const CARD_W: Record<RG, number> = { GK: 0.08, CB: 0.75, FB: 0.68, DM: 1.15, CM: 1.05, AM: 0.78, W: 0.6, ST: 0.62 }
 /** Bookings a side collects a match by how it defends, as the action engine gives them (scripts/qa/discipline.ts). */
-const BOOKINGS: Record<string, number> = { Deep: 1.5, Balanced: 1.6, High: 2.15, Aggressive: 3.05 }
+const BOOKINGS: Record<string, number> = { Deep: 1.5, Balanced: 1.62, High: 2.06, Aggressive: 3.59 }
 const WORK: Record<RG, number> = { GK: 0.15, CB: 0.8, FB: 1.06, DM: 0.96, CM: 1.1, AM: 0.96, W: 1.05, ST: 0.95 }
 /**
  * Shots per 90 and xG per shot by position, as top-flight players (and the action engine) produce them. Shots are
@@ -53,6 +53,11 @@ function poisson(rng: Rng, lambda: number) { return Math.min(9, rng.poisson(Math
 
 /** XI strength on the day, in rating points. */
 function strength(s: SideInput, rng: Rng, boost: number): number {
+  return xiStrength(s, boost) + rng.normal(0, 1.2)
+}
+
+/** XI strength as it takes the field (positional ratings, fitness, sharpness, morale), before the day's ups and downs. */
+export function xiStrength(s: SideInput, boost = 1): number {
   const f = formationOf(s.sheet.formation)
   let sum = 0, n = 0
   s.sheet.lineup.forEach((id, i) => {
@@ -63,7 +68,7 @@ function strength(s: SideInput, rng: Rng, boost: number): number {
     n++
   })
   const avg = n ? sum / n : 50
-  return avg * boost - (11 - n) * 3 + rng.normal(0, 1.2)
+  return avg * boost - (11 - n) * 3
 }
 
 export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, seed: number): MatchResult {
@@ -72,9 +77,11 @@ export function quickSim(home: SideInput, away: SideInput, ctx: MatchContext, se
   const boost = (i: 0 | 1) => (us === 0 || us === 1 ? (i === us ? 1 : ctx.aiBoost ?? 1) : 1)
   const sides = [home, away]
   const str = [strength(home, rng, boost(0)), strength(away, rng, boost(1))]
-  const gap = str[0] - str[1] + (ctx.neutral ? 0 : 2)
-  const k = (g: number) => (g >= 0 ? 0.056 * g : 0.068 * g)
-  const lam = [1.35 * Math.exp(k(gap)) * Math.exp(rng.normal(0, 0.1)), 1.35 * Math.exp(k(-gap)) * Math.exp(rng.normal(0, 0.1))]
+  // the goal curve fitted to the action engine (scripts/qa/quick-fit.ts): a stronger side's goals rise more gently than a
+  // weaker one's fall, and a gap beyond fourteen points counts at 60% (the engine plays a mismatch closer than the gap)
+  const gap = str[0] - str[1] + (ctx.neutral ? 0 : 1.9)
+  const k = (g: number) => { const c = Math.abs(g) > 14 ? Math.sign(g) * (14 + (Math.abs(g) - 14) * 0.6) : g; return c >= 0 ? 0.041 * c : 0.051 * c }
+  const lam = [1.38 * Math.exp(k(gap)) * Math.exp(rng.normal(0, 0.1)), 1.38 * Math.exp(k(-gap)) * Math.exp(rng.normal(0, 0.1))]
   // --- players and minutes
   const ps: QP[] = []
   const events: MatchEvent[] = []

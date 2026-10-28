@@ -18,6 +18,14 @@ await page.getByText('Play match').click()
 await page.waitForSelector('.lp', { timeout: 20000 })
 const state = () => page.evaluate(() => { const s = window.__game.getState().live?.sim; return s ? { min: s.minute, ph: s.phase, fin: s.finished } : null })
 const speed = (v) => page.evaluate((v) => { const g = window.__game.getState(); const l = g.live; if (l) g.setLive({ ...l, speed: v }) }, v)
+// play and pause with the button: it toggles, and while a moment (a goal, a big chance) is on screen the first press only
+// puts the moment away (pressed directly: the moment's entrance would otherwise hold the click while the match runs on)
+const setRunning = async (on) => {
+  for (let i = 0; i < 4 && (await page.evaluate(() => !!window.__game.getState().live?.running)) !== on; i++) {
+    await page.locator('.ctl-btn.big').dispatchEvent('click').catch(() => {})
+    await page.waitForTimeout(150)
+  }
+}
 await speed(60)
 let goalShot = false
 // to half-time, catching a goal card on the way
@@ -36,14 +44,14 @@ console.log('report outside Live:', await page.locator('.htr-wrap, .htr-reopen')
 await page.locator('.tabs .tab', { hasText: 'Live' }).first().click()
 await page.waitForTimeout(300)
 // second half to about an hour, then a substitution made from the bench first
-await page.locator('.ctl-btn.big').click().catch(() => {})
+await setRunning(true)
 for (let k = 0; k < 200; k++) {
   const s = await state()
   if (!goalShot && (await page.locator('.gc-face').count())) { await shot('goal-card', 100); goalShot = true }
   if (!s || s.min >= 62) break
   await page.waitForTimeout(250)
 }
-await page.locator('.ctl-btn.big').click().catch(() => {})
+await setRunning(false)
 await page.waitForFunction(() => !document.querySelector('.moment, .mm, .goal-card'), null, { timeout: 15000 }).catch(() => {})
 await page.locator('.ctl-btn.manage').click({ force: true })
 await page.waitForTimeout(700)
@@ -60,12 +68,12 @@ await shot('after-sub', 300)
 await page.locator('.sheet button[aria-label="Close"]').first().click().catch(() => {})
 await page.waitForTimeout(500)
 // to full time
-await page.locator('.ctl-btn.big').click().catch(() => {})
+await setRunning(true)
 for (let k = 0; k < 300; k++) {
   const s = await state()
   if (!goalShot && (await page.locator('.gc-face').count())) { await shot('goal-card', 100); goalShot = true }
   if (!s || s.fin) break
-  if (s.ph === 'HT') await page.locator('.ctl-btn.big').click().catch(() => {})
+  if (s.ph === 'HT') await setRunning(true)
   await page.waitForTimeout(300)
 }
 await page.waitForTimeout(1500)

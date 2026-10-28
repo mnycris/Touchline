@@ -59,11 +59,11 @@ export function predictFixture(w: World, f: Fixture): Prediction {
   const h2h = headToHead(w, f)
   // head-to-head counts, lightly: a side that keeps beating this opponent gets a small edge
   const h2hEdge = clamp((h2h.w - h2h.l) * 0.35, -1.2, 1.2)
-  // fitted to the match engine's results (scripts/qa/predict-fit.ts): goals rise ~7% per rating point of edge
+  // fitted to the match engine's results (scripts/qa/predict-fit.ts): goals rise ~5% per rating point of edge
   const diff = eff(h) - eff(a) + h2hEdge
-  const [bh, ba] = f.neutral ? [1.28, 1.28] : [1.42, 1.15]
-  const lh = clamp(bh * Math.exp(diff * 0.066), 0.15, 5)
-  const la = clamp(ba * Math.exp(-diff * 0.066), 0.12, 4.6)
+  const [bh, ba] = f.neutral ? [1.28, 1.28] : [1.42, 1.16]
+  const lh = clamp(bh * Math.exp(diff * 0.046), 0.15, 5)
+  const la = clamp(ba * Math.exp(-diff * 0.046), 0.12, 4.6)
   let pH = 0, pD = 0, pA = 0, best = 0, likely: [number, number] = [1, 1]
   for (let i = 0; i <= 9; i++) for (let j = 0; j <= 9; j++) {
     const p = poisson(lh, i) * poisson(la, j)

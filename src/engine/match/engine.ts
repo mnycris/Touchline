@@ -24,6 +24,7 @@ import { keeperQuality, takePenalty, takerQuality } from './penalty'
 import { cloneLedger, emptyLedger, lane, third, type Ledger } from './ledger'
 import { changeReports } from './analysis'
 import { PS_KEYS, psBonus, type PB } from './skills'
+import { SHAPE_FX } from './shapeData'
 
 export type Phase = 'pre' | '1H' | 'HT' | '2H' | 'ET1' | 'ETHT' | 'ET2' | 'PENS' | 'FT'
 
@@ -249,7 +250,27 @@ const PRESS_CLOSE = 0.45
  * How much of the gap between two players' attributes counts in a duel (see e): all of it would make every duel a
  * foregone conclusion; too little and quality stops telling, so the better side neither keeps the ball nor controls games.
  */
-const QUALITY_K = 0.57
+const QUALITY_K = 0.48
+/**
+ * Beyond TOP_EDGE points above the reference (on the match's own scale, see e) an attribute counts at half its worth:
+ * the world's best finisher or ball-winner is better than the men he meets, but not by so much that every duel he is in
+ * is settled before it starts (with all of it, the best sides' forwards scored fifty a season).
+ */
+const TOP_EDGE = 12
+const TOP_KEEP = 0.5
+/**
+ * A side far stronger than the one it meets doesn't get all of its edge on the day: the weaker side sits in, doubles up
+ * and gets bodies behind the ball, and the stronger one plays within itself once the game is won. Of the gap between the
+ * two XIs beyond MISMATCH rating points, MISMATCH_KEEP counts (the rest is taken back from both sides), so a giant still
+ * beats a minnow most of the time, but by two or three rather than five, and wins its league by margins real ones see.
+ */
+const MISMATCH = 7
+const MISMATCH_KEEP = 0.5
+/**
+ * How much a side's edge in class makes it patient with a half-chance, per rating point (see act): the far better side
+ * passes up the shot from distance because a better chance will come, and the outclassed one takes what it gets.
+ */
+const CLASS_PATIENCE = 0.05
 /** How much a side in the other half avoids giving that ground back with a pass to its own half (see decide). */
 const HOLD_HALF = 0.9
 /** How exposed a side has to be when it loses the ball for the other side to have a break on (see turnover). */
@@ -433,8 +454,17 @@ class Side {
   lastLoss = -99
   /** in a front two, the striker who comes short between the lines (the other stays on the last defender) */
   dropST?: LP
+  /** in a midfield of two holding men and no central midfielder, the one who steps up in possession (see refresh) */
+  up?: LP
   /** how quickly the block shifts with the ball (defensive reading, reactions and legs), ~1 for an average side */
   shiftK = 1
+  /** the outfield XI's average rating where they play (see refresh) */
+  lvl = 70
+  /** what its shape's own geometry is worth to the chances it makes and allows, taken back out (see shapeData.ts) */
+  fxA = 1
+  fxD = 1
+  /** a back four (two centre-backs): its wide midfielders push on to the last line like wingers (see layout) */
+  back4 = false
   constructor(public input: SideInput, public idx: 0 | 1) {
     this.tactics = { ...input.sheet.tactics }
     this.formation = input.sheet.formation
@@ -448,8 +478,13 @@ class Side {
     // looked for him in attack (a modest side's best forward is its outlet as much as a big club's star is theirs)
     const out = this.on.filter((l) => l.pos !== 'GK')
     const mean = out.reduce((a, l) => a + posRating(l.p, l.pos), 0) / Math.max(1, out.length)
+    this.lvl = mean
     for (const l of this.on) l.star = (STAR_G[l.g] ?? 0) * clamp((posRating(l.p, l.pos) - mean) / 4, -1, 1.8)
     this.dropST = sts.length >= 2 ? sts.reduce((a, b) => ((POCKET[b.role] ?? 0) - b.apri * 0.1 > (POCKET[a.role] ?? 0) - a.apri * 0.1 ? b : a)) : undefined
+    // two holding midfielders and no central one: the keener of the two to get forward steps up when the side has the
+    // ball and plays as the midfielder who arrives (two who both sit leave the side a man short in every attack)
+    const dms = this.on.filter((l) => l.g === 'DM')
+    this.up = dms.length >= 2 && !this.on.some((l) => l.g === 'CM') ? dms.reduce((a, b) => (b.apri > a.apri ? b : a)) : undefined
   }
   get name() { return this.input.short }
   get ment() { return MENT[this.tactics.mentality] + this.aiMentality + this.state }
@@ -595,6 +630,17 @@ export class MatchSim {
       const mid = (lvl[0] + lvl[1]) / 2
       for (const s of this.sides) { s.dayForm += mid - lvl[s.idx]; for (const l of [...s.lps, ...s.bench]) this.cond(l) }
       this.evenBase = [this.sides[0].dayForm, this.sides[1].dayForm]
+    } else {
+      // a mismatch is played closer than the gap (see MISMATCH): the two XIs as they take the field, less the difficulty
+      // edge (that is the manager's setting, and it counts in full)
+      const lvl = this.sides.map((s) => s.lps.reduce((a, l) => a + posRating(l.p, l.pos) * (l.cf[0] + l.cf[1] + l.cf[2]) / 3 / s.boost + l.form, 0) / Math.max(1, s.lps.length))
+      const gap = lvl[0] - lvl[1], over = Math.abs(gap) - MISMATCH
+      if (over > 0) {
+        const sh = Math.sign(gap) * over * (1 - MISMATCH_KEEP) / 2
+        this.sides[0].dayForm -= sh
+        this.sides[1].dayForm += sh
+        for (const s of this.sides) for (const l of [...s.lps, ...s.bench]) this.cond(l)
+      }
     }
     const xi = this.sides.flatMap((s) => s.on)
     // The match is played at its own level, attribute by attribute: each man is measured against the men on the pitch,
@@ -691,6 +737,10 @@ export class MatchSim {
 
   private reshape(s: Side) {
     const t = s.tactics
+    const sfx = SHAPE_FX[s.formation]
+    s.fxA = Math.exp(sfx?.[0] ?? 0)
+    s.fxD = Math.exp(sfx?.[1] ?? 0)
+    s.back4 = s.slots.filter((q) => q.pos === 'CB').length === 2
     s.dir = (t.buildUp === 'Long Ball' ? 1 : t.buildUp === 'Counter' ? 0.6 : t.buildUp === 'Short Passing' ? -0.5 : 0)
       + (t.chanceCreation === 'Direct Passing' ? 0.6 : t.chanceCreation === 'Forward Runs' ? 0.35 : t.chanceCreation === 'Possession' ? -0.6 : 0)
       + (t.tempo - 50) / 45
@@ -705,9 +755,13 @@ export class MatchSim {
   // =========================================================== attribute composites (effective points)
   /**
    * A player's effective attribute: condition, form and venue, then drawn in toward the match's reference level. Quality
-   * tells over a match, but no single duel is a foregone conclusion, so a far better side wins most games, not all.
+   * tells over a match, but no single duel is a foregone conclusion, so a far better side wins most games, not all (and
+   * the very top of the scale counts for less: see TOP_EDGE).
    */
-  private e(l: LP, i: number) { return this.ref + (l.p.attrs[i] * l.cf[CLS[i]] + l.fb + this.dA[i] - this.ref) * QUALITY_K }
+  private e(l: LP, i: number) {
+    const d = l.p.attrs[i] * l.cf[CLS[i]] + l.fb + this.dA[i] - this.ref
+    return this.ref + (d > TOP_EDGE ? TOP_EDGE + (d - TOP_EDGE) * TOP_KEEP : d) * QUALITY_K
+  }
   private passS(l: LP) { return this.e(l, A.shortPassing) * 0.5 + this.e(l, A.vision) * 0.15 + this.e(l, A.ballControl) * 0.15 + this.e(l, A.composure) * 0.2 + l.pb.passS }
   private passL(l: LP) { return this.e(l, A.longPassing) * 0.55 + this.e(l, A.vision) * 0.2 + this.e(l, A.curve) * 0.15 + this.e(l, A.composure) * 0.1 + l.pb.passL }
   private thru(l: LP) { return this.e(l, A.vision) * 0.45 + this.e(l, A.shortPassing) * 0.25 + this.e(l, A.longPassing) * 0.15 + this.e(l, A.curve) * 0.15 + l.pb.thru }
@@ -849,6 +903,8 @@ export class MatchSim {
       } else if (!def.focuses.includes(lp.focus)) lp.focus = def.focuses[0] || lp.focus
       this.placed(lp)
     })
+    // (who the side plays through, which striker comes short and which pivot steps up all follow the new shape)
+    s.refresh()
     this.reshape(s)
     if (announce && this.phase !== 'pre' && this.ctx.commentary) this.push({ min: this.displayMinute(), type: 'tactic', side, text: line(this.crng, 'tactic', { t: s.name, x: f.name }) })
   }
@@ -864,6 +920,7 @@ export class MatchSim {
     ;[P.focus, Q.focus] = [Q.focus, P.focus]
     this.placed(P)
     this.placed(Q)
+    s.refresh()
     return true
   }
 
@@ -877,6 +934,7 @@ export class MatchSim {
     const r = s.input.sheet.roles[slot]
     if (r) { P.role = r.role; P.focus = r.focus }
     this.placed(P)
+    s.refresh()
     return true
   }
 
@@ -1471,8 +1529,9 @@ export class MatchSim {
       }
       const sl = X.slots[l.slot] || X.slots[0]
       const p = playerSpot(sl.x, sl.y, l.pos, l.rs, X.shape, true, b, l.jx, l.jy, l.q1)
-      // strikers play on the last defender, wide forwards not far off it: the outlet is always there
-      if (b.x > 30 && (l.g === 'ST' || (l.g === 'W' && b.x > 45 && l.pos !== 'LM' && l.pos !== 'RM'))) {
+      // strikers play on the last defender, wide forwards not far off it: the outlet is always there (a back four's wide
+      // midfielders too, once the side is camped in the other half: they are its wingers)
+      if (b.x > 30 && (l.g === 'ST' || (l.g === 'W' && b.x > 45 && ((l.pos !== 'LM' && l.pos !== 'RM') || (b.x > 58 && X.back4))))) {
         const pin = this.lineCache - (l.pos === 'ST' ? 5 : l.pos === 'CF' ? 10 : 11) - (l.role === 'False 9' ? 8 : 0)
         if (p.x < pin) p.x = pin - r.next() * 3
       }
@@ -1480,7 +1539,7 @@ export class MatchSim {
       // between the lines: in the build-up the creative midfielders step up into the pocket, a false nine or a target man
       // drops into it, and a wide playmaker comes in off the flank to find it
       if (pocket && l !== this.car && !(l.g === 'ST' && X.dropST && X.dropST !== l)) {
-        const k = (POCKET[l.role] ?? (l.g === 'AM' ? 0.45 : 0)) * 0.85
+        const k = (l === X.up ? 0.35 : POCKET[l.role] ?? (l.g === 'AM' ? 0.45 : 0)) * 0.85
         if (k > 0) {
           if (p.x < pocket) p.x += (pocket - p.x) * k
           else if (l.g === 'ST' && p.x > pocket + 3) p.x -= (p.x - pocket - 3) * k
@@ -1490,7 +1549,7 @@ export class MatchSim {
       // inverted wingers drift into the half-space in the final third; midfielders make late runs toward the box
       if (l.g === 'W' && l.inv && b.x > 56 && l !== this.car) p.y += (50 - p.y) * 0.3
       if (b.x > 64 && l !== this.car && (l.g === 'CM' || l.g === 'AM' || l.g === 'DM')) {
-        const run = l.g === 'AM' ? 0.32 : l.g === 'DM' ? 0.1 : l.role === 'Box-to-Box' || l.bias.bx > 0 ? 0.75 : l.role === 'Deep-Lying Playmaker' || l.role === 'Holding' ? 0.2 : 0.6
+        const run = l.g === 'AM' ? 0.32 : l.g === 'DM' ? (l === X.up ? 0.6 : 0.1) : l.role === 'Box-to-Box' || l.bias.bx > 0 ? 0.75 : l.role === 'Deep-Lying Playmaker' || l.role === 'Holding' ? 0.2 : 0.6
         p.x = Math.min(hold - 1, p.x + (b.x - 64) * run * (1 + X.shape.mentality * 0.15))
       }
       // around the box the wide forwards leave the touchline and attack the channel inside the full-back: when the ball
@@ -1505,7 +1564,7 @@ export class MatchSim {
       } else if (l.g === 'W' && l !== this.car && b.x > 66) {
         const ownFlank = Math.abs(b.y - 50) >= 18 && (b.y < 50) === (p.y < 50)
         if (Math.abs(b.y - 50) < 18 || ownFlank) {
-          const k = Math.min(1, (b.x - 66) / 12) * (l.role === 'Wide Midfielder' ? 0.6 : 1) * (ownFlank ? 0.7 : 1) * (l.pos === 'LM' || l.pos === 'RM' ? 0.75 : 1)
+          const k = Math.min(1, (b.x - 66) / 12) * (l.role === 'Wide Midfielder' ? 0.6 : 1) * (ownFlank ? 0.7 : 1)
           const ty = p.y < 50 ? 30 : 70
           if (Math.abs(p.y - 50) > 20) p.y += (ty - p.y) * k
           p.x = Math.min(hold - 1, p.x + 11 * k)
@@ -1564,7 +1623,8 @@ export class MatchSim {
     const c = this.cmt
     c.length = 0
     for (const l of X.on) if (l.pos !== 'GK' && l !== this.car) c.push(l)
-    c.sort((p, q) => q.apri - p.apri)
+    // (the holding midfielder who steps up joins the attack as a central midfielder would)
+    c.sort((p, q) => q.apri + (q === X.up ? 0.45 : 0) - p.apri - (p === X.up ? 0.45 : 0))
     const n = want - (this.car && this.car.pos !== 'GK' && b.x > 60 && this.car.apri > 0.3 ? 1 : 0)
     for (let i = 0; i < c.length; i++) {
       const l = c[i]
@@ -1574,7 +1634,7 @@ export class MatchSim {
         // the midfielder who goes with it arrives late in the box when the ball is worked into the last twenty yards:
         // the cut-back, the knock-down and the loose ball fall to him, more so the keener he is to get in there
         if ((l.g === 'CM' || l.g === 'AM' || l.g === 'DM') && b.x > 72) {
-          const late = clamp(clamp((b.x - 72) / 10, 0, 1) * (0.4 + Math.max(0, l.bias.bx) * 1.4 + (l.role === 'Box-to-Box' || l.role === 'Shadow Striker' ? 0.3 : 0) - (l.g === 'DM' ? 0.25 : 0)), 0, 0.85)
+          const late = clamp(clamp((b.x - 72) / 10, 0, 1) * (0.4 + Math.max(0, l.bias.bx) * 1.4 + (l.role === 'Box-to-Box' || l.role === 'Shadow Striker' ? 0.3 : 0) - (l.g === 'DM' && l !== X.up ? 0.25 : 0)), 0, 0.85)
           if (late > 0) {
             l.at.x += (Math.min(hold - 1, 87) - l.at.x) * late
             l.at.y += (50 + (l.at.y - 50) * 0.4 - l.at.y) * late * 0.6
@@ -1968,7 +2028,9 @@ export class MatchSim {
       if (xg0 >= 0.012) {
         const inside = inBox(b)
         const crowd = this.crowd(Y, b)
-        let a = (inside ? -1.2 : -1.08) + 1.5 * Math.log(xg0 / 0.1) + (inside ? SHOOT[c.g] : LONG_SHOT[c.g])
+        // (the holding midfielder who steps up shoots like the midfielder he is playing as)
+        const sg = c === X.up ? 'CM' : c.g
+        let a = (inside ? -1.2 : -1.08) + 1.5 * Math.log(xg0 / 0.1) + (inside ? SHOOT[sg] : LONG_SHOT[sg])
         a += inside ? (this.fin(c) - this.ref) / 70 : (this.lsh(c) - this.ref) / 34
         // patient sides pass up half-chances and work the ball into better ones
         a += c.bias.sh + X.ment * (X.ment > 0 ? 0.12 : 0.06) + (X.tactics.chanceCreation === 'Possession' ? (xg0 < 0.06 ? -0.1 : 0.15) : X.tactics.chanceCreation === 'Direct Passing' ? 0.1 : 0)
@@ -1981,6 +2043,8 @@ export class MatchSim {
         // against a packed box a side works it around and waits (and the half-chance goes begging); with men over in
         // there it has the numbers to have a go
         if (b.x > 70 && !this.chain.oneOnOne) a += 0.12 * clamp(this.boxBalance(X, Y), -4, 2)
+        // a side far the better is patient with a half-chance, one outclassed takes what it gets (see CLASS_PATIENCE)
+        if (xg0 < 0.15) a -= CLASS_PATIENCE * clamp(X.lvl - Y.lvl, -10, 10) * Math.min(1, (0.15 - xg0) / 0.1)
         if (this.chain.oneOnOne) a += 1.2
         // came inside onto his stronger foot to shoot
         if (this.chain.cutIn?.by === c && this.n - this.chain.cutIn.n <= 1) a += 1.1
@@ -2067,7 +2131,8 @@ export class MatchSim {
     return clamp(
       0.26 * k * Math.pow(Math.max(20, agg) / 65, 1.05) * (1 + (this.ref - tk) / 90) * (def.energy < 50 ? 1.2 : 1) * booked
       * (this.ctx.derby ? 1.12 : 1) * (1 + (this.drib(att) - this.ref) / 150) * (1 + def.bias.dw * 0.25),
-      0.02, 0.45,
+      // (with a floor of its own in the box, or the floor would undo his staying on his feet there)
+      box ? 0.004 : 0.02, 0.45,
     )
   }
 
@@ -2897,7 +2962,8 @@ export class MatchSim {
     const bb = inside && !ctx.setPiece && !ctx.oneOnOne ? clamp(this.boxBalance(X, Y), -3, 3) - BOX_XG0 : 0
     // and the risk each side is taking: the runners this one sends, the men the other keeps back (see ARRIVE_M)
     const risk = ctx.setPiece || ctx.oneOnOne ? 0 : (inside ? 1 : 0.5) * (ARRIVE_M * clamp(X.ment, 0, 2.5) + ARRIVE_B * (X.tactics.playersInBox - 5) - BEHIND_M * clamp(-Y.ment, 0, 2.5) - BLOCK_K * clamp((50 - Y.shape.lineHeight) / 25, 0, 1.2))
-    const xg = chanceXg(b, ctx) * Math.pow(0.88, crowd) * Math.pow(BOX_XG, bb) * Math.exp(risk)
+    // (and the bias each shape's own geometry leaves, taken back out: see shapeData.ts)
+    const xg = chanceXg(b, ctx) * Math.pow(0.88, crowd) * Math.pow(BOX_XG, bb) * Math.exp(risk) * X.fxA * Y.fxD
     if (MatchSim.dbg) { dbg(`gshot.${c.g}.${how}`); dbg('crowd', this.crowd(Y, b)); dbg('shot.' + how); dbg('xg.' + how, xg); dbg(`s${X.idx}.shot.${how}`); dbg(`s${X.idx}.xg.${how}`, xg); dbg(`s${X.idx}.gs.${c.g}`); dbg(`s${X.idx}.gx.${c.g}`, xg); dbg(`s${X.idx}.hx.${how}`, xg); dbg(`s${X.idx}.shotx${Math.floor(b.x / 5) * 5}`); dbg(`s${X.idx}.sxg${Math.floor(b.x / 5) * 5}`, xg); dbg(`s${X.idx}.scr${Math.floor(b.x / 5) * 5}`, crowd); dbg(`s${X.idx}.spr${Math.floor(b.x / 5) * 5}`, ctx.pressure || 0) }
     c.st.shots++
     c.st.xg += xg
@@ -3452,7 +3518,7 @@ export class MatchSim {
     const promising = tactical ? 1 + 1.2 * clamp((at.x - 20) / 50, 0.15, 1) : 1
     const pRed = clearChance ? (box ? 0.07 : 0.25) * strict : 0.0022 * strict * (agg / 70) * (kind === 'aerial' ? 0.5 : 1)
     // (a man already booked is given more benefit of the doubt: referees think twice before a second yellow)
-    const pYel = 0.14 * CARD_POS[def.g] * Math.pow(Math.max(20, agg) / 65, 0.6) * strict * promising * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.35 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
+    const pYel = 0.13 * CARD_POS[def.g] * Math.pow(Math.max(20, agg) / 65, 0.6) * strict * promising * (clearChance ? 2.2 : 1) * (def.p.hidden.temperament > 70 ? 1.2 : 1) * (def.yellow ? 0.35 : 1) * (kind === 'aerial' ? 0.55 : 1) * (box ? 1.3 : 1)
     let dead = 18 + this.rng.next() * 14 + (at.x > 66 ? 10 : 0)
     // Edit Mode: the card for a scripted penalty's foul
     const fc = this.forceCard

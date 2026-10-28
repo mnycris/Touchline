@@ -1,4 +1,6 @@
-// Fits the prediction model's goal curve to simulated results (Poisson likelihood grid search).
+// Fits the prediction model's goal curve to simulated results (Poisson likelihood, coordinate search): the base rate at
+// each end, the rise per rating point of edge, and the edge beyond which more of it counts for less (see MISMATCH in
+// src/engine/match/engine.ts).
 // npx tsx scripts/qa/predict-fit.ts [matches]
 import fs from 'node:fs'
 import { createWorld } from '../../src/data/createWorld'
@@ -20,16 +22,40 @@ for (const seed of [5, 17]) {
     rows.push({ d: eff(p.home) - eff(p.away), a: r.score[0], b: r.score[1] })
   }
 }
-const lf = (k: number) => { let s = 0; for (let i = 2; i <= k; i++) s += Math.log(i); return s }
-let best = { ll: -Infinity, bh: 0, ba: 0, k: 0 }
-for (let bh = 1.1; bh <= 1.7; bh += 0.02) for (let ba = 0.9; ba <= 1.5; ba += 0.02) for (let k = 0.01; k <= 0.12; k += 0.004) {
-  let ll = 0
+const lf: number[] = [0]
+for (let i = 1; i <= 12; i++) lf[i] = lf[i - 1] + Math.log(i)
+type M = { bh: number; ba: number; k: number; knee: number; s: number }
+const edge = (m: M, d: number) => (Math.abs(d) > m.knee ? Math.sign(d) * (m.knee + (Math.abs(d) - m.knee) * m.s) : d)
+const ll = (m: M) => {
+  let s = 0
   for (const r of rows) {
-    const lh = bh * Math.exp(r.d * k), la = ba * Math.exp(-r.d * k)
-    ll += r.a * Math.log(lh) - lh - lf(r.a) + r.b * Math.log(la) - la - lf(r.b)
+    const e = edge(m, r.d), lh = m.bh * Math.exp(e * m.k), la = m.ba * Math.exp(-e * m.k)
+    s += r.a * Math.log(lh) - lh - lf[Math.min(12, r.a)] + r.b * Math.log(la) - la - lf[Math.min(12, r.b)]
   }
-  if (ll > best.ll) best = { ll, bh, ba, k }
+  return s
 }
+const grid: Record<keyof M, [number, number, number]> = { bh: [1, 1.8, 0.01], ba: [0.8, 1.6, 0.01], k: [0.01, 0.12, 0.001], knee: [3, 20, 0.5], s: [0.2, 1, 0.05] }
+// the curve src/engine/match/predict.ts uses (it has no knee: on league football the knee doesn't earn its place)
+const now: M = { bh: 1.42, ba: 1.16, k: 0.046, knee: 99, s: 1 }
+/** Coordinate search over the given parameters, from a starting curve. */
+function fit(from: M, keys: (keyof M)[]): [M, number] {
+  let best = from, cur = ll(best)
+  for (let pass = 0; pass < 6; pass++) {
+    for (const key of keys) {
+      const [lo, hi, st] = grid[key]
+      for (let v = lo; v <= hi + 1e-9; v += st) {
+        const t = { ...best, [key]: v }
+        const x = ll(t)
+        if (x > cur) { cur = x; best = t }
+      }
+    }
+  }
+  return [best, cur]
+}
+// (from a knee out of reach and half weight beyond it, so that both have something to move from)
+const [best, cur] = fit({ ...now, knee: 20, s: 0.5 }, ['bh', 'ba', 'k', 'knee', 's'])
+const [plain, plainLl] = fit(now, ['bh', 'ba', 'k'])
 const m = (f: (r: typeof rows[number]) => number) => rows.reduce((s, r) => s + f(r), 0) / rows.length
 console.log(`${rows.length} matches · mean |diff| ${m((r) => Math.abs(r.d)).toFixed(2)} · goals ${m((r) => r.a).toFixed(2)}–${m((r) => r.b).toFixed(2)}`)
-console.log(`best: home base ${best.bh.toFixed(2)}, away base ${best.ba.toFixed(2)}, k ${best.k.toFixed(3)} per rating point`)
+console.log(`best: home base ${best.bh.toFixed(2)}, away base ${best.ba.toFixed(2)}, k ${best.k.toFixed(3)} per rating point, beyond ${best.knee.toFixed(1)} points x${best.s.toFixed(2)} (log-likelihood ${cur.toFixed(1)})`)
+console.log(`without the knee: home base ${plain.bh.toFixed(2)}, away base ${plain.ba.toFixed(2)}, k ${plain.k.toFixed(3)} (log-likelihood ${plainLl.toFixed(1)}); the curve in use now ${ll(now).toFixed(1)}`)
