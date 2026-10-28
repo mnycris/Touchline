@@ -186,6 +186,8 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
   const size = small ? 34 : 40
   const goals = s.goals || 0
   const assists = s.assists || 0
+  // out of position (not one he can play): his own position where his shirt number is, in a warning's colour
+  const oop = (mode === 'sheet' || energy) && (s.suit === 2 || s.suit === 3) && s.natural ? s.suit : 0
   return (
     <button type="button" data-mine={mine ? '1' : undefined} className={`fl-pl ${sel ? 'sel' : ''} ${s.red ? 'sent' : ''}`} style={{ left: `${left}%`, top: `${top}%` }} onClick={onTap} disabled={!onTap}>
       <div className="fl-ph" style={{ width: size, height: size }}>
@@ -203,29 +205,16 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
         {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
-        {(mode === 'sheet' || energy) && (s.suit === 2 || s.suit === 3) && !!s.natural && <OutOfPosition level={s.suit} natural={s.natural} size={size} note={s.suitNote} />}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
         {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
-      <div className="fl-nm">{p.jersey ? <span className="fl-no">{p.jersey}</span> : null}<span className="ellipsis">{callName(p.name)}</span>{s.captain && <span className="fl-cap">C</span>}</div>
+      <div className={`fl-nm${oop ? ` oop l${oop}` : ''}`}>
+        {oop ? <span className="fl-pos" key={s.natural} aria-label={s.suitNote}>{s.natural}</span> : p.jersey ? <span className="fl-no">{p.jersey}</span> : null}
+        <span className="ellipsis">{callName(p.name)}</span>{s.captain && <span className="fl-cap">C</span>}
+      </div>
       {(s.subOff != null || s.subOn != null) && <div className="fl-subm">{s.subOn != null && <span className="pos">{s.subOn}'</span>}{s.subOff != null && <span className="neg">{s.subOff}'</span>}</div>}
       {(mode === 'sheet' || energy) && s.energy != null && s.energy < (energy ? 101 : 85) && <EnergyBar v={s.energy} />}
     </button>
-  )
-}
-
-/**
- * Out of position: a fine ring round his face in the colour of a warning (amber out of position, red unsuited), and on
- * it, where his game really is: his own position, with the arrows of a move. The ring draws itself round from the tag
- * when he is put there, and the tag settles on it. Nothing in his own position, or in one he can play.
- */
-function OutOfPosition({ level, natural, size, note }: { level: 2 | 3; natural: string; size: number; note?: string }) {
-  const box = size + 7, c = box / 2
-  return (
-    <span className={`fl-oop l${level}${size < 40 ? ' sm' : ''}`} role="img" aria-label={note} style={{ ['--oop-box' as string]: `${box}px` }}>
-      <svg className="fl-oop-ring" width={box} height={box} viewBox={`0 0 ${box} ${box}`} aria-hidden><circle cx={c} cy={c} r={size / 2 + 2.25} pathLength={100} transform={`rotate(90 ${c} ${c})`} /></svg>
-      <b className="fl-oop-tag" aria-hidden><Icon name="position" size={size < 40 ? 9 : 10} strokeWidth={2.6} />{natural}</b>
-    </span>
   )
 }
 

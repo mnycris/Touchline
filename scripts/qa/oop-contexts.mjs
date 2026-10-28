@@ -49,7 +49,7 @@ await page.locator('.tab', { hasText: /Line-ups/i }).first().click().catch(() =>
 await page.waitForTimeout(900)
 await crop('.overlay .fl-pitch', '2-matchday-lineups')
 // one of them tapped: his sheet, with why the position costs him
-const moved = page.locator('.overlay .fl-pl:has(.fl-oop)').first()
+const moved = page.locator('.overlay .fl-pl:has(.fl-pos)').first()
 if (await moved.count()) {
   await moved.scrollIntoViewIfNeeded()
   await moved.click()
