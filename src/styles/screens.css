@@ -737,8 +737,17 @@ select.input option { background: #151b27; }
 .fl-subm .neg { color: #ff7d88; }
 .fl-energy { width: 36px; height: 4px; margin-top: 2px; border-radius: 3px; background: rgba(255, 255, 255, 0.14); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); overflow: hidden; }
 .fl-energy i { display: block; height: 100%; border-radius: 3px; transition: width 0.6s ease; }
-/* a player in a position that doesn't suit him: amber somewhat, orange out of position, red unsuited */
-.fl-suit { position: absolute; left: -5px; top: -5px; z-index: 2; pointer-events: none; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, .45)); }
+/* out of position: his own position across the foot of his face, as a player card's position band, in its colour;
+   a quiet glass band where it is a position he can play (see OutOfPosition) */
+.fl-oop { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; z-index: 1; -webkit-mask-image: -webkit-radial-gradient(white, black); }
+.fl-oop b { position: absolute; left: 0; right: 0; bottom: 0; height: 31%; display: grid; place-items: center; padding-top: 1px;
+  font-family: var(--display); font-weight: 800; font-size: 9px; line-height: 1; letter-spacing: .08em; color: #05080c;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--grp) 90%, #fff), color-mix(in srgb, var(--grp) 84%, #000));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .4), 0 -1px 0 rgba(0, 0, 0, .22);
+  animation: oop-in .5s .05s cubic-bezier(.2, .8, .2, 1) both; }
+.fl-oop.sm b { font-size: 8px; letter-spacing: .06em; }
+.fl-oop.l1 b { color: color-mix(in srgb, var(--grp) 80%, #fff); background: rgba(8, 10, 14, .76); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--grp) 60%, transparent); }
+@keyframes oop-in { from { transform: translateY(100%); } }
 .fl-avg { display: inline-grid; place-items: center; min-width: 30px; height: 21px; padding: 0 6px; border-radius: 7px; background: var(--s3); color: var(--t1); font-weight: 800; font-size: 12px; font-variant-numeric: tabular-nums; }
 .fl-avg.rt { color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25); }
 .fl-empty { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 3px; color: rgba(255, 255, 255, 0.6); font-size: 10px; font-weight: 700; }
@@ -2170,12 +2179,15 @@ input.ed-cond-range[type='range']::-webkit-slider-thumb { margin-top: -8px; box-
 
 /* position suitability: a word under a rating, and the note for the player picked */
 .suit-l { font-size: 10.5px; font-weight: 700; white-space: nowrap; color: var(--t3); }
-.suit-l.s1 { color: #f2c94c; }
-.suit-l.s2 { color: #f2994a; }
-.suit-l.s3 { color: #ff6b6b; }
-.suit-note { margin-top: 6px; padding: 7px 10px; border-radius: 10px; font-size: 12px; line-height: 1.35; color: var(--t2); background: var(--s2); border-left: 3px solid #f2c94c; }
-.suit-note.s2 { border-left-color: #f2994a; }
-.suit-note.s3 { border-left-color: #eb5757; }
+.suit-l.s1 { color: var(--t2); }
+.suit-l.s2 { color: var(--warn); }
+.suit-l.s3 { color: var(--neg); }
+/* why a position costs him: his own position's chip (as the band on the pitch shows it), the verdict, the reason */
+.suit-note { display: flex; align-items: flex-start; gap: 9px; margin-top: 10px; padding: 9px 11px; border-radius: 12px; font-size: 12.5px; line-height: 1.4; color: var(--t2); background: var(--s2); }
+.suit-note .pos-chip { flex: none; margin-top: 1px; }
+.suit-note b { font-weight: 700; color: var(--t1); }
+.suit-note.s2 b { color: var(--warn); }
+.suit-note.s3 b { color: var(--neg); }
 
 /* in-match tactics: what you have changed this visit, with undo (Manage Team) */
 .undo-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; margin-bottom: 10px; border-radius: 12px; background: var(--s2); animation: fadeUp .25s ease both; }

@@ -22,13 +22,13 @@ import { sortTable, zoneFor, ZONE_COLOR, ZONE_LABEL } from '../../engine/competi
 import { aggregateBefore } from '../../engine/competitions/cups'
 import { headToHead } from '../../engine/world/h2h'
 import { callName } from '../../engine/match/commentary'
-import { posRating, suitability } from '../../domain/ratings'
+import { posRating } from '../../domain/ratings'
 import { Ball, MatchLineup, sideFromSheet, type LineupTap, RatingPill } from '../components/Lineup'
 import { buildSheet, setPieceTakers } from '../../engine/match/selection'
 import { rosterOf } from '../../engine/world/roster'
 import { storyLines } from '../../engine/world/storylines'
 import { Bracket, TableView } from './Competitions'
-import { FixtureRow, SuitTag, assignToFormation } from './Match'
+import { FixtureRow, SuitNote, SuitTag, assignToFormation } from './Match'
 import { swapInSheet } from './Tactics'
 import { ordinal } from './Menu'
 import { useRemember } from '../memory'
@@ -615,7 +615,7 @@ function PickSheet({ w, t, sheet, onClose, edit, comp }: { w: World; t?: LineupT
         </div>
         <div className="col" style={{ alignItems: 'flex-end', gap: 2 }}><Ovr v={slotPos ? posRating(p, slotPos) : p.ovr} size="sm" />{slotPos ? <SuitTag p={p} pos={slotPos} /> : null}</div>
       </div>
-      {inXI && slotPos && (() => { const su = suitability(p, slotPos); return su.level ? <div className={`suit-note s${su.level}`}>{su.label}. {su.note}</div> : null })()}
+      {inXI && slotPos && <SuitNote p={p} pos={slotPos} />}
       {inXI && (
         <div className="row wrap" style={{ gap: 6, marginTop: 12 }}>
           <button className={`chip ${sheet.captain === p.id ? 'on' : ''}`} onClick={() => duty('captain')}><Icon name="captain" size={14} /> Captain</button>

@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react'
 import type { Club, Competition, Fixture, TeamSheet, World } from '../../domain/types'
 import type { Formation } from '../../domain/constants'
-import { formationOf } from '../../domain/constants'
+import { formationOf, GROUP_COLOR, POS_GROUP } from '../../domain/constants'
+import type { Position } from '../../domain/types'
 import { Avatar, Badge, Face, ManagerAvatar } from './atoms'
 import { Icon } from '../icons/Icon'
 import { callName } from '../../engine/match/commentary'
@@ -44,6 +45,8 @@ export interface LPl {
   /** how well the slot suits him: 0 comfortable … 3 unsuited (see suitability) */
   suit?: 0 | 1 | 2 | 3
   suitNote?: string
+  /** his own position, when he plays somewhere else */
+  natural?: string
   pos?: string
 }
 export interface LSide {
@@ -78,6 +81,7 @@ export function sideFromSheet(w: World, clubId: number, sheet: Pick<TeamSheet, '
     return {
       id, captain: sheet.captain === id, energy: p.fitness,
       fit: slot != null ? posRating(p, f.slots[slot].pos) : undefined, pos: slot != null ? f.slots[slot].label : p.positions[0], suit: su?.level, suitNote: su ? `${su.label}. ${su.note}` : undefined,
+      natural: su?.level && p.positions[0] !== f.slots[slot!].pos ? p.positions[0] : undefined,
       status: st.key !== 'ok' && st.key !== 'listed' ? { icon: st.icon, color: st.color, label: st.label } : undefined,
     }
   }
@@ -104,6 +108,7 @@ export function sideFromSim(w: World, sim: MatchSim, side: 0 | 1): LSide {
       // (a starter's line shows when he went off; a substitute's, when he came on)
       subOn: started ? undefined : r.subOn, subOff: r.red ? undefined : r.subOff,
       captain: r.id === cap, injured: r.injured, energy: r.energy, pos: r.pos, suit: su?.level, suitNote: su ? `${su.label}. ${su.note}` : undefined,
+      natural: su?.level && p.positions[0] !== r.pos ? p.positions[0] : undefined,
     }
   }
   const rating = xiRating(rs.filter((r) => r.played && (r.subOn == null || r.subOn === 0) && r.rating > 0).map((r) => r.rating))
@@ -199,7 +204,7 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
         {assists > 0 && <span className="fl-ast"><Boots n={assists} size={15} /></span>}
         {s.subOn != null && <span className="fl-sub in"><Icon name="arrowUp" size={10} strokeWidth={3} /></span>}
         {s.subOff != null && <span className="fl-sub out"><Icon name="arrowDown" size={10} strokeWidth={3} /></span>}
-        {(mode === 'sheet' || energy) && !!s.suit && <SuitArc level={s.suit} size={size} note={s.suitNote} />}
+        {(mode === 'sheet' || energy) && !!s.suit && !!s.natural && <OutOfPosition level={s.suit} natural={s.natural} size={size} note={s.suitNote} />}
         {s.subOn == null && s.subOff == null && s.injured && <span className="fl-status" style={{ background: 'var(--neg)' }}><Icon name="injury" size={9} color="#fff" /></span>}
         {s.subOn == null && s.subOff == null && !s.injured && s.status && <span className="fl-status" style={{ background: s.status.color }}><Icon name={s.status.icon} size={9} color="#fff" /></span>}
       </div>
@@ -211,19 +216,16 @@ function PlNode({ w, s, club, left, top, small, onTap, sel, mode, energy }: { w:
 }
 
 /**
- * Out of position, drawn as a fine arc hugging the lower left of his face: the further from his game, the longer and
- * warmer it runs (can play there, out of position, unsuited). Nothing at all in his own position.
+ * Out of position: his own position across the foot of his face, as a player card's position band, in that position's
+ * colour (a midfielder's green in the back line says what is wrong at a glance). Solid when he is out of position or
+ * unsuited, a quiet glass band where it is a position he can play; the slot's rating beside his face says what it
+ * costs. It rises into place when he is moved there. Nothing at all in his own position.
  */
-const SUIT_ARC: Record<1 | 2 | 3, { deg: number; color: string }> = { 1: { deg: 52, color: '#f2c94c' }, 2: { deg: 92, color: '#f2994a' }, 3: { deg: 140, color: '#eb5757' } }
-function SuitArc({ level, size, note }: { level: 1 | 2 | 3; size: number; note?: string }) {
-  const { deg, color } = SUIT_ARC[level]
-  const box = size + 10, r = size / 2 + 3, c = 2 * Math.PI * r, len = (c * deg) / 360
-  // (the arc is centred on the lower left of the face; SVG angles run clockwise from three o'clock)
+function OutOfPosition({ level, natural, size, note }: { level: 1 | 2 | 3; natural: string; size: number; note?: string }) {
   return (
-    <svg className="fl-suit" width={box} height={box} viewBox={`0 0 ${box} ${box}`} role="img" aria-label={note}>
-      {note && <title>{note}</title>}
-      <circle cx={box / 2} cy={box / 2} r={r} fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeDasharray={`${len} ${c}`} transform={`rotate(${135 - deg / 2} ${box / 2} ${box / 2})`} />
-    </svg>
+    <span className={`fl-oop l${level}${size < 40 ? ' sm' : ''}`} role="img" aria-label={note} style={{ ['--grp' as string]: GROUP_COLOR[POS_GROUP[natural as Position] || 'MID'] }}>
+      <b>{natural}</b>
+    </span>
   )
 }
 

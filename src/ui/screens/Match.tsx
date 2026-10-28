@@ -6,7 +6,7 @@ import { DEFAULT_SPEEDS, useGame, useWorld, haptic } from '../../store/game'
 import { fmtSpeed } from '../components/SpeedEditor'
 import type { Fixture, MatchEvent, MatchResult, Player, TeamMatchStats, TeamTactics, World } from '../../domain/types'
 import { Icon } from '../icons/Icon'
-import { Badge, CompLogo, Face, Ovr } from '../components/atoms'
+import { Badge, CompLogo, Face, Ovr, PosChip } from '../components/atoms'
 import { Screen, Seg, Sheet, Tabs } from '../components/layout'
 import { Pitch } from '../components/Pitch'
 import { FORMATIONS, formationOf, MENTALITIES } from '../../domain/constants'
@@ -816,6 +816,14 @@ function ManageSheet({ open, onClose, sim, side, w, initialOut, prior }: { open:
 export function SuitTag({ p, pos, role }: { p: Player; pos: import('../../domain/types').Position; role?: string }) {
   const su = suitability(p, pos, role)
   return <span className={`suit-l s${su.level}`} title={su.note}>{su.level === 0 ? `at ${pos}` : su.label}</span>
+}
+
+/** Why a position costs him what it does: his own position (as on the pitch, in its colour), how far this is from it
+ *  and what it does to his game. Nothing in his own position. */
+export function SuitNote({ p, pos }: { p: Player; pos: import('../../domain/types').Position }) {
+  const su = suitability(p, pos)
+  if (!su.level) return null
+  return <div className={`suit-note s${su.level}`}>{p.positions[0] !== pos && <PosChip pos={p.positions[0]} />}<span><b>{su.label}.</b> {su.note}</span></div>
 }
 
 /** Best assignment of the players on the pitch to the slots of a new formation. */
